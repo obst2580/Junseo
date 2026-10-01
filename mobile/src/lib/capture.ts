@@ -30,3 +30,11 @@ export async function flattenPhoto(view: RefObject<View | null>): Promise<string
   // iOS 는 file:// 없는 경로를 준다
   return web || uri.includes('://') ? uri : `file://${uri}`;
 }
+
+/** 화면에 그린 뷰를 width×height px 그림으로 (템플릿 저장용) */
+export async function captureView(view: RefObject<View | null>, width: number, height: number): Promise<string> {
+  const web = Platform.OS === 'web';
+  const ratio = web ? 1 : PixelRatio.get();
+  const uri = await captureRef(view, { format: 'jpg', quality: 0.92, width: width / ratio, height: height / ratio, result: web ? 'data-uri' : 'tmpfile' });
+  return web || uri.includes('://') ? uri : `file://${uri}`;
+}

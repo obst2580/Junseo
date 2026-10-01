@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
-import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect, useNavigation } from 'expo-router';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
+import { Icon } from '@/components/Icon';
 import { PressScale } from '@/components/PressScale';
 import { useTabBarSpace } from '@/components/TabBar';
 import { Empty } from '@/components/ui';
@@ -17,6 +18,18 @@ const COLUMNS = 3;
 const GAP = 4;
 
 export default function HistoryScreen() {
+  const navigation = useNavigation();
+  // 오늘 사진으로 템플릿 만들기 (광고 한 번에 한 장)
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <PressScale onPress={() => router.push('/templates')} style={styles.templateButton} accessibilityRole="button" accessibilityLabel="오늘 템플릿 만들기">
+          <Icon name="template" size={18} color={colors.accentText} />
+          <Text style={styles.templateText}>오늘 템플릿</Text>
+        </PressScale>
+      ),
+    });
+  }, [navigation]);
   const tabBarSpace = useTabBarSpace();
   const { me } = useAuth();
   const { width } = useWindowDimensions();
@@ -97,6 +110,17 @@ export default function HistoryScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  templateButton: {
+    marginRight: 16,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: radius.button,
+    backgroundColor: colors.accent,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  templateText: { color: colors.accentText, fontSize: 14, fontWeight: '800' },
   grid: { padding: GAP, gap: GAP, alignSelf: 'center', width: '100%', maxWidth: 640 },
   // 사진 모서리는 디자인의 「사진 모서리」에 비례 (디자인 랩: × 0.32)
   thumb: { flex: 1, borderRadius: Math.round(radius.photo * 0.32), backgroundColor: colors.surface },

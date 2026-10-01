@@ -88,6 +88,8 @@ function RootStack() {
         <Stack.Screen name="messages/group/[id]" options={{ title: '' }} />
         <Stack.Screen name="profile" options={{ title: '내 정보' }} />
         <Stack.Screen name="widget-guide" options={{ title: '위젯 추가하기', presentation: 'modal' }} />
+        <Stack.Screen name="templates/index" options={{ title: '오늘 템플릿' }} />
+        <Stack.Screen name="templates/[id]" options={{ title: '' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
