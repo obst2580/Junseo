@@ -39,6 +39,7 @@ export const TemplateCanvas = forwardRef<View, { template: Template; photos: (Mo
             </View>
           );
         })}
+        {template.overlay && <Image source={template.overlay} style={StyleSheet.absoluteFill} contentFit="fill" pointerEvents="none" />}
       </View>
     );
   },

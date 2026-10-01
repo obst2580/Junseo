@@ -21,8 +21,10 @@ export type Template = {
   width: number;
   height: number;
   backgroundColor: string;
-  /** 디자인한 템플릿 그림 (사진 칸 자리는 비워 둔 그림) */
+  /** 디자인한 템플릿 그림 (사진 칸 자리에 예시 사진이 있어도 된다 — 사진이 덮는다) */
   background?: ImageSourcePropType;
+  /** 사진 위에 얹는 그림 (투명 PNG, 템플릿 크기 그대로). 사진 위로 올라가는 제목 글자 등 */
+  overlay?: ImageSourcePropType;
   slots: TemplateSlot[];
 };
 
@@ -37,6 +39,18 @@ export const TEMPLATES: Template[] = [
     backgroundColor: '#0b1a4a',
     background: require('../../assets/templates/news.jpg'),
     slots: [{ x: 100, y: 379, size: 999, radius: 186 }],
+  },
+  // 유튜브 썸네일처럼 사진 한 장 + 사진 위 제목 (1600×2000, 4:5). 칸 21~1577 × 75~1634, 모서리 반지름 약 285.
+  // 제목 「24시간 동안 뻘짓하기」는 그림에서 글자만 따내고 테두리·그림자를 다시 입혀 사진 위에 얹는다.
+  {
+    id: 'thumbnail',
+    name: '썸네일',
+    width: 1600,
+    height: 2000,
+    backgroundColor: '#0f0f0f',
+    background: require('../../assets/templates/thumbnail.jpg'),
+    overlay: require('../../assets/templates/thumbnail-title.png'),
+    slots: [{ x: 20, y: 74, size: 1560, radius: 283 }],
   },
 ];
 
