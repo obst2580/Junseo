@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Link } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
@@ -31,7 +32,7 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
         <View style={styles.hero}>
-          <Text style={styles.logo}>junseo</Text>
+          <Image source={require('../../assets/logo-mark.png')} style={styles.logo} contentFit="contain" accessibilityLabel="로고" />
           <Text style={styles.tagline}>친한 친구의 지금이{'\n'}내 홈 화면에 뜬다</Text>
         </View>
         <View style={styles.form}>
@@ -60,7 +61,8 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   container: { flex: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 40 },
   hero: { gap: 12 },
-  logo: { color: colors.accent, fontSize: 44, fontWeight: '900', letterSpacing: -1.5 },
+  // 로고 글자 (assets/logo-mark.png, 앱 아이콘과 같은 그림)
+  logo: { width: 72, height: 80 },
   tagline: { color: colors.text, fontSize: 24, fontWeight: '700', lineHeight: 32 },
   form: { gap: 14 },
   link: { color: colors.textDim, fontSize: 15, textAlign: 'center', paddingVertical: 8 },
