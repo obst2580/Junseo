@@ -102,7 +102,7 @@ export default function MomentScreen() {
   const myReactions = withUnsent(moment.myReactions, unsent);
   const myCount = (emoji: string) => myReactions.find((r) => r.emoji === emoji)?.count ?? 0;
 
-  // 한 이모지에 99번까지. 꾹 눌러 10개를 보낼 때 남은 만큼만 보낸다.
+  // 한 이모지에 99번까지. 꾹 눌러 3개를 보낼 때 남은 만큼만 보낸다.
   const tapEmoji = (emoji: string, count: number) => {
     const room = MAX_TAPS - myCount(emoji);
     if (room > 0) tap(emoji, Math.min(count, room));

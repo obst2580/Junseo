@@ -11,7 +11,7 @@ const HOLD_MS = 280;
 const CHARGE_MS = 650;
 const CHARGED_SCALE = 1.55;
 /** 꾹 눌렀다 떼면 한 번에 보내는 개수 */
-export const BURST_TAPS = 10;
+export const BURST_TAPS = 3;
 
 type Particle = { id: number; value: Animated.Value; dx: number; dy: number; burst: boolean };
 
@@ -19,7 +19,7 @@ let nextParticleId = 0;
 
 /**
  * 여러 번 누를 수 있는 이모지 버튼. 누를 때마다 톡 튀고, 같은 이모지가 하나씩 떠올라 사라진다.
- * 꾹 누르면 점점 커지다가, 떼는 순간 터지면서 같은 이모지 10개가 한 번에 올라간다.
+ * 꾹 누르면 점점 커지다가, 떼는 순간 터지면서 같은 이모지 3개가 한 번에 올라간다.
  * 손가락이 버튼 밖으로 나가거나 스크롤로 취소되면 아무것도 보내지 않고 원래 크기로 돌아간다.
  * 초록 테두리는 누르고 있는 동안에만 뜬다. 몇 번 눌렀는지·눌렀는지 여부는 버튼에 남기지 않는다.
  */
@@ -53,8 +53,8 @@ export function EmojiTapButton({ emoji, disabled, onTap }: { emoji: string; disa
     const burst = count > 1;
     const added = Array.from({ length: count }, (_, i): Particle => {
       if (!burst) return { id: nextParticleId++, value: new Animated.Value(0), dx: (Math.random() - 0.5) * 36, dy: -86, burst };
-      // 위쪽 부채꼴(-160°~-20°)로 고르게 퍼진다
-      const angle = ((-90 + (i / (count - 1) - 0.5) * 140 + (Math.random() - 0.5) * 12) * Math.PI) / 180;
+      // 위쪽 부채꼴로 고르게 퍼진다 (3개면 -130°~-50°)
+      const angle = ((-90 + (i / (count - 1) - 0.5) * Math.min(140, 40 * (count - 1)) + (Math.random() - 0.5) * 12) * Math.PI) / 180;
       const dist = 70 + Math.random() * 60;
       return { id: nextParticleId++, value: new Animated.Value(0), dx: Math.cos(angle) * dist, dy: Math.sin(angle) * dist, burst };
     });
