@@ -1,4 +1,7 @@
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import type { RefObject } from 'react';
+import { PixelRatio, Platform, type View } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 
 const SIZE = 1080;
 
@@ -14,4 +17,16 @@ export async function toSquareJpeg(uri: string, width: number, height: number): 
   const image = await context.renderAsync();
   const result = await image.saveAsync({ format: SaveFormat.JPEG, compress: 0.85 });
   return result.uri;
+}
+
+/**
+ * 사진과 그 위에 얹은 눈 가리개·텍스트를 한 장의 1080px JPEG로 합친다.
+ * iOS 는 크기를 pt 로 받아 화면 배율을 곱하고, 웹은 px 로 받는다.
+ */
+export async function flattenPhoto(view: RefObject<View | null>): Promise<string> {
+  const web = Platform.OS === 'web';
+  const side = web ? SIZE : SIZE / PixelRatio.get();
+  const uri = await captureRef(view, { format: 'jpg', quality: 0.9, width: side, height: side, result: web ? 'data-uri' : 'tmpfile' });
+  // iOS 는 file:// 없는 경로를 준다
+  return web || uri.includes('://') ? uri : `file://${uri}`;
 }

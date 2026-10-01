@@ -7,16 +7,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { PhotoLayerView } from '@/components/PhotoLayerView';
+import { TextLayerEditor } from '@/components/TextLayerEditor';
 import { Avatar, Button, IconButton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { toSquareJpeg } from '@/lib/capture';
+import { flattenPhoto, toSquareJpeg } from '@/lib/capture';
 import { pickLenses, type Zoom } from '@/lib/lenses';
 import { events } from '@/lib/events';
+import { newBar, newText, type PhotoLayer } from '@/lib/photoLayers';
 import { colors, radius } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
 type Shot = { uri: string };
+
+const TRASH_SIZE = 46;
+const TRASH_BOTTOM = 12;
 
 export default function CameraScreen() {
   const { me, refreshMe } = useAuth();
@@ -31,6 +37,11 @@ export default function CameraScreen() {
   const { ultra, wide } = pickLenses(lenses);
   const selectedLens = zoom === 'ultra' && ultra ? ultra : wide;
   const [shot, setShot] = useState<Shot | null>(null);
+  // 찍은 사진 위에 얹은 눈 가리개·텍스트. 보낼 때 사진에 합성한다.
+  const photoRef = useRef<View>(null);
+  const [layers, setLayers] = useState<PhotoLayer[]>([]);
+  const [dragging, setDragging] = useState<{ overTrash: boolean } | null>(null);
+  const [editing, setEditing] = useState<{ id: number | null; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // 친구 수가 바뀌었을 수 있다 (친구 화면에서 돌아올 때 등)
@@ -52,6 +63,7 @@ export default function CameraScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const picture = await cameraRef.current.takePictureAsync({ quality: 0.9, shutterSound: false });
       setShot({ uri: await toSquareJpeg(picture.uri, picture.width, picture.height) });
+      setLayers([]);
     } catch {
       setToast('사진을 찍지 못했어요.');
     } finally {
@@ -59,18 +71,41 @@ export default function CameraScreen() {
     }
   };
 
+  const retake = () => {
+    setShot(null);
+    setLayers([]);
+  };
+
+  // 만진 요소는 맨 앞으로 온다
+  const changeLayer = (next: PhotoLayer) => setLayers((list) => [...list.filter((l) => l.id !== next.id), next]);
+  const removeLayer = (id: number) => setLayers((list) => list.filter((l) => l.id !== id));
+  const finishText = (text: string) => {
+    const target = editing;
+    setEditing(null);
+    if (!target) return;
+    if (target.id === null) {
+      if (text) setLayers((list) => [...list, newText(text)]);
+      return;
+    }
+    setLayers((list) =>
+      text ? list.map((l) => (l.id === target.id && l.kind === 'text' ? { ...l, text } : l)) : list.filter((l) => l.id !== target.id),
+    );
+  };
+
   const send = async () => {
     if (!shot) return;
     setBusy(true);
     try {
+      const uri = layers.length ? await flattenPhoto(photoRef) : shot.uri;
       if (Platform.OS === 'web') {
-        const blob = await (await fetch(shot.uri)).blob();
+        const blob = await (await fetch(uri)).blob();
         await api.uploadMomentBlob(blob);
       } else {
-        await api.uploadMoment(shot.uri);
+        await api.uploadMoment(uri);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setShot(null);
+      setLayers([]);
       setToast(`친구 ${me?.friendCount ?? 0}명에게 보냈어요`);
       widgetBridge.reload();
       events.emit('moments');
@@ -101,7 +136,50 @@ export default function CameraScreen() {
       <View style={styles.center}>
         <View style={[styles.viewport, { width: size, height: size }]}>
           {shot ? (
-            <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <>
+              {/* 이 뷰가 그대로 합성된다. 도구·휴지통은 바깥에 둔다. */}
+              <View ref={photoRef} collapsable={false} style={StyleSheet.absoluteFill}>
+                <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                {layers
+                  .filter((l) => l.id !== editing?.id)
+                  .map((l) => (
+                    <PhotoLayerView
+                      key={l.id}
+                      layer={l}
+                      size={size}
+                      photoRef={photoRef}
+                      trash={{ x: size / 2, y: size - TRASH_BOTTOM - TRASH_SIZE / 2, radius: 44 }}
+                      onDrag={setDragging}
+                      onChange={changeLayer}
+                      onRemove={removeLayer}
+                      onTap={(t) => (t.kind === 'text' ? setEditing({ id: t.id, text: t.text }) : changeLayer(t))}
+                    />
+                  ))}
+              </View>
+              {dragging ? (
+                <View style={[styles.trash, dragging.overTrash && styles.trashHot]}>
+                  <Ionicons name="trash-outline" size={22} color="#fff" />
+                </View>
+              ) : (
+                <View style={styles.zoomRow}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      setLayers((list) => [...list, newBar()]);
+                    }}
+                    style={styles.tool}
+                    accessibilityRole="button"
+                    accessibilityLabel="눈 가리개 추가">
+                    <View style={styles.barIcon} />
+                    <Text style={styles.toolText}>눈 가리개</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setEditing({ id: null, text: '' })} style={styles.tool} accessibilityRole="button" accessibilityLabel="텍스트 추가">
+                    <Text style={styles.aa}>Aa</Text>
+                    <Text style={styles.toolText}>텍스트</Text>
+                  </Pressable>
+                </View>
+              )}
+            </>
           ) : permission?.granted ? (
             <>
               <CameraView
@@ -158,7 +236,7 @@ export default function CameraScreen() {
       <View style={styles.controls}>
         {shot ? (
           <>
-            <IconButton icon="close" size={28} onPress={() => setShot(null)} label="다시 찍기" style={styles.sideButton} />
+            <IconButton icon="close" size={28} onPress={retake} label="다시 찍기" style={styles.sideButton} />
             <Pressable
               onPress={send}
               disabled={busy || noFriends}
@@ -195,6 +273,7 @@ export default function CameraScreen() {
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       )}
+      {editing && <TextLayerEditor initial={editing.text} onDone={finishText} />}
     </SafeAreaView>
   );
 }
@@ -230,6 +309,24 @@ const styles = StyleSheet.create({
   zoomPillOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
   zoomText: { color: '#fff', fontSize: 12, fontWeight: '700' },
   zoomTextOn: { color: colors.accent, fontSize: 13 },
+  // 찍은 뒤에는 렌즈 버튼 자리에 꾸미기 도구가 뜬다
+  tool: { height: 34, borderRadius: 17, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12 },
+  toolText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  barIcon: { width: 18, height: 6, borderRadius: 1, backgroundColor: '#000', borderWidth: 1.5, borderColor: '#fff' },
+  aa: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: -0.3 },
+  trash: {
+    position: 'absolute',
+    bottom: TRASH_BOTTOM,
+    alignSelf: 'center',
+    width: TRASH_SIZE,
+    height: TRASH_SIZE,
+    borderRadius: TRASH_SIZE / 2,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  },
+  trashHot: { backgroundColor: colors.danger, transform: [{ scale: 1.18 }] },
   permission: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   permissionText: { color: colors.textDim, fontSize: 15, textAlign: 'center', lineHeight: 22 },
   busy: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },

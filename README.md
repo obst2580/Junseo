@@ -2,6 +2,7 @@
 
 친한 친구(최대 20명)가 찍은 사진이 **내 홈 화면 위젯에 바로 뜨는** iOS 앱입니다.
 위젯에는 사진과 함께 친구들이 남긴 **이모지 반응과 댓글**이 사진 아래에 같이 보입니다. 사진에 **1:1 답장**을 보내면 대화로 이어집니다.
+찍은 사진에는 기생충 포스터 같은 **눈 가리개**와 **텍스트**를 얹을 수 있고, 보낼 때 사진에 합성됩니다 (`react-native-view-shot`).
 
 | 카메라 | 히스토리 | 사진 상세 | 위젯 안내 |
 |---|---|---|---|
@@ -64,7 +65,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 67개
+./gradlew test                                            # 통합·단위 테스트 68개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화가 들어 있습니다.
@@ -99,7 +100,7 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 67개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 68개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 최소 iOS 17). Swift 파일은 문법 검사만 했고, **Xcode 컴파일과 실기기 확인은 아직** 하지 못했습니다.
 
@@ -109,3 +110,4 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 - 토큰 갱신(지금은 30일 토큰 하나), 위젯·알림 확장의 토큰을 App Group UserDefaults 대신 공유 키체인으로
 - 사진 저장소를 S3 + CDN 으로 (`MediaStorage` 인터페이스만 바꾸면 됨)
 - 채팅 실시간 연결 (지금은 화면이 열려 있는 동안 5초마다 확인 + 푸시)
+- 눈 가리개 자동 위치: iOS Vision 얼굴 인식으로 눈 위에 바로 얹기 (지금은 손으로 옮기고 두 손가락으로 크기·각도 조절)
