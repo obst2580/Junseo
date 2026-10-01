@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { BURST_TAPS, EmojiTapButton } from '@/components/EmojiTapButton';
+import { EmojiTapButton } from '@/components/EmojiTapButton';
 import { PinchToZoom } from '@/components/PinchZoom';
 import { Avatar, Empty, ErrorText, IconButton } from '@/components/ui';
 import { api, ApiError, type Comment, type MomentDetail, type ReactionCount } from '@/lib/api';
@@ -111,16 +111,6 @@ export default function MomentScreen() {
     if (room > 0) tap(emoji, Math.min(count, room));
   };
 
-  const clearMine = async () => {
-    try {
-      await api.clearReactions(moment.id);
-      await load();
-      changed();
-    } catch (e) {
-      setNotice({ text: e instanceof ApiError ? e.message : '반응을 지우지 못했어요.', error: true });
-    }
-  };
-
   const submit = async () => {
     const body = text.trim();
     if (!body) return;
@@ -198,14 +188,6 @@ export default function MomentScreen() {
                   <EmojiTapButton key={e} emoji={e} disabled={myCount(e) >= MAX_TAPS} onTap={tapEmoji} />
                 ))}
               </View>
-              <View style={styles.reactHint}>
-                <Text style={styles.dim}>여러 번 눌러도 돼요 · 꾹 누르면 {BURST_TAPS}개</Text>
-                {myReactions.length > 0 && (
-                  <Pressable onPress={clearMine} hitSlop={8}>
-                    <Text style={styles.clear}>내 반응 지우기</Text>
-                  </Pressable>
-                )}
-              </View>
             </View>
           )}
 
@@ -274,8 +256,6 @@ const styles = StyleSheet.create({
   reactionCount: { color: colors.text, fontSize: 13, fontWeight: '700' },
   reactBlock: { alignSelf: 'stretch', gap: 10 },
   emojiRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
-  reactHint: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 },
-  clear: { color: colors.textDim, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   comments: { alignSelf: 'stretch', gap: 12, paddingHorizontal: 8, paddingBottom: 12 },
   sectionTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
   dim: { color: colors.textDim, fontSize: 14 },
