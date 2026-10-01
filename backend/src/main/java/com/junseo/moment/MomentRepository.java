@@ -79,4 +79,12 @@ public interface MomentRepository extends JpaRepository<Moment, Long> {
             insert into moment_recipients (moment_id, recipient_id)
             select :momentId, f.friend_id from friendships f where f.user_id = :senderId""")
     int snapshotRecipients(long momentId, long senderId);
+
+    /** Like {@link #snapshotRecipients} but only the chosen friends; returns how many were friends. */
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            insert into moment_recipients (moment_id, recipient_id)
+            select :momentId, f.friend_id from friendships f
+            where f.user_id = :senderId and f.friend_id in (:recipientIds)""")
+    int snapshotChosenRecipients(long momentId, long senderId, Collection<Long> recipientIds);
 }

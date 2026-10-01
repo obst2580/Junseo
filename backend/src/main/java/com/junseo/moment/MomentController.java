@@ -4,6 +4,7 @@ import com.junseo.common.CursorPage;
 import com.junseo.common.security.CurrentUser;
 import com.junseo.media.ImageProcessor;
 import java.io.IOException;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,10 +29,15 @@ public class MomentController {
         this.imageProcessor = imageProcessor;
     }
 
+    /** recipientIds 를 빼면 친구 전체에게, 넣으면 그 친구들에게만 보낸다. */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    MomentView upload(@CurrentUser long me, @RequestPart("image") MultipartFile image) throws IOException {
-        return momentService.create(me, imageProcessor.process(image.getBytes()));
+    MomentView upload(
+            @CurrentUser long me,
+            @RequestPart("image") MultipartFile image,
+            @RequestParam(name = "recipientIds", required = false) List<Long> recipientIds)
+            throws IOException {
+        return momentService.create(me, imageProcessor.process(image.getBytes()), recipientIds);
     }
 
     @GetMapping

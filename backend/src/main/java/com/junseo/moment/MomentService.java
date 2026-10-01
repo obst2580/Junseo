@@ -10,7 +10,10 @@ import com.junseo.media.MediaStorage.Variant;
 import com.junseo.moment.MomentEvents.MomentCreated;
 import com.junseo.moment.MomentEvents.MomentDeleted;
 import java.time.Clock;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,12 +43,27 @@ public class MomentService {
         this.clock = clock;
     }
 
-    /** The image is processed before this call so no DB connection is held during decoding. */
+    /**
+     * The image is processed before this call so no DB connection is held during decoding.
+     * recipientIds null means every current friend; otherwise only those, and each must be a friend.
+     */
     @Transactional
-    public MomentView create(long senderId, ProcessedImage image) {
+    public MomentView create(long senderId, ProcessedImage image, List<Long> recipientIds) {
         Moment moment = moments.save(new Moment(senderId, clock.instant()));
         long id = moment.getId();
-        moments.snapshotRecipients(id, senderId);
+        if (recipientIds == null) {
+            moments.snapshotRecipients(id, senderId);
+        } else {
+            Set<Long> chosen = new LinkedHashSet<>(recipientIds);
+            chosen.removeIf(Objects::isNull);
+            if (chosen.isEmpty()) {
+                throw new ApiException(ErrorCode.VALIDATION_FAILED, "받을 친구를 한 명 이상 골라 주세요.");
+            }
+            // Only rows for actual friends are inserted, so a shorter count means someone isn't a friend.
+            if (moments.snapshotChosenRecipients(id, senderId, chosen) != chosen.size()) {
+                throw new ApiException(ErrorCode.NOT_FRIENDS, "친구에게만 사진을 보낼 수 있어요.");
+            }
+        }
         Transactions.afterRollback(() -> deleteFiles(id));
         storage.put(MediaStorage.key(id, Variant.FULL), image.full());
         storage.put(MediaStorage.key(id, Variant.THUMB), image.thumb());

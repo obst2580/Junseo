@@ -97,6 +97,14 @@ public abstract class IntegrationTest {
                 .header(HttpHeaders.AUTHORIZATION, bearer(user)));
     }
 
+    /** Upload to only the given friends (multipart field recipientIds, repeated). */
+    protected ResultActions uploadTo(TestUser user, String... recipientIds) throws Exception {
+        return mvc.perform(multipart("/api/moments")
+                .file(new MockMultipartFile("image", "photo.jpg", "image/jpeg", TestImages.jpeg(64, 48)))
+                .param("recipientIds", recipientIds)
+                .header(HttpHeaders.AUTHORIZATION, bearer(user)));
+    }
+
     protected String registerDevice(TestUser user, String kind) throws Exception {
         byte[] raw = new byte[32];
         ThreadLocalRandom.current().nextBytes(raw);

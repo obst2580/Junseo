@@ -98,7 +98,7 @@
 
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| POST | `/api/moments` | multipart `image` (JPEG/PNG, 10MB 이하) | 201 `Moment` |
+| POST | `/api/moments` | multipart `image` (JPEG/PNG, 10MB 이하), `recipientIds` (선택, 여러 번: 받을 친구 id. 빼면 친구 전체) | 201 `Moment`. 친구가 아닌 id 가 있으면 403 `NOT_FRIENDS`, 비어 있으면 400 |
 | GET | `/api/moments?cursor=&limit=30&userId=` | | 200 `{ items: [Moment], nextCursor: string \| null }` 최신순 |
 | GET | `/api/moments/{id}` | | 200 `Moment` + `"comments": [Comment]` (전체, 오래된 순) |
 | DELETE | `/api/moments/{id}` | | 204 (보낸 사람만) |

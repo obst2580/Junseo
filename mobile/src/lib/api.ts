@@ -106,15 +106,18 @@ export const api = {
   addFriend: (inviteCode: string) => request<UserSummary>('/api/friends', { method: 'POST', body: { inviteCode } }),
   removeFriend: (userId: number) => request<void>(`/api/friends/${userId}`, { method: 'DELETE' }),
 
-  uploadMoment: (fileUri: string) => {
+  /** recipientIds 를 주면 그 친구들에게만, 빼면 친구 전체에게 보낸다. */
+  uploadMoment: (fileUri: string, recipientIds?: number[]) => {
     const form = new FormData();
     // React Native 의 FormData 는 { uri, name, type } 객체를 파일로 보낸다.
     form.append('image', { uri: fileUri, name: 'moment.jpg', type: 'image/jpeg' } as unknown as Blob);
+    recipientIds?.forEach((id) => form.append('recipientIds', String(id)));
     return request<Moment>('/api/moments', { method: 'POST', form });
   },
-  uploadMomentBlob: (blob: Blob) => {
+  uploadMomentBlob: (blob: Blob, recipientIds?: number[]) => {
     const form = new FormData();
     form.append('image', blob, 'moment.jpg');
+    recipientIds?.forEach((id) => form.append('recipientIds', String(id)));
     return request<Moment>('/api/moments', { method: 'POST', form });
   },
   moments: (params: { cursor?: string | null; userId?: number | null; limit?: number } = {}) =>

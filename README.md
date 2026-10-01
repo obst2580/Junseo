@@ -2,6 +2,7 @@
 
 친한 친구(최대 20명)가 찍은 사진이 **내 홈 화면 위젯에 바로 뜨는** iOS 앱입니다.
 위젯에는 사진과 함께 친구들이 남긴 **이모지 반응과 댓글**이 사진 아래에 같이 보입니다. 사진에 **1:1 답장**을 보내면 대화로 이어집니다.
+보낼 때는 카메라 위 「친구 n명」을 눌러 **받을 친구를 고를** 수 있습니다 (기본은 친구 전체, 보내기 싫은 친구만 빼기).
 찍은 사진에는 기생충 포스터 같은 **눈 가리개**와 **텍스트**를 얹을 수 있고, 보낼 때 사진에 합성됩니다 (`react-native-view-shot`).
 글자 모양은 기본 · 궁서체 · 길쭉(예능 썸네일처럼 세로로 긴 고딕 A1 ExtraBold, 세로 3.2배) 세 가지이고, 모두 흰 글자에 그림자입니다. 궁서체 글꼴은 은 궁서(은글꼴, GNU GPL 2.0)를 원본 그대로 `mobile/assets/fonts` 에 넣었습니다. App Store 에 내기 전에 라이선스를 확인하세요 (GPL 글꼴을 App Store 앱에 넣는 것은 해석이 갈립니다).
 
@@ -66,7 +67,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 68개
+./gradlew test                                            # 통합·단위 테스트 71개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화가 들어 있습니다.
@@ -101,7 +102,7 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 68개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 71개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 최소 iOS 17). Swift 파일은 문법 검사만 했고, **Xcode 컴파일과 실기기 확인은 아직** 하지 못했습니다.
 

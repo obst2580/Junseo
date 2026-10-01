@@ -65,6 +65,16 @@ class PushIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void onlyChosenRecipientsGetTheNewMomentPushes() throws Exception {
+        uploadTo(owner, String.valueOf(b.id())).andExpect(status().isCreated());
+
+        awaitOne(bDevices.app());
+        awaitOne(bDevices.widget());
+        await().during(Duration.ofMillis(300)).atMost(WAIT)
+                .until(() -> push.to(cDevices.app()).isEmpty() && push.to(cDevices.widget()).isEmpty());
+    }
+
+    @Test
     void reactionAlertsOwnerAndRefreshesWidgetViewersExceptActor() throws Exception {
         long m = upload(owner);
         settle();

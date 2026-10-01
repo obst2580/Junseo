@@ -148,6 +148,45 @@ class MomentIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void onlyChosenRecipientsCanSeeIt() throws Exception {
+        var a = signup("민지");
+        var b = signup("지우");
+        var left = signup("서연");
+        befriend(a, b);
+        befriend(a, left);
+        long m = longAt(body(uploadTo(a, String.valueOf(b.id())).andExpect(status().isCreated()).andReturn()), "$.id");
+
+        getAs(b, "/api/moments/" + m).andExpect(status().isOk());
+        getAs(b, "/api/widget/latest").andExpect(jsonPath("$.moment.id").value(m));
+        getAs(left, "/api/moments/" + m).andExpect(status().isNotFound());
+        getAs(left, "/api/moments").andExpect(jsonPath("$.items", hasSize(0)));
+        getAs(left, "/api/widget/latest").andExpect(status().isNoContent());
+        postJson("/api/moments/" + m + "/reactions", left, Map.of("emoji", "👍")).andExpect(status().isNotFound());
+        getAs(a, "/api/moments").andExpect(jsonPath("$.items[*].id", contains((int) m)));
+    }
+
+    @Test
+    void recipientsMustBeFriendsAndAtLeastOne() throws Exception {
+        var a = signup("민지");
+        var b = signup("지우");
+        var stranger = signup("모르는사람");
+        befriend(a, b);
+
+        uploadTo(a, String.valueOf(b.id()), String.valueOf(stranger.id()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("NOT_FRIENDS"));
+        uploadTo(a, "")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        uploadTo(a, "abc").andExpect(status().isBadRequest());
+        // 실패한 업로드는 아무것도 남기지 않는다
+        getAs(a, "/api/moments").andExpect(jsonPath("$.items", hasSize(0)));
+        assertThat(jdbc.queryForObject("select count(*) from moment_recipients", Long.class)).isZero();
+        // 같은 친구를 두 번 적어도 한 번만 받는다
+        uploadTo(a, String.valueOf(b.id()), String.valueOf(b.id())).andExpect(status().isCreated());
+    }
+
+    @Test
     void unfriendHidesTheMomentEverywhere() throws Exception {
         var a = signup("민지");
         var b = signup("지우");

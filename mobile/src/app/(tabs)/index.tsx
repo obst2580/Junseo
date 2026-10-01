@@ -8,9 +8,10 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWind
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { LayerPinchArea, PhotoLayerView, type LayerControl } from '@/components/PhotoLayerView';
+import { RecipientSheet } from '@/components/RecipientSheet';
 import { TextLayerEditor } from '@/components/TextLayerEditor';
 import { Avatar, Button, IconButton } from '@/components/ui';
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { flattenPhoto, toSquareJpeg } from '@/lib/capture';
 import { pickLenses, type Zoom } from '@/lib/lenses';
@@ -52,9 +53,17 @@ export default function CameraScreen() {
   const [editing, setEditing] = useState<{ id: number | null; text: string; font: TextFont } | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  // 친구 수가 바뀌었을 수 있다 (친구 화면에서 돌아올 때 등)
+  // 받는 친구: 기본은 전체, 뺀 친구만 기억한다 (새로 사귄 친구는 자동으로 들어간다). 앱을 다시 켜면 전체로 돌아간다.
+  const [friends, setFriends] = useState<UserSummary[] | null>(null);
+  const [excluded, setExcluded] = useState<Set<number>>(() => new Set());
+  const [picking, setPicking] = useState(false);
+  // 친구가 바뀌었을 수 있다 (친구 화면에서 돌아올 때 등)
   const load = useCallback(() => {
     refreshMe().catch(() => {});
+    api
+      .friends()
+      .then((r) => setFriends(r.friends))
+      .catch(() => {});
   }, [refreshMe]);
   useFocusEffect(load);
 
@@ -115,8 +124,19 @@ export default function CameraScreen() {
     else removeLayer(target.id);
   };
 
+  const totalFriends = friends?.length ?? me?.friendCount ?? 0;
+  const recipients = friends?.filter((f) => !excluded.has(f.id)) ?? null;
+  const chosenCount = recipients?.length ?? totalFriends;
+  const someExcluded = chosenCount < totalFriends;
+
   const send = async () => {
     if (!shot) return;
+    if (chosenCount === 0) {
+      setToast('받을 친구를 한 명 이상 골라 주세요');
+      return;
+    }
+    // 전체에게 보낼 때는 목록을 보내지 않는다 (서버가 그때의 친구 전체로 정한다)
+    const recipientIds = someExcluded && recipients ? recipients.map((f) => f.id) : undefined;
     setBusy(true);
     try {
       let uri = shot.uri;
@@ -127,15 +147,15 @@ export default function CameraScreen() {
       }
       if (Platform.OS === 'web') {
         const blob = await (await fetch(uri)).blob();
-        await api.uploadMomentBlob(blob);
+        await api.uploadMomentBlob(blob, recipientIds);
       } else {
-        await api.uploadMoment(uri);
+        await api.uploadMoment(uri, recipientIds);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setShot(null);
       setLayers([]);
       setSelectedId(null);
-      setToast(`친구 ${me?.friendCount ?? 0}명에게 보냈어요`);
+      setToast(`친구 ${chosenCount}명에게 보냈어요`);
       widgetBridge.reload();
       events.emit('moments');
     } catch (e) {
@@ -153,9 +173,17 @@ export default function CameraScreen() {
         <Pressable onPress={() => router.push('/profile')} accessibilityLabel="내 정보">
           {me && <Avatar id={me.id} name={me.displayName} size={44} />}
         </Pressable>
-        <Pressable style={styles.friendsPill} onPress={() => router.push('/friends')}>
-          <Ionicons name="people" size={16} color={colors.text} />
-          <Text style={styles.friendsPillText}>{noFriends ? '친구 추가' : `친구 ${me?.friendCount}명`}</Text>
+        {/* 누르면 보낼 친구를 고른다. 친구가 없으면 친구 추가로 */}
+        <Pressable
+          style={[styles.friendsPill, someExcluded && styles.friendsPillPartial]}
+          onPress={() => (noFriends || !friends ? router.push('/friends') : setPicking(true))}
+          accessibilityRole="button"
+          accessibilityLabel={noFriends ? '친구 추가' : '보낼 친구 고르기'}>
+          <Ionicons name="people" size={16} color={someExcluded ? colors.accent : colors.text} />
+          <Text style={[styles.friendsPillText, someExcluded && { color: colors.accent }]}>
+            {noFriends ? '친구 추가' : someExcluded ? `${totalFriends}명 중 ${chosenCount}명` : `친구 ${totalFriends}명`}
+          </Text>
+          {!noFriends && <Ionicons name="chevron-down" size={14} color={someExcluded ? colors.accent : colors.textDim} />}
         </Pressable>
         {/* 메시지는 아래 챗 탭으로 옮겼다. 가운데 정렬을 위해 같은 폭만 비워 둔다. */}
         <View style={{ width: 44 }} />
@@ -273,7 +301,7 @@ export default function CameraScreen() {
             <Pressable
               onPress={send}
               disabled={busy || noFriends}
-              style={({ pressed }) => [styles.sendButton, (busy || noFriends) && { opacity: 0.4 }, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [styles.sendButton, (busy || noFriends || chosenCount === 0) && { opacity: 0.4 }, pressed && { opacity: 0.7 }]}
               accessibilityLabel="보내기">
               <Ionicons name="paper-plane" size={34} color={colors.accentText} />
             </Pressable>
@@ -307,6 +335,18 @@ export default function CameraScreen() {
         </View>
       )}
       {editing && <TextLayerEditor initial={editing.text} initialFont={editing.font} onDone={finishText} />}
+      {picking && friends && (
+        <RecipientSheet
+          friends={friends}
+          excluded={excluded}
+          onChange={setExcluded}
+          onClose={() => setPicking(false)}
+          onManage={() => {
+            setPicking(false);
+            router.push('/friends');
+          }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -324,6 +364,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHigh,
   },
   friendsPillText: { color: colors.text, fontSize: 15, fontWeight: '700' },
+  // 일부만 고르면 강조색 테두리로 표시한다
+  friendsPillPartial: { borderWidth: 1.5, borderColor: colors.accent },
   // 사진 칸 + 셔터 묶음은 상단 바와 탭 바 사이 가운데에 둔다.
   body: { flex: 1, justifyContent: 'center' },
   center: { alignItems: 'center', gap: 14 },
