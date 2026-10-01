@@ -13,7 +13,8 @@ import { radius } from '@/lib/theme';
  */
 export const SLOT_CORNER = radius.photo / 366;
 
-export type TemplateSlot = { x: number; y: number; size: number };
+/** radius: 그림에 그려진 칸의 모서리(px). 없으면 카메라 화면 비율(SLOT_CORNER). */
+export type TemplateSlot = { x: number; y: number; size: number; radius?: number };
 export type Template = {
   id: string;
   name: string;
@@ -23,25 +24,19 @@ export type Template = {
   /** 디자인한 템플릿 그림 (사진 칸 자리는 비워 둔 그림) */
   background?: ImageSourcePropType;
   slots: TemplateSlot[];
-  /** 그림 대신 코드로 그리는 장식 (날짜 · 로고) */
-  decor?: 'dateAndLogo';
 };
 
-// 템플릿을 받기 전까지 쓰는 임시 템플릿 하나 (인스타 스토리 9:16, 2×2)
 export const TEMPLATES: Template[] = [
+  // 뉴스 앵커 옆 화면에 사진 한 장 (2160×2700, 4:5). 칸 위치·모서리는 받은 그림에서 쟀다
+  // (칸 101~1096 × 380~1379, 모서리 반지름 약 188). 그림 속 예시 사진을 다 덮도록 1px 넉넉하게.
   {
-    id: 'basic',
-    name: '임시 템플릿',
-    width: 1080,
-    height: 1920,
-    backgroundColor: '#0e0d0c',
-    slots: [
-      { x: 60, y: 360, size: 465 },
-      { x: 555, y: 360, size: 465 },
-      { x: 60, y: 855, size: 465 },
-      { x: 555, y: 855, size: 465 },
-    ],
-    decor: 'dateAndLogo',
+    id: 'news',
+    name: '뉴스',
+    width: 2160,
+    height: 2700,
+    backgroundColor: '#0b1a4a',
+    background: require('../../assets/templates/news.jpg'),
+    slots: [{ x: 100, y: 379, size: 999, radius: 186 }],
   },
 ];
 
