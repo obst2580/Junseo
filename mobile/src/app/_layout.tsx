@@ -1,5 +1,3 @@
-import { Hahmlet_900Black } from '@expo-google-fonts/hahmlet/900Black';
-import { Jua_400Regular } from '@expo-google-fonts/jua/400Regular';
 import { useFonts } from 'expo-font';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -18,8 +16,9 @@ const theme = {
 };
 
 export default function RootLayout() {
-  // 사진에 얹는 글자 모양(예능·천리마)용. 기다리지 않는다 — 다 받기 전에는 기본 글꼴로 보인다.
-  useFonts({ Jua_400Regular, Hahmlet_900Black });
+  // 사진에 얹는 「북한」 글자 모양용 제주한라산체 (SIL OFL, assets/fonts 에 원본 그대로).
+  // 기다리지 않는다 — 다 불러오기 전에는 기본 글꼴로 보인다.
+  useFonts({ JejuHallasan: require('../../assets/fonts/JejuHallasan-Regular.ttf') });
   return (
     <ThemeProvider value={theme}>
       <AuthProvider>

@@ -2,23 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { NK } from '@/lib/nkText';
 import { cleanLayerText, FONT_FAMILY, TEXT, TEXT_FONTS, type TextFont } from '@/lib/photoLayers';
 import { colors, radius } from '@/lib/theme';
 
 // 입력하는 동안 보이는 모양 (사진 위 모양과 비슷하게)
 const INPUT_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
-  variety: { fontFamily: FONT_FAMILY.variety, fontSize: 32, color: '#8f3dff', textShadowColor: '#fff', textShadowRadius: 3 },
-  chollima: { fontFamily: FONT_FAMILY.chollima, color: '#e1001a', textShadowColor: 'transparent' },
+  nk: { fontFamily: FONT_FAMILY.nk, fontSize: 30, color: NK.color, textShadowColor: 'transparent' },
 };
 const CHIP_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
-  variety: { fontFamily: FONT_FAMILY.variety, fontSize: 16, color: '#b58cff' },
-  chollima: { fontFamily: FONT_FAMILY.chollima, color: '#ff3b4e' },
+  nk: { fontFamily: FONT_FAMILY.nk, fontSize: 16, color: '#ff3b3b' },
 };
 
 /**
- * 사진에 넣을 글자를 입력하는 화면. 위에서 글자 모양(기본·예능·천리마)을 고른다.
+ * 사진에 넣을 글자를 입력하는 화면. 위에서 글자 모양(기본·북한)을 고른다.
  * 완료·줄바꿈 키·바깥 누르기로 닫는다. 비운 채 닫으면 onDone('') — 고치던 글자라면 지운다.
  */
 export function TextLayerEditor({ initial, initialFont, onDone }: { initial: string; initialFont: TextFont; onDone: (text: string, font: TextFont) => void }) {
