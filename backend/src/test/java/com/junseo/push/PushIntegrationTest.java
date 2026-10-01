@@ -69,7 +69,7 @@ class PushIntegrationTest extends IntegrationTest {
         long m = upload(owner);
         settle();
 
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍")).andExpect(status().isOk());
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "👍")).andExpect(status().isOk());
 
         awaitOne(cDevices.widget());
         Map<?, ?> payload = payload(awaitOne(ownerDevices.app()));
@@ -82,8 +82,26 @@ class PushIntegrationTest extends IntegrationTest {
         // The owner's widget shows photos received from friends, never their own.
         assertThat(push.to(ownerDevices.widget())).isEmpty();
 
-        // Sending the same emoji again changes nothing and notifies no one.
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍")).andExpect(status().isOk());
+        // Tapping again within a minute adds a tap but notifies no one.
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "👍")).andExpect(status().isOk());
+        postJson("/api/conversations/" + owner.id() + "/messages", b, Map.of("text", "marker")).andExpect(status().isCreated());
+        await().atMost(WAIT).until(() -> push.to(ownerDevices.app()).size() == 2);
+        assertThat(payload(push.to(ownerDevices.app()).get(1)).get("type")).isEqualTo("message");
+        assertThat(push.to(cDevices.widget())).hasSize(1);
+    }
+
+    @Test
+    void aRunOfTapsNotifiesOnceWithTheCount() throws Exception {
+        long m = upload(owner);
+        settle();
+
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "❤️", "count", 3)).andExpect(status().isOk());
+        Map<?, ?> payload = payload(awaitOne(ownerDevices.app()));
+        assertThat(((Map<?, ?>) payload.get("aps")).get("alert")).isEqualTo(Map.of("body", "지우님이 ❤️ 3개를 보냈어요"));
+        awaitOne(cDevices.widget());
+
+        // More taps in the same minute are counted, without another alert or widget push.
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "😂", "count", 2)).andExpect(status().isOk());
         postJson("/api/conversations/" + owner.id() + "/messages", b, Map.of("text", "marker")).andExpect(status().isCreated());
         await().atMost(WAIT).until(() -> push.to(ownerDevices.app()).size() == 2);
         assertThat(payload(push.to(ownerDevices.app()).get(1)).get("type")).isEqualTo("message");

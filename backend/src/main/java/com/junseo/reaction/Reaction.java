@@ -18,15 +18,21 @@ public class Reaction {
     private Long momentId;
     private Long userId;
     private String emoji;
+    private int taps;
     private Instant createdAt;
     private Instant updatedAt;
 
     protected Reaction() {}
 
     public Reaction(long momentId, long userId, String emoji, Instant at) {
+        this(momentId, userId, emoji, 1, at);
+    }
+
+    public Reaction(long momentId, long userId, String emoji, int taps, Instant at) {
         this.momentId = momentId;
         this.userId = userId;
         this.emoji = emoji;
+        this.taps = taps;
         this.createdAt = at;
         this.updatedAt = at;
     }
@@ -45,6 +51,10 @@ public class Reaction {
 
     public String getEmoji() {
         return emoji;
+    }
+
+    public int getTaps() {
+        return taps;
     }
 
     public Instant getCreatedAt() {

@@ -97,11 +97,8 @@ public class MomentViews {
             long commentCount,
             List<Comment> allComments,
             Map<Long, User> usersById) {
-        String myReaction = momentReactions.stream()
-                .filter(r -> r.getUserId() == viewerId)
-                .map(Reaction::getEmoji)
-                .findFirst()
-                .orElse(null);
+        List<ReactionCount> mine = ReactionCount.summarize(
+                momentReactions.stream().filter(r -> r.getUserId() == viewerId).toList());
         return new MomentView(
                 m.getId(),
                 UserSummary.of(usersById.get(m.getSenderId())),
@@ -109,7 +106,7 @@ public class MomentViews {
                 signer.url(m.getId(), Variant.FULL),
                 signer.url(m.getId(), Variant.THUMB),
                 ReactionCount.summarize(momentReactions),
-                myReaction,
+                mine,
                 commentCount,
                 toViews(recent, usersById),
                 allComments == null ? null : toViews(allComments, usersById));

@@ -82,7 +82,7 @@ public class WidgetService {
                 version,
                 widgetMoment,
                 counts.subList(0, Math.min(TOP_REACTIONS, counts.size())),
-                all.size(),
+                counts.stream().mapToLong(ReactionCount::count).sum(),
                 shown,
                 allComments.size());
     }
@@ -99,8 +99,8 @@ public class WidgetService {
                 .append(moment.sender().displayName()).append('|').append(moment.createdAt()).append('|')
                 .append(moment.thumbUrl()).append("|r");
         reactions.stream()
-                .sorted(Comparator.comparing(Reaction::getUserId))
-                .forEach(r -> s.append(':').append(r.getUserId()).append('=').append(r.getEmoji()));
+                .sorted(Comparator.comparing(Reaction::getUserId).thenComparing(Reaction::getEmoji))
+                .forEach(r -> s.append(':').append(r.getUserId()).append('=').append(r.getEmoji()).append('x').append(r.getTaps()));
         s.append("|c");
         comments.forEach(c -> s.append(':').append(c.getId()));
         s.append("|s");

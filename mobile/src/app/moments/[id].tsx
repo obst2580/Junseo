@@ -18,14 +18,26 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmojiTapButton } from '@/components/EmojiTapButton';
 import { Avatar, Empty, ErrorText, IconButton } from '@/components/ui';
-import { api, ApiError, type Comment, type MomentDetail } from '@/lib/api';
+import { api, ApiError, type Comment, type MomentDetail, type ReactionCount } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
 import { timeAgo } from '@/lib/format';
 import { colors, QUICK_EMOJIS, radius } from '@/lib/theme';
+import { useReactionTaps } from '@/lib/useReactionTaps';
 import { widgetBridge } from '@/lib/widgetBridge';
+
+// 한 사람이 이모지 하나를 누를 수 있는 최대 횟수 (서버와 같다)
+const MAX_TAPS = 99;
+
+/** 서버의 횟수에 아직 보내지 않은 탭을 더해 많은 순으로 정렬한다. */
+function withUnsent(counts: ReactionCount[], unsent: Record<string, number>): ReactionCount[] {
+  const merged = new Map(counts.map((r) => [r.emoji, r.count]));
+  for (const [emoji, n] of Object.entries(unsent)) merged.set(emoji, (merged.get(emoji) ?? 0) + n);
+  return [...merged].map(([emoji, count]) => ({ emoji, count })).sort((a, b) => b.count - a.count);
+}
 
 type Mode = 'comment' | 'reply';
 
@@ -69,6 +81,15 @@ export default function MomentScreen() {
   );
   useEffect(() => events.on('moments', () => void load()), [load]);
 
+  const afterTaps = useCallback(async () => {
+    await load();
+    widgetBridge.reload();
+  }, [load]);
+  const tapFailed = useCallback((e: unknown) => {
+    setNotice({ text: e instanceof ApiError ? e.message : '반응을 남기지 못했어요.', error: true });
+  }, []);
+  const { unsent, tap } = useReactionTaps(momentId, afterTaps, tapFailed);
+
   if (error) return <Empty icon="eye-off-outline" title={error} />;
   if (!moment || !me) return <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />;
 
@@ -78,15 +99,22 @@ export default function MomentScreen() {
     events.emit('moments');
   };
 
-  const toggleReaction = async (emoji: string) => {
-    Haptics.selectionAsync().catch(() => {});
+  const reactions = withUnsent(moment.reactions, unsent);
+  const myReactions = withUnsent(moment.myReactions, unsent);
+  const myCount = (emoji: string) => myReactions.find((r) => r.emoji === emoji)?.count ?? 0;
+
+  const tapEmoji = (emoji: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    tap(emoji);
+  };
+
+  const clearMine = async () => {
     try {
-      if (moment.myReaction === emoji) await api.unreact(moment.id);
-      else await api.react(moment.id, emoji);
+      await api.clearReactions(moment.id);
       await load();
       changed();
     } catch (e) {
-      setNotice({ text: e instanceof ApiError ? e.message : '반응을 남기지 못했어요.', error: true });
+      setNotice({ text: e instanceof ApiError ? e.message : '반응을 지우지 못했어요.', error: true });
     }
   };
 
@@ -147,9 +175,9 @@ export default function MomentScreen() {
             <Text style={styles.time}>{timeAgo(moment.createdAt)}</Text>
           </View>
 
-          {moment.reactions.length > 0 && (
+          {reactions.length > 0 && (
             <View style={styles.reactionSummary}>
-              {moment.reactions.map((r) => (
+              {reactions.map((r) => (
                 <View key={r.emoji} style={styles.reactionPill}>
                   <Text style={styles.reactionEmoji}>{r.emoji}</Text>
                   <Text style={styles.reactionCount}>{r.count}</Text>
@@ -159,12 +187,20 @@ export default function MomentScreen() {
           )}
 
           {!mine && (
-            <View style={styles.emojiRow}>
-              {QUICK_EMOJIS.map((e) => (
-                <Pressable key={e} onPress={() => toggleReaction(e)} style={[styles.emojiButton, moment.myReaction === e && styles.emojiButtonActive]}>
-                  <Text style={styles.emoji}>{e}</Text>
-                </Pressable>
-              ))}
+            <View style={styles.reactBlock}>
+              <View style={styles.emojiRow}>
+                {QUICK_EMOJIS.map((e) => (
+                  <EmojiTapButton key={e} emoji={e} mine={myCount(e)} disabled={myCount(e) >= MAX_TAPS} onTap={tapEmoji} />
+                ))}
+              </View>
+              <View style={styles.reactHint}>
+                <Text style={styles.dim}>여러 번 눌러도 돼요</Text>
+                {myReactions.length > 0 && (
+                  <Pressable onPress={clearMine} hitSlop={8}>
+                    <Text style={styles.clear}>내 반응 지우기</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
           )}
 
@@ -231,10 +267,10 @@ const styles = StyleSheet.create({
   reactionPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: 30, borderRadius: radius.pill, backgroundColor: colors.surfaceHigh },
   reactionEmoji: { fontSize: 15 },
   reactionCount: { color: colors.text, fontSize: 13, fontWeight: '700' },
-  emojiRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', paddingHorizontal: 4 },
-  emojiButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
-  emojiButtonActive: { backgroundColor: colors.accent },
-  emoji: { fontSize: 24 },
+  reactBlock: { alignSelf: 'stretch', gap: 10 },
+  emojiRow: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 4 },
+  reactHint: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 8 },
+  clear: { color: colors.textDim, fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   comments: { alignSelf: 'stretch', gap: 12, paddingHorizontal: 8, paddingBottom: 12 },
   sectionTitle: { color: colors.text, fontSize: 15, fontWeight: '800' },
   dim: { color: colors.textDim, fontSize: 14 },

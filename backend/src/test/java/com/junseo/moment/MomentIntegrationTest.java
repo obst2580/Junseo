@@ -40,12 +40,12 @@ class MomentIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.imageUrl").value(matchesPattern("/media/\\d+/full\\.jpg\\?exp=\\d+&sig=[A-Za-z0-9_-]{43}")))
                 .andExpect(jsonPath("$.thumbUrl").value(matchesPattern("/media/\\d+/thumb\\.jpg\\?exp=\\d+&sig=[A-Za-z0-9_-]{43}")))
                 .andExpect(jsonPath("$.reactions", hasSize(0)))
-                .andExpect(jsonPath("$.myReaction").value(nullValue()))
+                .andExpect(jsonPath("$.myReactions", hasSize(0)))
                 .andExpect(jsonPath("$.commentCount").value(0))
                 .andExpect(jsonPath("$.recentComments", hasSize(0)))
                 .andExpect(jsonPath("$.comments").doesNotExist())
                 .andReturn());
-        assertThat(body).contains("\"myReaction\":null");
+        assertThat(body).contains("\"myReactions\":[]");
 
         BufferedImage full = TestImages.read(media(JsonPath.read(body, "$.imageUrl")));
         BufferedImage thumb = TestImages.read(media(JsonPath.read(body, "$.thumbUrl")));
@@ -157,8 +157,8 @@ class MomentIntegrationTest extends IntegrationTest {
 
         getAs(b, "/api/moments/" + m).andExpect(status().isNotFound());
         getAs(b, "/api/moments").andExpect(jsonPath("$.items", hasSize(0)));
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍")).andExpect(status().isNotFound());
-        deleteAs(b, "/api/moments/" + m + "/reaction").andExpect(status().isNotFound());
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "👍")).andExpect(status().isNotFound());
+        deleteAs(b, "/api/moments/" + m + "/reactions").andExpect(status().isNotFound());
         postJson("/api/moments/" + m + "/comments", b, Map.of("text", "안녕")).andExpect(status().isNotFound());
         postJson("/api/moments/" + m + "/replies", b, Map.of("text", "안녕")).andExpect(status().isNotFound());
         getAs(b, "/api/widget/latest").andExpect(status().isNoContent());

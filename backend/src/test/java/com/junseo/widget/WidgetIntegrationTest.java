@@ -41,7 +41,7 @@ class WidgetIntegrationTest extends IntegrationTest {
         long latest = upload(owner);
         String[] emojis = {"❤️", "❤️", "😂", "😢", "👍"};
         for (int i = 0; i < friends.length; i++) {
-            putJson("/api/moments/" + latest + "/reaction", friends[i], Map.of("emoji", emojis[i])).andExpect(status().isOk());
+            postJson("/api/moments/" + latest + "/reactions", friends[i], Map.of("emoji", emojis[i])).andExpect(status().isOk());
         }
         for (String text : new String[] {"첫 댓글", "두 번째", "세 번째"}) {
             postJson("/api/moments/" + latest + "/comments", friends[0], Map.of("text", text)).andExpect(status().isCreated());
@@ -65,6 +65,13 @@ class WidgetIntegrationTest extends IntegrationTest {
                 .andReturn());
         String version = JsonPath.read(body, "$.version");
         widget(viewer, null).andExpect(header().string(HttpHeaders.ETAG, "\"" + version + "\""));
+
+        // Counts are taps, not people: one friend tapping 😂 four more times moves it to the top.
+        postJson("/api/moments/" + latest + "/reactions", friends[2], Map.of("emoji", "😂", "count", 4)).andExpect(status().isOk());
+        widget(viewer, null)
+                .andExpect(jsonPath("$.reactions[*].emoji", contains("😂", "❤️", "👍")))
+                .andExpect(jsonPath("$.reactions[*].count", contains(5, 2, 1)))
+                .andExpect(jsonPath("$.reactionCount").value(9));
     }
 
     @Test
@@ -91,16 +98,21 @@ class WidgetIntegrationTest extends IntegrationTest {
         widget(viewer, "\"" + v1 + "\"").andExpect(status().isOk());
         widget(viewer, "\"" + v2 + "\"").andExpect(status().isNotModified());
 
-        putJson("/api/moments/" + m + "/reaction", other, Map.of("emoji", "❤️")).andExpect(status().isOk());
+        postJson("/api/moments/" + m + "/reactions", other, Map.of("emoji", "❤️")).andExpect(status().isOk());
         String v3 = version(viewer);
         assertThat(v3).isNotIn(v1, v2);
 
-        putJson("/api/moments/" + m + "/reaction", other, Map.of("emoji", "😂")).andExpect(status().isOk());
+        postJson("/api/moments/" + m + "/reactions", other, Map.of("emoji", "😂")).andExpect(status().isOk());
         String v4 = version(viewer);
         assertThat(v4).isNotIn(v1, v2, v3);
 
+        // Another tap on the same emoji changes the count, so the widget must redraw.
+        postJson("/api/moments/" + m + "/reactions", other, Map.of("emoji", "😂")).andExpect(status().isOk());
+        String v5 = version(viewer);
+        assertThat(v5).isNotIn(v1, v2, v3, v4);
+
         deleteAs(owner, "/api/comments/" + comment).andExpect(status().isNoContent());
-        assertThat(version(viewer)).isNotIn(v2, v3, v4);
+        assertThat(version(viewer)).isNotIn(v2, v3, v4, v5);
     }
 
     @Test

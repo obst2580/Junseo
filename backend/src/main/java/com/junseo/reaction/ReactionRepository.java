@@ -21,15 +21,18 @@ public interface ReactionRepository extends JpaRepository<Reaction, Long> {
                   select 1 from friendships f where f.user_id = r.user_id and f.friend_id = m.sender_id))""")
     List<Reaction> findVisibleByMomentIds(Collection<Long> momentIds);
 
-    /** Returns 1 when a reaction was inserted or changed, 0 when the same emoji was sent again. */
+    /** Adds taps to this user's count for the emoji, up to {@link ReactionEmojis#MAX_TAPS}. */
     @Modifying
     @Query(nativeQuery = true, value = """
-            insert into reactions (moment_id, user_id, emoji, created_at, updated_at)
-            values (:momentId, :userId, :emoji, :now, :now)
-            on conflict (moment_id, user_id) do update
-                set emoji = excluded.emoji, updated_at = excluded.updated_at
-                where reactions.emoji <> excluded.emoji""")
-    int upsert(long momentId, long userId, String emoji, Instant now);
+            insert into reactions (moment_id, user_id, emoji, taps, created_at, updated_at)
+            values (:momentId, :userId, :emoji, :taps, :now, :now)
+            on conflict (moment_id, user_id, emoji) do update
+                set taps = least(reactions.taps + excluded.taps, 99), updated_at = excluded.updated_at""")
+    int addTaps(long momentId, long userId, String emoji, int taps, Instant now);
+
+    /** When this user last reacted to the moment with any emoji, or null. */
+    @Query(nativeQuery = true, value = "select max(updated_at) from reactions where moment_id = :momentId and user_id = :userId")
+    Instant lastReactedAt(long momentId, long userId);
 
     @Modifying
     @Query("delete from Reaction r where r.momentId = :momentId and r.userId = :userId")

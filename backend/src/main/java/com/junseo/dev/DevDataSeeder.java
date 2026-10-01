@@ -177,7 +177,7 @@ public class DevDataSeeder implements ApplicationRunner {
 
         react(catPhoto, u.get("minji"), "❤️", 20);
         react(catPhoto, u.get("jiwoo"), "❤️", 45);
-        react(catPhoto, u.get("hajun"), "😂", 90);
+        react(catPhoto, u.get("hajun"), "😂", 5, 90);
         comment(catPhoto, u.get("seoyeon"), "나비 너무 귀여워ㅠㅠ", 30);
         comment(catPhoto, u.get("demo"), "오늘도 내 자리 뺏김 ㅋㅋ", 50);
         react(cafePhoto, u.get("demo"), "👍", 15);
@@ -193,8 +193,9 @@ public class DevDataSeeder implements ApplicationRunner {
 
         // The newest friend photo is what demo's widget shows: give it a real-looking stack.
         react(sunsetPhoto, u.get("jiwoo"), "😂", 3);
-        react(sunsetPhoto, u.get("seoyeon"), "❤️", 6);
-        react(sunsetPhoto, u.get("demo"), "❤️", 9);
+        react(sunsetPhoto, u.get("seoyeon"), "❤️", 4, 6);
+        react(sunsetPhoto, u.get("demo"), "❤️", 3, 9);
+        react(sunsetPhoto, u.get("demo"), "😂", 10);
         comment(sunsetPhoto, u.get("jiwoo"), "대박 여기 어디야?", 4);
         comment(sunsetPhoto, u.get("seoyeon"), "노을 미쳤다 🌅", 8);
         comment(sunsetPhoto, u.get("minji"), "한강! 다들 나와 ㅎㅎ", 12);
@@ -220,7 +221,11 @@ public class DevDataSeeder implements ApplicationRunner {
     }
 
     private void react(Moment moment, User user, String emoji, int minutesAfter) {
-        reactions.save(new Reaction(moment.getId(), user.getId(), emoji, moment.getCreatedAt().plus(Duration.ofMinutes(minutesAfter))));
+        react(moment, user, emoji, 1, minutesAfter);
+    }
+
+    private void react(Moment moment, User user, String emoji, int taps, int minutesAfter) {
+        reactions.save(new Reaction(moment.getId(), user.getId(), emoji, taps, moment.getCreatedAt().plus(Duration.ofMinutes(minutesAfter))));
     }
 
     private void comment(Moment moment, User author, String text, int minutesAfter) {

@@ -83,8 +83,15 @@ public class PushNotifier {
     @Async(AppConfig.PUSH_EXECUTOR)
     @TransactionalEventListener
     public void on(ReactionSet e) {
+        // A run of taps on one photo notifies the owner (and refreshes widgets) once; later taps in the
+        // same minute still count, they just ride the next widget refresh.
+        if (!e.firstInBurst()) {
+            return;
+        }
         guard("reaction", () -> moments.findById(e.momentId()).ifPresent(moment -> {
-            String body = name(e.userId()) + "님이 " + e.emoji() + " 반응을 남겼어요";
+            String body = e.taps() > 1
+                    ? name(e.userId()) + "님이 " + e.emoji() + " " + e.taps() + "개를 보냈어요"
+                    : name(e.userId()) + "님이 " + e.emoji() + " 반응을 남겼어요";
             Map<String, Object> payload = alert(null, body, "moment-" + e.momentId(), "reaction");
             payload.put("momentId", e.momentId());
             sendAlerts(List.of(moment.getSenderId()), payload);

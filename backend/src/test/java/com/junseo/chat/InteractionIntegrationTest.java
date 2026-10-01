@@ -1,6 +1,7 @@
 package com.junseo.chat;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
@@ -17,32 +18,47 @@ import org.junit.jupiter.api.Test;
 class InteractionIntegrationTest extends IntegrationTest {
 
     @Test
-    void reactionIsUpsertedChangedAndDeleted() throws Exception {
+    void tapsAddUpPerEmojiAndDeleteClearsMine() throws Exception {
         var a = signup("민지");
         var b = signup("지우");
         befriend(a, b);
         long m = upload(a);
 
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍"))
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "❤️"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(m))
-                .andExpect(jsonPath("$.myReaction").value("👍"))
-                .andExpect(jsonPath("$.reactions[0].emoji").value("👍"))
+                .andExpect(jsonPath("$.myReactions[0].emoji").value("❤️"))
+                .andExpect(jsonPath("$.myReactions[0].count").value(1))
                 .andExpect(jsonPath("$.reactions[0].count").value(1));
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "😂"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.myReaction").value("😂"))
-                .andExpect(jsonPath("$.reactions", hasSize(1)))
-                .andExpect(jsonPath("$.reactions[0].emoji").value("😂"));
+        // Tapping again adds up; a quick run of taps can arrive as one request.
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "❤️", "count", 4))
+                .andExpect(jsonPath("$.myReactions[0].count").value(5))
+                .andExpect(jsonPath("$.reactions[0].count").value(5));
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "😂"))
+                .andExpect(jsonPath("$.myReactions[*].emoji", contains("❤️", "😂")))
+                .andExpect(jsonPath("$.myReactions[*].count", contains(5, 1)))
+                .andExpect(jsonPath("$.reactions[*].count", contains(5, 1)));
         getAs(a, "/api/moments/" + m)
-                .andExpect(jsonPath("$.myReaction").value(nullValue()))
-                .andExpect(jsonPath("$.reactions[0].count").value(1));
+                .andExpect(jsonPath("$.myReactions", hasSize(0)))
+                .andExpect(jsonPath("$.reactions[0].count").value(5));
 
-        deleteAs(b, "/api/moments/" + m + "/reaction").andExpect(status().isNoContent());
+        // At most 20 per request and 99 per emoji.
+        for (int bad : new int[] {0, 21, -1}) {
+            postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "👍", "count", bad))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        }
+        for (int i = 0; i < 6; i++) {
+            postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "👍", "count", 20)).andExpect(status().isOk());
+        }
+        getAs(b, "/api/moments/" + m).andExpect(jsonPath("$.myReactions[0].emoji").value("👍"))
+                .andExpect(jsonPath("$.myReactions[0].count").value(99));
+
+        deleteAs(b, "/api/moments/" + m + "/reactions").andExpect(status().isNoContent());
         getAs(b, "/api/moments/" + m)
-                .andExpect(jsonPath("$.myReaction").value(nullValue()))
+                .andExpect(jsonPath("$.myReactions", hasSize(0)))
                 .andExpect(jsonPath("$.reactions", hasSize(0)));
-        deleteAs(b, "/api/moments/" + m + "/reaction").andExpect(status().isNoContent());
+        deleteAs(b, "/api/moments/" + m + "/reactions").andExpect(status().isNoContent());
     }
 
     @Test
@@ -57,7 +73,7 @@ class InteractionIntegrationTest extends IntegrationTest {
         m = upload(owner);
         String[] emojis = {"😂", "👍", "👍", "❤️"};
         for (int i = 0; i < reactors.length; i++) {
-            putJson("/api/moments/" + m + "/reaction", reactors[i], Map.of("emoji", emojis[i])).andExpect(status().isOk());
+            postJson("/api/moments/" + m + "/reactions", reactors[i], Map.of("emoji", emojis[i])).andExpect(status().isOk());
         }
         getAs(owner, "/api/moments/" + m)
                 .andExpect(jsonPath("$.reactions[*].emoji", contains("👍", "❤️", "😂")))
@@ -71,24 +87,24 @@ class InteractionIntegrationTest extends IntegrationTest {
         befriend(a, b);
         long m = upload(a);
 
-        putJson("/api/moments/" + m + "/reaction", a, Map.of("emoji", "👍"))
+        postJson("/api/moments/" + m + "/reactions", a, Map.of("emoji", "👍"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("NOT_ALLOWED_ON_OWN_MOMENT"));
         // Only the five reactions the app offers are accepted.
         for (String bad : new String[] {"", "👍 👍", " ", "x".repeat(17), "🔥", "😍", "👨‍👩‍👧", "👍🏽"}) {
-            putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", bad))
+            postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", bad))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         }
         for (String ok : new String[] {"😂", "😢", "👍", "🖕", "❤️"}) {
-            putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", ok))
+            postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", ok))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.myReaction").value(ok));
+                    .andExpect(jsonPath("$.myReactions[*].emoji", hasItem(ok)));
         }
         // A bare heart without the variation selector is stored as ❤️.
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "❤"))
+        postJson("/api/moments/" + m + "/reactions", b, Map.of("emoji", "❤"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.myReaction").value("❤️"));
+                .andExpect(jsonPath("$.myReactions[?(@.emoji == '❤️')].count", contains(2)));
     }
 
     @Test
@@ -138,7 +154,7 @@ class InteractionIntegrationTest extends IntegrationTest {
         befriend(owner, viewer);
         befriend(owner, ex);
         long m = upload(owner);
-        putJson("/api/moments/" + m + "/reaction", ex, Map.of("emoji", "👍")).andExpect(status().isOk());
+        postJson("/api/moments/" + m + "/reactions", ex, Map.of("emoji", "👍")).andExpect(status().isOk());
         postJson("/api/moments/" + m + "/comments", ex, Map.of("text", "나 서연")).andExpect(status().isCreated());
         postJson("/api/moments/" + m + "/comments", viewer, Map.of("text", "나 지우")).andExpect(status().isCreated());
 

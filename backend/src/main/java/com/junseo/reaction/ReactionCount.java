@@ -8,14 +8,14 @@ import java.util.Map;
 
 public record ReactionCount(String emoji, long count) {
 
-    /** Most used first; ties go to the emoji used most recently. */
+    /** Total taps per emoji, most first; ties go to the emoji used most recently. */
     public static List<ReactionCount> summarize(List<Reaction> reactions) {
         record Tally(String emoji, long count, Instant last, long lastId) {}
         Map<String, Tally> byEmoji = new HashMap<>();
         for (Reaction r : reactions) {
             byEmoji.merge(
                     r.getEmoji(),
-                    new Tally(r.getEmoji(), 1, r.getUpdatedAt(), r.getId()),
+                    new Tally(r.getEmoji(), r.getTaps(), r.getUpdatedAt(), r.getId()),
                     (a, b) -> a.last().isAfter(b.last()) || (a.last().equals(b.last()) && a.lastId() > b.lastId())
                             ? new Tally(a.emoji(), a.count() + b.count(), a.last(), a.lastId())
                             : new Tally(a.emoji(), a.count() + b.count(), b.last(), b.lastId()));

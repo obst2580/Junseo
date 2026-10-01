@@ -15,7 +15,7 @@ public record MomentView(
         String imageUrl,
         String thumbUrl,
         List<ReactionCount> reactions,
-        String myReaction,
+        List<ReactionCount> myReactions,
         long commentCount,
         List<CommentView> recentComments,
         @JsonInclude(JsonInclude.Include.NON_NULL) List<CommentView> comments) {}

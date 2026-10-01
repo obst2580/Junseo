@@ -12,7 +12,7 @@ export type Moment = {
   imageUrl: string;
   thumbUrl: string;
   reactions: ReactionCount[];
-  myReaction: string | null;
+  myReactions: ReactionCount[]; // 내가 누른 이모지별 횟수
   commentCount: number;
   recentComments: Comment[];
 };
@@ -122,9 +122,11 @@ export const api = {
   moment: (id: number) => request<MomentDetail>(`/api/moments/${id}`),
   deleteMoment: (id: number) => request<void>(`/api/moments/${id}`, { method: 'DELETE' }),
 
-  react: (momentId: number, emoji: string) =>
-    request<Moment>(`/api/moments/${momentId}/reaction`, { method: 'PUT', body: { emoji } }),
-  unreact: (momentId: number) => request<void>(`/api/moments/${momentId}/reaction`, { method: 'DELETE' }),
+  /** 이모지를 count 번 누른 것으로 더한다 (한 번에 1~20). */
+  react: (momentId: number, emoji: string, count = 1) =>
+    request<Moment>(`/api/moments/${momentId}/reactions`, { method: 'POST', body: { emoji, count } }),
+  /** 이 사진에 내가 누른 반응을 모두 지운다. */
+  clearReactions: (momentId: number) => request<void>(`/api/moments/${momentId}/reactions`, { method: 'DELETE' }),
 
   comment: (momentId: number, text: string) =>
     request<Comment>(`/api/moments/${momentId}/comments`, { method: 'POST', body: { text } }),
