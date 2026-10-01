@@ -1,0 +1,47 @@
+server:
+  port: 8080
+  tomcat:
+    # Read the rest of an oversized upload (up to this much) so the client gets the JSON 400
+    # instead of a connection reset.
+    max-swallow-size: 64MB
+
+spring:
+  application:
+    name: junseo
+  datasource:
+    url: ${JUNSEO_DB_URL:jdbc:postgresql://localhost:5432/junseo}
+    username: ${JUNSEO_DB_USER:junseo}
+    password: ${JUNSEO_DB_PASSWORD:junseo}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+junseo:
+  jwt:
+    # Override in every non-local environment (>= 32 bytes).
+    secret: ${JUNSEO_JWT_SECRET:dev-only-jwt-secret-change-me-0123456789}
+    ttl: 30d
+  media:
+    signing-secret: ${JUNSEO_MEDIA_SECRET:dev-only-media-secret-change-me-0123456789}
+  storage:
+    dir: ${JUNSEO_STORAGE_DIR:./data/media}
+  cors:
+    # http://localhost:8081 (Expo web) is always allowed; add more with a comma-separated list.
+    extra-origins: ${JUNSEO_CORS_EXTRA_ORIGINS:}
+  apns:
+    enabled: ${JUNSEO_APNS_ENABLED:false}
+    key-id: ${JUNSEO_APNS_KEY_ID:}
+    team-id: ${JUNSEO_APNS_TEAM_ID:}
+    bundle-id: ${JUNSEO_APNS_BUNDLE_ID:}
+    key-path: ${JUNSEO_APNS_KEY_PATH:}
+
+logging:
+  level:
+    org.hibernate.orm.deprecation: error

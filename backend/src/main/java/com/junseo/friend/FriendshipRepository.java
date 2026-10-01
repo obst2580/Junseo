@@ -1,0 +1,20 @@
+package com.junseo.friend;
+
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+public interface FriendshipRepository extends JpaRepository<Friendship, Friendship.Key> {
+
+    boolean existsByUserIdAndFriendId(long userId, long friendId);
+
+    long countByUserId(long userId);
+
+    @Query("select f.friendId from Friendship f where f.userId = :userId")
+    List<Long> findFriendIds(long userId);
+
+    @Modifying
+    @Query("delete from Friendship f where (f.userId = :a and f.friendId = :b) or (f.userId = :b and f.friendId = :a)")
+    int deletePair(long a, long b);
+}

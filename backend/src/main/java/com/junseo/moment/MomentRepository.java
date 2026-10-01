@@ -1,0 +1,65 @@
+package com.junseo.moment;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+/**
+ * Visibility rule used everywhere: the sender, or a snapshotted recipient who is still friends with the
+ * sender. Friendship rows exist in both directions, so the check is a single primary-key probe.
+ */
+public interface MomentRepository extends JpaRepository<Moment, Long> {
+
+    String VISIBLE_TO_VIEWER = """
+            (m.sender_id = :viewer or exists (
+                select 1 from moment_recipients r
+                join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+                where r.moment_id = m.id and r.recipient_id = :viewer))""";
+
+    @Query(nativeQuery = true, value = "select m.* from moments m where m.id = :id and " + VISIBLE_TO_VIEWER)
+    Optional<Moment> findVisible(long viewer, long id);
+
+    @Query(nativeQuery = true, value = "select m.id from moments m where m.id in (:ids) and " + VISIBLE_TO_VIEWER)
+    List<Long> findVisibleIds(long viewer, Collection<Long> ids);
+
+    /** Feed page: my own moments plus received ones, newest first; {@code sender = 0} means everyone. */
+    @Query(nativeQuery = true, value = """
+            select * from (
+                select m.* from moments m
+                where m.sender_id = :viewer and m.id < :before and (:sender = 0 or m.sender_id = :sender)
+                union all
+                select m.* from moment_recipients r
+                join moments m on m.id = r.moment_id
+                join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+                where r.recipient_id = :viewer and r.moment_id < :before and (:sender = 0 or m.sender_id = :sender)
+            ) v
+            order by v.id desc
+            limit :limit""")
+    List<Moment> findFeed(long viewer, long sender, long before, int limit);
+
+    @Query(nativeQuery = true, value = """
+            select m.* from moment_recipients r
+            join moments m on m.id = r.moment_id
+            join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+            where r.recipient_id = :viewer
+            order by r.moment_id desc
+            limit 1""")
+    Optional<Moment> findLatestReceived(long viewer);
+
+    /** Recipients who can still see the moment (excludes the sender). */
+    @Query(nativeQuery = true, value = """
+            select r.recipient_id from moment_recipients r
+            join moments m on m.id = r.moment_id
+            join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+            where r.moment_id = :momentId""")
+    List<Long> findCurrentRecipientIds(long momentId);
+
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            insert into moment_recipients (moment_id, recipient_id)
+            select :momentId, f.friend_id from friendships f where f.user_id = :senderId""")
+    int snapshotRecipients(long momentId, long senderId);
+}
