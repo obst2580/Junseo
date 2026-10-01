@@ -234,7 +234,8 @@ function download(uri: string) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: 16, gap: 16 },
-  preview: { alignSelf: 'center', borderRadius: 14, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  // 템플릿 바탕이 앱 바탕과 섞이지 않게 밝은 테두리 + 그림자
+  preview: { alignSelf: 'center', borderRadius: 14, overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)', boxShadow: '0 12px 30px -8px rgba(0,0,0,0.75)' },
   section: { color: colors.textDim, fontSize: 14, fontWeight: '600' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tile: { overflow: 'hidden', backgroundColor: colors.surface },
@@ -252,7 +253,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: { color: colors.accentText, fontSize: 12, fontWeight: '800' },
-  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: colors.bar },
+  // 버튼 뒤로 사진이 비치지 않게 거의 불투명하게
+  bar: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: 'rgba(14,13,12,0.9)' },
   actions: { flexDirection: 'row', gap: 10 },
   action: {
     flex: 1,

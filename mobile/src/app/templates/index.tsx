@@ -41,7 +41,7 @@ const styles = StyleSheet.create({
   lead: { color: colors.textDim, fontSize: 15, lineHeight: 22 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16 },
   card: { width: CARD, gap: 6 },
-  thumb: { borderRadius: radius.card * 0.6, overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
+  thumb: { borderRadius: radius.card * 0.6, overflow: 'hidden', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.28)', boxShadow: '0 10px 24px -8px rgba(0,0,0,0.75)' },
   name: { color: colors.text, fontSize: 15, fontWeight: '700' },
   count: { color: colors.textFaint, fontSize: 13 },
 });

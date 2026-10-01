@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { Moment } from '@/lib/api';
 import { absoluteUrl } from '@/lib/config';
 import { SLOT_CORNER, type Template } from '@/lib/templates';
+import { colors } from '@/lib/theme';
 
 /**
  * 템플릿을 width 폭으로 그린다. 저장할 때는 이 뷰를 템플릿 원래 크기로 찍는다 (captureView).
@@ -27,9 +28,9 @@ export const TemplateCanvas = forwardRef<View, { template: Template; photos: (Mo
               key={i}
               style={[
                 styles.slot,
-                // 그림 템플릿은 칸 안의 예시 사진이 비치지 않게 막는다
-                !!template.background && styles.slotOnImage,
                 { left: slot.x * s, top: slot.y * s, width: size, height: size, borderRadius: (slot.radius ?? slot.size * SLOT_CORNER) * s },
+                // 빈 칸은 어느 바탕(검정·파랑) 위에서도 보이게 밝은 회색 + 초록 점선. 그림 속 예시 사진도 가린다.
+                !photo && [styles.empty, { borderWidth: Math.max(2, size * 0.012) }],
               ]}>
               {photo ? (
                 <Image source={{ uri: absoluteUrl(photo.imageUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -47,6 +48,6 @@ export const TemplateCanvas = forwardRef<View, { template: Template; photos: (Mo
 
 const styles = StyleSheet.create({
   slot: { position: 'absolute', overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  slotOnImage: { backgroundColor: '#1d1f2b' },
-  number: { color: 'rgba(255,255,255,0.35)', fontWeight: '800' },
+  empty: { backgroundColor: '#2e3140', borderStyle: 'dashed', borderColor: colors.accent },
+  number: { color: colors.accent, fontWeight: '800' },
 });
