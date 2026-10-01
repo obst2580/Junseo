@@ -1,5 +1,4 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -18,7 +17,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { EmojiTapButton } from '@/components/EmojiTapButton';
+import { BURST_TAPS, EmojiTapButton } from '@/components/EmojiTapButton';
 import { Avatar, Empty, ErrorText, IconButton } from '@/components/ui';
 import { api, ApiError, type Comment, type MomentDetail, type ReactionCount } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -103,9 +102,10 @@ export default function MomentScreen() {
   const myReactions = withUnsent(moment.myReactions, unsent);
   const myCount = (emoji: string) => myReactions.find((r) => r.emoji === emoji)?.count ?? 0;
 
-  const tapEmoji = (emoji: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    tap(emoji);
+  // 한 이모지에 99번까지. 꾹 눌러 10개를 보낼 때 남은 만큼만 보낸다.
+  const tapEmoji = (emoji: string, count: number) => {
+    const room = MAX_TAPS - myCount(emoji);
+    if (room > 0) tap(emoji, Math.min(count, room));
   };
 
   const clearMine = async () => {
@@ -194,7 +194,7 @@ export default function MomentScreen() {
                 ))}
               </View>
               <View style={styles.reactHint}>
-                <Text style={styles.dim}>여러 번 눌러도 돼요</Text>
+                <Text style={styles.dim}>여러 번 눌러도 돼요 · 꾹 누르면 {BURST_TAPS}개</Text>
                 {myReactions.length > 0 && (
                   <Pressable onPress={clearMine} hitSlop={8}>
                     <Text style={styles.clear}>내 반응 지우기</Text>

@@ -10,7 +10,7 @@ const MAX_PER_REQUEST = 20;
 type Counts = Record<string, number>;
 
 /**
- * 이모지를 빠르게 여러 번 누르면 화면에는 바로 반영하고, 서버에는 모아서 한 번에 보낸다.
+ * 이모지를 빠르게 여러 번 누르면(꾹 눌러 한 번에 여러 개를 보내도) 화면에는 바로 반영하고, 서버에는 모아서 한 번에 보낸다.
  * `unsent` 는 아직 서버 응답에 반영되지 않은 횟수다. 화면은 서버 값에 이걸 더해서 그린다.
  */
 export function useReactionTaps(momentId: number, onSent: () => Promise<void>, onError: (e: unknown) => void) {
@@ -44,9 +44,9 @@ export function useReactionTaps(momentId: number, onSent: () => Promise<void>, o
   }, [momentId, onSent, onError]);
 
   const tap = useCallback(
-    (emoji: string) => {
-      pending.current[emoji] = (pending.current[emoji] ?? 0) + 1;
-      setUnsent((current) => ({ ...current, [emoji]: (current[emoji] ?? 0) + 1 }));
+    (emoji: string, count = 1) => {
+      pending.current[emoji] = (pending.current[emoji] ?? 0) + count;
+      setUnsent((current) => ({ ...current, [emoji]: (current[emoji] ?? 0) + count }));
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => void flush(), FLUSH_MS);
     },
