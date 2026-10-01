@@ -25,7 +25,8 @@ export function LayerText({ text, font, fontSize, maxWidth }: { text: string; fo
 function NkText({ text, big, maxWidth }: { text: string; big: number; maxWidth: number }) {
   const [width, setWidth] = useState(0);
   const words = nkWords(text);
-  const body = words.map((word, wi) => (
+  // only: 겹쳐 굵게 할 때 큰 글자·작은 글자를 따로 민다 (굵기를 글자 크기에 맞추려고). 나머지는 투명.
+  const body = (only?: 'big' | 'small') => words.map((word, wi) => (
     <Fragment key={wi}>
       {wi > 0 && <Text style={{ fontSize: big, letterSpacing: (NK.gap - NK.spaceWidth) * big }}> </Text>}
       {word.map((p, pi) => {
@@ -33,10 +34,12 @@ function NkText({ text, big, maxWidth }: { text: string; big: number; maxWidth: 
         const chars = [...p.text];
         // 자간은 글자 뒤에 붙는다. 조각 끝 글자 뒤는 낱말 안이면 기본 자간, 낱말 끝이면 0.
         const tail = pi < word.length - 1 ? NK.track * px : 0;
+        const hidden = only && (only === 'small') !== p.scale < 1;
+        const color = hidden ? 'transparent' : undefined;
         return (
           <Fragment key={pi}>
-            {chars.length > 1 && <Text style={{ fontSize: px, letterSpacing: p.track * px }}>{chars.slice(0, -1).join('')}</Text>}
-            <Text style={{ fontSize: px, letterSpacing: tail }}>{chars.at(-1)}</Text>
+            {chars.length > 1 && <Text style={{ fontSize: px, letterSpacing: p.track * px, color }}>{chars.slice(0, -1).join('')}</Text>}
+            <Text style={{ fontSize: px, letterSpacing: tail, color }}>{chars.at(-1)}</Text>
           </Fragment>
         );
       })}
@@ -48,12 +51,14 @@ function NkText({ text, big, maxWidth }: { text: string; big: number; maxWidth: 
     <View
       onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       style={{ transform: [{ scaleX: NK.condense }], marginHorizontal: (-width * (1 - NK.condense)) / 2 }}>
-      <Text style={face}>{body}</Text>
-      {ring(big * NK.bold).map(([dx, dy], i) => (
-        <Text key={i} style={[face, styles.layer, { transform: [{ translateX: dx }, { translateY: dy }] }]}>
-          {body}
-        </Text>
-      ))}
+      <Text style={face}>{body()}</Text>
+      {(['big', 'small'] as const).map((only) =>
+        ring(big * NK.bold * (only === 'small' ? NK.small : 1)).map(([dx, dy], i) => (
+          <Text key={`${only}${i}`} style={[face, styles.layer, { transform: [{ translateX: dx }, { translateY: dy }] }]}>
+            {body(only)}
+          </Text>
+        )),
+      )}
     </View>
   );
 }

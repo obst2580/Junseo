@@ -16,9 +16,9 @@ const theme = {
 };
 
 export default function RootLayout() {
-  // 사진에 얹는 「북한」 글자 모양용 제주한라산체 (SIL OFL, assets/fonts 에 원본 그대로).
+  // 사진에 얹는 「북한」 글자 모양용 은 궁서 (궁서체, GPL — assets/fonts/README.md).
   // 기다리지 않는다 — 다 불러오기 전에는 기본 글꼴로 보인다.
-  useFonts({ JejuHallasan: require('../../assets/fonts/JejuHallasan-Regular.ttf') });
+  useFonts({ UnGungseo: require('../../assets/fonts/UnGungseo.ttf') });
   return (
     <ThemeProvider value={theme}>
       <AuthProvider>

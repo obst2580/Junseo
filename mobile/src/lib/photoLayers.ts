@@ -16,7 +16,7 @@ export const TEXT_FONTS: { key: TextFont; label: string }[] = [
   { key: 'nk', label: '북한' },
 ];
 /** useFonts 로 불러온 이름 (루트 레이아웃) */
-export const FONT_FAMILY = { nk: 'JejuHallasan' } as const;
+export const FONT_FAMILY = { nk: 'UnGungseo' } as const;
 
 /** 기생충 포스터 같은 검은 눈 가리개 */
 export const BAR = { width: 0.64, height: 0.07 };
