@@ -190,7 +190,7 @@ export default function MomentScreen() {
             <View style={styles.reactBlock}>
               <View style={styles.emojiRow}>
                 {QUICK_EMOJIS.map((e) => (
-                  <EmojiTapButton key={e} emoji={e} mine={myCount(e)} disabled={myCount(e) >= MAX_TAPS} onTap={tapEmoji} />
+                  <EmojiTapButton key={e} emoji={e} disabled={myCount(e) >= MAX_TAPS} onTap={tapEmoji} />
                 ))}
               </View>
               <View style={styles.reactHint}>
