@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text } from 'react-native';
 
 import { colors } from '@/lib/theme';
 
@@ -9,7 +9,7 @@ type Particle = { id: number; value: Animated.Value; drift: number };
 
 /**
  * 여러 번 누를 수 있는 이모지 버튼. 누를 때마다 톡 튀고, 같은 이모지가 하나씩 떠올라 사라진다.
- * 내가 누른 횟수는 오른쪽 위 배지로 보여준다.
+ * 내가 몇 번 눌렀는지는 보여주지 않고, 한 번이라도 눌렀으면 테두리만 켠다.
  */
 export function EmojiTapButton({ emoji, mine, disabled, onTap }: { emoji: string; mine: number; disabled?: boolean; onTap: (emoji: string) => void }) {
   const [scale] = useState(() => new Animated.Value(1));
@@ -30,14 +30,9 @@ export function EmojiTapButton({ emoji, mine, disabled, onTap }: { emoji: string
   };
 
   return (
-    <Pressable onPress={press} accessibilityRole="button" accessibilityLabel={`${emoji} 반응, 지금까지 ${mine}번`} hitSlop={4}>
+    <Pressable onPress={press} accessibilityRole="button" accessibilityLabel={`${emoji} 반응 보내기`} accessibilityState={{ selected: mine > 0 }} hitSlop={4}>
       <Animated.View style={[styles.button, mine > 0 && styles.active, { transform: [{ scale }] }]}>
         <Text style={styles.emoji}>{emoji}</Text>
-        {mine > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{mine}</Text>
-          </View>
-        )}
       </Animated.View>
       {particles.map((p) => (
         <Animated.Text
@@ -65,18 +60,5 @@ const styles = StyleSheet.create({
   button: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   active: { backgroundColor: colors.surfaceHigh, borderWidth: 2, borderColor: colors.accent },
   emoji: { fontSize: 26 },
-  badge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: { color: colors.accentText, fontSize: 11, fontWeight: '800', fontVariant: ['tabular-nums'] },
   particle: { position: 'absolute', top: 10, left: 0, right: 0, textAlign: 'center', fontSize: 24 },
 });
