@@ -97,6 +97,7 @@ export default function CameraScreen() {
         <View style={{ width: 44 }} />
       </View>
 
+      <View style={styles.body}>
       <View style={styles.center}>
         <View style={[styles.viewport, { width: size, height: size }]}>
           {shot ? (
@@ -188,6 +189,7 @@ export default function CameraScreen() {
           </>
         )}
       </View>
+      </View>
       {toast && (
         <View style={styles.toast} pointerEvents="none">
           <Text style={styles.toastText}>{toast}</Text>
@@ -210,8 +212,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHigh,
   },
   friendsPillText: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  // 카메라 묶음은 상단 바 바로 아래에 붙인다. 남는 공간은 아래 탭 바 쪽으로 간다.
-  center: { alignItems: 'center', paddingTop: 18, gap: 14 },
+  // 사진 칸 + 셔터 묶음은 상단 바와 탭 바 사이 가운데에 둔다.
+  body: { flex: 1, justifyContent: 'center' },
+  center: { alignItems: 'center', gap: 14 },
   viewport: { borderRadius: radius.photo, overflow: 'hidden', backgroundColor: colors.surface },
   zoomRow: {
     position: 'absolute',
@@ -237,9 +240,10 @@ const styles = StyleSheet.create({
   shutterOuter: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.text },
   sendButton: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
+  // 상단 친구 버튼을 가리지 않게 탭 바 바로 위에 띄운다.
   toast: {
     position: 'absolute',
-    top: 72,
+    bottom: 16,
     alignSelf: 'center',
     paddingHorizontal: 18,
     paddingVertical: 10,

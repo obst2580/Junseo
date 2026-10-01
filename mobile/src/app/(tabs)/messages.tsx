@@ -32,21 +32,22 @@ export default function ConversationsScreen() {
           <Pressable style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]} onPress={() => router.push(`/messages/${item.peer.id}`)}>
             <Avatar id={item.peer.id} name={item.peer.displayName} size={48} />
             <View style={styles.body}>
-              <View style={styles.titleRow}>
-                <Text style={styles.name}>{item.peer.displayName}</Text>
-                <Text style={styles.time}>{timeAgo(last.createdAt)}</Text>
-              </View>
+              <Text style={styles.name}>{item.peer.displayName}</Text>
               <Text style={[styles.preview, item.unreadCount > 0 && styles.previewUnread]} numberOfLines={1}>
                 {last.senderId === me?.id ? '나: ' : ''}
                 {last.moment ? '📷 ' : ''}
                 {preview}
               </Text>
             </View>
-            {item.unreadCount > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{item.unreadCount}</Text>
-              </View>
-            )}
+            {/* 시간 아래 안 읽은 수. 배지가 있든 없든 시간이 같은 오른쪽 끝에 맞춰진다. */}
+            <View style={styles.side}>
+              <Text style={styles.time}>{timeAgo(last.createdAt)}</Text>
+              {item.unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{item.unreadCount}</Text>
+                </View>
+              )}
+            </View>
           </Pressable>
         );
       }}
@@ -58,7 +59,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.bg },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
   body: { flex: 1, gap: 3 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  side: { alignSelf: 'stretch', alignItems: 'flex-end', gap: 6, paddingTop: 3, minWidth: 48 },
   name: { color: colors.text, fontSize: 16, fontWeight: '700' },
   time: { color: colors.textFaint, fontSize: 12 },
   preview: { color: colors.textDim, fontSize: 14 },
