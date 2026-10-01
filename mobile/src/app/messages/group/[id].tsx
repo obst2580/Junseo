@@ -1,9 +1,10 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
+import { Icon } from '@/components/Icon';
 import { ChatBubble } from '@/components/ChatBubble';
 import { ErrorText } from '@/components/ui';
 import { api, ApiError, type GroupChat, type GroupMessage } from '@/lib/api';
@@ -16,6 +17,8 @@ import { colors } from '@/lib/theme';
 const POLL_MS = 5000;
 
 export default function GroupChatScreen() {
+  // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
+  const headerHeight = useHeaderHeight();
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupId = Number(id);
   const { me } = useAuth();
@@ -117,13 +120,13 @@ export default function GroupChatScreen() {
   const people = new Map(group?.members.map((m) => [m.id, m]));
 
   return (
-    <SafeAreaView style={styles.flex} edges={['bottom']}>
+    <SafeAreaView style={[styles.flex, { paddingTop: headerHeight }]} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: group ? `${groupTitle(group, me?.id)} ${group.members.length}` : '',
           headerRight: () => (
             <Pressable onPress={leave} hitSlop={10} accessibilityRole="button" accessibilityLabel="단챗 나가기">
-              <Ionicons name="exit-outline" size={22} color={colors.textDim} />
+              <Icon name="exit" size={22} color={colors.textDim} />
             </Pressable>
           ),
         }}
@@ -163,7 +166,7 @@ export default function GroupChatScreen() {
             returnKeyType="send"
           />
           <Pressable onPress={send} disabled={sending || !text.trim()} style={[styles.sendButton, (!text.trim() || sending) && { opacity: 0.4 }]}>
-            <Ionicons name="arrow-up" size={20} color={colors.accentText} />
+            <Icon name="send" size={20} color={colors.accentText} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -172,7 +175,7 @@ export default function GroupChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   list: { padding: 12, gap: 10 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   input: { flex: 1, height: 44, borderRadius: 22, paddingHorizontal: 16, backgroundColor: colors.surface, color: colors.text, fontSize: 15 },

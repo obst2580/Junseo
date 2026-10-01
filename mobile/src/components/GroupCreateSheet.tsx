@@ -1,8 +1,8 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { Avatar, ErrorText } from '@/components/ui';
 import { api, ApiError, type GroupChat, type UserSummary } from '@/lib/api';
 import { linkKey, withAnd } from '@/lib/groups';
@@ -100,7 +100,7 @@ export function GroupCreateSheet({
                       </Text>
                     )}
                   </View>
-                  <Ionicons name={checked ? 'checkmark-circle' : 'ellipse-outline'} size={26} color={checked ? colors.accent : colors.textDim} />
+                  <Icon name={checked ? 'checkOn' : 'checkOff'} size={26} strokeWidth={1.6} color={checked ? colors.accent : colors.textDim} />
                 </Pressable>
               );
             })}
@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: {
     maxHeight: '80%',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   grabber: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.surfaceHigh, marginBottom: 12 },
   title: { color: colors.text, fontSize: 20, fontWeight: '800' },
   subtitle: { color: colors.textDim, fontSize: 14, marginTop: 4, marginBottom: 12 },
-  name: { height: 46, borderRadius: 14, paddingHorizontal: 14, backgroundColor: colors.bg, color: colors.text, fontSize: 15, marginBottom: 8 },
+  name: { height: 46, borderRadius: 14, paddingHorizontal: 14, backgroundColor: colors.sunk, color: colors.text, fontSize: 15, marginBottom: 8 },
   empty: { color: colors.textDim, fontSize: 14, paddingVertical: 20, textAlign: 'center' },
   list: { flexGrow: 0 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 },

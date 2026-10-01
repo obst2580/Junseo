@@ -9,7 +9,7 @@ import { ZoomProvider } from '@/components/PinchZoom';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { events } from '@/lib/events';
 import { listenPush, registerPush } from '@/lib/push';
-import { colors } from '@/lib/theme';
+import { colors, glow, motion } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
 const theme = {
@@ -60,7 +60,7 @@ function RootStack() {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={[glow, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}>
         <ActivityIndicator color={colors.accent} />
       </View>
     );
@@ -69,12 +69,16 @@ function RootStack() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: colors.bg },
+        // 모든 화면 바탕은 그라데이션. 헤더는 그 위에 투명하게 뜬다 (각 화면이 헤더 높이만큼 내려서 시작).
+        headerTransparent: true,
         headerTintColor: colors.text,
         headerTitleStyle: { fontWeight: '700' },
         headerShadowVisible: false,
         headerBackButtonDisplayMode: 'minimal',
-        contentStyle: { backgroundColor: colors.bg },
+        contentStyle: glow,
+        // 화면 넘어갈 때 「밀기」, 길이 ×1.8 (iOS 는 simple_push 만 길이를 바꿀 수 있다)
+        animation: 'simple_push',
+        animationDuration: motion.ms('screen'),
       }}>
       <Stack.Protected guard={signedIn}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false, title: '' }} />

@@ -1,4 +1,3 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
@@ -16,7 +15,9 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
+import { Icon } from '@/components/Icon';
 import { EmojiTapButton } from '@/components/EmojiTapButton';
 import { PinchToZoom } from '@/components/PinchZoom';
 import { Avatar, Empty, ErrorText, IconButton } from '@/components/ui';
@@ -53,6 +54,8 @@ function confirm(title: string, onConfirm: () => void) {
 }
 
 export default function MomentScreen() {
+  // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
+  const headerHeight = useHeaderHeight();
   const { id } = useLocalSearchParams<{ id: string }>();
   const momentId = Number(id);
   const { me } = useAuth();
@@ -92,7 +95,7 @@ export default function MomentScreen() {
   }, []);
   const { unsent, tap } = useReactionTaps(momentId, afterTaps, tapFailed);
 
-  if (error) return <Empty icon="eye-off-outline" title={error} />;
+  if (error) return <Empty icon="eyeOff" title={error} />;
   if (!moment || !me) return <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />;
 
   const mine = moment.sender.id === me.id;
@@ -151,11 +154,11 @@ export default function MomentScreen() {
     });
 
   return (
-    <SafeAreaView style={styles.flex} edges={['bottom']}>
+    <SafeAreaView style={[styles.flex, { paddingTop: headerHeight }]} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: mine ? '내 사진' : moment.sender.displayName,
-          headerRight: mine ? () => <IconButton icon="trash-outline" size={20} onPress={removeMoment} label="사진 삭제" /> : undefined,
+          headerRight: mine ? () => <IconButton icon="trash" size={20} onPress={removeMoment} label="사진 삭제" /> : undefined,
         }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
@@ -234,7 +237,7 @@ export default function MomentScreen() {
               returnKeyType="send"
             />
             <Pressable onPress={submit} disabled={sending || !text.trim()} style={[styles.sendButton, (!text.trim() || sending) && { opacity: 0.4 }]}>
-              {sending ? <ActivityIndicator color={colors.accentText} /> : <Ionicons name="arrow-up" size={20} color={colors.accentText} />}
+              {sending ? <ActivityIndicator color={colors.accentText} /> : <Icon name="send" size={20} color={colors.accentText} />}
             </Pressable>
           </View>
         </View>
@@ -244,7 +247,7 @@ export default function MomentScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   content: { alignItems: 'center', padding: 12, gap: 14 },
   photo: { borderRadius: radius.photo, backgroundColor: colors.surface },
   senderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', paddingHorizontal: 8 },
@@ -266,7 +269,7 @@ const styles = StyleSheet.create({
   commentTime: { color: colors.textFaint, fontSize: 12, marginTop: 2 },
   composer: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, padding: 10, gap: 8 },
   modeRow: { flexDirection: 'row', gap: 8 },
-  modeChip: { paddingHorizontal: 12, height: 30, justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.surface },
+  modeChip: { paddingHorizontal: 12, height: 30, justifyContent: 'center', borderRadius: radius.button, backgroundColor: colors.surface },
   modeChipActive: { backgroundColor: colors.text },
   modeText: { color: colors.textDim, fontSize: 13, fontWeight: '600' },
   modeTextActive: { color: colors.bg },

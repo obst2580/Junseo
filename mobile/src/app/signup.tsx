@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { Button, ErrorText, Field } from '@/components/ui';
 import { ApiError } from '@/lib/api';
@@ -7,6 +8,8 @@ import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
 export default function SignupScreen() {
+  // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
+  const headerHeight = useHeaderHeight();
   const { signUp } = useAuth();
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -29,7 +32,7 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.flex, { paddingTop: headerHeight }]}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>친구들이 부를{'\n'}이름을 알려 주세요</Text>
         <Field label="이름" value={displayName} onChangeText={setDisplayName} placeholder="예: 준서" maxLength={20} />
@@ -43,7 +46,7 @@ export default function SignupScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   container: { padding: 24, gap: 16 },
   title: { color: colors.text, fontSize: 26, fontWeight: '800', lineHeight: 34, marginBottom: 12 },
 });

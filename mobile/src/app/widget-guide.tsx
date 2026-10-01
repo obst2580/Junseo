@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { WidgetPreview } from '@/components/WidgetPreview';
 import { api, type WidgetLatest } from '@/lib/api';
@@ -13,18 +14,20 @@ const STEPS = [
 ];
 
 export default function WidgetGuideScreen() {
+  // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
+  const headerHeight = useHeaderHeight();
   const [data, setData] = useState<WidgetLatest | null>(null);
   useEffect(() => {
     api.widgetLatest().then((d) => setData(d ?? null)).catch(() => {});
   }, []);
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.content}>
+    <ScrollView style={[styles.flex, { paddingTop: headerHeight }]} contentContainerStyle={styles.content}>
       <Text style={styles.title}>친구 사진이{'\n'}홈 화면에 바로 떠요</Text>
       <View style={styles.previews}>
         <WidgetPreview data={data} size={150} />
         <View style={styles.previewCaption}>
-          <Text style={styles.dim}>친구가 남긴 댓글과 이모지도 사진 아래에 함께 보여요.</Text>
+          <Text style={styles.dim}>친구가 남긴 댓글도 사진 아래에 함께 보여요.</Text>
         </View>
       </View>
       <View style={styles.steps}>
@@ -45,7 +48,7 @@ export default function WidgetGuideScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   content: { padding: 20, gap: 24, maxWidth: 560, width: '100%', alignSelf: 'center' },
   title: { color: colors.text, fontSize: 26, fontWeight: '800', lineHeight: 34 },
   previews: { flexDirection: 'row', alignItems: 'center', gap: 16 },

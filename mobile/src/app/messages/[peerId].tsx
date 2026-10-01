@@ -1,22 +1,25 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
+import { Icon } from '@/components/Icon';
 import { ChatBubble } from '@/components/ChatBubble';
 import { ErrorText } from '@/components/ui';
 import { api, ApiError, type Message, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
-import { colors } from '@/lib/theme';
+import { colors, radius } from '@/lib/theme';
 
 // 실시간 연결 없이 MVP 에서는 화면이 열려 있는 동안만 주기적으로 새 메시지를 가져온다. 푸시가 오면 바로 갱신한다.
 const POLL_MS = 5000;
 
 export default function ChatScreen() {
+  // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
+  const headerHeight = useHeaderHeight();
   const { peerId } = useLocalSearchParams<{ peerId: string }>();
   const peer = Number(peerId);
   const { me } = useAuth();
@@ -97,7 +100,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.flex} edges={['bottom']}>
+    <SafeAreaView style={[styles.flex, { paddingTop: headerHeight }]} edges={['bottom']}>
       <Stack.Screen options={{ title: peerInfo?.displayName ?? '' }} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
         {items === null ? (
@@ -139,7 +142,7 @@ export default function ChatScreen() {
             returnKeyType="send"
           />
           <Pressable onPress={send} disabled={sending || !text.trim()} style={[styles.sendButton, (!text.trim() || sending) && { opacity: 0.4 }]}>
-            <Ionicons name="arrow-up" size={20} color={colors.accentText} />
+            <Icon name="send" size={20} color={colors.accentText} />
           </Pressable>
         </View>
       </KeyboardAvoidingView>
@@ -148,9 +151,9 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   list: { padding: 12, gap: 10 },
-  momentThumb: { width: 120, height: 120, borderRadius: 18, backgroundColor: colors.surface },
+  momentThumb: { width: 120, height: 120, borderRadius: Math.round(radius.photo * 0.4), backgroundColor: colors.surface },
   replyLabel: { color: colors.textFaint, fontSize: 12, marginTop: 4 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   input: { flex: 1, height: 44, borderRadius: 22, paddingHorizontal: 16, backgroundColor: colors.surface, color: colors.text, fontSize: 15 },

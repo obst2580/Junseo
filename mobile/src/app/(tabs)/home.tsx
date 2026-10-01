@@ -1,20 +1,23 @@
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, FlatList, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
+import { PressScale } from '@/components/PressScale';
+import { useTabBarSpace } from '@/components/TabBar';
 import { Empty } from '@/components/ui';
 import { api, type Moment } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
 import { timeAgo } from '@/lib/format';
-import { colors } from '@/lib/theme';
+import { colors, radius } from '@/lib/theme';
 
 const COLUMNS = 3;
 const GAP = 4;
 
 export default function HistoryScreen() {
+  const tabBarSpace = useTabBarSpace();
   const { me } = useAuth();
   const { width } = useWindowDimensions();
   const tile = (Math.min(width, 640) - GAP * (COLUMNS + 1)) / COLUMNS;
@@ -63,13 +66,13 @@ export default function HistoryScreen() {
           data={items}
           keyExtractor={(m) => String(m.id)}
           numColumns={COLUMNS}
-          contentContainerStyle={styles.grid}
+          contentContainerStyle={[styles.grid, { paddingBottom: tabBarSpace + GAP }]}
           columnWrapperStyle={{ gap: GAP }}
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
-          ListEmptyComponent={<Empty icon="images-outline" title={'아직 주고받은 사진이 없어요.\n첫 사진을 찍어 보내 보세요!'} />}
+          ListEmptyComponent={<Empty icon="images" title={'아직 주고받은 사진이 없어요.\n첫 사진을 찍어 보내 보세요!'} />}
           renderItem={({ item }) => (
-            <Pressable onPress={() => router.push(`/moments/${item.id}`)} style={{ width: tile, height: tile }}>
+            <PressScale onPress={() => router.push(`/moments/${item.id}`)} style={{ width: tile, height: tile }}>
               <Image source={{ uri: absoluteUrl(item.thumbUrl) }} style={styles.thumb} contentFit="cover" transition={120} />
               <View style={styles.meta}>
                 <Text style={styles.metaText} numberOfLines={1}>
@@ -84,7 +87,7 @@ export default function HistoryScreen() {
                   </Text>
                 </View>
               )}
-            </Pressable>
+            </PressScale>
           )}
         />
       )}
@@ -93,9 +96,10 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   grid: { padding: GAP, gap: GAP, alignSelf: 'center', width: '100%', maxWidth: 640 },
-  thumb: { flex: 1, borderRadius: 14, backgroundColor: colors.surface },
+  // 사진 모서리는 디자인의 「사진 모서리」에 비례 (디자인 랩: × 0.32)
+  thumb: { flex: 1, borderRadius: Math.round(radius.photo * 0.32), backgroundColor: colors.surface },
   meta: { position: 'absolute', left: 6, bottom: 6, maxWidth: '86%', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)' },
   metaText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   activity: { position: 'absolute', top: 6, right: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)' },

@@ -1,8 +1,8 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ReactNode } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Icon } from '@/components/Icon';
 import { GroupAvatar } from '@/components/GroupAvatar';
 import { Avatar } from '@/components/ui';
 import type { GroupChat, UserSummary } from '@/lib/api';
@@ -123,14 +123,14 @@ function Row({
           <Avatar id={avatar.id} name={avatar.displayName} size={40} />
         ) : (
           <View style={styles.allIcon}>
-            <Ionicons name="people" size={20} color={colors.text} />
+            <Icon name="people" size={20} color={colors.text} />
           </View>
         ))}
       <Text style={[styles.rowText, !checked && styles.rowTextOff]} numberOfLines={1}>
         {label}
         {detail && <Text style={styles.rowDetail}> {detail}</Text>}
       </Text>
-      <Ionicons name={checked ? 'checkmark-circle' : 'ellipse-outline'} size={26} color={checked ? colors.accent : colors.textDim} />
+      <Icon name={checked ? 'checkOn' : 'checkOff'} size={26} strokeWidth={1.6} color={checked ? colors.accent : colors.textDim} />
     </Pressable>
   );
 }
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   sheet: {
     maxHeight: '75%',
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sheet,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,

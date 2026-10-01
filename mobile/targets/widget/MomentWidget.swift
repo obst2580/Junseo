@@ -2,12 +2,13 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
-// 친구가 보낸 최신 사진을 홈 화면에 띄우고, 사진 아래에 이모지 반응과 댓글을 보여준다.
+// 친구가 보낸 최신 사진을 홈 화면에 띄우고, 사진 아래에 댓글을 보여준다.
+// 저장한 디자인: 큰 위젯 댓글 2줄, 이모지 숨김, 보낸 사람은 글자만.
 // 배치는 앱 안의 미리보기(src/components/WidgetPreview.tsx)와 맞춰 둔다.
 
 private enum Palette {
-    static let accent = Color(red: 1, green: 0.784, blue: 0.239) // #FFC83D
-    static let background = Color(red: 0.078, green: 0.078, blue: 0.078) // #141414
+    static let accent = Color(red: 0.161, green: 1, blue: 0.004) // #29FF01 (로고 초록)
+    static let background = Color(red: 0.055, green: 0.051, blue: 0.047) // #0e0d0c
 }
 
 struct MomentEntry: TimelineEntry {
@@ -104,23 +105,16 @@ private struct MomentContentView: View {
 
     private var hasActivity: Bool {
         guard let snapshot else { return false }
-        return !snapshot.reactions.isEmpty || !snapshot.comments.isEmpty
+        return !snapshot.comments.isEmpty
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: large ? 6 : 4) {
             if let snapshot {
-                SenderChip(name: snapshot.senderName, ago: Self.ago(snapshot.createdAt, now: now))
+                SenderLabel(name: snapshot.senderName, ago: Self.ago(snapshot.createdAt, now: now))
             }
             Spacer(minLength: 0)
             if let snapshot {
-                if !snapshot.reactions.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(snapshot.reactions, id: \.self) { reaction in
-                            ReactionPill(reaction: reaction)
-                        }
-                    }
-                }
                 ForEach(Array(snapshot.comments.suffix(large ? 2 : 1).enumerated()), id: \.offset) { _, comment in
                     Text("\(Text(comment.author).fontWeight(.heavy)) \(comment.text)")
                         .font(large ? .subheadline : .caption2)
@@ -161,7 +155,8 @@ private struct MomentContentView: View {
     }
 }
 
-private struct SenderChip: View {
+/// 보낸 사람은 이름표 없이 글자만. 위쪽 그늘과 글자 그림자로 사진 위에서도 읽힌다.
+private struct SenderLabel: View {
     let name: String
     let ago: String
 
@@ -169,32 +164,13 @@ private struct SenderChip: View {
         HStack(spacing: 4) {
             Text(name).fontWeight(.bold).lineLimit(1)
             Text(ago)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.white.opacity(0.72))
                 .lineLimit(1)
                 .fixedSize()
         }
         .font(.caption2)
         .foregroundStyle(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.black.opacity(0.45), in: Capsule())
-    }
-}
-
-private struct ReactionPill: View {
-    let reaction: ReactionCount
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Text(reaction.emoji)
-            if reaction.count > 1 {
-                Text("\(reaction.count)").fontWeight(.bold).foregroundStyle(.white)
-            }
-        }
-        .font(.caption2)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(.white.opacity(0.18), in: Capsule())
+        .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
     }
 }
 

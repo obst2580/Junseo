@@ -58,7 +58,7 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1 },
   container: { flex: 1, paddingHorizontal: 24, justifyContent: 'center', gap: 40 },
   hero: { gap: 12 },
   // 로고 글자 (assets/logo-mark.png, 앱 아이콘과 같은 그림)

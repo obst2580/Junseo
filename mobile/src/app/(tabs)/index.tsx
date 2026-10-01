@@ -1,14 +1,16 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions, type CameraType } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { motionEasing, PressScale } from '@/components/PressScale';
+import { Icon } from '@/components/Icon';
 import { LayerPinchArea, PhotoLayerView, type LayerControl } from '@/components/PhotoLayerView';
 import { RecipientSheet } from '@/components/RecipientSheet';
+import { useTabBarSpace } from '@/components/TabBar';
 import { TextLayerEditor } from '@/components/TextLayerEditor';
 import { Button, IconButton } from '@/components/ui';
 import { api, ApiError, type GroupChat, type UserSummary } from '@/lib/api';
@@ -18,7 +20,7 @@ import { applyLens, preloadLens } from '@/lib/lensEffect';
 import { pickLenses, type Zoom } from '@/lib/lenses';
 import { events } from '@/lib/events';
 import { newBar, newText, type PhotoLayer, type TextFont } from '@/lib/photoLayers';
-import { colors, radius } from '@/lib/theme';
+import { colors, motion, radius } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
 // lensUri: 렌즈 굴곡 효과를 켰을 때의 사진 (끄면 원본으로 돌아간다)
@@ -31,9 +33,11 @@ let layerHintShown = false;
 // 새 글자는 마지막에 고른 모양으로 시작한다
 let lastTextFont: TextFont = 'plain';
 // 고르기 점선이 빠진 화면이 그려질 때까지 기다린다
+const nativeDriver = Platform.OS !== 'web';
 const nextFrames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 export default function CameraScreen() {
+  const tabBarSpace = useTabBarSpace();
   const { me, refreshMe } = useAuth();
   const { width } = useWindowDimensions();
   const size = Math.min(width - 24, 520);
@@ -54,6 +58,9 @@ export default function CameraScreen() {
   const [dragging, setDragging] = useState<{ overTrash: boolean } | null>(null);
   const [editing, setEditing] = useState<{ id: number | null; text: string; font: TextFont } | null>(null);
   const [busy, setBusy] = useState(false);
+  // 촬영할 때 「플래시」, 보낼 때 「사라지기」 (저장한 디자인)
+  const [flash] = useState(() => new Animated.Value(0));
+  const [sendFade] = useState(() => new Animated.Value(0));
   const [lensBusy, setLensBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // 받는 친구: 기본은 전체, 뺀 친구만 기억한다 (새로 사귄 친구는 자동으로 들어간다). 앱을 다시 켜면 전체로 돌아간다.
@@ -85,6 +92,12 @@ export default function CameraScreen() {
   const capture = async () => {
     if (!cameraRef.current || busy) return;
     setBusy(true);
+    const d = motion.ms('shutter');
+    flash.setValue(0);
+    Animated.sequence([
+      Animated.timing(flash, { toValue: 0.92, duration: d * 0.25, easing: Easing.out(Easing.quad), useNativeDriver: nativeDriver }),
+      Animated.timing(flash, { toValue: 0, duration: d * 0.75, easing: Easing.out(Easing.quad), useNativeDriver: nativeDriver }),
+    ]).start();
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const picture = await cameraRef.current.takePictureAsync({ quality: 0.9, shutterSound: false });
@@ -181,9 +194,16 @@ export default function CameraScreen() {
         await api.uploadMoment(uri, recipientIds);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      // 사진이 살짝 작아지며 사라진 다음 카메라로 돌아간다
+      setBusy(false);
+      await new Promise<void>((resolve) =>
+        Animated.timing(sendFade, { toValue: 1, duration: motion.ms('send') * 0.6, easing: motionEasing, useNativeDriver: nativeDriver }).start(() => resolve()),
+      );
       setShot(null);
       setLayers([]);
       setSelectedId(null);
+      // 카메라 화면이 그려진 뒤에 다시 보이게 한다 (보낸 사진이 한 번 깜빡이지 않게)
+      nextFrames().then(() => sendFade.setValue(0));
       setToast(`친구 ${chosenCount}명에게 보냈어요`);
       widgetBridge.reload();
       events.emit('moments');
@@ -200,22 +220,31 @@ export default function CameraScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
         {/* 누르면 보낼 친구를 고른다. 친구가 없으면 친구 추가로 */}
-        <Pressable
+        <PressScale
           style={[styles.friendsPill, someExcluded && styles.friendsPillPartial]}
           onPress={() => (noFriends || !friends ? router.push('/friends') : setPicking(true))}
           accessibilityRole="button"
           accessibilityLabel={noFriends ? '친구 추가' : '보낼 친구 고르기'}>
-          <Ionicons name="people" size={16} color={someExcluded ? colors.accent : colors.text} />
+          <Icon name="people" size={16} color={someExcluded ? colors.accent : colors.text} />
           <Text style={[styles.friendsPillText, someExcluded && { color: colors.accent }]}>
             {noFriends ? '친구 추가' : someExcluded ? `${totalFriends}명 중 ${chosenCount}명` : `친구 ${totalFriends}명`}
           </Text>
-          {!noFriends && <Ionicons name="chevron-down" size={14} color={someExcluded ? colors.accent : colors.textDim} />}
-        </Pressable>
+          {!noFriends && <Icon name="down" size={14} color={someExcluded ? colors.accent : colors.textDim} />}
+        </PressScale>
       </View>
 
-      <View style={styles.body}>
+      <View style={[styles.body, { paddingBottom: tabBarSpace }]}>
       <View style={styles.center}>
-        <View style={[styles.viewport, { width: size, height: size }]}>
+        <Animated.View
+          style={[
+            styles.viewport,
+            {
+              width: size,
+              height: size,
+              opacity: sendFade.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+              transform: [{ scale: sendFade.interpolate({ inputRange: [0, 1], outputRange: [1, 0.94] }) }],
+            },
+          ]}>
           {shot ? (
             <>
               {/* 이 뷰가 그대로 합성된다. 도구·휴지통은 바깥에 둔다. */}
@@ -243,7 +272,7 @@ export default function CameraScreen() {
               </View>
               {dragging ? (
                 <View style={[styles.trash, dragging.overTrash && styles.trashHot]}>
-                  <Ionicons name="trash-outline" size={22} color="#fff" />
+                  <Icon name="trash" size={22} color="#fff" />
                 </View>
               ) : (
                 <View style={styles.zoomRow}>
@@ -271,7 +300,7 @@ export default function CameraScreen() {
                     {lensBusy ? (
                       <ActivityIndicator size="small" color="#fff" style={styles.lensIcon} />
                     ) : (
-                      <Ionicons name="aperture" size={17} color={shot.lensUri ? colors.accent : '#fff'} style={styles.lensIcon} />
+                      <Icon name="aperture" size={17} color={shot.lensUri ? colors.accent : '#fff'} style={styles.lensIcon} />
                     )}
                     <Text style={[styles.toolText, shot.lensUri && { color: colors.accent }]}>렌즈</Text>
                   </Pressable>
@@ -312,7 +341,7 @@ export default function CameraScreen() {
             </>
           ) : (
             <View style={styles.permission}>
-              <Ionicons name="camera" size={36} color={colors.textDim} />
+              <Icon name="camera" size={36} color={colors.textDim} />
               <Text style={styles.permissionText}>사진을 찍으려면{'\n'}카메라 권한이 필요해요</Text>
               <Button title="권한 허용" onPress={requestPermission} style={{ height: 44 }} />
             </View>
@@ -322,7 +351,8 @@ export default function CameraScreen() {
               <ActivityIndicator color={colors.text} size="large" />
             </View>
           )}
-        </View>
+          <Animated.View pointerEvents="none" style={[styles.flash, { opacity: flash }]} />
+        </Animated.View>
 
         {noFriends && !shot && (
           <Pressable style={styles.hint} onPress={() => router.push('/friends')}>
@@ -335,23 +365,23 @@ export default function CameraScreen() {
         {shot ? (
           <>
             <IconButton icon="close" size={28} onPress={retake} label="다시 찍기" style={styles.sideButton} />
-            <Pressable
+            <PressScale
               onPress={send}
               disabled={busy || noFriends}
-              style={({ pressed }) => [styles.sendButton, (busy || noFriends || chosenCount === 0) && { opacity: 0.4 }, pressed && { opacity: 0.7 }]}
+              style={[styles.sendButton, (busy || noFriends || chosenCount === 0) && { opacity: 0.4 }]}
               accessibilityLabel="보내기">
-              <Ionicons name="paper-plane" size={34} color={colors.accentText} />
-            </Pressable>
+              <Icon name="plane" size={32} color={colors.accentText} />
+            </PressScale>
             <View style={styles.sideButton} />
           </>
         ) : (
           <>
             <View style={styles.sideButton} />
-            <Pressable onPress={capture} disabled={!permission?.granted || busy} style={styles.shutterOuter} accessibilityLabel="촬영">
-              {({ pressed }) => <View style={[styles.shutterInner, pressed && { transform: [{ scale: 0.9 }] }]} />}
-            </Pressable>
+            <PressScale onPress={capture} disabled={!permission?.granted || busy} style={styles.shutterOuter} accessibilityLabel="촬영">
+              {({ pressed }) => <View style={[styles.shutterInner, pressed && { transform: [{ scale: 0.86 }] }]} />}
+            </PressScale>
             <IconButton
-              icon="camera-reverse"
+              icon="flip"
               size={26}
               onPress={() => {
                 // 전면·후면은 렌즈 목록이 달라서 1배로 돌아간다.
@@ -367,7 +397,7 @@ export default function CameraScreen() {
       </View>
       </View>
       {toast && (
-        <View style={styles.toast} pointerEvents="none">
+        <View style={[styles.toast, { bottom: tabBarSpace + 10 }]} pointerEvents="none">
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       )}
@@ -391,7 +421,7 @@ export default function CameraScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+  safe: { flex: 1 },
   // 내 정보는 친구 화면 맨 위로 옮겼다. 여기는 보낼 친구 버튼만.
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingTop: 8, minHeight: 52 },
   friendsPill: {
@@ -400,7 +430,7 @@ const styles = StyleSheet.create({
     gap: 6,
     height: 40,
     paddingHorizontal: 16,
-    borderRadius: radius.pill,
+    borderRadius: radius.button,
     backgroundColor: colors.surfaceHigh,
   },
   friendsPillText: { color: colors.text, fontSize: 15, fontWeight: '700' },
@@ -446,6 +476,7 @@ const styles = StyleSheet.create({
   trashHot: { backgroundColor: colors.danger, transform: [{ scale: 1.18 }] },
   permission: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   permissionText: { color: colors.textDim, fontSize: 15, textAlign: 'center', lineHeight: 22 },
+  flash: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: '#fff' },
   busy: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
   hint: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.pill, backgroundColor: colors.surface },
   hintText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
@@ -457,7 +488,6 @@ const styles = StyleSheet.create({
   // 상단 친구 버튼을 가리지 않게 탭 바 바로 위에 띄운다.
   toast: {
     position: 'absolute',
-    bottom: 16,
     alignSelf: 'center',
     paddingHorizontal: 18,
     paddingVertical: 10,

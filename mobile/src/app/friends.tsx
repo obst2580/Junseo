@@ -1,9 +1,10 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 
+import { Icon } from '@/components/Icon';
 import { Avatar, Button, ErrorText } from '@/components/ui';
 import { api, ApiError, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -11,6 +12,8 @@ import { events } from '@/lib/events';
 import { colors, radius } from '@/lib/theme';
 
 export default function FriendsScreen() {
+  // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
+  const headerHeight = useHeaderHeight();
   const { me, refreshMe } = useAuth();
   const [friends, setFriends] = useState<UserSummary[]>([]);
   const [limit, setLimit] = useState(20);
@@ -80,7 +83,7 @@ export default function FriendsScreen() {
   };
 
   return (
-    <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView style={[styles.flex, { paddingTop: headerHeight }]} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {me && (
         <Pressable style={styles.me} onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="내 정보">
           <Avatar id={me.id} name={me.displayName} size={44} />
@@ -90,7 +93,7 @@ export default function FriendsScreen() {
             </Text>
             <Text style={styles.dim}>내 정보 · 위젯 · 로그아웃</Text>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+          <Icon name="next" size={18} color={colors.textFaint} />
         </Pressable>
       )}
       <View style={styles.card}>
@@ -144,7 +147,7 @@ export default function FriendsScreen() {
           <Avatar id={f.id} name={f.displayName} size={40} />
           <Text style={styles.friendName}>{f.displayName}</Text>
           <Pressable onPress={() => remove(f)} hitSlop={10} accessibilityLabel={`${f.displayName} 삭제`}>
-            <Ionicons name="close-circle" size={22} color={colors.textFaint} />
+            <Icon name="x" size={22} color={colors.textFaint} />
           </Pressable>
         </View>
       ))}
@@ -153,7 +156,7 @@ export default function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   content: { padding: 16, gap: 14, maxWidth: 560, width: '100%', alignSelf: 'center' },
   me: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.card, paddingVertical: 12, paddingHorizontal: 14 },
   meText: { flex: 1, gap: 2 },
@@ -169,7 +172,7 @@ const styles = StyleSheet.create({
     height: 52,
     borderRadius: 16,
     paddingHorizontal: 16,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.sunk,
     color: colors.text,
     fontSize: 18,
     fontWeight: '700',

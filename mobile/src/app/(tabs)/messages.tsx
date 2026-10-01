@@ -1,10 +1,12 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { PressScale } from '@/components/PressScale';
+import { Icon } from '@/components/Icon';
 import { GroupAvatar } from '@/components/GroupAvatar';
 import { GroupCreateSheet } from '@/components/GroupCreateSheet';
+import { useTabBarSpace } from '@/components/TabBar';
 import { Avatar, Empty } from '@/components/ui';
 import { api, type Conversation, type GroupConversation, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -17,6 +19,7 @@ import { colors } from '@/lib/theme';
 type Row = { key: string; at: string } & ({ kind: 'peer'; c: Conversation } | { kind: 'group'; g: GroupConversation });
 
 export default function ConversationsScreen() {
+  const tabBarSpace = useTabBarSpace();
   const { me } = useAuth();
   const navigation = useNavigation();
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -49,9 +52,9 @@ export default function ConversationsScreen() {
     navigation.setOptions({
       headerRight: () => (
         <Pressable onPress={openCreate} hitSlop={10} style={styles.newGroup} accessibilityRole="button" accessibilityLabel="단챗 만들기">
-          <Ionicons name="chatbubbles-outline" size={25} color={colors.text} />
+          <Icon name="chats" color={colors.text} />
           <View style={styles.plus}>
-            <Ionicons name="add" size={12} color={colors.accentText} />
+            <Icon name="plus" size={12} strokeWidth={3} color={colors.accentText} />
           </View>
         </Pressable>
       ),
@@ -64,7 +67,8 @@ export default function ConversationsScreen() {
         style={styles.flex}
         data={rows ?? []}
         keyExtractor={(r) => r.key}
-        ListEmptyComponent={rows ? <Empty icon="chatbubbles-outline" title={'친구 사진에 답장하면\n여기에서 이어서 이야기할 수 있어요.'} /> : null}
+        contentContainerStyle={{ paddingBottom: tabBarSpace }}
+        ListEmptyComponent={rows ? <Empty icon="chats" title={'친구 사진에 답장하면\n여기에서 이어서 이야기할 수 있어요.'} /> : null}
         renderItem={({ item }) => (item.kind === 'peer' ? <PeerRow c={item.c} meId={me?.id} /> : <GroupRow g={item.g} meId={me?.id} />)}
       />
       {creating && (
@@ -133,7 +137,7 @@ function ConversationRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]} onPress={onPress}>
+    <PressScale style={styles.row} onPress={onPress}>
       {avatar}
       <View style={styles.body}>
         <View style={styles.nameRow}>
@@ -155,12 +159,12 @@ function ConversationRow({
           </View>
         )}
       </View>
-    </Pressable>
+    </PressScale>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1, backgroundColor: colors.bg },
+  flex: { flex: 1 },
   newGroup: { marginRight: 16, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   plus: {
     position: 'absolute',

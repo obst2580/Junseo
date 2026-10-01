@@ -1,8 +1,9 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import type { ComponentProps, ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps, type ViewStyle } from 'react-native';
+import type { ReactNode } from 'react';
+import { ActivityIndicator, StyleSheet, Text, TextInput, View, type TextInputProps, type ViewStyle } from 'react-native';
 
-import { avatarColor, colors, radius } from '@/lib/theme';
+import { PressScale } from '@/components/PressScale';
+import { Icon, type IconName } from '@/components/Icon';
+import { avatarColor, colors, icon as iconToken, radius } from '@/lib/theme';
 
 export function Avatar({ id, name, size = 36 }: { id: number; name: string; size?: number }) {
   return (
@@ -12,12 +13,11 @@ export function Avatar({ id, name, size = 36 }: { id: number; name: string; size
   );
 }
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export function IconButton({
   icon,
   onPress,
-  size = 22,
+  size = iconToken.size,
   badge,
   label,
   style,
@@ -30,14 +30,14 @@ export function IconButton({
   style?: ViewStyle;
 }) {
   return (
-    <Pressable onPress={onPress} accessibilityLabel={label} hitSlop={8} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed, style]}>
-      <Ionicons name={icon} size={size} color={colors.text} />
+    <PressScale onPress={onPress} accessibilityLabel={label} hitSlop={8} style={[styles.iconButton, style]}>
+      <Icon name={icon} size={size} color={colors.text} />
       {!!badge && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{badge > 99 ? '99+' : badge}</Text>
         </View>
       )}
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -59,12 +59,12 @@ export function Button({
   const bg = variant === 'primary' ? colors.accent : colors.surfaceHigh;
   const fg = variant === 'primary' ? colors.accentText : variant === 'danger' ? colors.danger : colors.text;
   return (
-    <Pressable
+    <PressScale
       onPress={onPress}
       disabled={disabled || loading}
-      style={({ pressed }) => [styles.button, { backgroundColor: bg }, (disabled || loading) && styles.disabled, pressed && styles.pressed, style]}>
+      style={[styles.button, { backgroundColor: bg }, (disabled || loading) && styles.disabled, style]}>
       {loading ? <ActivityIndicator color={fg} /> : <Text style={[styles.buttonText, { color: fg }]}>{title}</Text>}
-    </Pressable>
+    </PressScale>
   );
 }
 
@@ -81,7 +81,7 @@ export function Field(props: TextInputProps & { label?: string }) {
 export function Empty({ icon, title, children }: { icon: IconName; title: string; children?: ReactNode }) {
   return (
     <View style={styles.empty}>
-      <Ionicons name={icon} size={40} color={colors.textFaint} />
+      <Icon name={icon} size={40} color={colors.textFaint} strokeWidth={2} />
       <Text style={styles.emptyTitle}>{title}</Text>
       {children}
     </View>
@@ -116,10 +116,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   badgeText: { color: colors.accentText, fontSize: 11, fontWeight: '800' },
-  button: { height: 52, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  button: { height: 52, borderRadius: radius.button, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   buttonText: { fontSize: 16, fontWeight: '700' },
   disabled: { opacity: 0.45 },
-  pressed: { opacity: 0.7 },
   fieldWrap: { gap: 6 },
   fieldLabel: { color: colors.textDim, fontSize: 13, fontWeight: '600', marginLeft: 4 },
   field: {

@@ -9,8 +9,8 @@ module.exports = (config) => ({
   deploymentTarget: '17.0',
   frameworks: ['SwiftUI', 'WidgetKit'],
   colors: {
-    $accent: '#FFC83D',
-    $widgetBackground: '#141414',
+    $accent: '#29FF01', // 로고 초록
+    $widgetBackground: '#0e0d0c',
   },
   entitlements: {
     'com.apple.security.application-groups': config.ios.entitlements['com.apple.security.application-groups'],

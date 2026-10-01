@@ -25,24 +25,17 @@ export function WidgetPreview({ data, size = 170 }: { data: WidgetLatest | null;
   return (
     <View style={[styles.frame, { width: size, height: size }]}>
       <Image source={{ uri: absoluteUrl(data.moment.thumbUrl) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
-      <View style={styles.senderChip}>
+      {/* 보낸 사람은 글자만 (위쪽 그늘 + 그림자) */}
+      <LinearGradient colors={['rgba(0,0,0,0.35)', 'transparent']} style={styles.topShade} />
+      <View style={styles.sender}>
         <Text style={styles.senderName} numberOfLines={1}>
           {data.moment.sender.displayName}
         </Text>
         <Text style={styles.senderTime}>{timeAgo(data.moment.createdAt)}</Text>
       </View>
-      {(comments.length > 0 || data.reactions.length > 0) && (
+      {/* 이모지 반응은 위젯에 띄우지 않는다 (저장한 디자인: 이모지 자리 숨김) */}
+      {comments.length > 0 && (
         <LinearGradient colors={['transparent', 'rgba(0,0,0,0.78)']} style={[styles.bottom, { paddingTop: large ? 48 : 28 }]}>
-          {data.reactions.length > 0 && (
-            <View style={styles.reactions}>
-              {data.reactions.map((r) => (
-                <View key={r.emoji} style={styles.reactionPill}>
-                  <Text style={styles.reactionEmoji}>{r.emoji}</Text>
-                  {r.count > 1 && <Text style={styles.reactionCount}>{r.count}</Text>}
-                </View>
-              ))}
-            </View>
-          )}
           {comments.map((c, i) => (
             <Text key={i} style={[styles.comment, large && styles.commentLarge]} numberOfLines={1}>
               <Text style={styles.commentAuthor}>{c.author} </Text>
@@ -60,34 +53,11 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', gap: 8 },
   emptyEmoji: { fontSize: 28 },
   emptyText: { color: colors.textDim, fontSize: 12, textAlign: 'center', lineHeight: 17 },
-  senderChip: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    maxWidth: '80%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 4,
-    borderRadius: 999,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-  },
-  senderName: { color: '#fff', fontSize: 12, fontWeight: '700', flexShrink: 1 },
-  senderTime: { color: 'rgba(255,255,255,0.7)', fontSize: 11 },
+  topShade: { position: 'absolute', left: 0, right: 0, top: 0, height: '30%' },
+  sender: { position: 'absolute', top: 10, left: 10, maxWidth: '80%', flexDirection: 'row', alignItems: 'baseline', gap: 4 },
+  senderName: { color: '#fff', fontSize: 12, fontWeight: '700', flexShrink: 1, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
+  senderTime: { color: 'rgba(255,255,255,0.72)', fontSize: 11, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 2, textShadowOffset: { width: 0, height: 1 } },
   bottom: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 10, paddingBottom: 10, gap: 4 },
-  reactions: { flexDirection: 'row', gap: 4 },
-  reactionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.18)',
-  },
-  reactionEmoji: { fontSize: 12 },
-  reactionCount: { color: '#fff', fontSize: 11, fontWeight: '700' },
   comment: { color: '#fff', fontSize: 12 },
   commentLarge: { fontSize: 15 },
   commentAuthor: { fontWeight: '800' },
