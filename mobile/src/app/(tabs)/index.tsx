@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PhotoLayerView } from '@/components/PhotoLayerView';
+import { LayerPinchArea, PhotoLayerView, type LayerControl } from '@/components/PhotoLayerView';
 import { TextLayerEditor } from '@/components/TextLayerEditor';
 import { Avatar, Button, IconButton } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
@@ -23,6 +23,10 @@ type Shot = { uri: string };
 
 const TRASH_SIZE = 46;
 const TRASH_BOTTOM = 12;
+// 처음 한 번만 쓰는 법을 알려 준다
+let layerHintShown = false;
+// 고르기 점선이 빠진 화면이 그려질 때까지 기다린다
+const nextFrames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
 export default function CameraScreen() {
   const { me, refreshMe } = useAuth();
@@ -40,6 +44,8 @@ export default function CameraScreen() {
   // 찍은 사진 위에 얹은 눈 가리개·텍스트. 보낼 때 사진에 합성한다.
   const photoRef = useRef<View>(null);
   const [layers, setLayers] = useState<PhotoLayer[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const layerControls = useRef(new Map<number, LayerControl>());
   const [dragging, setDragging] = useState<{ overTrash: boolean } | null>(null);
   const [editing, setEditing] = useState<{ id: number | null; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,6 +70,7 @@ export default function CameraScreen() {
       const picture = await cameraRef.current.takePictureAsync({ quality: 0.9, shutterSound: false });
       setShot({ uri: await toSquareJpeg(picture.uri, picture.width, picture.height) });
       setLayers([]);
+      setSelectedId(null);
     } catch {
       setToast('사진을 찍지 못했어요.');
     } finally {
@@ -74,29 +81,47 @@ export default function CameraScreen() {
   const retake = () => {
     setShot(null);
     setLayers([]);
+    setSelectedId(null);
+  };
+
+  // 새로 올린 것은 바로 골라 둔다
+  const addLayer = (layer: PhotoLayer) => {
+    setLayers((list) => [...list, layer]);
+    setSelectedId(layer.id);
+    if (!layerHintShown) {
+      layerHintShown = true;
+      setToast('눌러서 고르고, 두 손가락으로 크기·각도');
+    }
   };
 
   // 만진 요소는 맨 앞으로 온다
   const changeLayer = (next: PhotoLayer) => setLayers((list) => [...list.filter((l) => l.id !== next.id), next]);
-  const removeLayer = (id: number) => setLayers((list) => list.filter((l) => l.id !== id));
+  const removeLayer = (id: number) => {
+    setLayers((list) => list.filter((l) => l.id !== id));
+    setSelectedId((current) => (current === id ? null : current));
+  };
   const finishText = (text: string) => {
     const target = editing;
     setEditing(null);
     if (!target) return;
     if (target.id === null) {
-      if (text) setLayers((list) => [...list, newText(text)]);
+      if (text) addLayer(newText(text));
       return;
     }
-    setLayers((list) =>
-      text ? list.map((l) => (l.id === target.id && l.kind === 'text' ? { ...l, text } : l)) : list.filter((l) => l.id !== target.id),
-    );
+    if (text) setLayers((list) => list.map((l) => (l.id === target.id && l.kind === 'text' ? { ...l, text } : l)));
+    else removeLayer(target.id);
   };
 
   const send = async () => {
     if (!shot) return;
     setBusy(true);
     try {
-      const uri = layers.length ? await flattenPhoto(photoRef) : shot.uri;
+      let uri = shot.uri;
+      if (layers.length) {
+        setSelectedId(null);
+        await nextFrames();
+        uri = await flattenPhoto(photoRef);
+      }
       if (Platform.OS === 'web') {
         const blob = await (await fetch(uri)).blob();
         await api.uploadMomentBlob(blob);
@@ -106,6 +131,7 @@ export default function CameraScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setShot(null);
       setLayers([]);
+      setSelectedId(null);
       setToast(`친구 ${me?.friendCount ?? 0}명에게 보냈어요`);
       widgetBridge.reload();
       events.emit('moments');
@@ -140,19 +166,23 @@ export default function CameraScreen() {
               {/* 이 뷰가 그대로 합성된다. 도구·휴지통은 바깥에 둔다. */}
               <View ref={photoRef} collapsable={false} style={StyleSheet.absoluteFill}>
                 <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <LayerPinchArea controls={layerControls} selectedId={selectedId} onTapEmpty={() => setSelectedId(null)} />
                 {layers
                   .filter((l) => l.id !== editing?.id)
                   .map((l) => (
                     <PhotoLayerView
                       key={l.id}
                       layer={l}
+                      selected={l.id === selectedId}
+                      onSelect={setSelectedId}
+                      controls={layerControls}
                       size={size}
                       photoRef={photoRef}
                       trash={{ x: size / 2, y: size - TRASH_BOTTOM - TRASH_SIZE / 2, radius: 44 }}
                       onDrag={setDragging}
                       onChange={changeLayer}
                       onRemove={removeLayer}
-                      onTap={(t) => (t.kind === 'text' ? setEditing({ id: t.id, text: t.text }) : changeLayer(t))}
+                      onTap={(t, wasSelected) => (t.kind === 'text' && wasSelected ? setEditing({ id: t.id, text: t.text }) : changeLayer(t))}
                     />
                   ))}
               </View>
@@ -165,7 +195,7 @@ export default function CameraScreen() {
                   <Pressable
                     onPress={() => {
                       Haptics.selectionAsync().catch(() => {});
-                      setLayers((list) => [...list, newBar()]);
+                      addLayer(newBar());
                     }}
                     style={styles.tool}
                     accessibilityRole="button"

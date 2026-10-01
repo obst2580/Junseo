@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -13,6 +13,11 @@ export function TextLayerEditor({ initial, onDone }: { initial: string; onDone: 
   const insets = useSafeAreaInsets();
   const [text, setText] = useState(initial);
   const closed = useRef(false);
+  // 열자마자 들어오는 클릭(웹에서 탭 뒤에 따라오는 click)은 바깥 누르기로 치지 않는다
+  const backdropReadyAt = useRef(Infinity);
+  useEffect(() => {
+    backdropReadyAt.current = Date.now() + 300;
+  }, []);
   const finish = () => {
     if (closed.current) return;
     closed.current = true;
@@ -22,7 +27,7 @@ export function TextLayerEditor({ initial, onDone }: { initial: string; onDone: 
   return (
     <Modal transparent animationType="fade" visible onRequestClose={finish} statusBarTranslucent>
       <View style={styles.root}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={finish} accessibilityLabel="닫기" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => Date.now() >= backdropReadyAt.current && finish()} accessibilityLabel="닫기" />
         <Pressable onPress={finish} style={[styles.done, { marginTop: insets.top + 10 }]} accessibilityRole="button">
           <Text style={styles.doneText}>완료</Text>
         </Pressable>
