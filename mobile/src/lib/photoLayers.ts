@@ -8,7 +8,7 @@ export type PhotoLayer = (Base & { kind: 'bar' }) | (Base & { kind: 'text'; text
 /**
  * 글자 모양
  * - plain: 흰 글자 + 그림자
- * - gungseo: 궁서체 (은 궁서), 검은 글자
+ * - gungseo: 궁서체 (은 궁서), 기본처럼 흰 글자 + 그림자
  */
 export type TextFont = 'plain' | 'gungseo';
 export const TEXT_FONTS: { key: TextFont; label: string }[] = [

@@ -8,8 +8,7 @@ import { colors, radius } from '@/lib/theme';
 // 입력하는 동안 보이는 모양 (사진 위 모양과 비슷하게)
 const INPUT_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
-  // 어두운 입력 화면에서도 보이게 검은 글자에 밝은 번짐
-  gungseo: { fontFamily: FONT_FAMILY.gungseo, fontSize: 30, color: '#000', textShadowColor: 'rgba(255,255,255,0.95)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
+  gungseo: { fontFamily: FONT_FAMILY.gungseo, fontWeight: 'normal', fontSize: 30 },
 };
 const CHIP_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
