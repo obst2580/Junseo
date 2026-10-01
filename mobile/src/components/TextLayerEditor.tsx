@@ -9,14 +9,17 @@ import { colors, radius } from '@/lib/theme';
 const INPUT_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
   gungseo: { fontFamily: FONT_FAMILY.gungseo, fontWeight: 'normal', fontSize: 30 },
+  // 입력하는 동안에도 세로로 늘려 보인다
+  tall: { fontFamily: FONT_FAMILY.tall, fontWeight: 'normal', fontSize: 24, transform: [{ scaleY: 2.2 }] },
 };
 const CHIP_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
   gungseo: { fontFamily: FONT_FAMILY.gungseo, fontSize: 16 },
+  tall: { fontFamily: FONT_FAMILY.tall, fontWeight: 'normal', fontSize: 14, transform: [{ scaleY: 1.45 }] },
 };
 
 /**
- * 사진에 넣을 글자를 입력하는 화면. 위에서 글자 모양(기본·궁서체)을 고른다.
+ * 사진에 넣을 글자를 입력하는 화면. 위에서 글자 모양(기본·궁서체·길쭉)을 고른다.
  * 완료·줄바꿈 키·바깥 누르기로 닫는다. 비운 채 닫으면 onDone('') — 고치던 글자라면 지운다.
  */
 export function TextLayerEditor({ initial, initialFont, onDone }: { initial: string; initialFont: TextFont; onDone: (text: string, font: TextFont) => void }) {

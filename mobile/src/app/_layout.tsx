@@ -1,3 +1,4 @@
+import { GothicA1_800ExtraBold } from '@expo-google-fonts/gothic-a1/800ExtraBold';
 import { useFonts } from 'expo-font';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -16,9 +17,9 @@ const theme = {
 };
 
 export default function RootLayout() {
-  // 사진에 얹는 궁서체 글자 모양용 은 궁서 (GPL — assets/fonts/README.md).
+  // 사진에 얹는 글자 모양용: 궁서체(은 궁서, GPL — assets/fonts/README.md) · 길쭉(고딕 A1, OFL).
   // 기다리지 않는다 — 다 불러오기 전에는 기본 글꼴로 보인다.
-  useFonts({ UnGungseo: require('../../assets/fonts/UnGungseo.ttf') });
+  useFonts({ UnGungseo: require('../../assets/fonts/UnGungseo.ttf'), GothicA1_800ExtraBold });
   return (
     <ThemeProvider value={theme}>
       <AuthProvider>

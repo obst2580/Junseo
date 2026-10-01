@@ -6,17 +6,24 @@ type Base = { id: number; x: number; y: number; scale: number; rotation: number 
 export type PhotoLayer = (Base & { kind: 'bar' }) | (Base & { kind: 'text'; text: string; font: TextFont });
 
 /**
- * 글자 모양
- * - plain: 흰 글자 + 그림자
- * - gungseo: 궁서체 (은 궁서), 기본처럼 흰 글자 + 그림자
+ * 글자 모양. 모두 흰 글자 + 그림자.
+ * - plain: 기본
+ * - gungseo: 궁서체 (은 궁서)
+ * - tall: 예능 썸네일처럼 세로로 긴 글씨 (고딕 A1 ExtraBold 를 세로로 늘림)
  */
-export type TextFont = 'plain' | 'gungseo';
+export type TextFont = 'plain' | 'gungseo' | 'tall';
 export const TEXT_FONTS: { key: TextFont; label: string }[] = [
   { key: 'plain', label: '기본' },
   { key: 'gungseo', label: '궁서체' },
+  { key: 'tall', label: '길쭉' },
 ];
 /** useFonts 로 불러온 이름 (루트 레이아웃) */
-export const FONT_FAMILY = { gungseo: 'UnGungseo' } as const;
+export const FONT_FAMILY = { gungseo: 'UnGungseo', tall: 'GothicA1_800ExtraBold' } as const;
+/**
+ * 길쭉: 참고 썸네일(「상견례 프리빠꾸」)을 재 보니 글자마다 같은 비율(2.70~2.95배)로 세로로 늘린 굵은 고딕이었다.
+ * 글자 사이는 글꼴 그대로, 낱말 사이만 0.14em 더 넓다. 디자인 랩도 같은 값을 쓴다.
+ */
+export const TALL = { stretch: 2.81, wordGap: 0.14 };
 
 /** 기생충 포스터 같은 검은 눈 가리개 */
 export const BAR = { width: 0.64, height: 0.07 };
