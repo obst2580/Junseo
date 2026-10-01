@@ -1,0 +1,81 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+
+import { api, configureApi, type AuthResponse, type Me } from './api';
+import { unregisterPush } from './push';
+import { tokenStore } from './tokenStore';
+import { widgetBridge } from './widgetBridge';
+
+type AuthState = {
+  ready: boolean;
+  me: Me | null;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  refreshMe: () => Promise<void>;
+  setMe: (me: Me) => void;
+};
+
+const AuthContext = createContext<AuthState | null>(null);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [ready, setReady] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
+  const tokenRef = useRef<string | null>(null);
+
+  const clear = useCallback(async () => {
+    tokenRef.current = null;
+    setMe(null);
+    widgetBridge.signOut();
+    await tokenStore.set(null);
+  }, []);
+
+  useEffect(() => {
+    configureApi({ getToken: () => tokenRef.current, onUnauthorized: () => void clear() });
+    (async () => {
+      const saved = await tokenStore.get();
+      if (saved) {
+        tokenRef.current = saved;
+        try {
+          const user = await api.me();
+          setMe(user);
+          widgetBridge.signIn(saved, user.id);
+        } catch {
+          // 401 이면 onUnauthorized 가 정리한다. 네트워크 오류면 다음 실행에서 다시 시도한다.
+        }
+      }
+      setReady(true);
+    })();
+  }, [clear]);
+
+  const accept = useCallback(async (res: AuthResponse) => {
+    tokenRef.current = res.accessToken;
+    await tokenStore.set(res.accessToken);
+    widgetBridge.signIn(res.accessToken, res.user.id);
+    setMe(res.user);
+  }, []);
+
+  // 함수들은 참조가 바뀌지 않게 따로 만든다. 화면들이 이펙트 의존성으로 쓰기 때문이다.
+  const signIn = useCallback(async (email: string, password: string) => accept(await api.login(email.trim(), password)), [accept]);
+  const signUp = useCallback(
+    async (email: string, password: string, displayName: string) => accept(await api.signup(email.trim(), password, displayName.trim())),
+    [accept],
+  );
+  const signOut = useCallback(async () => {
+    await unregisterPush().catch(() => {});
+    await clear();
+  }, [clear]);
+  const refreshMe = useCallback(async () => setMe(await api.me()), []);
+
+  const value = useMemo<AuthState>(
+    () => ({ ready, me, signIn, signUp, signOut, refreshMe, setMe }),
+    [ready, me, signIn, signUp, signOut, refreshMe],
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthState {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside AuthProvider');
+  return ctx;
+}

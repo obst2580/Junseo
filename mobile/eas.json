@@ -1,0 +1,20 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": { "APNS_ENV": "development" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": { "APNS_ENV": "production" }
+    },
+    "production": {
+      "env": { "APNS_ENV": "production" }
+    }
+  }
+}

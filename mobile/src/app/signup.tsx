@@ -1,0 +1,49 @@
+import { useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+
+import { Button, ErrorText, Field } from '@/components/ui';
+import { ApiError } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { colors } from '@/lib/theme';
+
+export default function SignupScreen() {
+  const { signUp } = useAuth();
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const valid = displayName.trim().length >= 1 && displayName.trim().length <= 20 && /\S+@\S+\.\S+/.test(email) && password.length >= 8;
+
+  const submit = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signUp(email, password, displayName);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '가입하지 못했어요.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Text style={styles.title}>친구들이 부를{'\n'}이름을 알려 주세요</Text>
+        <Field label="이름" value={displayName} onChangeText={setDisplayName} placeholder="예: 준서" maxLength={20} />
+        <Field label="이메일" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="you@example.com" />
+        <Field label="비밀번호" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" placeholder="8자 이상" />
+        {error && <ErrorText>{error}</ErrorText>}
+        <Button title="가입하기" onPress={submit} loading={loading} disabled={!valid} />
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1, backgroundColor: colors.bg },
+  container: { padding: 24, gap: 16 },
+  title: { color: colors.text, fontSize: 26, fontWeight: '800', lineHeight: 34, marginBottom: 12 },
+});
