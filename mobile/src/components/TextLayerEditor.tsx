@@ -2,22 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, TextInput, View, type TextStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NK } from '@/lib/nkText';
 import { cleanLayerText, FONT_FAMILY, TEXT, TEXT_FONTS, type TextFont } from '@/lib/photoLayers';
 import { colors, radius } from '@/lib/theme';
 
 // 입력하는 동안 보이는 모양 (사진 위 모양과 비슷하게)
 const INPUT_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
-  nk: { fontFamily: FONT_FAMILY.nk, fontSize: 30, color: NK.color, textShadowColor: 'transparent' },
+  // 어두운 입력 화면에서도 보이게 검은 글자에 밝은 번짐
+  gungseo: { fontFamily: FONT_FAMILY.gungseo, fontSize: 30, color: '#000', textShadowColor: 'rgba(255,255,255,0.95)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 6 },
 };
 const CHIP_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
-  nk: { fontFamily: FONT_FAMILY.nk, fontSize: 16, color: '#ff3b3b' },
+  gungseo: { fontFamily: FONT_FAMILY.gungseo, fontSize: 16 },
 };
 
 /**
- * 사진에 넣을 글자를 입력하는 화면. 위에서 글자 모양(기본·북한)을 고른다.
+ * 사진에 넣을 글자를 입력하는 화면. 위에서 글자 모양(기본·궁서체)을 고른다.
  * 완료·줄바꿈 키·바깥 누르기로 닫는다. 비운 채 닫으면 onDone('') — 고치던 글자라면 지운다.
  */
 export function TextLayerEditor({ initial, initialFont, onDone }: { initial: string; initialFont: TextFont; onDone: (text: string, font: TextFont) => void }) {

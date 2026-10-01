@@ -8,15 +8,15 @@ export type PhotoLayer = (Base & { kind: 'bar' }) | (Base & { kind: 'text'; text
 /**
  * 글자 모양
  * - plain: 흰 글자 + 그림자
- * - nk: 북한 선전 구호 글씨 (lib/nkText)
+ * - gungseo: 궁서체 (은 궁서), 검은 글자
  */
-export type TextFont = 'plain' | 'nk';
+export type TextFont = 'plain' | 'gungseo';
 export const TEXT_FONTS: { key: TextFont; label: string }[] = [
   { key: 'plain', label: '기본' },
-  { key: 'nk', label: '북한' },
+  { key: 'gungseo', label: '궁서체' },
 ];
 /** useFonts 로 불러온 이름 (루트 레이아웃) */
-export const FONT_FAMILY = { nk: 'UnGungseo' } as const;
+export const FONT_FAMILY = { gungseo: 'UnGungseo' } as const;
 
 /** 기생충 포스터 같은 검은 눈 가리개 */
 export const BAR = { width: 0.64, height: 0.07 };

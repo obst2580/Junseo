@@ -16,7 +16,7 @@ const theme = {
 };
 
 export default function RootLayout() {
-  // 사진에 얹는 「북한」 글자 모양용 은 궁서 (궁서체, GPL — assets/fonts/README.md).
+  // 사진에 얹는 궁서체 글자 모양용 은 궁서 (GPL — assets/fonts/README.md).
   // 기다리지 않는다 — 다 불러오기 전에는 기본 글꼴로 보인다.
   useFonts({ UnGungseo: require('../../assets/fonts/UnGungseo.ttf') });
   return (
