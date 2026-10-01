@@ -8,6 +8,7 @@
 글자 모양은 기본 · 궁서체 · 길쭉(예능 썸네일처럼 세로로 긴 고딕 A1 ExtraBold, 세로 3.2배) 세 가지이고, 모두 흰 글자에 그림자입니다. 궁서체 글꼴은 은 궁서(은글꼴, GNU GPL 2.0)를 원본 그대로 `mobile/assets/fonts` 에 넣었습니다. App Store 에 내기 전에 라이선스를 확인하세요 (GPL 글꼴을 App Store 앱에 넣는 것은 해석이 갈립니다).
 **렌즈** 를 켜면 어안 렌즈처럼 가운데가 볼록하게 휘어진 사진이 됩니다 (`@shopify/react-native-skia` 셰이더, 웹은 CanvasKit — `npm run web` 이 `public/canvaskit.wasm` 을 복사합니다).
 화면은 디자인 랩에 저장한 디자인을 따릅니다: 로고 초록(#29FF01) 강조색, 그라데이션 바탕, 각진 버튼, 사진 모서리 60, 선 굵기 2.75 아이콘(`react-native-svg`), 「빠르게」 움직임 ×1.8, 이모지 날아오르기, 촬영 플래시, 보낼 때 사라지기. 값은 `mobile/src/lib/theme.ts` 에 모여 있습니다.
+홈의 **오늘 템플릿**: 오늘 찍은 사진·받은 사진을 골라 템플릿 칸에 넣고, 보상형 광고를 한 번 보면 한 장이 완성됩니다 (사진첩 저장 · 공유 · 친구에게 보내기). 사진 칸은 카메라 화면처럼 정사각형에 같은 모서리 비율이고, 템플릿은 `mobile/src/lib/templates.ts` 에 그림 + 칸 위치로 추가합니다 (지금은 임시 템플릿 하나).
 
 | 카메라 | 히스토리 | 사진 상세 | 위젯 안내 |
 |---|---|---|---|
@@ -100,6 +101,7 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 # Mac 이 없으면: npx eas-cli build --profile development --platform ios
 ```
 
+- 광고(AdMob)는 앱 ID·보상형 광고 단위를 `ADMOB_IOS_APP_ID`, `ADMOB_IOS_REWARDED_ID` 로 줍니다. 비우면 Google 테스트 광고가 나옵니다. 맞춤 광고를 쓰지 않아서 추적 허용(ATT) 창은 띄우지 않습니다.
 - 번들 ID 기본값은 `com.junseo.app`, App Group 은 `group.com.junseo.app` 입니다. 바꾸려면 `IOS_BUNDLE_ID` 를 주세요. 위젯·알림 확장은 자기 번들 ID 에서 App Group 을 계산하므로 따로 고칠 곳이 없습니다.
 - 푸시를 받으려면 Apple Developer 에서 APNs 키(.p8)를 만들어 서버의 `JUNSEO_APNS_*` 에 넣습니다. 개발 빌드는 `development`, TestFlight·App Store 빌드는 `production` APNs 를 씁니다 (`eas.json` 의 `APNS_ENV`).
 
