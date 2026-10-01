@@ -23,6 +23,8 @@ public class FriendController {
 
     public record FriendsResponse(List<UserSummary> friends, int limit) {}
 
+    public record LinksResponse(List<long[]> pairs) {}
+
     public record AddFriendRequest(
             @NotBlank(message = "초대 코드를 입력해 주세요.") @Size(max = 64, message = "초대 코드가 올바르지 않아요.")
             String inviteCode) {}
@@ -36,6 +38,12 @@ public class FriendController {
     @GetMapping
     FriendsResponse list(@CurrentUser long me) {
         return new FriendsResponse(friendService.list(me), UserService.FRIEND_LIMIT);
+    }
+
+    /** Pairs of my friends who are also friends with each other; group chats need everyone to be. */
+    @GetMapping("/links")
+    LinksResponse links(@CurrentUser long me) {
+        return new LinksResponse(friendService.linksAmongFriends(me));
     }
 
     @PostMapping

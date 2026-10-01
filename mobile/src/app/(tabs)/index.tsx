@@ -11,7 +11,7 @@ import { LayerPinchArea, PhotoLayerView, type LayerControl } from '@/components/
 import { RecipientSheet } from '@/components/RecipientSheet';
 import { TextLayerEditor } from '@/components/TextLayerEditor';
 import { Button, IconButton } from '@/components/ui';
-import { api, ApiError, type UserSummary } from '@/lib/api';
+import { api, ApiError, type GroupChat, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { flattenPhoto, toSquareJpeg } from '@/lib/capture';
 import { applyLens, preloadLens } from '@/lib/lensEffect';
@@ -58,6 +58,8 @@ export default function CameraScreen() {
   const [toast, setToast] = useState<string | null>(null);
   // 받는 친구: 기본은 전체, 뺀 친구만 기억한다 (새로 사귄 친구는 자동으로 들어간다). 앱을 다시 켜면 전체로 돌아간다.
   const [friends, setFriends] = useState<UserSummary[] | null>(null);
+  // 보낼 친구 고르기에서 단체방 사람들을 한꺼번에 고를 수 있다
+  const [groups, setGroups] = useState<GroupChat[]>([]);
   const [excluded, setExcluded] = useState<Set<number>>(() => new Set());
   const [picking, setPicking] = useState(false);
   // 친구가 바뀌었을 수 있다 (친구 화면에서 돌아올 때 등)
@@ -66,6 +68,10 @@ export default function CameraScreen() {
     api
       .friends()
       .then((r) => setFriends(r.friends))
+      .catch(() => {});
+    api
+      .groups()
+      .then((r) => setGroups(r.items))
       .catch(() => {});
   }, [refreshMe]);
   useFocusEffect(load);
@@ -369,6 +375,8 @@ export default function CameraScreen() {
       {picking && friends && (
         <RecipientSheet
           friends={friends}
+          groups={groups}
+          meId={me?.id}
           excluded={excluded}
           onChange={setExcluded}
           onClose={() => setPicking(false)}

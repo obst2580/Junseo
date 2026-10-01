@@ -9,6 +9,7 @@ import com.junseo.user.UserService;
 import com.junseo.user.UserSummary;
 import java.text.Collator;
 import java.time.Clock;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -74,5 +75,23 @@ public class FriendService {
 
     public boolean areFriends(long a, long b) {
         return friendships.existsByUserIdAndFriendId(a, b);
+    }
+
+    /** True when every one of these users is friends with every other one. */
+    public boolean allFriends(Collection<Long> userIds) {
+        long n = userIds.size();
+        return n < 2 || friendships.countAmong(userIds) == n * (n - 1);
+    }
+
+    /** Which of my friends are friends with each other (for picking group chat members). */
+    @Transactional(readOnly = true)
+    public List<long[]> linksAmongFriends(long me) {
+        List<Long> ids = friendships.findFriendIds(me);
+        if (ids.size() < 2) {
+            return List.of();
+        }
+        return friendships.findPairsAmong(ids).stream()
+                .map(r -> new long[] {((Number) r[0]).longValue(), ((Number) r[1]).longValue()})
+                .toList();
     }
 }

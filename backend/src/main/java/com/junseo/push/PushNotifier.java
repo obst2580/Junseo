@@ -8,6 +8,7 @@ import com.junseo.common.Texts;
 import com.junseo.device.DeviceToken;
 import com.junseo.device.DeviceTokenRepository;
 import com.junseo.friend.FriendEvents.Unfriended;
+import com.junseo.group.GroupEvents.GroupMessageSent;
 import com.junseo.media.MediaStorage.Variant;
 import com.junseo.media.MediaUrlSigner;
 import com.junseo.moment.Moment;
@@ -21,10 +22,13 @@ import com.junseo.reaction.ReactionEvents.ReactionRemoved;
 import com.junseo.reaction.ReactionEvents.ReactionSet;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
+import java.text.Collator;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
@@ -40,6 +44,7 @@ import tools.jackson.databind.ObjectMapper;
 public class PushNotifier {
 
     static final int MAX_BODY_CHARS = 80;
+    static final int MAX_TITLE_CHARS = 40;
     static final String WIDGET_PAYLOAD = "{\"aps\":{\"content-changed\":true}}";
 
     private static final Logger log = LoggerFactory.getLogger(PushNotifier.class);
@@ -124,6 +129,31 @@ public class PushNotifier {
         });
     }
 
+    /** Everyone else in the group; without a group name the title is the other members' names, as in the app. */
+    @Async(AppConfig.PUSH_EXECUTOR)
+    @TransactionalEventListener
+    public void on(GroupMessageSent e) {
+        guard("group-message", () -> {
+            Map<Long, User> people = users.mapById(e.memberIds());
+            String body = name(people, e.senderId()) + ": " + Texts.truncate(e.text(), MAX_BODY_CHARS);
+            for (long recipient : e.memberIds()) {
+                if (recipient == e.senderId()) {
+                    continue;
+                }
+                String title = e.groupName() != null
+                        ? e.groupName()
+                        : Texts.truncate(e.memberIds().stream()
+                                .filter(id -> id != recipient)
+                                .map(id -> name(people, id))
+                                .sorted(Collator.getInstance(Locale.KOREAN))
+                                .collect(Collectors.joining(", ")), MAX_TITLE_CHARS);
+                Map<String, Object> payload = alert(title, body, "group-" + e.groupId(), "group-message");
+                payload.put("groupId", e.groupId());
+                sendAlerts(List.of(recipient), payload);
+            }
+        });
+    }
+
     // Not in the push table: silent widget refreshes for changes that can alter what a widget shows.
 
     @Async(AppConfig.PUSH_EXECUTOR)
@@ -205,6 +235,11 @@ public class PushNotifier {
 
     private String name(long userId) {
         return users.findById(userId).map(User::getDisplayName).orElse("친구");
+    }
+
+    private static String name(Map<Long, User> people, long userId) {
+        User user = people.get(userId);
+        return user == null ? "친구" : user.getDisplayName();
     }
 
     private static void guard(String what, Runnable work) {

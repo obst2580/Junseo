@@ -62,7 +62,7 @@ public abstract class IntegrationTest {
     void resetState() {
         // No RESTART IDENTITY: ids stay unique across tests, so a late async push from a previous
         // test can never be mistaken for one of this test's.
-        jdbc.execute("truncate table device_tokens, messages, comments, reactions, moment_recipients, moments, friendships, users");
+        jdbc.execute("truncate table device_tokens, group_messages, chat_group_members, chat_groups, messages, comments, reactions, moment_recipients, moments, friendships, users");
         push.clear();
         FileSystemUtils.deleteRecursively(Path.of("build/test-media").toFile());
     }

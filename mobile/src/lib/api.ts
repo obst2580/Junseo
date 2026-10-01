@@ -27,6 +27,11 @@ export type Message = {
   moment: { id: number; thumbUrl: string } | null;
 };
 export type Conversation = { peer: UserSummary; lastMessage: Message; unreadCount: number };
+/** 단체방. members 에는 나도 들어 있다. name 이 없으면 나를 뺀 사람들 이름으로 부른다 (lib/groups.ts). */
+export type GroupChat = { id: number; name: string | null; members: UserSummary[]; createdAt: string };
+/** unreadCount: 보낸 사람을 빼고 아직 안 읽은 사람 수 */
+export type GroupMessage = { id: number; groupId: number; senderId: number; text: string; createdAt: string; unreadCount: number };
+export type GroupConversation = { group: GroupChat; lastMessage: GroupMessage | null; unreadCount: number };
 export type Page<T> = { items: T[]; nextCursor: string | null };
 export type AuthResponse = { accessToken: string; expiresAt: string; user: Me };
 export type WidgetLatest = {
@@ -137,12 +142,22 @@ export const api = {
 
   reply: (momentId: number, text: string) =>
     request<Message>(`/api/moments/${momentId}/replies`, { method: 'POST', body: { text } }),
-  conversations: () => request<{ items: Conversation[] }>('/api/conversations'),
+  conversations: () => request<{ items: Conversation[]; groups: GroupConversation[] }>('/api/conversations'),
   messages: (peerId: number, cursor?: string | null) =>
     request<Page<Message>>(`/api/conversations/${peerId}/messages${q({ cursor })}`),
   sendMessage: (peerId: number, text: string) =>
     request<Message>(`/api/conversations/${peerId}/messages`, { method: 'POST', body: { text } }),
   markRead: (peerId: number) => request<void>(`/api/conversations/${peerId}/read`, { method: 'POST' }),
+
+  /** 내 친구들 중 서로 친구인 쌍. 단체방은 모두가 서로 친구여야 만들 수 있다. */
+  friendLinks: () => request<{ pairs: [number, number][] }>('/api/friends/links'),
+  groups: () => request<{ items: GroupChat[] }>('/api/groups'),
+  group: (id: number) => request<GroupChat>(`/api/groups/${id}`),
+  createGroup: (memberIds: number[], name?: string) => request<GroupChat>('/api/groups', { method: 'POST', body: { memberIds, name } }),
+  groupMessages: (id: number, cursor?: string | null) => request<Page<GroupMessage>>(`/api/groups/${id}/messages${q({ cursor })}`),
+  sendGroupMessage: (id: number, text: string) => request<GroupMessage>(`/api/groups/${id}/messages`, { method: 'POST', body: { text } }),
+  markGroupRead: (id: number) => request<void>(`/api/groups/${id}/read`, { method: 'POST' }),
+  leaveGroup: (id: number) => request<void>(`/api/groups/${id}/members/me`, { method: 'DELETE' }),
 
   widgetLatest: () => request<WidgetLatest | undefined>('/api/widget/latest'),
 

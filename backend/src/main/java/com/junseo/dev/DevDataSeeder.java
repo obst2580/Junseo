@@ -6,6 +6,12 @@ import com.junseo.comment.Comment;
 import com.junseo.comment.CommentRepository;
 import com.junseo.friend.Friendship;
 import com.junseo.friend.FriendshipRepository;
+import com.junseo.group.ChatGroup;
+import com.junseo.group.ChatGroupRepository;
+import com.junseo.group.GroupMember;
+import com.junseo.group.GroupMemberRepository;
+import com.junseo.group.GroupMessage;
+import com.junseo.group.GroupMessageRepository;
 import com.junseo.media.ImageProcessor;
 import com.junseo.media.MediaStorage;
 import com.junseo.media.MediaStorage.Variant;
@@ -71,6 +77,9 @@ public class DevDataSeeder implements ApplicationRunner {
     private final ReactionRepository reactions;
     private final CommentRepository comments;
     private final MessageRepository messages;
+    private final ChatGroupRepository groups;
+    private final GroupMemberRepository groupMembers;
+    private final GroupMessageRepository groupMessages;
     private final PasswordEncoder passwordEncoder;
     private final ImageProcessor imageProcessor;
     private final MediaStorage storage;
@@ -85,6 +94,9 @@ public class DevDataSeeder implements ApplicationRunner {
             ReactionRepository reactions,
             CommentRepository comments,
             MessageRepository messages,
+            ChatGroupRepository groups,
+            GroupMemberRepository groupMembers,
+            GroupMessageRepository groupMessages,
             PasswordEncoder passwordEncoder,
             ImageProcessor imageProcessor,
             MediaStorage storage,
@@ -97,6 +109,9 @@ public class DevDataSeeder implements ApplicationRunner {
         this.reactions = reactions;
         this.comments = comments;
         this.messages = messages;
+        this.groups = groups;
+        this.groupMembers = groupMembers;
+        this.groupMessages = groupMessages;
         this.passwordEncoder = passwordEncoder;
         this.imageProcessor = imageProcessor;
         this.storage = storage;
@@ -218,7 +233,30 @@ public class DevDataSeeder implements ApplicationRunner {
         // Ids must follow time: conversation order and thread paging are by id.
         chats.sort(Comparator.comparing(Chat::at));
         chats.forEach(this::message);
+
+        // demo, minji, jiwoo and seoyeon are all friends with each other, so they can share a group chat.
+        User seoyeon = u.get("seoyeon");
+        ChatGroup crew = groups.save(new ChatGroup("한강 크루", minji.getId(), now.minus(Duration.ofDays(2))));
+        for (User member : List.of(demo, minji, jiwoo, seoyeon)) {
+            groupMembers.save(new GroupMember(crew.getId(), member.getId(), crew.getCreatedAt()));
+        }
+        groupMembers.flush();
+        long latest = 0;
+        for (GroupLine line : List.of(
+                new GroupLine(minji, "이번 주 토요일 한강 피크닉 어때?", Duration.ofMinutes(90)),
+                new GroupLine(jiwoo, "좋아!! 돗자리 내가 챙길게", Duration.ofMinutes(80)),
+                new GroupLine(demo, "나 치킨 담당 🍗", Duration.ofMinutes(70)),
+                new GroupLine(seoyeon, "그럼 난 음료!", Duration.ofMinutes(18)))) {
+            GroupMessage message = groupMessages.save(new GroupMessage(crew.getId(), line.from().getId(), line.text(), now.minus(line.ago())));
+            latest = message.getId();
+            // Sending means having read up to your own message (as GroupService does).
+            groupMembers.advanceRead(crew.getId(), line.from().getId(), latest);
+        }
+        // minji has read everything; the others last saw their own message, so demo sees unread counts.
+        groupMembers.advanceRead(crew.getId(), minji.getId(), latest);
     }
+
+    private record GroupLine(User from, String text, Duration ago) {}
 
     private void react(Moment moment, User user, String emoji, int minutesAfter) {
         react(moment, user, emoji, 1, minutesAfter);

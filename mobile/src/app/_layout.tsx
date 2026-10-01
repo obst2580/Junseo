@@ -42,7 +42,7 @@ function RootStack() {
     if (!signedIn) return;
     registerPush().catch(() => {});
     const stopPush = listenPush((data) => {
-      if (data.type === 'message') events.emit('messages');
+      if (data.type === 'message' || data.type === 'group-message') events.emit('messages');
       else events.emit('moments');
     });
     // 앱이 앞으로 나올 때마다 위젯을 갱신한다. 이때는 WidgetKit 예산이 차감되지 않는다.
@@ -81,6 +81,7 @@ function RootStack() {
         <Stack.Screen name="moments/[id]" options={{ title: '' }} />
         <Stack.Screen name="friends" options={{ title: '친구' }} />
         <Stack.Screen name="messages/[peerId]" options={{ title: '' }} />
+        <Stack.Screen name="messages/group/[id]" options={{ title: '' }} />
         <Stack.Screen name="profile" options={{ title: '내 정보' }} />
         <Stack.Screen name="widget-guide" options={{ title: '위젯 추가하기', presentation: 'modal' }} />
       </Stack.Protected>

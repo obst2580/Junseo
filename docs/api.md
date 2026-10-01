@@ -22,7 +22,8 @@
 | 401 | `UNAUTHORIZED` | 토큰 없음·만료·잘못됨 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 |
 | 403 | `FORBIDDEN` | 권한 없음 (남의 댓글 삭제 등) |
-| 403 | `NOT_FRIENDS` | 친구가 아닌 사람에게 메시지 |
+| 403 | `NOT_FRIENDS` | 친구가 아닌 사람에게 메시지, 친구가 아닌 사람을 단체방에 초대 |
+| 403 | `NOT_MUTUAL_FRIENDS` | 단체방에 서로 친구가 아닌 사람이 섞임 |
 | 404 | `NOT_FOUND` | 대상 없음, 또는 볼 권한이 없는 사진 (존재 여부를 숨기려고 404로 통일) |
 | 404 | `INVITE_CODE_NOT_FOUND` | 초대 코드 없음 |
 | 409 | `EMAIL_TAKEN` | 이미 가입된 이메일 |
@@ -89,6 +90,7 @@
 | GET | `/api/friends` | | 200 `{ friends: [UserSummary], limit: 20 }` (이름순) |
 | POST | `/api/friends` | `{ inviteCode }` (대소문자·공백 무시) | 201 `UserSummary` |
 | DELETE | `/api/friends/{userId}` | | 204 |
+| GET | `/api/friends/links` | | 200 `{ pairs: [[id, id]] }` 내 친구들 중 서로 친구인 쌍 (작은 id 먼저). 단체방 고르기용 |
 
 - 초대 코드로 추가하면 바로 서로 친구가 된다 (코드를 건넨 것 자체가 동의).
 - 한 사람당 최대 20명. 나나 상대 중 한쪽이라도 20명이면 `FRIEND_LIMIT_REACHED`.
@@ -136,13 +138,39 @@
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
 | POST | `/api/moments/{id}/replies` | `{ text }` (1~500자) | 201 `Message` (사진 주인에게 가는 1:1 메시지) |
-| GET | `/api/conversations` | | 200 `{ items: [{ peer: UserSummary, lastMessage: Message, unreadCount }] }` 최근 대화순 |
+| GET | `/api/conversations` | | 200 `{ items: [{ peer: UserSummary, lastMessage: Message, unreadCount }], groups: [GroupConversation] }` 각각 최근 대화순 (앱이 둘을 섞는다) |
 | GET | `/api/conversations/{peerId}/messages?cursor=&limit=50` | | 200 `{ items: [Message], nextCursor }` 최신순 |
 | POST | `/api/conversations/{peerId}/messages` | `{ text }` (1~500자) | 201 `Message` (친구에게만) |
 | POST | `/api/conversations/{peerId}/read` | | 204 (상대가 보낸 메시지를 읽음 처리) |
 
 - 답장은 사진 주인과 나만 본다. 댓글과 다르다.
 - 내 사진에는 답장할 수 없다 (`NOT_ALLOWED_ON_OWN_MOMENT`).
+- 읽음 표시: 내가 보낸 `Message` 의 `readAt` 이 비어 있으면 상대가 아직 안 읽은 것이다. 앱은 말풍선 옆에 `1` 을 띄운다.
+
+## 단체방
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| POST | `/api/groups` | `{ memberIds: [id], name? }` (나 말고 2~19명, 이름 30자 이하, 비우면 이름 없음) | 201 `GroupChat` |
+| GET | `/api/groups` | | 200 `{ items: [GroupChat] }` 만든 순 (최신 먼저) |
+| GET | `/api/groups/{id}` | | 200 `GroupChat` |
+| GET | `/api/groups/{id}/messages?cursor=&limit=50` | | 200 `{ items: [GroupMessage], nextCursor }` 최신순 |
+| POST | `/api/groups/{id}/messages` | `{ text }` (1~500자) | 201 `GroupMessage` |
+| POST | `/api/groups/{id}/read` | | 204 (지금까지 온 메시지를 읽음 처리) |
+| DELETE | `/api/groups/{id}/members/me` | | 204 나가기. 마지막 사람이 나가면 방과 메시지가 지워진다 |
+
+```jsonc
+// GroupChat: members 에 나도 들어 있다(이름순). name 이 null 이면 앱은 나를 뺀 사람들 이름으로 부른다.
+{ "id": 7, "name": "한강 크루", "members": [UserSummary], "createdAt": "..." }
+// GroupMessage: unreadCount = 보낸 사람을 빼고 아직 안 읽은 사람 수 (앱은 말풍선 옆에 숫자로 띄운다)
+{ "id": 91, "groupId": 7, "senderId": 12, "text": "토요일?", "createdAt": "...", "unreadCount": 2 }
+// GroupConversation (/api/conversations 의 groups)
+{ "group": GroupChat, "lastMessage": GroupMessage | null, "unreadCount": 3 }
+```
+- 만들 때 **모두가 서로 친구**여야 한다. 내 친구가 아니면 `NOT_FRIENDS`, 내 친구끼리 서로 친구가 아니면 `NOT_MUTUAL_FRIENDS`.
+- 멤버가 아니면 방이 없는 것과 같다 (404).
+- 읽음은 멤버마다 "마지막으로 본 메시지"로 기억한다. 보내면 내 메시지까지 읽은 것으로 친다.
+- 카메라의 「보낼 친구」에서 단체방을 고르면 그 방 사람들(지금도 내 친구인 사람)을 한꺼번에 넣고 뺀다. 사진은 여전히 친구 각각에게 간다.
 
 ## 위젯
 
@@ -191,22 +219,24 @@
 | 반응 | 사진 주인 | `민지님이 ❤️ 반응을 남겼어요` (한 번에 여러 개면 `민지님이 ❤️ 3개를 보냈어요`) | **그 사진이 지금 위젯에 떠 있는 사람** 중 반응한 사람 제외 |
 | 댓글 | 사진 주인 (본인이 쓴 건 제외) | `민지: 대박` | **그 사진이 지금 위젯에 떠 있는 사람** 중 쓴 사람 제외 |
 | 메시지·답장 | 받는 사람 | `민지: ㅋㅋㅋ` | 없음 |
+| 단체방 메시지 | 보낸 사람을 뺀 멤버 | 제목 방 이름 (없으면 받는 사람을 뺀 멤버 이름), 본문 `민지: 토요일?` | 없음 |
 | 반응 취소·댓글 삭제 | 없음 | 없음 | 그 사진이 지금 위젯에 떠 있는 사람 |
 | 사진 삭제 | 없음 | 없음 | 받는 친구 전원 |
 | 친구 끊기 | 없음 | 없음 | 두 사람 모두 |
 
 - 반응은 연달아 누르는 경우가 많아서, 같은 사람이 같은 사진에 1분 안에 다시 누른 건 알림·위젯 푸시를 보내지 않는다. 횟수는 그대로 쌓이고, 위젯은 다음 갱신 때 반영된다.
 - "그 사진이 지금 위젯에 떠 있는 사람": 그 사진이 자기가 받은 사진 중 가장 최근 것인 사람 (`/api/widget/latest` 와 같은 규칙). 예전 사진에 달린 반응·댓글은 위젯 화면을 바꾸지 않으므로 위젯 푸시를 보내지 않는다. iOS 가 위젯 푸시에도 예산을 매기기 때문이다.
-- 반응·댓글·메시지 알림에는 `title` 없이 `body` 만 있다. 새 사진 알림만 제목(보낸 사람 이름)이 있다.
+- 반응·댓글·1:1 메시지 알림에는 `title` 없이 `body` 만 있다. 새 사진(보낸 사람 이름)과 단체방 메시지(방 이름)만 제목이 있다.
 
 알림 페이로드:
 ```jsonc
 {
   "aps": { "alert": { "title": "민지", "body": "새 사진을 보냈어요" }, "sound": "default",
-           "mutable-content": 1, "thread-id": "moment-301" },   // 메시지는 "message-<보낸 사람 ID>"
-  "type": "moment" | "reaction" | "comment" | "message",
+           "mutable-content": 1, "thread-id": "moment-301" },   // 메시지는 "message-<보낸 사람 ID>", 단체방은 "group-<방 ID>"
+  "type": "moment" | "reaction" | "comment" | "message" | "group-message",
   "momentId": 301,          // moment·reaction·comment
   "peerId": 12,             // message: 보낸 사람 ID
+  "groupId": 7,             // group-message
   "thumbUrl": "/media/..."  // moment만
 }
 ```

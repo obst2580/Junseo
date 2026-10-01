@@ -2,6 +2,8 @@ package com.junseo.chat;
 
 import com.junseo.common.CursorPage;
 import com.junseo.common.security.CurrentUser;
+import com.junseo.group.GroupService;
+import com.junseo.group.GroupService.GroupConversation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -27,12 +29,15 @@ public class ChatController {
         }
     }
 
-    public record ConversationsResponse(List<ChatService.Conversation> items) {}
+    /** items: 1:1 chats; groups: group chats. Each list is newest first; the app merges them. */
+    public record ConversationsResponse(List<ChatService.Conversation> items, List<GroupConversation> groups) {}
 
     private final ChatService chatService;
+    private final GroupService groupService;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, GroupService groupService) {
         this.chatService = chatService;
+        this.groupService = groupService;
     }
 
     @PostMapping("/api/moments/{id}/replies")
@@ -43,7 +48,7 @@ public class ChatController {
 
     @GetMapping("/api/conversations")
     ConversationsResponse conversations(@CurrentUser long me) {
-        return new ConversationsResponse(chatService.conversations(me));
+        return new ConversationsResponse(chatService.conversations(me), groupService.conversations(me));
     }
 
     @GetMapping("/api/conversations/{peerId}/messages")

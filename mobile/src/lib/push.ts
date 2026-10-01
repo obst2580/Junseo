@@ -56,10 +56,11 @@ export async function unregisterPush() {
   registeredToken = null;
 }
 
-type PushData = { type?: string; momentId?: number | string; peerId?: number | string };
+type PushData = { type?: string; momentId?: number | string; peerId?: number | string; groupId?: number | string };
 
 function hrefFor(data: PushData): Href | null {
   if (data.type === 'message' && data.peerId) return `/messages/${data.peerId}`;
+  if (data.type === 'group-message' && data.groupId) return `/messages/group/${data.groupId}`;
   if (data.momentId) return `/moments/${data.momentId}`;
   return null;
 }

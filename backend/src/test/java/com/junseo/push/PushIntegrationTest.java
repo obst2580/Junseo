@@ -185,6 +185,34 @@ class PushIntegrationTest extends IntegrationTest {
     }
 
     @Test
+    void groupMessageAlertsEveryOtherMemberWithTheGroupTitle() throws Exception {
+        befriend(b, c);
+        String group = body(postJson("/api/groups", owner, Map.of("memberIds", List.of(b.id(), c.id())))
+                .andExpect(status().isCreated())
+                .andReturn());
+        long groupId = longAt(group, "$.id");
+        postJson("/api/groups/" + groupId + "/messages", owner, Map.of("text", "모여")).andExpect(status().isCreated());
+
+        Map<?, ?> toB = payload(awaitOne(bDevices.app()));
+        assertThat(((Map<?, ?>) toB.get("aps")).get("alert")).isEqualTo(Map.of("title", "민지, 서연", "body", "민지: 모여"));
+        assertThat(((Map<?, ?>) toB.get("aps")).get("thread-id")).isEqualTo("group-" + groupId);
+        assertThat(toB.get("type")).isEqualTo("group-message");
+        assertThat(((Number) toB.get("groupId")).longValue()).isEqualTo(groupId);
+        Map<?, ?> toC = payload(awaitOne(cDevices.app()));
+        assertThat(((Map<?, ?>) toC.get("aps")).get("alert")).isEqualTo(Map.of("title", "민지, 지우", "body", "민지: 모여"));
+        assertThat(push.to(ownerDevices.app())).isEmpty();
+
+        // A named group uses its name as the title.
+        long named = longAt(body(postJson("/api/groups", c, Map.of("memberIds", List.of(owner.id(), b.id()), "name", "한강 크루"))
+                .andExpect(status().isCreated())
+                .andReturn()), "$.id");
+        postJson("/api/groups/" + named + "/messages", c, Map.of("text", "토요일?")).andExpect(status().isCreated());
+        await().atMost(WAIT).until(() -> push.to(ownerDevices.app()).size() == 1);
+        assertThat(((Map<?, ?>) payload(push.to(ownerDevices.app()).getFirst()).get("aps")).get("alert"))
+                .isEqualTo(Map.of("title", "한강 크루", "body", "서연: 토요일?"));
+    }
+
+    @Test
     void replyAlertsThePhotoOwnerAsAMessage() throws Exception {
         long m = upload(owner);
         settle();

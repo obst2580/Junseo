@@ -11,6 +11,7 @@ public enum ErrorCode {
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 맞지 않아요."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없어요."),
     NOT_FRIENDS(HttpStatus.FORBIDDEN, "친구에게만 메시지를 보낼 수 있어요."),
+    NOT_MUTUAL_FRIENDS(HttpStatus.FORBIDDEN, "서로 친구인 사람끼리만 단체방을 만들 수 있어요."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "찾을 수 없어요."),
     INVITE_CODE_NOT_FOUND(HttpStatus.NOT_FOUND, "초대 코드를 찾을 수 없어요."),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청이에요."),

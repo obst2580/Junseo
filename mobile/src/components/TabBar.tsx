@@ -22,7 +22,7 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
   const loadUnread = useCallback(() => {
     api
       .conversations()
-      .then((r) => setUnread(r.items.reduce((sum, c) => sum + c.unreadCount, 0)))
+      .then((r) => setUnread([...r.items, ...r.groups].reduce((sum, c) => sum + c.unreadCount, 0)))
       .catch(() => {});
   }, []);
 
