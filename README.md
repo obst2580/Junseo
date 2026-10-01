@@ -43,7 +43,8 @@ iOS 위젯은 계속 실행되는 프로그램이 아니라서, 앱이 원할 �
 docs/api.md                 서버·앱·위젯이 함께 지키는 API 계약
 backend/                    Spring Boot 4.1 · Java 21 · PostgreSQL · Flyway
 mobile/                     Expo SDK 57 · React Native · Expo Router · TypeScript
-  src/app/                  화면 (카메라 · 히스토리 · 사진 상세 · 친구 · 메시지 · 내 정보 · 위젯 안내)
+  src/app/(tabs)/           아래 탭: 홈(사진 모아보기) · 카메라(첫 화면) · 챗
+  src/app/                  그 밖의 화면 (사진 상세 · 1:1 대화 · 친구 · 내 정보 · 위젯 안내)
   src/lib/widgetBridge.ts   App Group 저장소로 위젯·알림 확장에 토큰과 서버 주소를 넘김
   src/lib/push.ts           알림 권한 · APNs 토큰 등록 · 알림 탭 처리
   targets/_shared/          위젯과 알림 확장이 함께 쓰는 Swift 코드 (서버 동기화 · 캐시 · 이미지 축소)

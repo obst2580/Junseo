@@ -68,11 +68,9 @@ function RootStack() {
         contentStyle: { backgroundColor: colors.bg },
       }}>
       <Stack.Protected guard={signedIn}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="history" options={{ title: '히스토리' }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false, title: '' }} />
         <Stack.Screen name="moments/[id]" options={{ title: '' }} />
         <Stack.Screen name="friends" options={{ title: '친구' }} />
-        <Stack.Screen name="messages/index" options={{ title: '메시지' }} />
         <Stack.Screen name="messages/[peerId]" options={{ title: '' }} />
         <Stack.Screen name="profile" options={{ title: '내 정보' }} />
         <Stack.Screen name="widget-guide" options={{ title: '위젯 추가하기', presentation: 'modal' }} />

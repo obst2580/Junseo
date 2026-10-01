@@ -131,7 +131,7 @@ export default function MomentScreen() {
       } else {
         await api.reply(moment.id, body);
         events.emit('messages');
-        setNotice({ text: `${moment.sender.displayName}님에게만 보냈어요. 메시지에서 이어서 이야기할 수 있어요.`, error: false });
+        setNotice({ text: `${moment.sender.displayName}님에게만 보냈어요. 챗에서 이어서 이야기할 수 있어요.`, error: false });
       }
       setText('');
     } catch (e) {

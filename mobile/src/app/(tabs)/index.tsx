@@ -8,11 +8,10 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWind
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar, Button, IconButton } from '@/components/ui';
-import { api, ApiError, type Moment } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { toSquareJpeg } from '@/lib/capture';
 import { pickLenses, type Zoom } from '@/lib/lenses';
-import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
 import { colors, radius } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
@@ -34,20 +33,11 @@ export default function CameraScreen() {
   const [shot, setShot] = useState<Shot | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [unread, setUnread] = useState(0);
-  const [latest, setLatest] = useState<Moment | null>(null);
-
+  // 친구 수가 바뀌었을 수 있다 (친구 화면에서 돌아올 때 등)
   const load = useCallback(() => {
-    api.conversations().then((r) => setUnread(r.items.reduce((sum, c) => sum + c.unreadCount, 0))).catch(() => {});
-    api.moments({ limit: 1 }).then((r) => setLatest(r.items[0] ?? null)).catch(() => {});
     refreshMe().catch(() => {});
   }, [refreshMe]);
-
   useFocusEffect(load);
-  useEffect(() => {
-    const offs = [events.on('messages', load), events.on('moments', load)];
-    return () => offs.forEach((off) => off());
-  }, [load]);
 
   useEffect(() => {
     if (!toast) return;
@@ -94,7 +84,7 @@ export default function CameraScreen() {
   const noFriends = (me?.friendCount ?? 0) === 0;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
         <Pressable onPress={() => router.push('/profile')} accessibilityLabel="내 정보">
           {me && <Avatar id={me.id} name={me.displayName} size={44} />}
@@ -103,7 +93,8 @@ export default function CameraScreen() {
           <Ionicons name="people" size={16} color={colors.text} />
           <Text style={styles.friendsPillText}>{noFriends ? '친구 추가' : `친구 ${me?.friendCount}명`}</Text>
         </Pressable>
-        <IconButton icon="chatbubble-ellipses" onPress={() => router.push('/messages')} badge={unread} label="메시지" />
+        {/* 메시지는 아래 챗 탭으로 옮겼다. 가운데 정렬을 위해 같은 폭만 비워 둔다. */}
+        <View style={{ width: 44 }} />
       </View>
 
       <View style={styles.center}>
@@ -197,17 +188,6 @@ export default function CameraScreen() {
           </>
         )}
       </View>
-
-      <Pressable style={styles.historyHandle} onPress={() => router.push('/history')}>
-        {latest ? (
-          <Image source={{ uri: absoluteUrl(latest.thumbUrl) }} style={styles.historyThumb} />
-        ) : (
-          <Ionicons name="images" size={18} color={colors.textDim} />
-        )}
-        <Text style={styles.historyText}>히스토리</Text>
-        <Ionicons name="chevron-up" size={16} color={colors.textDim} />
-      </Pressable>
-
       {toast && (
         <View style={styles.toast} pointerEvents="none">
           <Text style={styles.toastText}>{toast}</Text>
@@ -230,7 +210,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceHigh,
   },
   friendsPillText: { color: colors.text, fontSize: 15, fontWeight: '700' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  // 카메라 묶음은 상단 바 바로 아래에 붙인다. 남는 공간은 아래 탭 바 쪽으로 간다.
+  center: { alignItems: 'center', paddingTop: 18, gap: 14 },
   viewport: { borderRadius: radius.photo, overflow: 'hidden', backgroundColor: colors.surface },
   zoomRow: {
     position: 'absolute',
@@ -256,9 +237,6 @@ const styles = StyleSheet.create({
   shutterOuter: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.text },
   sendButton: { width: 84, height: 84, borderRadius: 42, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  historyHandle: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 14, marginBottom: 4 },
-  historyThumb: { width: 26, height: 26, borderRadius: 8 },
-  historyText: { color: colors.textDim, fontSize: 15, fontWeight: '700' },
   toast: {
     position: 'absolute',
     top: 72,
