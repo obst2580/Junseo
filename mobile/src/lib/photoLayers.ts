@@ -21,9 +21,9 @@ export const TEXT_FONTS: { key: TextFont; label: string }[] = [
 export const FONT_FAMILY = { gungseo: 'UnGungseo', tall: 'GothicA1_800ExtraBold' } as const;
 /**
  * 길쭉: 참고 썸네일(「상견례 프리빠꾸」)을 재 보니 글자마다 같은 비율(2.70~2.95배)로 세로로 늘린 굵은 고딕이었다.
- * 글자 사이는 글꼴 그대로, 낱말 사이만 0.14em 더 넓다. 디자인 랩도 같은 값을 쓴다.
+ * 그보다 조금 더 길게 3.2배로 쓴다. 글자 사이는 글꼴 그대로, 낱말 사이만 0.14em 더 넓다. 디자인 랩도 같은 값을 쓴다.
  */
-export const TALL = { stretch: 2.81, wordGap: 0.14 };
+export const TALL = { stretch: 3.2, wordGap: 0.14 };
 
 /** 기생충 포스터 같은 검은 눈 가리개 */
 export const BAR = { width: 0.64, height: 0.07 };

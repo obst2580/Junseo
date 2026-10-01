@@ -10,7 +10,7 @@ const INPUT_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
   gungseo: { fontFamily: FONT_FAMILY.gungseo, fontWeight: 'normal', fontSize: 30 },
   // 입력하는 동안에도 세로로 늘려 보인다
-  tall: { fontFamily: FONT_FAMILY.tall, fontWeight: 'normal', fontSize: 24, transform: [{ scaleY: 2.2 }] },
+  tall: { fontFamily: FONT_FAMILY.tall, fontWeight: 'normal', fontSize: 24, transform: [{ scaleY: 2.5 }] },
 };
 const CHIP_LOOK: Record<TextFont, TextStyle> = {
   plain: { fontWeight: '800' },
