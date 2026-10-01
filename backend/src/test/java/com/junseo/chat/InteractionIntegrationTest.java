@@ -23,11 +23,11 @@ class InteractionIntegrationTest extends IntegrationTest {
         befriend(a, b);
         long m = upload(a);
 
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "🔥"))
+        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(m))
-                .andExpect(jsonPath("$.myReaction").value("🔥"))
-                .andExpect(jsonPath("$.reactions[0].emoji").value("🔥"))
+                .andExpect(jsonPath("$.myReaction").value("👍"))
+                .andExpect(jsonPath("$.reactions[0].emoji").value("👍"))
                 .andExpect(jsonPath("$.reactions[0].count").value(1));
         putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "😂"))
                 .andExpect(status().isOk())
@@ -55,12 +55,12 @@ class InteractionIntegrationTest extends IntegrationTest {
             befriend(owner, reactors[i]);
         }
         m = upload(owner);
-        String[] emojis = {"😂", "🔥", "🔥", "😍"};
+        String[] emojis = {"😂", "👍", "👍", "❤️"};
         for (int i = 0; i < reactors.length; i++) {
             putJson("/api/moments/" + m + "/reaction", reactors[i], Map.of("emoji", emojis[i])).andExpect(status().isOk());
         }
         getAs(owner, "/api/moments/" + m)
-                .andExpect(jsonPath("$.reactions[*].emoji", contains("🔥", "😍", "😂")))
+                .andExpect(jsonPath("$.reactions[*].emoji", contains("👍", "❤️", "😂")))
                 .andExpect(jsonPath("$.reactions[*].count", contains(2, 1, 1)));
     }
 
@@ -71,15 +71,24 @@ class InteractionIntegrationTest extends IntegrationTest {
         befriend(a, b);
         long m = upload(a);
 
-        putJson("/api/moments/" + m + "/reaction", a, Map.of("emoji", "🔥"))
+        putJson("/api/moments/" + m + "/reaction", a, Map.of("emoji", "👍"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("NOT_ALLOWED_ON_OWN_MOMENT"));
-        for (String bad : new String[] {"", "🔥 🔥", " ", "x".repeat(17)}) {
+        // Only the five reactions the app offers are accepted.
+        for (String bad : new String[] {"", "👍 👍", " ", "x".repeat(17), "🔥", "😍", "👨‍👩‍👧", "👍🏽"}) {
             putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", bad))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         }
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👨‍👩‍👧")).andExpect(status().isOk());
+        for (String ok : new String[] {"😂", "😢", "👍", "🖕", "❤️"}) {
+            putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", ok))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.myReaction").value(ok));
+        }
+        // A bare heart without the variation selector is stored as ❤️.
+        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "❤"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.myReaction").value("❤️"));
     }
 
     @Test
@@ -129,7 +138,7 @@ class InteractionIntegrationTest extends IntegrationTest {
         befriend(owner, viewer);
         befriend(owner, ex);
         long m = upload(owner);
-        putJson("/api/moments/" + m + "/reaction", ex, Map.of("emoji", "🔥")).andExpect(status().isOk());
+        putJson("/api/moments/" + m + "/reaction", ex, Map.of("emoji", "👍")).andExpect(status().isOk());
         postJson("/api/moments/" + m + "/comments", ex, Map.of("text", "나 서연")).andExpect(status().isCreated());
         postJson("/api/moments/" + m + "/comments", viewer, Map.of("text", "나 지우")).andExpect(status().isCreated());
 

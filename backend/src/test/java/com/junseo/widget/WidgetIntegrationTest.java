@@ -39,7 +39,7 @@ class WidgetIntegrationTest extends IntegrationTest {
         }
         upload(owner);
         long latest = upload(owner);
-        String[] emojis = {"🔥", "🔥", "😂", "😍", "👍"};
+        String[] emojis = {"❤️", "❤️", "😂", "😢", "👍"};
         for (int i = 0; i < friends.length; i++) {
             putJson("/api/moments/" + latest + "/reaction", friends[i], Map.of("emoji", emojis[i])).andExpect(status().isOk());
         }
@@ -56,7 +56,7 @@ class WidgetIntegrationTest extends IntegrationTest {
                 .andExpect(jsonPath("$.moment.sender.displayName").value("민지"))
                 .andExpect(jsonPath("$.moment.createdAt").value(matchesPattern(".+T.+Z")))
                 .andExpect(jsonPath("$.moment.thumbUrl").value(matchesPattern("/media/" + latest + "/thumb\\.jpg\\?exp=\\d+&sig=.+")))
-                .andExpect(jsonPath("$.reactions[*].emoji", contains("🔥", "👍", "😍")))
+                .andExpect(jsonPath("$.reactions[*].emoji", contains("❤️", "👍", "😢")))
                 .andExpect(jsonPath("$.reactions[*].count", contains(2, 1, 1)))
                 .andExpect(jsonPath("$.reactionCount").value(5))
                 .andExpect(jsonPath("$.comments[*].author", contains("친구0", "친구0")))
@@ -91,7 +91,7 @@ class WidgetIntegrationTest extends IntegrationTest {
         widget(viewer, "\"" + v1 + "\"").andExpect(status().isOk());
         widget(viewer, "\"" + v2 + "\"").andExpect(status().isNotModified());
 
-        putJson("/api/moments/" + m + "/reaction", other, Map.of("emoji", "🔥")).andExpect(status().isOk());
+        putJson("/api/moments/" + m + "/reaction", other, Map.of("emoji", "❤️")).andExpect(status().isOk());
         String v3 = version(viewer);
         assertThat(v3).isNotIn(v1, v2);
 

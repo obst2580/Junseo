@@ -157,7 +157,7 @@ class MomentIntegrationTest extends IntegrationTest {
 
         getAs(b, "/api/moments/" + m).andExpect(status().isNotFound());
         getAs(b, "/api/moments").andExpect(jsonPath("$.items", hasSize(0)));
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "🔥")).andExpect(status().isNotFound());
+        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍")).andExpect(status().isNotFound());
         deleteAs(b, "/api/moments/" + m + "/reaction").andExpect(status().isNotFound());
         postJson("/api/moments/" + m + "/comments", b, Map.of("text", "안녕")).andExpect(status().isNotFound());
         postJson("/api/moments/" + m + "/replies", b, Map.of("text", "안녕")).andExpect(status().isNotFound());

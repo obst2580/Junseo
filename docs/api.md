@@ -39,7 +39,7 @@
 { "id": 12, "email": "minji@example.com", "displayName": "민지", "inviteCode": "K7Q2MX9A", "friendCount": 3, "friendLimit": 20 }
 
 // ReactionCount
-{ "emoji": "🔥", "count": 2 }
+{ "emoji": "❤️", "count": 2 }
 
 // Comment
 { "id": 91, "momentId": 301, "author": UserSummary, "text": "대박", "createdAt": "..." }
@@ -52,7 +52,7 @@
   "imageUrl": "/media/301/full.jpg?exp=1790000000&sig=...",   // 서명된 상대 경로. 앞에 기본 주소를 붙여 쓴다
   "thumbUrl": "/media/301/thumb.jpg?exp=1790000000&sig=...",
   "reactions": [ReactionCount],       // 많은 순
-  "myReaction": "🔥" | null,
+  "myReaction": "❤️" | null,
   "commentCount": 4,
   "recentComments": [Comment]         // 최근 2개, 오래된 것 → 최신 순
 }
@@ -112,9 +112,10 @@
 
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| PUT | `/api/moments/{id}/reaction` | `{ emoji }` (1~16자, 공백 불가) | 200 `Moment` |
+| PUT | `/api/moments/{id}/reaction` | `{ emoji }` (❤️ 😂 😢 👍 🖕 중 하나) | 200 `Moment` |
 | DELETE | `/api/moments/{id}/reaction` | | 204 |
 
+- 고를 수 있는 이모지는 ❤️ 😂 😢 👍 🖕 다섯 개뿐이다. 다른 값은 `VALIDATION_FAILED`. 변형 선택자 없이 온 하트(`❤`)는 ❤️ 로 저장한다.
 - 한 사람이 사진 하나에 반응 하나. 다시 보내면 바뀐다.
 - 내 사진에는 반응할 수 없다 (`NOT_ALLOWED_ON_OWN_MOMENT`).
 - 반응은 그 사진을 볼 수 있는 사람 모두에게 보인다.
@@ -185,7 +186,7 @@
 | 사건 | 받는 사람 | 알림 (kind=app 토큰) | 위젯 푸시 (kind=widget 토큰) |
 |---|---|---|---|
 | 새 사진 | 받는 친구 전원 | 제목 `민지`, 본문 `새 사진을 보냈어요` | 전원 |
-| 반응 | 사진 주인 | `민지님이 🔥 반응을 남겼어요` | **그 사진이 지금 위젯에 떠 있는 사람** 중 반응한 사람 제외 |
+| 반응 | 사진 주인 | `민지님이 ❤️ 반응을 남겼어요` | **그 사진이 지금 위젯에 떠 있는 사람** 중 반응한 사람 제외 |
 | 댓글 | 사진 주인 (본인이 쓴 건 제외) | `민지: 대박` | **그 사진이 지금 위젯에 떠 있는 사람** 중 쓴 사람 제외 |
 | 메시지·답장 | 받는 사람 | `민지: ㅋㅋㅋ` | 없음 |
 | 반응 취소·댓글 삭제 | 없음 | 없음 | 그 사진이 지금 위젯에 떠 있는 사람 |

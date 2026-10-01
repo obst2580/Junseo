@@ -69,11 +69,11 @@ class PushIntegrationTest extends IntegrationTest {
         long m = upload(owner);
         settle();
 
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "🔥")).andExpect(status().isOk());
+        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍")).andExpect(status().isOk());
 
         awaitOne(cDevices.widget());
         Map<?, ?> payload = payload(awaitOne(ownerDevices.app()));
-        assertThat(((Map<?, ?>) payload.get("aps")).get("alert")).isEqualTo(Map.of("body", "지우님이 🔥 반응을 남겼어요"));
+        assertThat(((Map<?, ?>) payload.get("aps")).get("alert")).isEqualTo(Map.of("body", "지우님이 👍 반응을 남겼어요"));
         assertThat(payload.get("type")).isEqualTo("reaction");
         assertThat(((Number) payload.get("momentId")).longValue()).isEqualTo(m);
         assertThat(push.to(bDevices.widget())).isEmpty();
@@ -83,7 +83,7 @@ class PushIntegrationTest extends IntegrationTest {
         assertThat(push.to(ownerDevices.widget())).isEmpty();
 
         // Sending the same emoji again changes nothing and notifies no one.
-        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "🔥")).andExpect(status().isOk());
+        putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "👍")).andExpect(status().isOk());
         postJson("/api/conversations/" + owner.id() + "/messages", b, Map.of("text", "marker")).andExpect(status().isCreated());
         await().atMost(WAIT).until(() -> push.to(ownerDevices.app()).size() == 2);
         assertThat(payload(push.to(ownerDevices.app()).get(1)).get("type")).isEqualTo("message");

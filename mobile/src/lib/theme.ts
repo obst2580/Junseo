@@ -17,8 +17,8 @@ export const radius = {
   pill: 999,
 } as const;
 
-// 이모지 반응 빠른 선택지
-export const QUICK_EMOJIS = ['❤️', '😂', '😮', '😢', '🔥', '👍'] as const;
+// 이모지 반응. 서버(ReactionEmojis.java)도 이 다섯 개만 받는다.
+export const QUICK_EMOJIS = ['❤️', '😂', '😢', '👍', '🖕'] as const;
 
 const AVATAR_COLORS = ['#FF8A65', '#4FC3F7', '#AED581', '#BA68C8', '#FFD54F', '#4DB6AC', '#F06292', '#7986CB'];
 

@@ -175,26 +175,26 @@ public class DevDataSeeder implements ApplicationRunner {
         Moment puppyPhoto = posted.get(12);
         Moment sunsetPhoto = posted.getLast();
 
-        react(catPhoto, u.get("minji"), "😍", 20);
-        react(catPhoto, u.get("jiwoo"), "😍", 45);
-        react(catPhoto, u.get("hajun"), "🔥", 90);
+        react(catPhoto, u.get("minji"), "❤️", 20);
+        react(catPhoto, u.get("jiwoo"), "❤️", 45);
+        react(catPhoto, u.get("hajun"), "😂", 90);
         comment(catPhoto, u.get("seoyeon"), "나비 너무 귀여워ㅠㅠ", 30);
         comment(catPhoto, u.get("demo"), "오늘도 내 자리 뺏김 ㅋㅋ", 50);
-        react(cafePhoto, u.get("demo"), "☕", 15);
-        react(cafePhoto, u.get("jiwoo"), "😋", 40);
+        react(cafePhoto, u.get("demo"), "👍", 15);
+        react(cafePhoto, u.get("jiwoo"), "❤️", 40);
         comment(cafePhoto, u.get("jiwoo"), "여기 크로플 맛있어?", 25);
-        react(studyPhoto, u.get("doyun"), "💪", 30);
-        react(studyPhoto, u.get("minji"), "💪", 60);
+        react(studyPhoto, u.get("doyun"), "👍", 30);
+        react(studyPhoto, u.get("minji"), "😢", 60);
         comment(studyPhoto, u.get("doyun"), "시험 화이팅!!", 35);
-        react(picnicPhoto, u.get("demo"), "🧺", 10);
-        react(puppyPhoto, u.get("demo"), "🥹", 12);
-        react(puppyPhoto, u.get("seoyeon"), "😍", 30);
+        react(picnicPhoto, u.get("demo"), "👍", 10);
+        react(puppyPhoto, u.get("demo"), "😢", 12);
+        react(puppyPhoto, u.get("seoyeon"), "❤️", 30);
         comment(puppyPhoto, u.get("minji"), "다음엔 나도 데려가", 20);
 
         // The newest friend photo is what demo's widget shows: give it a real-looking stack.
-        react(sunsetPhoto, u.get("jiwoo"), "😍", 3);
-        react(sunsetPhoto, u.get("seoyeon"), "🔥", 6);
-        react(sunsetPhoto, u.get("demo"), "🔥", 9);
+        react(sunsetPhoto, u.get("jiwoo"), "😂", 3);
+        react(sunsetPhoto, u.get("seoyeon"), "❤️", 6);
+        react(sunsetPhoto, u.get("demo"), "❤️", 9);
         comment(sunsetPhoto, u.get("jiwoo"), "대박 여기 어디야?", 4);
         comment(sunsetPhoto, u.get("seoyeon"), "노을 미쳤다 🌅", 8);
         comment(sunsetPhoto, u.get("minji"), "한강! 다들 나와 ㅎㅎ", 12);

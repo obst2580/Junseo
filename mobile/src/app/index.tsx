@@ -11,6 +11,7 @@ import { Avatar, Button, IconButton } from '@/components/ui';
 import { api, ApiError, type Moment } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { toSquareJpeg } from '@/lib/capture';
+import { pickLenses, type Zoom } from '@/lib/lenses';
 import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
 import { colors, radius } from '@/lib/theme';
@@ -26,6 +27,10 @@ export default function CameraScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [facing, setFacing] = useState<CameraType>('back');
+  const [lenses, setLenses] = useState<string[]>([]);
+  const [zoom, setZoom] = useState<Zoom>('wide');
+  const { ultra, wide } = pickLenses(lenses);
+  const selectedLens = zoom === 'ultra' && ultra ? ultra : wide;
   const [shot, setShot] = useState<Shot | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -106,7 +111,37 @@ export default function CameraScreen() {
           {shot ? (
             <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
           ) : permission?.granted ? (
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} mirror={facing === 'front'} />
+            <>
+              <CameraView
+                ref={cameraRef}
+                style={StyleSheet.absoluteFill}
+                facing={facing}
+                mirror={facing === 'front'}
+                selectedLens={selectedLens}
+                onAvailableLensesChanged={(e) => setLenses(e.lenses)}
+              />
+              {ultra && (
+                <View style={styles.zoomRow}>
+                  {(['ultra', 'wide'] as const).map((z) => {
+                    const on = zoom === z;
+                    return (
+                      <Pressable
+                        key={z}
+                        onPress={() => {
+                          Haptics.selectionAsync().catch(() => {});
+                          setZoom(z);
+                        }}
+                        style={[styles.zoomPill, on && styles.zoomPillOn]}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: on }}
+                        accessibilityLabel={z === 'ultra' ? '광각' : '1배'}>
+                        <Text style={[styles.zoomText, on && styles.zoomTextOn]}>{z === 'ultra' ? (on ? '0.5×' : '.5') : on ? '1×' : '1'}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </>
           ) : (
             <View style={styles.permission}>
               <Ionicons name="camera" size={36} color={colors.textDim} />
@@ -150,7 +185,12 @@ export default function CameraScreen() {
             <IconButton
               icon="camera-reverse"
               size={26}
-              onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+              onPress={() => {
+                // 전면·후면은 렌즈 목록이 달라서 1배로 돌아간다.
+                setLenses([]);
+                setZoom('wide');
+                setFacing((f) => (f === 'back' ? 'front' : 'back'));
+              }}
               label="카메라 전환"
               style={styles.sideButton}
             />
@@ -192,6 +232,20 @@ const styles = StyleSheet.create({
   friendsPillText: { color: colors.text, fontSize: 15, fontWeight: '700' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   viewport: { borderRadius: radius.photo, overflow: 'hidden', backgroundColor: colors.surface },
+  zoomRow: {
+    position: 'absolute',
+    bottom: 14,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  zoomPill: { minWidth: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  zoomPillOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
+  zoomText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  zoomTextOn: { color: colors.accent, fontSize: 13 },
   permission: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   permissionText: { color: colors.textDim, fontSize: 15, textAlign: 'center', lineHeight: 22 },
   busy: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
