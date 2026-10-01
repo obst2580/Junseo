@@ -14,13 +14,15 @@ import { Avatar, Button, IconButton } from '@/components/ui';
 import { api, ApiError, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { flattenPhoto, toSquareJpeg } from '@/lib/capture';
+import { applyLens, preloadLens } from '@/lib/lensEffect';
 import { pickLenses, type Zoom } from '@/lib/lenses';
 import { events } from '@/lib/events';
 import { newBar, newText, type PhotoLayer, type TextFont } from '@/lib/photoLayers';
 import { colors, radius } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
-type Shot = { uri: string };
+// lensUri: 렌즈 굴곡 효과를 켰을 때의 사진 (끄면 원본으로 돌아간다)
+type Shot = { uri: string; lensUri?: string };
 
 const TRASH_SIZE = 46;
 const TRASH_BOTTOM = 12;
@@ -52,6 +54,7 @@ export default function CameraScreen() {
   const [dragging, setDragging] = useState<{ overTrash: boolean } | null>(null);
   const [editing, setEditing] = useState<{ id: number | null; text: string; font: TextFont } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lensBusy, setLensBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // 받는 친구: 기본은 전체, 뺀 친구만 기억한다 (새로 사귄 친구는 자동으로 들어간다). 앱을 다시 켜면 전체로 돌아간다.
   const [friends, setFriends] = useState<UserSummary[] | null>(null);
@@ -80,6 +83,7 @@ export default function CameraScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       const picture = await cameraRef.current.takePictureAsync({ quality: 0.9, shutterSound: false });
       setShot({ uri: await toSquareJpeg(picture.uri, picture.width, picture.height) });
+      preloadLens();
       setLayers([]);
       setSelectedId(null);
     } catch {
@@ -111,6 +115,25 @@ export default function CameraScreen() {
     setLayers((list) => list.filter((l) => l.id !== id));
     setSelectedId((current) => (current === id ? null : current));
   };
+  const toggleLens = async () => {
+    if (!shot || lensBusy) return;
+    Haptics.selectionAsync().catch(() => {});
+    if (shot.lensUri) {
+      setShot({ uri: shot.uri });
+      return;
+    }
+    setLensBusy(true);
+    try {
+      const lensUri = await applyLens(shot.uri);
+      // 그사이 다시 찍었으면 버린다
+      setShot((current) => (current?.uri === shot.uri ? { ...current, lensUri } : current));
+    } catch {
+      setToast('렌즈 효과를 넣지 못했어요.');
+    } finally {
+      setLensBusy(false);
+    }
+  };
+
   const finishText = (text: string, font: TextFont) => {
     const target = editing;
     setEditing(null);
@@ -139,7 +162,7 @@ export default function CameraScreen() {
     const recipientIds = someExcluded && recipients ? recipients.map((f) => f.id) : undefined;
     setBusy(true);
     try {
-      let uri = shot.uri;
+      let uri = shot.lensUri ?? shot.uri;
       if (layers.length) {
         setSelectedId(null);
         await nextFrames();
@@ -196,7 +219,7 @@ export default function CameraScreen() {
             <>
               {/* 이 뷰가 그대로 합성된다. 도구·휴지통은 바깥에 둔다. */}
               <View ref={photoRef} collapsable={false} style={StyleSheet.absoluteFill}>
-                <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <Image source={{ uri: shot.lensUri ?? shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" />
                 <LayerPinchArea controls={layerControls} selectedId={selectedId} onTapEmpty={() => setSelectedId(null)} />
                 {layers
                   .filter((l) => l.id !== editing?.id)
@@ -237,6 +260,19 @@ export default function CameraScreen() {
                   <Pressable onPress={() => setEditing({ id: null, text: '', font: lastTextFont })} style={styles.tool} accessibilityRole="button" accessibilityLabel="텍스트 추가">
                     <Text style={styles.aa}>Aa</Text>
                     <Text style={styles.toolText}>텍스트</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={toggleLens}
+                    style={[styles.tool, shot.lensUri && styles.toolOn]}
+                    accessibilityRole="switch"
+                    aria-checked={!!shot.lensUri}
+                    accessibilityLabel="렌즈 굴곡 효과">
+                    {lensBusy ? (
+                      <ActivityIndicator size="small" color="#fff" style={styles.lensIcon} />
+                    ) : (
+                      <Ionicons name="aperture" size={17} color={shot.lensUri ? colors.accent : '#fff'} style={styles.lensIcon} />
+                    )}
+                    <Text style={[styles.toolText, shot.lensUri && { color: colors.accent }]}>렌즈</Text>
                   </Pressable>
                 </View>
               )}
@@ -387,6 +423,8 @@ const styles = StyleSheet.create({
   // 찍은 뒤에는 렌즈 버튼 자리에 꾸미기 도구가 뜬다
   tool: { height: 34, borderRadius: 17, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12 },
   toolText: { color: '#fff', fontSize: 13, fontWeight: '700' },
+  toolOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
+  lensIcon: { width: 17, height: 17 },
   barIcon: { width: 18, height: 6, borderRadius: 1, backgroundColor: '#000', borderWidth: 1.5, borderColor: '#fff' },
   aa: { color: '#fff', fontSize: 14, fontWeight: '800', letterSpacing: -0.3 },
   trash: {

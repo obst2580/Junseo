@@ -5,6 +5,8 @@ node_modules/
 
 # Expo
 .expo/
+# 웹에서 Skia(렌즈 효과)가 쓰는 CanvasKit. npm run web 이 node_modules 에서 복사한다.
+public/canvaskit.wasm
 dist/
 web-build/
 expo-env.d.ts
