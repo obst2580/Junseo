@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LayerPinchArea, PhotoLayerView, type LayerControl } from '@/components/PhotoLayerView';
 import { RecipientSheet } from '@/components/RecipientSheet';
 import { TextLayerEditor } from '@/components/TextLayerEditor';
-import { Avatar, Button, IconButton } from '@/components/ui';
+import { Button, IconButton } from '@/components/ui';
 import { api, ApiError, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { flattenPhoto, toSquareJpeg } from '@/lib/capture';
@@ -193,9 +193,6 @@ export default function CameraScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.push('/profile')} accessibilityLabel="내 정보">
-          {me && <Avatar id={me.id} name={me.displayName} size={44} />}
-        </Pressable>
         {/* 누르면 보낼 친구를 고른다. 친구가 없으면 친구 추가로 */}
         <Pressable
           style={[styles.friendsPill, someExcluded && styles.friendsPillPartial]}
@@ -208,8 +205,6 @@ export default function CameraScreen() {
           </Text>
           {!noFriends && <Ionicons name="chevron-down" size={14} color={someExcluded ? colors.accent : colors.textDim} />}
         </Pressable>
-        {/* 메시지는 아래 챗 탭으로 옮겼다. 가운데 정렬을 위해 같은 폭만 비워 둔다. */}
-        <View style={{ width: 44 }} />
       </View>
 
       <View style={styles.body}>
@@ -389,7 +384,8 @@ export default function CameraScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
-  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8 },
+  // 내 정보는 친구 화면 맨 위로 옮겼다. 여기는 보낼 친구 버튼만.
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingTop: 8, minHeight: 52 },
   friendsPill: {
     flexDirection: 'row',
     alignItems: 'center',

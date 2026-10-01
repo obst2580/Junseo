@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -81,6 +81,18 @@ export default function FriendsScreen() {
 
   return (
     <ScrollView style={styles.flex} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      {me && (
+        <Pressable style={styles.me} onPress={() => router.push('/profile')} accessibilityRole="button" accessibilityLabel="내 정보">
+          <Avatar id={me.id} name={me.displayName} size={44} />
+          <View style={styles.meText}>
+            <Text style={styles.friendName} numberOfLines={1}>
+              {me.displayName}
+            </Text>
+            <Text style={styles.dim}>내 정보 · 위젯 · 로그아웃</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+        </Pressable>
+      )}
       <View style={styles.card}>
         <Text style={styles.cardLabel}>내 초대 코드</Text>
         <Text style={styles.code} selectable>
@@ -143,6 +155,8 @@ export default function FriendsScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.bg },
   content: { padding: 16, gap: 14, maxWidth: 560, width: '100%', alignSelf: 'center' },
+  me: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: radius.card, paddingVertical: 12, paddingHorizontal: 14 },
+  meText: { flex: 1, gap: 2 },
   card: { backgroundColor: colors.surface, borderRadius: radius.card, padding: 18, gap: 12 },
   cardLabel: { color: colors.textDim, fontSize: 13, fontWeight: '700' },
   code: { color: colors.accent, fontSize: 34, fontWeight: '900', letterSpacing: 4 },
