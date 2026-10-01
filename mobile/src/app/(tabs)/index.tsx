@@ -15,7 +15,7 @@ import { useAuth } from '@/lib/auth';
 import { flattenPhoto, toSquareJpeg } from '@/lib/capture';
 import { pickLenses, type Zoom } from '@/lib/lenses';
 import { events } from '@/lib/events';
-import { newBar, newText, type PhotoLayer } from '@/lib/photoLayers';
+import { newBar, newText, type PhotoLayer, type TextFont } from '@/lib/photoLayers';
 import { colors, radius } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
@@ -25,6 +25,8 @@ const TRASH_SIZE = 46;
 const TRASH_BOTTOM = 12;
 // 처음 한 번만 쓰는 법을 알려 준다
 let layerHintShown = false;
+// 새 글자는 마지막에 고른 모양으로 시작한다
+let lastTextFont: TextFont = 'plain';
 // 고르기 점선이 빠진 화면이 그려질 때까지 기다린다
 const nextFrames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 
@@ -47,7 +49,7 @@ export default function CameraScreen() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const layerControls = useRef(new Map<number, LayerControl>());
   const [dragging, setDragging] = useState<{ overTrash: boolean } | null>(null);
-  const [editing, setEditing] = useState<{ id: number | null; text: string } | null>(null);
+  const [editing, setEditing] = useState<{ id: number | null; text: string; font: TextFont } | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   // 친구 수가 바뀌었을 수 있다 (친구 화면에서 돌아올 때 등)
@@ -100,15 +102,16 @@ export default function CameraScreen() {
     setLayers((list) => list.filter((l) => l.id !== id));
     setSelectedId((current) => (current === id ? null : current));
   };
-  const finishText = (text: string) => {
+  const finishText = (text: string, font: TextFont) => {
     const target = editing;
     setEditing(null);
+    lastTextFont = font;
     if (!target) return;
     if (target.id === null) {
-      if (text) addLayer(newText(text));
+      if (text) addLayer(newText(text, font));
       return;
     }
-    if (text) setLayers((list) => list.map((l) => (l.id === target.id && l.kind === 'text' ? { ...l, text } : l)));
+    if (text) setLayers((list) => list.map((l) => (l.id === target.id && l.kind === 'text' ? { ...l, text, font } : l)));
     else removeLayer(target.id);
   };
 
@@ -182,7 +185,7 @@ export default function CameraScreen() {
                       onDrag={setDragging}
                       onChange={changeLayer}
                       onRemove={removeLayer}
-                      onTap={(t, wasSelected) => (t.kind === 'text' && wasSelected ? setEditing({ id: t.id, text: t.text }) : changeLayer(t))}
+                      onTap={(t, wasSelected) => (t.kind === 'text' && wasSelected ? setEditing({ id: t.id, text: t.text, font: t.font }) : changeLayer(t))}
                     />
                   ))}
               </View>
@@ -203,7 +206,7 @@ export default function CameraScreen() {
                     <View style={styles.barIcon} />
                     <Text style={styles.toolText}>눈 가리개</Text>
                   </Pressable>
-                  <Pressable onPress={() => setEditing({ id: null, text: '' })} style={styles.tool} accessibilityRole="button" accessibilityLabel="텍스트 추가">
+                  <Pressable onPress={() => setEditing({ id: null, text: '', font: lastTextFont })} style={styles.tool} accessibilityRole="button" accessibilityLabel="텍스트 추가">
                     <Text style={styles.aa}>Aa</Text>
                     <Text style={styles.toolText}>텍스트</Text>
                   </Pressable>
@@ -303,7 +306,7 @@ export default function CameraScreen() {
           <Text style={styles.toastText}>{toast}</Text>
         </View>
       )}
-      {editing && <TextLayerEditor initial={editing.text} onDone={finishText} />}
+      {editing && <TextLayerEditor initial={editing.text} initialFont={editing.font} onDone={finishText} />}
     </SafeAreaView>
   );
 }

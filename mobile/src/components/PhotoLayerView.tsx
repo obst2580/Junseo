@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { Animated, PanResponder, Platform, StyleSheet, View, type GestureResponderEvent, type ViewStyle } from 'react-native';
 
+import { LayerText } from '@/components/LayerText';
 import { BAR, LAYER_SCALE, TEXT, type PhotoLayer } from '@/lib/photoLayers';
 
 type Point = { x: number; y: number };
@@ -215,13 +216,7 @@ export function PhotoLayerView(props: Props) {
         {layer.kind === 'bar' ? (
           <View accessibilityLabel="눈 가리개" style={{ width: BAR.width * size, height: BAR.height * size, backgroundColor: '#000' }} />
         ) : (
-          <Animated.Text
-            style={[
-              styles.text,
-              { fontSize: TEXT.size * size, lineHeight: TEXT.size * TEXT.lineHeight * size, maxWidth: TEXT.maxWidth * size, paddingHorizontal: 0.02 * size },
-            ]}>
-            {layer.text}
-          </Animated.Text>
+          <LayerText text={layer.text} font={layer.font} fontSize={TEXT.size * size} maxWidth={TEXT.maxWidth * size} />
         )}
       </Animated.View>
     </Animated.View>
@@ -234,15 +229,6 @@ const styles = StyleSheet.create({
   // 얇은 가리개도 잡기 쉽게 둘레를 조금 넓힌다. 테두리는 고를 때만 보인다 (보내기 전에 고르기를 푼다).
   grip: { padding: 8, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'transparent', borderRadius: 6 },
   selected: { borderColor: 'rgba(255,255,255,0.9)' },
-  text: {
-    color: '#fff',
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: -0.2,
-    textShadowColor: 'rgba(0,0,0,0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 6,
-  },
 });
 
 /**
