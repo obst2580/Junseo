@@ -57,6 +57,23 @@ public interface MomentRepository extends JpaRepository<Moment, Long> {
             where r.moment_id = :momentId""")
     List<Long> findCurrentRecipientIds(long momentId);
 
+    /**
+     * Recipients whose widget currently shows this moment, i.e. it is their latest still-visible received
+     * moment (same rule as {@link #findLatestReceived}). Widget pushes for reactions and comments go only to
+     * them, so older photos don't burn the WidgetKit push budget.
+     */
+    @Query(nativeQuery = true, value = """
+            select r.recipient_id from moment_recipients r
+            join moments m on m.id = r.moment_id
+            join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+            where r.moment_id = :momentId
+              and not exists (
+                  select 1 from moment_recipients r2
+                  join moments m2 on m2.id = r2.moment_id
+                  join friendships f2 on f2.user_id = r2.recipient_id and f2.friend_id = m2.sender_id
+                  where r2.recipient_id = r.recipient_id and r2.moment_id > r.moment_id)""")
+    List<Long> findWidgetViewerIds(long momentId);
+
     @Modifying
     @Query(nativeQuery = true, value = """
             insert into moment_recipients (moment_id, recipient_id)

@@ -115,7 +115,7 @@ export default function FriendsScreen() {
             style={styles.codeInput}
             onSubmitEditing={add}
           />
-          <Button title="추가" onPress={add} loading={adding} disabled={code.trim().length < 8} style={{ width: 90 }} />
+          <Button title="추가" onPress={add} loading={adding} disabled={code.trim().length < 8} style={{ width: 80, paddingHorizontal: 0 }} />
         </View>
         {message && (message.error ? <ErrorText>{message.text}</ErrorText> : <Text style={styles.ok}>{message.text}</Text>)}
       </View>
@@ -151,6 +151,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   codeInput: {
     flex: 1,
+    minWidth: 0,
     height: 52,
     borderRadius: 16,
     paddingHorizontal: 16,

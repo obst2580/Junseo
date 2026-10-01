@@ -3,7 +3,15 @@
 친한 친구(최대 20명)가 찍은 사진이 **내 홈 화면 위젯에 바로 뜨는** iOS 앱입니다.
 위젯에는 사진과 함께 친구들이 남긴 **이모지 반응과 댓글**이 사진 아래에 같이 보입니다. 사진에 **1:1 답장**을 보내면 대화로 이어집니다.
 
-<!-- SCREENSHOTS -->
+| 카메라 | 히스토리 | 사진 상세 | 위젯 안내 |
+|---|---|---|---|
+| ![](docs/screenshots/02-camera.webp) | ![](docs/screenshots/03-history.webp) | ![](docs/screenshots/04-moment.webp) | ![](docs/screenshots/05-widget-guide.webp) |
+
+| 친구 | 메시지 | 채팅 | 내 정보 |
+|---|---|---|---|
+| ![](docs/screenshots/06-friends.webp) | ![](docs/screenshots/07-messages.webp) | ![](docs/screenshots/08-chat.webp) | ![](docs/screenshots/09-profile.webp) |
+
+웹 미리보기로 서버와 앱을 같이 띄워 찍은 실제 화면입니다 (카메라 자리는 브라우저의 테스트 영상). 홈 화면 위젯 자체는 아이폰 개발 빌드에서만 보입니다.
 
 ## 위젯이 갱신되는 방식
 
@@ -43,4 +51,60 @@ mobile/                     Expo SDK 57 · React Native · Expo Router · TypeSc
   targets/notification-service/  알림 서비스 확장
 ```
 
-<!-- RUN -->
+## 실행
+
+### 서버
+PostgreSQL 16 과 Java 21 이 필요합니다.
+
+```bash
+createuser junseo -P            # 비밀번호: junseo
+createdb junseo -O junseo
+createdb junseo_test -O junseo  # 테스트용
+
+cd backend
+./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
+./gradlew test                                            # 통합·단위 테스트 67개
+```
+
+`dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화가 들어 있습니다.
+
+| 설정 | 환경 변수 | 설명 |
+|---|---|---|
+| `spring.datasource.*` | `JUNSEO_DB_URL` · `JUNSEO_DB_USER` · `JUNSEO_DB_PASSWORD` | |
+| `junseo.jwt.secret` | `JUNSEO_JWT_SECRET` | 32바이트 이상. 개발용 기본값이면 경고 로그 |
+| `junseo.media.signing-secret` | `JUNSEO_MEDIA_SECRET` | 사진 URL 서명용. JWT 와 다른 값 |
+| `junseo.storage.dir` | `JUNSEO_STORAGE_DIR` | 사진 저장 위치 (기본 `./data/media`) |
+| `junseo.apns.enabled` · `key-id` · `team-id` · `bundle-id` · `key-path` | `JUNSEO_APNS_*` | 꺼져 있으면 보낼 푸시를 로그로만 남긴다 |
+
+### 앱 (웹 미리보기)
+```bash
+cd mobile
+npm install
+npx expo start --web     # http://localhost:8081
+```
+서버 주소는 `EXPO_PUBLIC_API_URL` 로 바꿉니다 (`.env.example` 참고).
+
+### 아이폰 (위젯·알림 확장 포함)
+위젯과 알림 확장이 네이티브 코드라서 Expo Go 로는 열 수 없고 개발 빌드가 필요합니다. Apple 개발자 계정과 Xcode 26 이상(iOS 26 SDK)이 필요합니다.
+
+```bash
+cd mobile
+APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo run:ios --device
+# Mac 이 없으면: npx eas-cli build --profile development --platform ios
+```
+
+- 번들 ID 기본값은 `com.junseo.app`, App Group 은 `group.com.junseo.app` 입니다. 바꾸려면 `IOS_BUNDLE_ID` 를 주세요. 위젯·알림 확장은 자기 번들 ID 에서 App Group 을 계산하므로 따로 고칠 곳이 없습니다.
+- 푸시를 받으려면 Apple Developer 에서 APNs 키(.p8)를 만들어 서버의 `JUNSEO_APNS_*` 에 넣습니다. 개발 빌드는 `development`, TestFlight·App Store 빌드는 `production` APNs 를 씁니다 (`eas.json` 의 `APNS_ENV`).
+
+## 검증 상태
+
+- 서버: 통합·단위 테스트 67개 통과 (실제 PostgreSQL)
+- 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
+- iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 최소 iOS 17). Swift 파일은 문법 검사만 했고, **Xcode 컴파일과 실기기 확인은 아직** 하지 못했습니다.
+
+## 다음 할 일
+
+- Xcode 에서 첫 빌드, 실기기에서 위젯 갱신 시간 측정 (알림 허용·거부 각각)
+- 토큰 갱신(지금은 30일 토큰 하나), 위젯·알림 확장의 토큰을 App Group UserDefaults 대신 공유 키체인으로
+- 사진 저장소를 S3 + CDN 으로 (`MediaStorage` 인터페이스만 바꾸면 됨)
+- 채팅 실시간 연결 (지금은 화면이 열려 있는 동안 5초마다 확인 + 푸시)

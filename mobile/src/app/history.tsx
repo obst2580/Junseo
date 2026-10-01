@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
   chipTextActive: { color: colors.bg },
   grid: { padding: GAP, gap: GAP, alignSelf: 'center', width: '100%', maxWidth: 640 },
   thumb: { flex: 1, borderRadius: 14, backgroundColor: colors.surface },
-  meta: { position: 'absolute', left: 6, bottom: 6, right: 6 },
-  metaText: { color: '#fff', fontSize: 11, fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 4 },
+  meta: { position: 'absolute', left: 6, bottom: 6, maxWidth: '86%', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)' },
+  metaText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   activity: { position: 'absolute', top: 6, right: 6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: 'rgba(0,0,0,0.5)' },
   activityText: { color: '#fff', fontSize: 11, fontWeight: '700' },
 });

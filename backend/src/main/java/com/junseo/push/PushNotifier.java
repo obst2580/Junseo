@@ -11,7 +11,6 @@ import com.junseo.friend.FriendEvents.Unfriended;
 import com.junseo.media.MediaStorage.Variant;
 import com.junseo.media.MediaUrlSigner;
 import com.junseo.moment.Moment;
-import com.junseo.moment.MomentAccess;
 import com.junseo.moment.MomentEvents.MomentCreated;
 import com.junseo.moment.MomentEvents.MomentDeleted;
 import com.junseo.moment.MomentRepository;
@@ -49,7 +48,6 @@ public class PushNotifier {
     private final DeviceTokenRepository devices;
     private final UserRepository users;
     private final MomentRepository moments;
-    private final MomentAccess access;
     private final MediaUrlSigner signer;
     private final ObjectMapper json;
 
@@ -58,14 +56,12 @@ public class PushNotifier {
             DeviceTokenRepository devices,
             UserRepository users,
             MomentRepository moments,
-            MomentAccess access,
             MediaUrlSigner signer,
             ObjectMapper json) {
         this.sender = sender;
         this.devices = devices;
         this.users = users;
         this.moments = moments;
-        this.access = access;
         this.signer = signer;
         this.json = json;
     }
@@ -92,7 +88,7 @@ public class PushNotifier {
             Map<String, Object> payload = alert(null, body, "moment-" + e.momentId(), "reaction");
             payload.put("momentId", e.momentId());
             sendAlerts(List.of(moment.getSenderId()), payload);
-            sendWidgetPushes(audienceExcept(moment, e.userId()));
+            sendWidgetPushes(widgetViewersExcept(moment, e.userId()));
         }));
     }
 
@@ -106,7 +102,7 @@ public class PushNotifier {
                 payload.put("momentId", e.momentId());
                 sendAlerts(List.of(moment.getSenderId()), payload);
             }
-            sendWidgetPushes(audienceExcept(moment, e.authorId()));
+            sendWidgetPushes(widgetViewersExcept(moment, e.authorId()));
         }));
     }
 
@@ -127,14 +123,14 @@ public class PushNotifier {
     @TransactionalEventListener
     public void on(ReactionRemoved e) {
         guard("reaction-removed", () -> moments.findById(e.momentId())
-                .ifPresent(moment -> sendWidgetPushes(audienceExcept(moment, e.userId()))));
+                .ifPresent(moment -> sendWidgetPushes(widgetViewersExcept(moment, e.userId()))));
     }
 
     @Async(AppConfig.PUSH_EXECUTOR)
     @TransactionalEventListener
     public void on(CommentDeleted e) {
         guard("comment-deleted", () -> moments.findById(e.momentId())
-                .ifPresent(moment -> sendWidgetPushes(audienceExcept(moment, e.deletedBy()))));
+                .ifPresent(moment -> sendWidgetPushes(widgetViewersExcept(moment, e.deletedBy()))));
     }
 
     @Async(AppConfig.PUSH_EXECUTOR)
@@ -150,8 +146,9 @@ public class PushNotifier {
         guard("unfriended", () -> sendWidgetPushes(List.of(e.userId(), e.formerFriendId())));
     }
 
-    private List<Long> audienceExcept(Moment moment, long actorId) {
-        return access.audience(moment).stream().filter(id -> id != actorId).toList();
+    /** Only people whose widget is showing this moment right now; the sender's widget never shows their own. */
+    private List<Long> widgetViewersExcept(Moment moment, long actorId) {
+        return moments.findWidgetViewerIds(moment.getId()).stream().filter(id -> id != actorId).toList();
     }
 
     private Map<String, Object> alert(String title, String body, String threadId, String type) {

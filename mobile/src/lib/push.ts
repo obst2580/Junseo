@@ -66,6 +66,8 @@ function hrefFor(data: PushData): Href | null {
 
 /** 알림을 눌렀을 때 해당 화면으로 보내고, 앱이 켜져 있을 때 온 알림으로 위젯을 갱신한다. */
 export function listenPush(onReceived: (data: PushData) => void) {
+  // 웹(개발용 미리보기)에는 알림 응답 API 가 없다.
+  if (Platform.OS === 'web') return () => {};
   const open = (response: Notifications.NotificationResponse | null) => {
     const href = response && hrefFor(response.notification.request.content.data as PushData);
     if (href) router.push(href);

@@ -65,13 +65,12 @@ class PushIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void reactionAlertsOwnerAndRefreshesAudienceExceptActor() throws Exception {
+    void reactionAlertsOwnerAndRefreshesWidgetViewersExceptActor() throws Exception {
         long m = upload(owner);
         settle();
 
         putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "🔥")).andExpect(status().isOk());
 
-        awaitOne(ownerDevices.widget());
         awaitOne(cDevices.widget());
         Map<?, ?> payload = payload(awaitOne(ownerDevices.app()));
         assertThat(((Map<?, ?>) payload.get("aps")).get("alert")).isEqualTo(Map.of("body", "지우님이 🔥 반응을 남겼어요"));
@@ -80,6 +79,8 @@ class PushIntegrationTest extends IntegrationTest {
         assertThat(push.to(bDevices.widget())).isEmpty();
         assertThat(push.to(bDevices.app())).isEmpty();
         assertThat(push.to(cDevices.app())).isEmpty();
+        // The owner's widget shows photos received from friends, never their own.
+        assertThat(push.to(ownerDevices.widget())).isEmpty();
 
         // Sending the same emoji again changes nothing and notifies no one.
         putJson("/api/moments/" + m + "/reaction", b, Map.of("emoji", "🔥")).andExpect(status().isOk());
@@ -114,14 +115,29 @@ class PushIntegrationTest extends IntegrationTest {
         assertThat(((Map<?, ?>) payload.get("aps")).get("thread-id")).isEqualTo("moment-" + m);
         assertThat(payload.get("type")).isEqualTo("comment");
         assertThat(((Number) payload.get("momentId")).longValue()).isEqualTo(m);
-        awaitOne(ownerDevices.widget());
         awaitOne(cDevices.widget());
         assertThat(push.to(bDevices.widget())).isEmpty();
+        assertThat(push.to(ownerDevices.widget())).isEmpty();
 
         postJson("/api/moments/" + m + "/comments", b, Map.of("text", "가".repeat(100))).andExpect(status().isCreated());
         await().atMost(WAIT).until(() -> push.to(ownerDevices.app()).size() == 2);
         String body = (String) ((Map<?, ?>) ((Map<?, ?>) payload(push.to(ownerDevices.app()).get(1)).get("aps")).get("alert")).get("body");
         assertThat(body).isEqualTo("지우: " + "가".repeat(79) + "…");
+    }
+
+    @Test
+    void activityOnAnOlderPhotoSkipsWidgetsShowingANewerOne() throws Exception {
+        long older = upload(owner);
+        settle();
+        befriend(b, c);
+        upload(c); // b's widget now shows c's newer photo; c's widget still shows the owner's.
+        await().atMost(WAIT).until(() -> !push.to(bDevices.widget()).isEmpty());
+        push.clear();
+
+        postJson("/api/moments/" + older + "/comments", owner, Map.of("text", "다들 뭐해")).andExpect(status().isCreated());
+
+        awaitOne(cDevices.widget());
+        assertThat(push.to(bDevices.widget())).isEmpty();
     }
 
     @Test
