@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 
+import { ZoomProvider } from '@/components/PinchZoom';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { events } from '@/lib/events';
 import { listenPush, registerPush } from '@/lib/push';
@@ -24,7 +25,10 @@ export default function RootLayout() {
     <ThemeProvider value={theme}>
       <AuthProvider>
         <StatusBar style="light" />
-        <RootStack />
+        {/* 사진 상세에서 두 손가락으로 키운 사진을 화면 맨 위에 띄운다 */}
+        <ZoomProvider>
+          <RootStack />
+        </ZoomProvider>
       </AuthProvider>
     </ThemeProvider>
   );

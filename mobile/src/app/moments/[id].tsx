@@ -18,6 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BURST_TAPS, EmojiTapButton } from '@/components/EmojiTapButton';
+import { PinchToZoom } from '@/components/PinchZoom';
 import { Avatar, Empty, ErrorText, IconButton } from '@/components/ui';
 import { api, ApiError, type Comment, type MomentDetail, type ReactionCount } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -64,6 +65,8 @@ export default function MomentScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<{ text: string; error: boolean } | null>(null);
+  // 두 손가락으로 사진을 키우는 동안에는 스크롤을 멈춘다
+  const [zooming, setZooming] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -166,8 +169,10 @@ export default function MomentScreen() {
         }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Image source={{ uri: absoluteUrl(moment.imageUrl) }} style={[styles.photo, { width: size, height: size }]} contentFit="cover" transition={150} />
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" scrollEnabled={!zooming}>
+          <PinchToZoom uri={absoluteUrl(moment.imageUrl)} radius={radius.photo} onZoomingChange={setZooming}>
+            <Image source={{ uri: absoluteUrl(moment.imageUrl) }} style={[styles.photo, { width: size, height: size }]} contentFit="cover" transition={150} />
+          </PinchToZoom>
 
           <View style={styles.senderRow}>
             <Avatar id={moment.sender.id} name={moment.sender.displayName} size={28} />
