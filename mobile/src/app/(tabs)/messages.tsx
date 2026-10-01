@@ -13,14 +13,14 @@ import { timeAgo } from '@/lib/format';
 import { groupTitle, linkKey } from '@/lib/groups';
 import { colors } from '@/lib/theme';
 
-// 1:1 과 단체방을 한 목록에 최근 대화 순으로 섞는다.
+// 1:1 과 단챗을 한 목록에 최근 대화 순으로 섞는다.
 type Row = { key: string; at: string } & ({ kind: 'peer'; c: Conversation } | { kind: 'group'; g: GroupConversation });
 
 export default function ConversationsScreen() {
   const { me } = useAuth();
   const navigation = useNavigation();
   const [rows, setRows] = useState<Row[] | null>(null);
-  // 단체방 만들기: 열 때 친구 목록과 서로 친구인 쌍을 가져온다
+  // 단챗 만들기: 열 때 친구 목록과 서로 친구인 쌍을 가져온다
   const [creating, setCreating] = useState<{ friends: UserSummary[]; links: Set<string> } | null>(null);
 
   const load = useCallback(() => {
@@ -48,7 +48,7 @@ export default function ConversationsScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={openCreate} hitSlop={10} style={styles.newGroup} accessibilityRole="button" accessibilityLabel="단체방 만들기">
+        <Pressable onPress={openCreate} hitSlop={10} style={styles.newGroup} accessibilityRole="button" accessibilityLabel="단챗 만들기">
           <Ionicons name="chatbubbles-outline" size={25} color={colors.text} />
           <View style={styles.plus}>
             <Ionicons name="add" size={12} color={colors.accentText} />
@@ -107,7 +107,7 @@ function GroupRow({ g, meId }: { g: GroupConversation; meId?: number }) {
       avatar={<GroupAvatar members={others} />}
       name={groupTitle(g.group, meId)}
       count={g.group.members.length}
-      preview={last ? `${sender}: ${last.text}` : '단체방을 만들었어요'}
+      preview={last ? `${sender}: ${last.text}` : '단챗을 만들었어요'}
       at={last?.createdAt ?? g.group.createdAt}
       unread={g.unreadCount}
       onPress={() => router.push(`/messages/group/${g.group.id}`)}

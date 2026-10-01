@@ -102,7 +102,7 @@ export default function GroupChatScreen() {
       events.emit('messages');
       router.back();
     };
-    const title = '단체방에서 나갈까요?';
+    const title = '단챗에서 나갈까요?';
     const detail = '나가면 대화 내용이 내 목록에서 사라져요.';
     if (Platform.OS === 'web') {
       if (globalThis.confirm?.(`${title}\n${detail}`)) run();
@@ -122,7 +122,7 @@ export default function GroupChatScreen() {
         options={{
           title: group ? `${groupTitle(group, me?.id)} ${group.members.length}` : '',
           headerRight: () => (
-            <Pressable onPress={leave} hitSlop={10} accessibilityRole="button" accessibilityLabel="단체방 나가기">
+            <Pressable onPress={leave} hitSlop={10} accessibilityRole="button" accessibilityLabel="단챗 나가기">
               <Ionicons name="exit-outline" size={22} color={colors.textDim} />
             </Pressable>
           ),

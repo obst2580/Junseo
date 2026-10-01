@@ -11,7 +11,7 @@ import { colors, radius } from '@/lib/theme';
 const MIN_OTHERS = 2;
 
 /**
- * 단체방 만들기. 모두가 서로 친구여야 해서, 이미 고른 친구와 친구가 아닌 사람은 고를 수 없게 흐리게 둔다.
+ * 단챗 만들기. 모두가 서로 친구여야 해서, 이미 고른 친구와 친구가 아닌 사람은 고를 수 없게 흐리게 둔다.
  * links: 내 친구들 중 서로 친구인 쌍 (linkKey).
  */
 export function GroupCreateSheet({
@@ -58,7 +58,7 @@ export function GroupCreateSheet({
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="닫기" />
       <View style={[styles.sheet, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.grabber} />
-        <Text style={styles.title}>단체방 만들기</Text>
+        <Text style={styles.title}>단챗 만들기</Text>
         <Text style={styles.subtitle}>
           {chosen.length === 0 ? '서로 친구인 사람끼리만 만들 수 있어요' : `${chosen.length}명 골랐어요 · 나까지 ${chosen.length + 1}명`}
         </Text>
@@ -72,7 +72,7 @@ export function GroupCreateSheet({
           accessibilityLabel="방 이름"
         />
         {friends.length < MIN_OTHERS ? (
-          <Text style={styles.empty}>친구가 2명 이상 있어야 단체방을 만들 수 있어요.</Text>
+          <Text style={styles.empty}>친구가 2명 이상 있어야 단챗을 만들 수 있어요.</Text>
         ) : (
           <ScrollView style={styles.list}>
             {friends.map((f) => {

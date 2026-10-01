@@ -27,7 +27,7 @@ export type Message = {
   moment: { id: number; thumbUrl: string } | null;
 };
 export type Conversation = { peer: UserSummary; lastMessage: Message; unreadCount: number };
-/** 단체방. members 에는 나도 들어 있다. name 이 없으면 나를 뺀 사람들 이름으로 부른다 (lib/groups.ts). */
+/** 단챗. members 에는 나도 들어 있다. name 이 없으면 나를 뺀 사람들 이름으로 부른다 (lib/groups.ts). */
 export type GroupChat = { id: number; name: string | null; members: UserSummary[]; createdAt: string };
 /** unreadCount: 보낸 사람을 빼고 아직 안 읽은 사람 수 */
 export type GroupMessage = { id: number; groupId: number; senderId: number; text: string; createdAt: string; unreadCount: number };
@@ -149,7 +149,7 @@ export const api = {
     request<Message>(`/api/conversations/${peerId}/messages`, { method: 'POST', body: { text } }),
   markRead: (peerId: number) => request<void>(`/api/conversations/${peerId}/read`, { method: 'POST' }),
 
-  /** 내 친구들 중 서로 친구인 쌍. 단체방은 모두가 서로 친구여야 만들 수 있다. */
+  /** 내 친구들 중 서로 친구인 쌍. 단챗은 모두가 서로 친구여야 만들 수 있다. */
   friendLinks: () => request<{ pairs: [number, number][] }>('/api/friends/links'),
   groups: () => request<{ items: GroupChat[] }>('/api/groups'),
   group: (id: number) => request<GroupChat>(`/api/groups/${id}`),

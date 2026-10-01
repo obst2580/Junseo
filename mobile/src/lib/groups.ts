@@ -1,6 +1,6 @@
 import type { GroupChat } from '@/lib/api';
 
-/** 이름이 없는 단체방은 나를 뺀 사람들 이름으로 부른다 (서버 알림 제목과 같다). */
+/** 이름이 없는 단챗은 나를 뺀 사람들 이름으로 부른다 (서버 알림 제목과 같다). */
 export function groupTitle(group: GroupChat, meId?: number) {
   return group.name ?? group.members.filter((m) => m.id !== meId).map((m) => m.displayName).join(', ');
 }

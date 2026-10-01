@@ -11,7 +11,7 @@ import { colors, radius } from '@/lib/theme';
 
 /**
  * 사진을 보낼 친구 고르기. 기본은 친구 전체이고, 보내기 싫은 친구를 눌러 뺀다.
- * 단체방이 있으면 단체방도 고를 수 있다: 그 방 사람들을 한꺼번에 넣고 빼는 묶음이다
+ * 단챗이 있으면 단챗도 고를 수 있다: 그 방 사람들을 한꺼번에 넣고 빼는 묶음이다
  * (방 사람이 모두 들어 있으면 체크로 보인다). 고른 상태는 바로 반영된다 (완료는 닫기만 한다).
  */
 export function RecipientSheet({
@@ -42,7 +42,7 @@ export function RecipientSheet({
     onChange(next);
   };
 
-  // 단체방마다 지금도 내 친구인 사람만 (나간 친구·친구 끊은 사람은 사진을 받을 수 없다)
+  // 단챗마다 지금도 내 친구인 사람만 (나간 친구·친구 끊은 사람은 사진을 받을 수 없다)
   const friendIds = new Set(friends.map((f) => f.id));
   const rooms = groups
     .map((g) => ({ group: g, ids: g.members.filter((m) => m.id !== meId && friendIds.has(m.id)).map((m) => m.id) }))
@@ -66,7 +66,7 @@ export function RecipientSheet({
         <ScrollView style={styles.list}>
           {rooms.length > 0 && (
             <>
-              <Text style={styles.section}>단체방</Text>
+              <Text style={styles.section}>단챗</Text>
               {rooms.map(({ group, ids }) => {
                 const on = ids.every((id) => !excluded.has(id));
                 return (

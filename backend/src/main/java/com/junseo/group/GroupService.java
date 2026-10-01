@@ -71,10 +71,10 @@ public class GroupService {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "나 말고 2명 이상 골라 주세요.");
         }
         if (others.size() + 1 > MAX_MEMBERS) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "단체방은 " + MAX_MEMBERS + "명까지 만들 수 있어요.");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "단챗은 " + MAX_MEMBERS + "명까지 만들 수 있어요.");
         }
         if (others.stream().anyMatch(id -> !friends.areFriends(me, id))) {
-            throw new ApiException(ErrorCode.NOT_FRIENDS, "친구만 단체방에 초대할 수 있어요.");
+            throw new ApiException(ErrorCode.NOT_FRIENDS, "친구만 단챗에 초대할 수 있어요.");
         }
         List<Long> everyone = new ArrayList<>(others);
         everyone.add(me);

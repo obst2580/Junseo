@@ -58,7 +58,7 @@ export default function CameraScreen() {
   const [toast, setToast] = useState<string | null>(null);
   // 받는 친구: 기본은 전체, 뺀 친구만 기억한다 (새로 사귄 친구는 자동으로 들어간다). 앱을 다시 켜면 전체로 돌아간다.
   const [friends, setFriends] = useState<UserSummary[] | null>(null);
-  // 보낼 친구 고르기에서 단체방 사람들을 한꺼번에 고를 수 있다
+  // 보낼 친구 고르기에서 단챗 사람들을 한꺼번에 고를 수 있다
   const [groups, setGroups] = useState<GroupChat[]>([]);
   const [excluded, setExcluded] = useState<Set<number>>(() => new Set());
   const [picking, setPicking] = useState(false);

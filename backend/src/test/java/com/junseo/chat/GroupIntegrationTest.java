@@ -38,7 +38,7 @@ class GroupIntegrationTest extends IntegrationTest {
         postJson("/api/groups", a, Map.of("memberIds", List.of(b.id(), c.id(), d.id())))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("NOT_MUTUAL_FRIENDS"))
-                .andExpect(jsonPath("$.message").value("서로 친구인 사람끼리만 단체방을 만들 수 있어요."));
+                .andExpect(jsonPath("$.message").value("서로 친구인 사람끼리만 단챗을 만들 수 있어요."));
 
         postJson("/api/groups", a, Map.of("memberIds", List.of(c.id(), b.id(), b.id()), "name", "  우리  "))
                 .andExpect(status().isCreated())
