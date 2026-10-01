@@ -9,6 +9,7 @@ import { ZoomProvider } from '@/components/PinchZoom';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { events } from '@/lib/events';
 import { listenPush, registerPush } from '@/lib/push';
+import { realtime } from '@/lib/realtime';
 import { colors, glow, motion } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
@@ -41,6 +42,8 @@ function RootStack() {
   useEffect(() => {
     if (!signedIn) return;
     registerPush().catch(() => {});
+    // 채팅 실시간 신호 (메시지·읽음). 앱이 뒤로 가면 끊고 앞으로 나오면 다시 잇는다.
+    realtime.start();
     const stopPush = listenPush((data) => {
       if (data.type === 'message' || data.type === 'group-message') events.emit('messages');
       else events.emit('moments');
@@ -55,6 +58,7 @@ function RootStack() {
     return () => {
       stopPush();
       sub.remove();
+      realtime.stop();
     };
   }, [signedIn]);
 

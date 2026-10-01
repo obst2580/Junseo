@@ -161,7 +161,13 @@ public class GroupService {
     @Transactional
     public void markRead(long me, long groupId) {
         requireMember(me, groupId);
-        members.advanceRead(groupId, me, messages.findLatestId(groupId).orElse(0L));
+        List<GroupMember> joined = members.findByGroupId(groupId);
+        long before = joined.stream().filter(m -> m.getUserId() == me).mapToLong(GroupMember::getLastReadId).findFirst().orElse(0);
+        long latest = messages.findLatestId(groupId).orElse(0L);
+        if (latest > before) {
+            members.advanceRead(groupId, me, latest);
+            events.publishEvent(new GroupEvents.GroupRead(groupId, me, joined.stream().map(GroupMember::getUserId).toList()));
+        }
     }
 
     /** The last one out deletes the group and its messages. */

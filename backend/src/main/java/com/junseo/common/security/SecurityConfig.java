@@ -53,6 +53,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // 실시간 채널: 첫 메시지로 토큰을 받아 RealtimeHandler 가 확인한다
+                        .requestMatchers(HttpMethod.GET, "/ws").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o
                         .bearerTokenResolver(bearerTokenResolver())
@@ -68,7 +70,7 @@ public class SecurityConfig {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
         return request -> {
             String path = request.getRequestURI().substring(request.getContextPath().length());
-            return path.startsWith("/api/auth/") || path.startsWith("/media/") ? null : delegate.resolve(request);
+            return path.startsWith("/api/auth/") || path.startsWith("/media/") || path.equals("/ws") ? null : delegate.resolve(request);
         };
     }
 

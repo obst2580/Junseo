@@ -37,7 +37,12 @@ export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarP
 
   useEffect(() => {
     loadUnread();
-    return events.on('messages', loadUnread);
+    const offMessages = events.on('messages', loadUnread);
+    const offUnread = events.on('unread', loadUnread);
+    return () => {
+      offMessages();
+      offUnread();
+    };
   }, [loadUnread, state.index]);
 
   return (

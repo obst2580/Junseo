@@ -40,7 +40,14 @@ export default function ConversationsScreen() {
       .catch(() => setRows((prev) => prev ?? []));
   }, []);
   useFocusEffect(load);
-  useEffect(() => events.on('messages', load), [load]);
+  useEffect(() => {
+    const offMessages = events.on('messages', load);
+    const offUnread = events.on('unread', load);
+    return () => {
+      offMessages();
+      offUnread();
+    };
+  }, [load]);
 
   const openCreate = useCallback(() => {
     Promise.all([api.friends(), api.friendLinks()])

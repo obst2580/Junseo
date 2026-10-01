@@ -56,6 +56,9 @@ export class ApiError extends Error {
 let tokenProvider: () => string | null = () => null;
 let onUnauthorized: () => void = () => {};
 
+/** 지금 로그인 토큰 (실시간 연결이 첫 메시지로 보낸다) */
+export const currentToken = () => tokenProvider();
+
 export function configureApi(options: { getToken: () => string | null; onUnauthorized: () => void }) {
   tokenProvider = options.getToken;
   onUnauthorized = options.onUnauthorized;

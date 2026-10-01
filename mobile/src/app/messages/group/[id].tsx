@@ -1,20 +1,21 @@
-import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useHeaderHeight } from 'expo-router/react-navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Icon } from '@/components/Icon';
 import { ChatBubble } from '@/components/ChatBubble';
-import { ErrorText } from '@/components/ui';
-import { api, ApiError, type GroupChat, type GroupMessage } from '@/lib/api';
+import { ChatComposer } from '@/components/ChatComposer';
+import { Icon } from '@/components/Icon';
+import { api, type GroupChat, type GroupMessage, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { isLocal, useChatThread, type LocalMessage } from '@/lib/chatThread';
 import { events } from '@/lib/events';
 import { groupTitle } from '@/lib/groups';
 import { colors } from '@/lib/theme';
 
-// 1:1 챗과 같이, 화면이 열려 있는 동안 주기적으로 새 메시지와 읽음 수를 가져온다. 푸시가 오면 바로 갱신한다.
-const POLL_MS = 5000;
+// 안 읽은 사람 수나 글이 바뀌었을 때만 다시 그린다
+const sameMessage = (a: GroupMessage, b: GroupMessage) => a.unreadCount === b.unreadCount && a.text === b.text;
 
 export default function GroupChatScreen() {
   // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
@@ -22,82 +23,38 @@ export default function GroupChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupId = Number(id);
   const { me } = useAuth();
-
   const [group, setGroup] = useState<GroupChat | null>(null);
-  const [items, setItems] = useState<GroupMessage[] | null>(null);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [text, setText] = useState('');
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const loadingMore = useRef(false);
   // 읽음 처리를 보낸 마지막 메시지. 같은 메시지로 여러 번 보내지 않는다.
   const markedUpTo = useRef(0);
 
-  const refresh = useCallback(async () => {
-    const page = await api.groupMessages(groupId);
-    setItems((prev) => {
-      // 이미 불러온 예전 메시지는 두고 최신 페이지(읽음 수 포함)만 새로 바꾼다.
-      const byId = new Map((prev ?? []).map((m) => [m.id, m]));
-      page.items.forEach((m) => byId.set(m.id, m));
-      return [...byId.values()].sort((a, b) => b.id - a.id);
-    });
-    setCursor((c) => c ?? page.nextCursor);
-    const newest = page.items[0]?.id ?? 0;
-    if (newest > markedUpTo.current) {
-      markedUpTo.current = newest;
-      await api.markGroupRead(groupId).catch(() => {});
-      events.emit('messages');
-    }
-  }, [groupId]);
+  const { rows, loadOlder, send, retry } = useChatThread<GroupMessage>({
+    fetchPage: (cursor) => api.groupMessages(groupId, cursor),
+    sendText: async (text) => {
+      const msg = await api.sendGroupMessage(groupId, text);
+      markedUpTo.current = Math.max(markedUpTo.current, msg.id);
+      return msg;
+    },
+    afterFetch: async (page) => {
+      const newest = page[0]?.id ?? 0;
+      if (newest > markedUpTo.current) {
+        markedUpTo.current = newest;
+        await api.markGroupRead(groupId).catch(() => {});
+        events.emit('unread');
+      }
+    },
+    same: sameMessage,
+    matches: (s) => (s.type === 'group-message' || s.type === 'group-read') && s.groupId === groupId,
+  });
 
   useEffect(() => {
     api
       .group(groupId)
       .then(setGroup)
       .catch(() => {});
-    const timer = setInterval(() => refresh().catch(() => {}), POLL_MS);
-    const off = events.on('messages', () => void refresh().catch(() => {}));
-    return () => {
-      clearInterval(timer);
-      off();
-    };
-  }, [groupId, refresh]);
+  }, [groupId]);
 
-  useFocusEffect(
-    useCallback(() => {
-      refresh().catch(() => setItems((prev) => prev ?? []));
-    }, [refresh]),
-  );
-
-  const loadOlder = async () => {
-    if (!cursor || loadingMore.current) return;
-    loadingMore.current = true;
-    try {
-      const page = await api.groupMessages(groupId, cursor);
-      setItems((prev) => [...(prev ?? []), ...page.items.filter((m) => !prev?.some((p) => p.id === m.id))]);
-      setCursor(page.nextCursor);
-    } finally {
-      loadingMore.current = false;
-    }
-  };
-
-  const send = async () => {
-    const body = text.trim();
-    if (!body) return;
-    setSending(true);
-    setError(null);
-    try {
-      const msg = await api.sendGroupMessage(groupId, body);
-      markedUpTo.current = Math.max(markedUpTo.current, msg.id);
-      setItems((prev) => [msg, ...(prev ?? [])]);
-      setText('');
-      events.emit('messages');
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : '보내지 못했어요.');
-    } finally {
-      setSending(false);
-    }
-  };
+  // 같은 사람 객체를 계속 써야 말풍선이 다시 그려지지 않는다
+  const people = useMemo(() => new Map<number, UserSummary>(group?.members.map((m) => [m.id, m])), [group]);
 
   const leave = () => {
     const run = async () => {
@@ -117,7 +74,20 @@ export default function GroupChatScreen() {
     ]);
   };
 
-  const people = new Map(group?.members.map((m) => [m.id, m]));
+  const renderItem = useCallback(
+    ({ item, index }: { item: GroupMessage | LocalMessage; index: number }) => {
+      if (isLocal(item)) {
+        return <ChatBubble mine text={item.text} createdAt={item.createdAt} unread={0} status={item.status} reason={item.reason} onRetry={() => retry(item.localId)} />;
+      }
+      const mine = item.senderId === me?.id;
+      // 같은 사람이 이어서 보낸 말에는 얼굴·이름을 한 번만 (목록이 뒤집혀 있어서 바로 앞 말은 index + 1)
+      const older = rows?.[index + 1];
+      const firstOfRun = !older || isLocal(older) || older.senderId !== item.senderId;
+      const sender = people.get(item.senderId) ?? LEFT;
+      return <ChatBubble mine={mine} text={item.text} createdAt={item.createdAt} unread={item.unreadCount} sender={firstOfRun ? sender : null} />;
+    },
+    [me?.id, people, retry, rows],
+  );
 
   return (
     <SafeAreaView style={[styles.flex, { paddingTop: headerHeight }]} edges={['bottom']}>
@@ -132,52 +102,34 @@ export default function GroupChatScreen() {
         }}
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
-        {items === null ? (
+        {rows === null ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : (
           <FlatList
             inverted
-            data={items}
-            keyExtractor={(m) => String(m.id)}
+            data={rows}
+            keyExtractor={keyOf}
+            renderItem={renderItem}
             contentContainerStyle={styles.list}
             onEndReached={loadOlder}
             onEndReachedThreshold={0.3}
-            renderItem={({ item, index }) => {
-              const mine = item.senderId === me?.id;
-              // 같은 사람이 이어서 보낸 말에는 얼굴·이름을 한 번만 (목록이 뒤집혀 있어서 바로 앞 말은 index + 1)
-              const firstOfRun = items[index + 1]?.senderId !== item.senderId;
-              const sender = people.get(item.senderId) ?? { id: item.senderId, displayName: '나간 친구' };
-              return (
-                <ChatBubble mine={mine} text={item.text} createdAt={item.createdAt} unread={item.unreadCount} sender={firstOfRun ? sender : null} />
-              );
-            }}
+            initialNumToRender={20}
+            maxToRenderPerBatch={12}
+            windowSize={9}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
           />
         )}
-        {error && <ErrorText>{error}</ErrorText>}
-        <View style={styles.inputRow}>
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="메시지 보내기"
-            placeholderTextColor={colors.textFaint}
-            maxLength={500}
-            style={styles.input}
-            onSubmitEditing={send}
-            returnKeyType="send"
-          />
-          <Pressable onPress={send} disabled={sending || !text.trim()} style={[styles.sendButton, (!text.trim() || sending) && { opacity: 0.4 }]}>
-            <Icon name="send" size={20} color={colors.accentText} />
-          </Pressable>
-        </View>
+        <ChatComposer onSend={send} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
+const LEFT: UserSummary = { id: 0, displayName: '나간 친구' };
+const keyOf = (m: GroupMessage | LocalMessage) => (isLocal(m) ? m.localId : String(m.id));
+
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { padding: 12, gap: 10 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  input: { flex: 1, height: 44, borderRadius: 22, paddingHorizontal: 16, backgroundColor: colors.surface, color: colors.text, fontSize: 15 },
-  sendButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
 });

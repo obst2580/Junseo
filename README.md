@@ -54,6 +54,8 @@ mobile/                     Expo SDK 57 · React Native · Expo Router · TypeSc
   src/app/                  그 밖의 화면 (사진 상세 · 1:1 대화 · 친구 · 내 정보 · 위젯 안내)
   src/lib/widgetBridge.ts   App Group 저장소로 위젯·알림 확장에 토큰과 서버 주소를 넘김
   src/lib/push.ts           알림 권한 · APNs 토큰 등록 · 알림 탭 처리
+  src/lib/realtime.ts       채팅 WebSocket (신호를 받으면 그 대화만 다시 받음, 끊기면 재연결)
+  src/lib/chatThread.ts     1:1·단챗 공통: 보내자마자 화면에 띄우기 · 순서 보장 · 실패 시 다시 보내기
   targets/_shared/          위젯과 알림 확장이 함께 쓰는 Swift 코드 (서버 동기화 · 캐시 · 이미지 축소)
   targets/widget/           홈 화면 위젯 (SwiftUI, 작은 크기·큰 크기) + iOS 26 위젯 푸시 처리
   targets/notification-service/  알림 서비스 확장
@@ -71,7 +73,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 77개
+./gradlew test                                            # 통합·단위 테스트 80개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -107,7 +109,7 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 77개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 80개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 최소 iOS 17). Swift 파일은 문법 검사만 했고, **Xcode 컴파일과 실기기 확인은 아직** 하지 못했습니다.
 
@@ -116,5 +118,5 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 - Xcode 에서 첫 빌드, 실기기에서 위젯 갱신 시간 측정 (알림 허용·거부 각각)
 - 토큰 갱신(지금은 30일 토큰 하나), 위젯·알림 확장의 토큰을 App Group UserDefaults 대신 공유 키체인으로
 - 사진 저장소를 S3 + CDN 으로 (`MediaStorage` 인터페이스만 바꾸면 됨)
-- 채팅 실시간 연결 (지금은 화면이 열려 있는 동안 5초마다 확인 + 푸시)
+- 서버를 여러 대로 늘릴 때 채팅 신호를 Redis pub/sub 로 나누기 (지금은 서버 한 대의 메모리에서 WebSocket 연결 관리)
 - 눈 가리개 자동 위치: iOS Vision 얼굴 인식으로 눈 위에 바로 얹기 (지금은 손으로 옮기고 두 손가락으로 크기·각도 조절)

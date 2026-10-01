@@ -105,7 +105,9 @@ public class ChatService {
     @Transactional
     public void markRead(long userId, long peerId) {
         userService.require(peerId);
-        messages.markRead(userId, peerId, clock.instant());
+        if (messages.markRead(userId, peerId, clock.instant()) > 0) {
+            events.publishEvent(new ChatEvents.MessagesRead(userId, peerId));
+        }
     }
 
     private MessageView send(long senderId, long receiverId, Long momentId, String text) {
