@@ -14,6 +14,8 @@ junseo:
     signing-secret: test-media-secret-0123456789abcdefghijklmnopqrstuvwxyz
   storage:
     dir: build/test-media
+  admin:
+    token: test-admin-token
 
 logging:
   level:

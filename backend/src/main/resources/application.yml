@@ -35,6 +35,9 @@ junseo:
   cors:
     # http://localhost:8081 (Expo web) is always allowed; add more with a comma-separated list.
     extra-origins: ${JUNSEO_CORS_EXTRA_ORIGINS:}
+  admin:
+    # 출시 후 템플릿 올리기 (scripts/templates/upload_template.py). 비워 두면 관리자 API 가 꺼진다.
+    token: ${JUNSEO_ADMIN_TOKEN:}
   apns:
     enabled: ${JUNSEO_APNS_ENABLED:false}
     key-id: ${JUNSEO_APNS_KEY_ID:}

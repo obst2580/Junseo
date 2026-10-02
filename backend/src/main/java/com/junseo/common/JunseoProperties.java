@@ -11,7 +11,8 @@ public record JunseoProperties(
         @DefaultValue Media media,
         @DefaultValue Storage storage,
         @DefaultValue Cors cors,
-        @DefaultValue Apns apns) {
+        @DefaultValue Apns apns,
+        @DefaultValue Admin admin) {
 
     public record Jwt(String secret, @DefaultValue("30d") Duration ttl) {}
 
@@ -22,4 +23,7 @@ public record JunseoProperties(
     public record Cors(@DefaultValue List<String> extraOrigins) {}
 
     public record Apns(boolean enabled, String keyId, String teamId, String bundleId, String keyPath) {}
+
+    /** token: X-Admin-Token for /api/admin/** (adding templates). Blank switches those endpoints off. */
+    public record Admin(String token) {}
 }

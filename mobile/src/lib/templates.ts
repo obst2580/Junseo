@@ -43,7 +43,11 @@ export type Template = {
   slots: TemplateSlot[];
 };
 
-export const TEMPLATES: Template[] = [
+/**
+ * 앱에 들어 있는 기본 템플릿. 처음 켰을 때나 인터넷이 없을 때도 보인다.
+ * 출시 후 새 템플릿은 서버에 올린다 (scripts/templates/upload_template.py → lib/templateCatalog.ts 가 받아 온다).
+ */
+export const BUILT_IN_TEMPLATES: Template[] = [
   // 뉴스 앵커 옆 화면에 사진 한 장 (2160×2700, 4:5). 칸 위치·모서리는 받은 그림에서 쟀다
   // (칸 101~1096 × 380~1379, 모서리 반지름 약 188). 그림 속 예시 사진을 다 덮도록 1px 넉넉하게.
   {
@@ -128,7 +132,6 @@ export const TEMPLATES: Template[] = [
   },
 ];
 
-export const findTemplate = (id: string) => TEMPLATES.find((t) => t.id === id) ?? null;
 
 /** 오늘(이 기기 시간으로 0시부터) 내가 찍어 보낸 사진과 받은 사진, 최신순 */
 export async function todaysMoments(): Promise<Moment[]> {

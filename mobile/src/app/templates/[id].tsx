@@ -16,7 +16,8 @@ import { captureView } from '@/lib/capture';
 import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
 import { clockTime } from '@/lib/format';
-import { findTemplate, todaysMoments } from '@/lib/templates';
+import { useTemplate } from '@/lib/templateCatalog';
+import { todaysMoments, type Template } from '@/lib/templates';
 import { colors, radius } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
@@ -29,14 +30,20 @@ const COLUMNS = 4;
  */
 export default function TemplateEditor() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const template = findTemplate(id);
+  // 서버 템플릿은 목록을 받아 올 때까지 잠깐 기다린다 (링크로 바로 들어온 경우)
+  const { template, ready } = useTemplate(id);
+  if (!template) return ready ? <Empty icon="images" title="템플릿을 찾을 수 없어요." /> : <ActivityIndicator color={colors.accent} style={{ marginTop: 120 }} />;
+  return <Editor template={template} />;
+}
+
+function Editor({ template }: { template: Template }) {
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const canvasRef = useRef<View>(null);
 
   const [today, setToday] = useState<Moment[] | null>(null);
-  const [picked, setPicked] = useState<(Moment | null)[]>(() => template?.slots.map(() => null) ?? []);
+  const [picked, setPicked] = useState<(Moment | null)[]>(() => template.slots.map(() => null));
   const [result, setResult] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -51,8 +58,6 @@ export default function TemplateEditor() {
     const t = setTimeout(() => setToast(null), 2200);
     return () => clearTimeout(t);
   }, [toast]);
-
-  if (!template) return <Empty icon="images" title="템플릿을 찾을 수 없어요." />;
 
   const filled = picked.filter(Boolean).length;
   const missing = template.slots.length - filled;

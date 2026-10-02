@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PressScale } from '@/components/PressScale';
 import { TemplateCanvas } from '@/components/TemplateCanvas';
-import { TEMPLATES } from '@/lib/templates';
+import { useTemplates } from '@/lib/templateCatalog';
 import { colors, radius } from '@/lib/theme';
 
 const CARD = 150;
@@ -12,11 +12,13 @@ const CARD = 150;
 /** 템플릿 고르기. 오늘 찍은 사진·받은 사진을 골라 넣고, 광고를 한 번 보면 한 장 만들어진다. */
 export default function TemplatesScreen() {
   const headerHeight = useHeaderHeight();
+  // 서버에 새로 올린 템플릿이 앞에, 앱에 든 기본 템플릿이 뒤에
+  const templates = useTemplates();
   return (
     <ScrollView style={[styles.flex, { paddingTop: headerHeight }]} contentContainerStyle={styles.content}>
       <Text style={styles.lead}>오늘 찍은 사진과 받은 사진으로 꾸며요.{'\n'}광고를 한 번 보면 한 장 만들 수 있어요.</Text>
       <View style={styles.grid}>
-        {TEMPLATES.map((t) => (
+        {templates.map((t) => (
           <PressScale
             key={t.id}
             onPress={() => router.push(`/templates/${t.id}`)}

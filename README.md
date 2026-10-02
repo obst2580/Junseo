@@ -8,7 +8,7 @@
 글자 모양은 기본 · 궁서체 · 길쭉(예능 썸네일처럼 세로로 긴 고딕 A1 ExtraBold, 세로 3.2배) 세 가지이고, 모두 흰 글자에 그림자입니다. 궁서체 글꼴은 은 궁서(은글꼴, GNU GPL 2.0)를 원본 그대로 `mobile/assets/fonts` 에 넣었습니다. App Store 에 내기 전에 라이선스를 확인하세요 (GPL 글꼴을 App Store 앱에 넣는 것은 해석이 갈립니다).
 **렌즈** 를 켜면 어안 렌즈처럼 가운데가 볼록하게 휘어진 사진이 됩니다 (`@shopify/react-native-skia` 셰이더, 웹은 CanvasKit — `npm run web` 이 `public/canvaskit.wasm` 을 복사합니다).
 화면은 디자인 랩에 저장한 디자인을 따릅니다: 로고 초록(#29FF01) 강조색, 그라데이션 바탕, 각진 버튼, 사진 모서리 60, 선 굵기 2.75 아이콘(`react-native-svg`), 「빠르게」 움직임 ×1.8, 이모지 날아오르기, 촬영 플래시, 보낼 때 사라지기. 값은 `mobile/src/lib/theme.ts` 에 모여 있습니다.
-홈의 **오늘 템플릿**: 오늘 찍은 사진·받은 사진을 골라 템플릿 칸에 넣고, 보상형 광고를 한 번 보면 한 장이 완성됩니다 (사진첩 저장 · 공유 · 친구에게 보내기). 사진 칸은 카메라 화면처럼 정사각형에 같은 모서리 비율이고, 템플릿은 `mobile/src/lib/templates.ts` 에 그림(`mobile/assets/templates`) + 칸 위치·모서리로 추가합니다 (지금은 「뉴스」 · 「썸네일」 · 「미술관」 · 「지하철 광고」 · 「버스 광고」 · 「선수 카드」). 사진 위에 올라가는 글자는 투명 PNG(`overlay`)로 얹습니다. 비스듬한 판(지하철 · 버스)은 칸을 네 꼭짓점으로 적으면 사진을 원근에 맞춰 붙이고(`lib/warp.ts`), overlay 가 판 테두리(사진 끝 마감) · 조명과 그늘 · 유리/광택 반사 · 이음새를 다시 덮어 실제 인쇄물처럼 보이게 합니다. 지하철 광고판은 흐린 사진을 판보다 크게 깔아(`glow`) 사진 색 빛이 테두리 · 벽으로 번집니다. 그림과 overlay 는 `mobile/scripts/templates/make_templates.py` 로 원본 이미지에서 만듭니다.
+홈의 **오늘 템플릿**: 오늘 찍은 사진·받은 사진을 골라 템플릿 칸에 넣고, 보상형 광고를 한 번 보면 한 장이 완성됩니다 (사진첩 저장 · 공유 · 친구에게 보내기). 사진 칸은 카메라 화면처럼 정사각형에 같은 모서리 비율이고, 템플릿은 `mobile/src/lib/templates.ts` 에 그림(`mobile/assets/templates`) + 칸 위치·모서리로 추가합니다 (지금은 「뉴스」 · 「썸네일」 · 「미술관」 · 「지하철 광고」 · 「버스 광고」 · 「선수 카드」). 사진 위에 올라가는 글자는 투명 PNG(`overlay`)로 얹습니다. 비스듬한 판(지하철 · 버스)은 칸을 네 꼭짓점으로 적으면 사진을 원근에 맞춰 붙이고(`lib/warp.ts`), overlay 가 판 테두리(사진 끝 마감) · 조명과 그늘 · 유리/광택 반사 · 이음새를 다시 덮어 실제 인쇄물처럼 보이게 합니다. 지하철 광고판은 흐린 사진을 판보다 크게 깔아(`glow`) 사진 색 빛이 테두리 · 벽으로 번집니다. 그림과 overlay 는 `mobile/scripts/templates/make_templates.py` 로 원본 이미지에서 만듭니다. 이 6개는 앱에 기본으로 들어 있고, **출시 후 새 템플릿은 서버에 올리면 앱 업데이트 없이 바로** 모든 사용자에게 뜹니다 (아래 「출시 후 템플릿 추가」).
 
 | 카메라 | 히스토리 | 사진 상세 | 위젯 안내 |
 |---|---|---|---|
@@ -74,7 +74,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 90개
+./gradlew test                                            # 통합·단위 테스트 96개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -86,6 +86,7 @@ cd backend
 | `junseo.media.signing-secret` | `JUNSEO_MEDIA_SECRET` | 사진 URL 서명용. JWT 와 다른 값 |
 | `junseo.storage.dir` | `JUNSEO_STORAGE_DIR` | 사진 저장 위치 (기본 `./data/media`) |
 | `junseo.apns.enabled` · `key-id` · `team-id` · `bundle-id` · `key-path` | `JUNSEO_APNS_*` | 꺼져 있으면 보낼 푸시를 로그로만 남긴다 |
+| `junseo.admin.token` | `JUNSEO_ADMIN_TOKEN` | 템플릿 올리기(관리자 API) 토큰. 비우면 관리자 API 가 꺼진다 |
 
 ### 앱 (웹 미리보기)
 ```bash
@@ -108,9 +109,24 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 - 번들 ID 기본값은 `com.junseo.app`, App Group 은 `group.com.junseo.app` 입니다. 바꾸려면 `IOS_BUNDLE_ID` 를 주세요. 위젯·알림 확장은 자기 번들 ID 에서 App Group 을 계산하므로 따로 고칠 곳이 없습니다.
 - 푸시를 받으려면 Apple Developer 에서 APNs 키(.p8)를 만들어 서버의 `JUNSEO_APNS_*` 에 넣습니다. 개발 빌드는 `development`, TestFlight·App Store 빌드는 `production` APNs 를 씁니다 (`eas.json` 의 `APNS_ENV`).
 
+## 출시 후 템플릿 추가
+
+새 템플릿은 서버에 올리면 그 순간부터 모든 사용자의 「오늘 템플릿」 맨 앞에 뜹니다. 앱은 목록과 그림을 받아 기기에 저장해 두므로, 한 번 받은 템플릿은 인터넷이 없어도 보입니다.
+
+1. 원본 그림을 `mobile/scripts/templates/src/` 에 넣고 `make_templates.py` 에 그 템플릿 부분(칸 위치 · 그늘 · 반사 등)을 추가해 만든다: `python3 make_templates.py out > out/meta.json`
+2. 서버에 올린다 (서버에는 `JUNSEO_ADMIN_TOKEN` 을 설정해 둔다):
+   ```bash
+   python3 mobile/scripts/templates/upload_template.py --api https://<서버> --token "$JUNSEO_ADMIN_TOKEN" \
+       --dir out --id <id> --name "<앱에 보일 이름>" --color "#rrggbb"
+   ```
+   같은 id 로 다시 올리면 그림 · 칸이 통째로 바뀌고, `--hide` 로 내릴 수 있습니다.
+
+- 지금 앱이 그릴 수 있는 것(네모 칸 · 네 꼭짓점 칸 · 앞장 그림 · 빛번짐) 안에서는 데이터만으로 됩니다. 새 효과가 필요한 템플릿은 그 효과를 넣은 앱 업데이트가 먼저 나가야 하고, 예전 앱에서는 그 템플릿이 자동으로 숨겨집니다 (`requires`).
+- 템플릿 그림은 사진과 같은 저장소(`JUNSEO_STORAGE_DIR`)의 `templates/` 아래에 저장됩니다.
+
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 90개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 96개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - 채팅: 웹 미리보기(배포용 빌드)에서 앱 전환 · 소리 없이 죽은 연결 · 응답 유실 · 응답 없음 · 300개 넘는 대화방을 재현해 확인. 키보드 위치와 「보고 있는 방 알림 숨기기」는 아이폰에서만 확인할 수 있어 아직
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 앱·위젯·알림 확장 모두 최소 iOS 17). GitHub Actions 의 Mac 에서 앱·위젯·알림 확장을 Xcode 로 빌드하고 시뮬레이터에서 앱을 켜 본다 (`.github/workflows/ios.yml`). **실기기 확인은 아직** — 점검표: `docs/widget-check.md` (새 사진이 위젯에 닿기까지 걸린 시간은 서버 로그 `Widget got new photo` 로 잰다)

@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { resetChats } from '@/lib/chats';
 import { listenPush, registerPush } from '@/lib/push';
 import { realtime } from '@/lib/realtime';
+import { refreshTemplates } from '@/lib/templateCatalog';
 import { colors, glow, motion } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
 
@@ -48,6 +49,8 @@ function RootStack() {
     const syncFriends = () => void api.friends().then((r) => widgetBridge.setFriends(r.friends)).catch(() => {});
     syncFriends();
     const offFriends = events.on('friends', syncFriends);
+    // 서버에 새로 올린 템플릿을 미리 받아 둔다 (그림까지) → 템플릿 화면을 열면 바로 보인다
+    refreshTemplates();
     // 채팅 실시간 신호 (메시지·읽음). 앱이 뒤로 가면 끊고 앞으로 나오면 다시 잇는다.
     realtime.start();
     const stopPush = listenPush((data) => {

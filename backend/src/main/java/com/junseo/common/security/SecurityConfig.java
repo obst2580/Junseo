@@ -52,6 +52,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
+                        // 관리자 API 는 로그인 대신 X-Admin-Token 을 컨트롤러가 확인한다 (TemplateAdminController)
+                        .requestMatchers("/api/admin/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         // 실시간 채널: 첫 메시지로 토큰을 받아 RealtimeHandler 가 확인한다
                         .requestMatchers(HttpMethod.GET, "/ws").permitAll()
@@ -65,12 +67,14 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /** A stale token sent to login or to /media must not turn those public endpoints into a 401. */
+    /** A stale token sent to login, /media or the admin API must not turn those endpoints into a 401. */
     private static BearerTokenResolver bearerTokenResolver() {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
         return request -> {
             String path = request.getRequestURI().substring(request.getContextPath().length());
-            return path.startsWith("/api/auth/") || path.startsWith("/media/") || path.equals("/ws") ? null : delegate.resolve(request);
+            return path.startsWith("/api/auth/") || path.startsWith("/api/admin/") || path.startsWith("/media/") || path.equals("/ws")
+                    ? null
+                    : delegate.resolve(request);
         };
     }
 

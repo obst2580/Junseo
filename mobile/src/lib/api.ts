@@ -43,6 +43,22 @@ export type GroupMessage = {
 };
 export type GroupConversation = { group: GroupChat; lastMessage: GroupMessage | null; unreadCount: number };
 export type Page<T> = { items: T[]; nextCursor: string | null };
+/**
+ * 서버가 내려주는 템플릿 (GET /api/templates). slots 는 앱의 TemplateSlot 과 같은 모양.
+ * requires: 이걸 그리려면 앱이 할 줄 알아야 하는 것 (quad · glow · overlay …). 모르는 게 있으면 앱이 건너뛴다.
+ */
+export type RemoteTemplate = {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  backgroundColor: string;
+  backgroundUrl: string;
+  overlayUrl: string | null;
+  slots: unknown[];
+  requires: string[];
+  version: number;
+};
 export type AuthResponse = { accessToken: string; expiresAt: string; user: Me };
 export type WidgetLatest = {
   version: string;
@@ -152,6 +168,7 @@ export const api = {
   moments: (params: { cursor?: string | null; userId?: number | null; limit?: number } = {}) =>
     request<Page<Moment>>(`/api/moments${q(params)}`),
   moment: (id: number) => request<MomentDetail>(`/api/moments/${id}`),
+  templates: () => request<{ items: RemoteTemplate[] }>('/api/templates'),
   deleteMoment: (id: number) => request<void>(`/api/moments/${id}`, { method: 'DELETE' }),
 
   /** 이모지를 count 번 누른 것으로 더한다 (한 번에 1~20). */

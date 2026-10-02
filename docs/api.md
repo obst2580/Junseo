@@ -227,6 +227,38 @@
 - `If-None-Match`에 이전 ETag를 보내면 바뀐 게 없을 때 304 (본문 없음).
 - `X-Widget-Source: notification | widget` (선택): 누가 받으러 왔는지. 이 폰이 **새 사진을 처음** 받아 갈 때 서버가 사진이 올라온 뒤 걸린 시간을 경로별로 로그에 남긴다 (`Widget got new photo … source=… after=…ms`, 실기기 점검은 `docs/widget-check.md`).
 
+## 템플릿
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/api/templates` | | 200 `{ items: Template[] }` (서버에 올린 템플릿. 앱에 든 기본 템플릿은 앱이 뒤에 붙인다) |
+
+```jsonc
+// Template
+{ "id": "subway", "name": "지하철 광고", "width": 1344, "height": 1040, "backgroundColor": "#151515",
+  "backgroundUrl": "/media/templates/subway/background.jpg?v=2", "overlayUrl": "/media/templates/subway/overlay.png?v=2",
+  "slots": [{ "quad": [[207, 264.6], [1180.6, 187.2], [1178, 832], [207, 749.8]], "aspect": 2, "grow": 5,
+              "glow": { "grow": 90, "blur": 0.045, "wash": 0.35 } }],
+  "requires": ["glow", "overlay", "quad"], "version": 2 }
+```
+
+- `slots`: 네모 칸 `{ x, y, size, radius? }` 또는 네 꼭짓점 칸 `{ quad, aspect, grow?, glow? }` (앱 `src/lib/templates.ts` 와 같은 모양, 좌표는 템플릿 px).
+- `requires`: 그리려면 앱이 할 줄 알아야 하는 것. 서버가 칸 · 그림을 보고 채운다(`quad`, `glow`, `overlay`). 앱은 모르는 게 하나라도 있으면 그 템플릿을 목록에서 뺀다 → 새 효과가 필요한 템플릿을 올려도 예전 앱이 깨지지 않는다.
+- 순서: `sortOrder` 가 큰 것 먼저, 같으면 최근에 올린 것 먼저.
+- 그림 `GET /media/templates/{id}/{background.jpg|background.png|overlay.png}?v=` 은 모두에게 같아서 인증 없이 받고 `Cache-Control: public, max-age=31536000, immutable`. 다시 올리면 `version` 이 올라 주소가 바뀐다.
+
+### 템플릿 올리기 (관리자)
+
+`X-Admin-Token: <JUNSEO_ADMIN_TOKEN>` 헤더로 확인한다 (사용자 로그인 토큰이 아님). 서버에 `JUNSEO_ADMIN_TOKEN` 이 없으면 이 API 는 꺼져 있다(404).
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| PUT | `/api/admin/templates/{id}` | multipart: `meta`(JSON `{ name, width, height, backgroundColor, slots, requires?, sortOrder? }`), `background`(JPG/PNG), `overlay`(투명 PNG, 선택) | 200 `Template` (없으면 만들고, 있으면 통째로 바꾼다) |
+| DELETE | `/api/admin/templates/{id}` | | 204 (목록에서만 뺀다. 이미 받아 간 폰을 위해 그림은 남긴다) |
+
+- `id`: 영문 소문자 · 숫자 · `-` 40자까지. 그림은 템플릿 크기와 정확히 같아야 하고(다르면 `VALIDATION_FAILED` + 실제 크기), 칸은 1~6개.
+- 보통은 `mobile/scripts/templates/upload_template.py` 로 올린다 (README 「출시 후 템플릿 추가」).
+
 ## 기기 (푸시 토큰)
 
 | 메서드 | 경로 | 요청 | 응답 |
