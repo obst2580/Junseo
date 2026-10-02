@@ -47,6 +47,8 @@ export default function CameraScreen() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [lenses, setLenses] = useState<string[]>([]);
   const [zoom, setZoom] = useState<Zoom>('wide');
+  // 플래시: 셔터 아래 버튼. 끄고 시작한다. 켜면 후면은 실제 플래시, 전면은 iOS 가 화면을 하얗게 밝혀 찍는다(Retina Flash).
+  const [flashOn, setFlashOn] = useState(false);
   const { ultra, wide } = pickLenses(lenses);
   const selectedLens = zoom === 'ultra' && ultra ? ultra : wide;
   const [shot, setShot] = useState<Shot | null>(null);
@@ -315,8 +317,8 @@ export default function CameraScreen() {
                 facing={facing}
                 mirror={facing === 'front'}
                 selectedLens={selectedLens}
-                // 플래시는 쓰지 않는다 (값을 안 주면 expo-camera 가 「자동」이라 어두우면 저절로 터진다)
-                flash="off"
+                // 값을 안 주면 expo-camera 가 「자동」이라 어두우면 저절로 터진다 → 버튼대로만
+                flash={flashOn ? 'on' : 'off'}
                 onAvailableLensesChanged={(e) => setLenses(e.lenses)}
               />
               {ultra && (
@@ -395,6 +397,23 @@ export default function CameraScreen() {
               style={styles.sideButton}
             />
           </>
+        )}
+      </View>
+      {/* 플래시: 셔터 바로 아래. 찍은 뒤에도 자리는 남겨 둬서 사진이 위아래로 움직이지 않는다 */}
+      <View style={styles.flashRow}>
+        {!shot && permission?.granted && (
+          <PressScale
+            onPress={() => {
+              Haptics.selectionAsync().catch(() => {});
+              setFlashOn((on) => !on);
+            }}
+            hitSlop={8}
+            style={[styles.flashButton, flashOn && styles.flashButtonOn]}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: flashOn }}
+            accessibilityLabel={`플래시 ${flashOn ? '켜짐' : '꺼짐'}`}>
+            <Icon name={flashOn ? 'flashOn' : 'flashOff'} size={20} strokeWidth={2.2} color={flashOn ? colors.accent : colors.textDim} />
+          </PressScale>
         )}
       </View>
       </View>
@@ -482,7 +501,10 @@ const styles = StyleSheet.create({
   busy: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
   hint: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.pill, backgroundColor: colors.surface },
   hintText: { color: colors.accent, fontSize: 13, fontWeight: '600' },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingVertical: 16 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingTop: 16, paddingBottom: 8 },
+  flashRow: { height: 40, alignItems: 'center', justifyContent: 'center' },
+  flashButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  flashButtonOn: { backgroundColor: colors.surfaceHigh },
   sideButton: { width: 52, height: 52, borderRadius: 26 },
   shutterOuter: { width: 84, height: 84, borderRadius: 42, borderWidth: 4, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 66, height: 66, borderRadius: 33, backgroundColor: colors.text },
