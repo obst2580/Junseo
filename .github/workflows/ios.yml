@@ -1,0 +1,104 @@
+# 아이폰 빌드 확인: 실제 Xcode 로 앱 · 위젯 · 알림 확장을 컴파일하고, 시뮬레이터에서 앱을 켜 본다.
+# (Mac 이 없어도 위젯 Swift 코드가 컴파일되는지 매번 확인할 수 있다. 공개 저장소라 macOS 러너는 무료다.)
+name: iOS build
+
+on:
+  push:
+    paths: ['mobile/**', '.github/workflows/ios.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/ios.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Xcode 와 시뮬레이터
+        run: |
+          ls -d /Applications/Xcode*.app
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - run: npm ci
+
+      - name: Xcode 프로젝트 만들기 (expo prebuild)
+        run: npx expo prebuild --platform ios --no-install
+        env:
+          CI: '1'
+
+      - name: CocoaPods
+        run: cd ios && pod install
+
+      - name: 빌드 (앱 + 위젯 + 알림 확장, 시뮬레이터용 Release)
+        run: |
+          set +e
+          xcodebuild -workspace ios/Junseo.xcworkspace -scheme Junseo -configuration Release \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO build > build.log 2>&1
+          status=$?
+          echo "::group::위젯·알림 확장 경고"
+          grep -E "targets/(widget|notification-service|_shared)/.*(warning|error):" build.log | sort -u | head -60
+          echo "::endgroup::"
+          if [ $status -ne 0 ]; then
+            echo "::group::오류"
+            grep -E "error:|\*\* BUILD FAILED" build.log | sort -u | head -120
+            echo "::endgroup::"
+            tail -60 build.log
+            exit $status
+          fi
+          tail -5 build.log
+
+      - name: 확장이 앱에 들어갔는지
+        run: |
+          APP=build/Build/Products/Release-iphonesimulator/Junseo.app
+          ls "$APP/PlugIns"
+          test -d "$APP/PlugIns/JunseoWidget.appex"
+          test -d "$APP/PlugIns/JunseoNotificationService.appex"
+          /usr/libexec/PlistBuddy -c 'Print :NSExtension:NSExtensionPointIdentifier' "$APP/PlugIns/JunseoWidget.appex/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :MinimumOSVersion' "$APP/Info.plist"
+
+      - name: 시뮬레이터에서 앱 켜 보기
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          ios = sorted((k for k in d if "iOS" in k), key=lambda k: [int(x) for x in k.split("iOS-")[-1].split("-")])
+          phones = [x for x in d[ios[-1]] if x["name"].startswith("iPhone")]
+          print(phones[0]["udid"])')
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build/Build/Products/Release-iphonesimulator/Junseo.app
+          xcrun simctl launch "$UDID" com.junseo.app
+          sleep 25
+          xcrun simctl io "$UDID" screenshot launch.png
+          # 앱이 아직 살아 있는지 (켜자마자 죽으면 여기서 실패)
+          xcrun simctl spawn "$UDID" launchctl list | grep -i "com.junseo.app" || { echo "앱이 꺼졌어요"; exit 1; }
+          sips -Z 520 -s format jpeg -s formatOptions 60 launch.png --out launch.jpg > /dev/null
+          echo "::group::launch.jpg (base64)"
+          echo "LAUNCH_JPG_BEGIN"; base64 -i launch.jpg; echo "LAUNCH_JPG_END"
+          echo "::endgroup::"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-build
+          path: |
+            mobile/build.log
+            mobile/launch.png
+          if-no-files-found: ignore
