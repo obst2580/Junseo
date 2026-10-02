@@ -14,6 +14,12 @@ public class TestConfig {
         return new RecordingPushSender();
     }
 
+    @Bean
+    @Primary
+    RecordingMailer recordingMailer() {
+        return new RecordingMailer();
+    }
+
     /** Fresh schema per test JVM so migrations are always exercised from scratch. */
     @Bean
     FlywayMigrationStrategy cleanMigrate() {

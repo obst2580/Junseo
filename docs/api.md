@@ -19,6 +19,8 @@
 | 400 | `INVALID_IMAGE` | JPEG/PNG가 아니거나 10MB 초과, 디코딩 실패 |
 | 400 | `CANNOT_ADD_SELF` | 내 초대 코드로 나를 추가 |
 | 400 | `NOT_ALLOWED_ON_OWN_MOMENT` | 내 사진에 반응·답장 |
+| 400 | `WRONG_PASSWORD` | 계정 삭제할 때 비밀번호가 틀림 |
+| 400 | `RESET_CODE_INVALID` | 비밀번호 재설정 코드가 틀렸거나 만료 · 5번 넘게 틀림 |
 | 401 | `UNAUTHORIZED` | 토큰 없음·만료·잘못됨 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 |
 | 403 | `FORBIDDEN` | 권한 없음 (남의 댓글 삭제 등) |
@@ -29,6 +31,7 @@
 | 409 | `EMAIL_TAKEN` | 이미 가입된 이메일 |
 | 409 | `ALREADY_FRIENDS` | 이미 친구 |
 | 409 | `FRIEND_LIMIT_REACHED` | 나 또는 상대가 친구 20명 |
+| 409 | `BLOCKED_USER` | 내가 차단한 사람의 초대 코드 (나를 차단한 사람의 코드는 `INVITE_CODE_NOT_FOUND`) |
 
 ## 공통 객체
 
@@ -70,8 +73,12 @@
 |---|---|---|---|
 | POST | `/api/auth/signup` | `{ email, password(8~72자), displayName(1~20자) }` | 201 `{ accessToken, expiresAt, user: Me }` |
 | POST | `/api/auth/login` | `{ email, password }` | 200 `{ accessToken, expiresAt, user: Me }` |
+| POST | `/api/auth/password-reset` | `{ email }` | 204 (가입된 이메일이면 6자리 코드를 메일로 보낸다) |
+| POST | `/api/auth/password-reset/confirm` | `{ email, code, newPassword(8~72자) }` | 200 `{ accessToken, expiresAt, user: Me }` |
 
-- 토큰: JWT HS256, `sub` = 사용자 ID, 유효기간 30일. 위젯과 알림 확장도 같은 토큰을 쓴다 (MVP에서는 갱신 토큰 없음).
+- 토큰: JWT HS256, `sub` = 사용자 ID, `ver` = 토큰 세대, 유효기간 30일. 위젯과 알림 확장도 같은 토큰을 쓴다 (MVP에서는 갱신 토큰 없음).
+- 비밀번호를 바꾸면 세대가 올라가서 그 전에 받은 토큰(다른 폰 · 위젯 포함)이 모두 401 이 된다. WebSocket 도 같은 검사를 한다.
+- 재설정: 없는 이메일이어도 똑같이 204 (가입 여부를 알 수 없게). 코드는 15분 동안 유효하고, 1분 안에 다시 요청하면 새로 보내지 않는다. 5번 틀리면 코드가 무효가 되어 다시 받아야 한다. 메일은 SMTP(`JUNSEO_SMTP_*`)로 보내고, 설정이 없으면 서버 로그에만 남긴다.
 - 이메일은 소문자로 정규화한다.
 
 ## 내 정보
@@ -81,6 +88,9 @@
 | GET | `/api/me` | | 200 `Me` |
 | PATCH | `/api/me` | `{ displayName }` | 200 `Me` |
 | POST | `/api/me/invite-code` | | 200 `Me` (초대 코드를 새로 발급, 이전 코드는 무효) |
+| POST | `/api/me/delete` | `{ password }` | 204 계정 삭제 |
+
+- 계정 삭제: 내 사진(파일 포함) · 반응 · 댓글 · 메시지 · 친구 · 차단 · 기기 토큰을 바로 지운다. 내가 마지막 사람이던 단챗도 지운다. 친구들의 위젯에서도 내 사진이 빠지도록 친구 끊기와 같은 신호를 보낸다. 같은 이메일로 다시 가입할 수 있다.
 
 초대 코드: 8자, 헷갈리는 글자(0 O 1 I L) 제외한 대문자·숫자.
 
@@ -96,6 +106,44 @@
 - 초대 코드로 추가하면 바로 서로 친구가 된다 (코드를 건넨 것 자체가 동의).
 - 한 사람당 최대 20명. 나나 상대 중 한쪽이라도 20명이면 `FRIEND_LIMIT_REACHED`.
 - 친구를 끊으면 서로의 사진·댓글·반응이 즉시 안 보이고, 메시지도 보낼 수 없다. 기존 대화 기록은 남는다.
+
+## 차단 · 신고
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/api/blocks` | | 200 `{ items: [UserSummary] }` (최근에 차단한 사람 먼저) |
+| POST | `/api/blocks` | `{ userId }` | 204 |
+| DELETE | `/api/blocks/{userId}` | | 204 (차단 풀기. 친구는 다시 초대 코드로) |
+| POST | `/api/reports` | `{ kind, targetId?, userId?, reason, detail?(500자) }` | 201 `{ id }` |
+
+- 차단하면 친구가 끊기고(친구 끊기 신호 포함), 다시 친구가 될 수 없다. 차단한 사람과 나를 차단한 사람 사이에서는 서로의 댓글 · 1:1 대화가 안 보이고, 단챗에서는 그 사람의 말과 안 읽은 수 · 푸시가 빠진다. 상대에게는 알리지 않는다.
+- 신고 `kind`: `moment` · `comment` · `message` · `group-message` (이때 `targetId`), `user` (이때 `userId`). `reason`: `spam` · `abuse` · `sexual` · `violence` · `other`.
+- 내가 볼 수 있는 것만 신고할 수 있다 (아니면 404). 내 것은 신고할 수 없다 (400). 글은 신고 시점의 내용을 같이 저장해서, 나중에 지워져도 운영자가 볼 수 있다.
+- 신고가 들어오면 서버 로그(WARN)에 남기고, `JUNSEO_ADMIN_EMAIL` 이 있으면 메일로 알린다. 처리한 신고는 1년 뒤 지운다.
+
+### 신고 처리 (관리자)
+
+`X-Admin-Token` 헤더 (템플릿 올리기와 같은 토큰). 약관에 「24시간 안에 확인」이라고 적었으니 매일 확인한다.
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/api/admin/reports?all=false` | | 200 `{ items: ReportView[] }` (처리 안 한 것, 오래된 것 먼저. `all=true` 면 전부 최근 것 먼저) |
+| POST | `/api/admin/reports/{id}/resolve` | `{ resolution }` (예: "사진 삭제, 계정 삭제") | 204 |
+| DELETE | `/api/admin/{moments\|comments\|messages\|group-messages}/{id}` | | 204 내용 지우기 |
+| DELETE | `/api/admin/users/{id}` | | 204 계정 삭제 (내보내기) |
+
+```jsonc
+// ReportView
+{ "id": 3, "kind": "moment", "targetId": 301, "reason": "sexual", "detail": null,
+  "snapshot": null,                       // 댓글 · 메시지면 신고 시점의 글
+  "imageUrl": "/media/301/full.jpg?..." , // 사진이 아직 있으면 (서명 URL)
+  "reporter": UserSummary | null, "target": UserSummary | null,
+  "createdAt": "...", "resolvedAt": null, "resolution": null }
+```
+
+## 약관 · 개인정보처리방침
+
+`GET /legal/terms.html`, `GET /legal/privacy.html` (인증 없음). 앱의 가입 화면 · 내 정보에서 연다. 출시 전에 문서 안의 `[운영자 이름]` · `[문의 이메일]` · `[시행일]` · `[서버 업체]` · `[메일 발송 업체]` · `[보호책임자 이름]` 을 채운다.
 
 ## 사진 (moment)
 

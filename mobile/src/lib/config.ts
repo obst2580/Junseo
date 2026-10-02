@@ -14,3 +14,6 @@ export const WIDGET_KIND = 'MomentWidget';
 export function absoluteUrl(path: string): string {
   return path.startsWith('http') ? path : `${API_BASE_URL}${path}`;
 }
+
+/** 이용약관 · 개인정보처리방침 (서버가 공개 페이지로 둔다: backend/src/main/resources/static/legal) */
+export const legalUrl = (page: 'terms' | 'privacy') => `${API_BASE_URL}/legal/${page}.html`;

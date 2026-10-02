@@ -12,7 +12,8 @@ public record JunseoProperties(
         @DefaultValue Storage storage,
         @DefaultValue Cors cors,
         @DefaultValue Apns apns,
-        @DefaultValue Admin admin) {
+        @DefaultValue Admin admin,
+        @DefaultValue Mail mail) {
 
     public record Jwt(String secret, @DefaultValue("30d") Duration ttl) {}
 
@@ -24,6 +25,12 @@ public record JunseoProperties(
 
     public record Apns(boolean enabled, String keyId, String teamId, String bundleId, String keyPath) {}
 
-    /** token: X-Admin-Token for /api/admin/** (adding templates). Blank switches those endpoints off. */
-    public record Admin(String token) {}
+    /**
+     * token: X-Admin-Token for /api/admin/** (templates, reports). Blank switches those endpoints off.
+     * email: where new reports are mailed (blank: only logged).
+     */
+    public record Admin(String token, String email) {}
+
+    /** from: sender of the app's mails (password reset codes, report alerts). SMTP itself is spring.mail.*. */
+    public record Mail(@DefaultValue("잡다 <no-reply@junseo.app>") String from) {}
 }

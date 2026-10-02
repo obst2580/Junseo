@@ -54,4 +54,12 @@ public class CommentService {
         comments.delete(comment);
         events.publishEvent(new CommentDeleted(moment.getId(), userId));
     }
+
+    /** Operator removes a reported comment. */
+    @Transactional
+    public void removeByOperator(long commentId) {
+        Comment comment = comments.findById(commentId).orElseThrow(ApiException::notFound);
+        comments.delete(comment);
+        events.publishEvent(new CommentDeleted(comment.getMomentId(), comment.getAuthorId()));
+    }
 }

@@ -18,6 +18,15 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration
+  # 비밀번호 재설정 메일. host 를 비워 두면 메일 대신 로그에 남긴다 (개발용).
+  mail:
+    host: ${JUNSEO_SMTP_HOST:}
+    port: ${JUNSEO_SMTP_PORT:587}
+    username: ${JUNSEO_SMTP_USER:}
+    password: ${JUNSEO_SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
   servlet:
     multipart:
       max-file-size: 10MB
@@ -36,8 +45,12 @@ junseo:
     # http://localhost:8081 (Expo web) is always allowed; add more with a comma-separated list.
     extra-origins: ${JUNSEO_CORS_EXTRA_ORIGINS:}
   admin:
-    # 출시 후 템플릿 올리기 (scripts/templates/upload_template.py). 비워 두면 관리자 API 가 꺼진다.
+    # 템플릿 올리기 · 신고 처리 (X-Admin-Token 헤더). 비워 두면 관리자 API 가 꺼진다.
     token: ${JUNSEO_ADMIN_TOKEN:}
+    # 신고가 들어오면 알림 메일을 받을 주소 (비우면 로그로만)
+    email: ${JUNSEO_ADMIN_EMAIL:}
+  mail:
+    from: ${JUNSEO_MAIL_FROM:잡다 <no-reply@junseo.app>}
   apns:
     enabled: ${JUNSEO_APNS_ENABLED:false}
     key-id: ${JUNSEO_APNS_KEY_ID:}

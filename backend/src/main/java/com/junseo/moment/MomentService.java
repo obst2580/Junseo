@@ -95,6 +95,16 @@ public class MomentService {
         events.publishEvent(new MomentDeleted(momentId, userId, audience));
     }
 
+    /** Operator removes a reported photo (no visibility check; the sender is the actor for the events). */
+    @Transactional
+    public void removeByOperator(long momentId) {
+        Moment moment = moments.findById(momentId).orElseThrow(ApiException::notFound);
+        List<Long> audience = access.audience(moment);
+        moments.delete(moment);
+        Transactions.afterCommit(() -> deleteFiles(momentId));
+        events.publishEvent(new MomentDeleted(momentId, moment.getSenderId(), audience));
+    }
+
     private void deleteFiles(long momentId) {
         storage.delete(MediaStorage.key(momentId, Variant.FULL));
         storage.delete(MediaStorage.key(momentId, Variant.THUMB));

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text } from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { Button, ErrorText, Field } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { legalUrl } from '@/lib/config';
 import { colors } from '@/lib/theme';
 
 export default function SignupScreen() {
@@ -40,6 +41,17 @@ export default function SignupScreen() {
         <Field label="비밀번호" value={password} onChangeText={setPassword} secureTextEntry autoComplete="new-password" placeholder="8자 이상" />
         {error && <ErrorText>{error}</ErrorText>}
         <Button title="가입하기" onPress={submit} loading={loading} disabled={!valid} />
+        <Text style={styles.agree}>
+          가입하면{' '}
+          <Text style={styles.agreeLink} onPress={() => void Linking.openURL(legalUrl('terms'))} accessibilityRole="link">
+            이용약관
+          </Text>
+          과{' '}
+          <Text style={styles.agreeLink} onPress={() => void Linking.openURL(legalUrl('privacy'))} accessibilityRole="link">
+            개인정보처리방침
+          </Text>
+          에 동의하게 돼요. 불쾌한 콘텐츠와 괴롭힘은 허용하지 않아요. 만 14세 이상만 가입할 수 있어요.
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -49,4 +61,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: { padding: 24, gap: 16 },
   title: { color: colors.text, fontSize: 26, fontWeight: '800', lineHeight: 34, marginBottom: 12 },
+  agree: { color: colors.textDim, fontSize: 13, lineHeight: 19, textAlign: 'center' },
+  agreeLink: { color: colors.text, textDecorationLine: 'underline' },
 });

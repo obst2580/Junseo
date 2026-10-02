@@ -46,10 +46,10 @@ public class MomentViews {
         List<Long> ids = moments.stream().map(Moment::getId).toList();
         Map<Long, List<Reaction>> reactionsByMoment = reactions.findVisibleByMomentIds(ids).stream()
                 .collect(Collectors.groupingBy(Reaction::getMomentId));
-        Map<Long, List<Comment>> recentByMoment = comments.findRecentVisible(ids, RECENT_COMMENTS).stream()
+        Map<Long, List<Comment>> recentByMoment = comments.findRecentVisible(ids, RECENT_COMMENTS, viewerId).stream()
                 .collect(Collectors.groupingBy(Comment::getMomentId));
         Map<Long, Long> commentCounts = new HashMap<>();
-        for (Object[] row : comments.countVisibleByMomentIds(ids)) {
+        for (Object[] row : comments.countVisibleByMomentIds(ids, viewerId)) {
             commentCounts.put(((Number) row[0]).longValue(), ((Number) row[1]).longValue());
         }
         Set<Long> userIds = new HashSet<>();
@@ -73,7 +73,7 @@ public class MomentViews {
     }
 
     public MomentView detail(long viewerId, Moment moment) {
-        List<Comment> all = comments.findVisibleByMomentId(moment.getId());
+        List<Comment> all = comments.findVisibleByMomentId(moment.getId(), viewerId);
         Set<Long> userIds = new HashSet<>();
         userIds.add(moment.getSenderId());
         all.forEach(c -> userIds.add(c.getAuthorId()));

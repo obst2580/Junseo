@@ -74,7 +74,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 96개
+./gradlew test                                            # 통합·단위 테스트 109개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -86,7 +86,10 @@ cd backend
 | `junseo.media.signing-secret` | `JUNSEO_MEDIA_SECRET` | 사진 URL 서명용. JWT 와 다른 값 |
 | `junseo.storage.dir` | `JUNSEO_STORAGE_DIR` | 사진 저장 위치 (기본 `./data/media`) |
 | `junseo.apns.enabled` · `key-id` · `team-id` · `bundle-id` · `key-path` | `JUNSEO_APNS_*` | 꺼져 있으면 보낼 푸시를 로그로만 남긴다 |
-| `junseo.admin.token` | `JUNSEO_ADMIN_TOKEN` | 템플릿 올리기(관리자 API) 토큰. 비우면 관리자 API 가 꺼진다 |
+| `junseo.admin.token` | `JUNSEO_ADMIN_TOKEN` | 관리자 API(템플릿 올리기 · 신고 처리) 토큰. 비우면 관리자 API 가 꺼진다 |
+| `junseo.admin.email` | `JUNSEO_ADMIN_EMAIL` | 신고가 들어오면 알림 메일을 받을 주소 |
+| `spring.mail.host` · `port` · `username` · `password` | `JUNSEO_SMTP_HOST` · `_PORT` · `_USER` · `_PASSWORD` | 비밀번호 재설정 메일. 비우면 메일 대신 로그에 남긴다 (출시에는 꼭 필요) |
+| `junseo.mail.from` | `JUNSEO_MAIL_FROM` | 보내는 사람 (기본 `잡다 <no-reply@junseo.app>`) |
 
 ### 앱 (웹 미리보기)
 ```bash
@@ -124,9 +127,18 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 - 지금 앱이 그릴 수 있는 것(네모 칸 · 네 꼭짓점 칸 · 앞장 그림 · 빛번짐) 안에서는 데이터만으로 됩니다. 새 효과가 필요한 템플릿은 그 효과를 넣은 앱 업데이트가 먼저 나가야 하고, 예전 앱에서는 그 템플릿이 자동으로 숨겨집니다 (`requires`).
 - 템플릿 그림은 사진과 같은 저장소(`JUNSEO_STORAGE_DIR`)의 `templates/` 아래에 저장됩니다.
 
+## 출시 전에 할 일 (안전 · 약관)
+
+App Store 는 사진 · 채팅처럼 사용자가 올리는 내용이 있는 앱에 신고 · 차단 · 약관 동의 · 앱 안 계정 삭제를 요구합니다. 기능은 들어 있고, 운영자가 채울 것만 남았습니다.
+
+- 약관 · 개인정보처리방침(`backend/src/main/resources/static/legal/`)의 `[운영자 이름]` · `[문의 이메일]` · `[시행일]` · `[서버 업체]` · `[메일 발송 업체]` · `[보호책임자 이름]` 채우기
+- SMTP 설정(`JUNSEO_SMTP_*`) — 없으면 비밀번호 재설정 메일이 가지 않는다
+- `JUNSEO_ADMIN_EMAIL` 로 신고 알림 받기, 신고는 24시간 안에 `GET /api/admin/reports` 로 확인하고 지우기 · 내보내기 (`docs/api.md` 「신고 처리」)
+- App Store 연령 등급 설문: 사용자 간 대화 · 사진이 있으므로 그에 맞게 답한다
+
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 96개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 109개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - 채팅: 웹 미리보기(배포용 빌드)에서 앱 전환 · 소리 없이 죽은 연결 · 응답 유실 · 응답 없음 · 300개 넘는 대화방을 재현해 확인. 키보드 위치와 「보고 있는 방 알림 숨기기」는 아이폰에서만 확인할 수 있어 아직
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 앱·위젯·알림 확장 모두 최소 iOS 17). GitHub Actions 의 Mac 에서 앱·위젯·알림 확장을 Xcode 로 빌드하고 시뮬레이터에서 앱을 켜 본다 (`.github/workflows/ios.yml`). **실기기 확인은 아직** — 점검표: `docs/widget-check.md` (새 사진이 위젯에 닿기까지 걸린 시간은 서버 로그 `Widget got new photo` 로 잰다)

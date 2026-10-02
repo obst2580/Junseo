@@ -103,6 +103,8 @@ function RootStack() {
         <Stack.Screen name="messages/[peerId]" options={{ title: '' }} />
         <Stack.Screen name="messages/group/[id]" options={{ title: '' }} />
         <Stack.Screen name="profile" options={{ title: '내 정보' }} />
+        <Stack.Screen name="blocked" options={{ title: '차단한 사람' }} />
+        <Stack.Screen name="delete-account" options={{ title: '계정 삭제' }} />
         <Stack.Screen name="widget-guide" options={{ title: '위젯 추가하기', presentation: 'modal' }} />
         <Stack.Screen name="templates/index" options={{ title: '오늘 템플릿' }} />
         <Stack.Screen name="templates/[id]" options={{ title: '' }} />
@@ -110,6 +112,7 @@ function RootStack() {
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="login" options={{ headerShown: false }} />
         <Stack.Screen name="signup" options={{ title: '' }} />
+        <Stack.Screen name="forgot-password" options={{ title: '비밀번호 찾기' }} />
       </Stack.Protected>
     </Stack>
   );

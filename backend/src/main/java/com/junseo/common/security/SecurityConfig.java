@@ -50,8 +50,11 @@ public class SecurityConfig {
                 .requestCache(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/password-reset", "/api/auth/password-reset/confirm")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
+                        // 이용약관 · 개인정보처리방침 (앱 · 앱스토어에서 연결하는 공개 페이지)
+                        .requestMatchers(HttpMethod.GET, "/legal/**").permitAll()
                         // 관리자 API 는 로그인 대신 X-Admin-Token 을 컨트롤러가 확인한다 (TemplateAdminController)
                         .requestMatchers("/api/admin/**").permitAll()
                         .requestMatchers("/error").permitAll()
@@ -72,7 +75,8 @@ public class SecurityConfig {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
         return request -> {
             String path = request.getRequestURI().substring(request.getContextPath().length());
-            return path.startsWith("/api/auth/") || path.startsWith("/api/admin/") || path.startsWith("/media/") || path.equals("/ws")
+            return path.startsWith("/api/auth/") || path.startsWith("/api/admin/") || path.startsWith("/media/") || path.startsWith("/legal/")
+                    || path.equals("/ws")
                     ? null
                     : delegate.resolve(request);
         };

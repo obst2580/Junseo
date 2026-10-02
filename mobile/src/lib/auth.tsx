@@ -11,6 +11,10 @@ type AuthState = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** 비밀번호 찾기의 마지막 단계: 새 비밀번호로 바꾸고 바로 로그인 */
+  resetPassword: (email: string, code: string, password: string) => Promise<void>;
+  /** 계정 삭제 (비밀번호를 한 번 더 확인한다). 성공하면 로그아웃 상태가 된다. */
+  deleteAccount: (password: string) => Promise<void>;
   refreshMe: () => Promise<void>;
   setMe: (me: Me) => void;
 };
@@ -64,11 +68,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await unregisterPush().catch(() => {});
     await clear();
   }, [clear]);
+  const resetPassword = useCallback(
+    async (email: string, code: string, password: string) => accept(await api.confirmPasswordReset(email.trim(), code.trim(), password)),
+    [accept],
+  );
+  // 서버가 기기 토큰까지 지우므로 알림 해제는 따로 하지 않는다
+  const deleteAccount = useCallback(
+    async (password: string) => {
+      await api.deleteAccount(password);
+      await clear();
+    },
+    [clear],
+  );
   const refreshMe = useCallback(async () => setMe(await api.me()), []);
 
   const value = useMemo<AuthState>(
-    () => ({ ready, me, signIn, signUp, signOut, refreshMe, setMe }),
-    [ready, me, signIn, signUp, signOut, refreshMe],
+    () => ({ ready, me, signIn, signUp, signOut, resetPassword, deleteAccount, refreshMe, setMe }),
+    [ready, me, signIn, signUp, signOut, resetPassword, deleteAccount, refreshMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,6 +1,8 @@
 package com.junseo.realtime;
 
+import com.junseo.common.security.Sessions;
 import java.util.Map;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Component;
@@ -24,11 +26,13 @@ public class RealtimeHandler extends TextWebSocketHandler {
     private static final String SAFE = "safeSession";
 
     private final JwtDecoder jwtDecoder;
+    private final Sessions sessions;
     private final RealtimeHub hub;
     private final ObjectMapper json;
 
-    public RealtimeHandler(JwtDecoder jwtDecoder, RealtimeHub hub, ObjectMapper json) {
+    public RealtimeHandler(JwtDecoder jwtDecoder, Sessions sessions, RealtimeHub hub, ObjectMapper json) {
         this.jwtDecoder = jwtDecoder;
+        this.sessions = sessions;
         this.hub = hub;
         this.json = json;
     }
@@ -50,9 +54,16 @@ public class RealtimeHandler extends TextWebSocketHandler {
                 return;
             }
             long id;
+            Jwt jwt;
             try {
-                id = Long.parseLong(jwtDecoder.decode(frame.path("token").asString("")).getSubject());
+                jwt = jwtDecoder.decode(frame.path("token").asString(""));
+                id = Long.parseLong(jwt.getSubject());
             } catch (JwtException | NumberFormatException e) {
+                session.close(CloseStatus.POLICY_VIOLATION.withReason("invalid token"));
+                return;
+            }
+            // 탈퇴했거나 비밀번호를 바꾼 뒤의 예전 로그인
+            if (!sessions.isValid(id, jwt)) {
                 session.close(CloseStatus.POLICY_VIOLATION.withReason("invalid token"));
                 return;
             }

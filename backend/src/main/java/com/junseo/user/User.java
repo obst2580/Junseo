@@ -20,6 +20,8 @@ public class User {
     private String displayName;
     private String inviteCode;
     private Instant createdAt;
+    /** Carried in every login token ({@code ver}); bumping it ends all earlier logins. */
+    private int tokenVersion;
 
     protected User() {}
 
@@ -41,6 +43,16 @@ public class User {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    /** New password; every login issued before (other phones included) stops working. */
+    public void changePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+        this.tokenVersion += 1;
+    }
+
+    public int getTokenVersion() {
+        return tokenVersion;
     }
 
     public String getDisplayName() {

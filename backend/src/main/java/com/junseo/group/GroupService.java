@@ -115,7 +115,7 @@ public class GroupService {
         List<Long> ids = mine.stream().map(GroupView::id).toList();
         Map<Long, List<GroupMember>> byGroup = members.findByGroupIdIn(ids).stream()
                 .collect(Collectors.groupingBy(GroupMember::getGroupId));
-        Map<Long, GroupMessage> latest = messages.findLatest(ids).stream()
+        Map<Long, GroupMessage> latest = messages.findLatest(ids, me).stream()
                 .collect(Collectors.toMap(GroupMessage::getGroupId, Function.identity()));
         Map<Long, Long> unread = members.findUnreadCounts(me).stream()
                 .collect(Collectors.toMap(r -> ((Number) r[0]).longValue(), r -> ((Number) r[1]).longValue()));
@@ -142,7 +142,7 @@ public class GroupService {
     public CursorPage<GroupMessageView> thread(long me, long groupId, String cursor, int limit) {
         requireMember(me, groupId);
         int size = CursorPage.clampLimit(limit);
-        List<GroupMessage> rows = messages.findPage(groupId, CursorPage.before(cursor), size + 1);
+        List<GroupMessage> rows = messages.findPage(groupId, CursorPage.before(cursor), size + 1, me);
         List<GroupMember> joined = members.findByGroupId(groupId);
         return CursorPage.of(rows, size, GroupMessage::getId, page -> page.stream().map(m -> messageView(m, joined, me)).toList());
     }

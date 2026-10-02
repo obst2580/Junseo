@@ -28,13 +28,15 @@ public class JwtService {
         this.clock = clock;
     }
 
-    public IssuedToken issue(long userId) {
+    /** version: the user's token version ({@link Sessions}); a password change makes older tokens invalid. */
+    public IssuedToken issue(long userId, int version) {
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         Instant expiresAt = now.plus(props.jwt().ttl());
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .subject(Long.toString(userId))
                 .issuedAt(now)
                 .expiresAt(expiresAt)
+                .claim(Sessions.VERSION_CLAIM, version)
                 .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
         String token = encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();

@@ -2,7 +2,6 @@ package com.junseo.common.security;
 
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
-import com.junseo.user.UserRepository;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -15,10 +14,10 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 @Component
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 
-    private final UserRepository users;
+    private final Sessions sessions;
 
-    public CurrentUserArgumentResolver(UserRepository users) {
-        this.users = users;
+    public CurrentUserArgumentResolver(Sessions sessions) {
+        this.sessions = sessions;
     }
 
     @Override
@@ -41,8 +40,8 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
         } catch (NumberFormatException e) {
             throw new ApiException(ErrorCode.UNAUTHORIZED);
         }
-        // A valid signature is not enough: the account may have been removed (e.g. dev DB reset).
-        if (!users.existsById(id)) {
+        // A valid signature is not enough: the account may have been deleted, or the password changed since.
+        if (!sessions.isValid(id, auth.getToken())) {
             throw new ApiException(ErrorCode.UNAUTHORIZED);
         }
         return id;

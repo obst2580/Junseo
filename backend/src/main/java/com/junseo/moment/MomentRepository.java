@@ -14,6 +14,9 @@ import org.springframework.data.jpa.repository.Query;
  */
 public interface MomentRepository extends JpaRepository<Moment, Long> {
 
+    @Query("select m.id from Moment m where m.senderId = :senderId")
+    List<Long> findIdsBySenderId(long senderId);
+
     String VISIBLE_TO_VIEWER = """
             (m.sender_id = :viewer or exists (
                 select 1 from moment_recipients r

@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { Icon } from '@/components/Icon';
 import { Avatar, Button, ErrorText, Field } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { legalUrl } from '@/lib/config';
 import { colors, radius } from '@/lib/theme';
 
 export default function ProfileScreen() {
@@ -54,7 +55,26 @@ export default function ProfileScreen() {
         <Icon name="next" size={18} color={colors.textFaint} />
       </Pressable>
 
-      <Button title="로그아웃" variant="danger" onPress={() => void signOut()} style={{ marginTop: 24 }} />
+      <Pressable style={styles.row} onPress={() => router.push('/blocked')} accessibilityRole="button">
+        <Icon name="eyeOff" size={20} color={colors.textDim} />
+        <Text style={styles.rowText}>차단한 사람</Text>
+        <Icon name="next" size={18} color={colors.textFaint} />
+      </Pressable>
+
+      <View style={styles.links}>
+        <Pressable onPress={() => void Linking.openURL(legalUrl('terms'))} hitSlop={8} accessibilityRole="link">
+          <Text style={styles.link}>이용약관</Text>
+        </Pressable>
+        <Text style={styles.linkDot}>·</Text>
+        <Pressable onPress={() => void Linking.openURL(legalUrl('privacy'))} hitSlop={8} accessibilityRole="link">
+          <Text style={styles.link}>개인정보처리방침</Text>
+        </Pressable>
+      </View>
+
+      <Button title="로그아웃" variant="danger" onPress={() => void signOut()} style={{ marginTop: 12 }} />
+      <Pressable onPress={() => router.push('/delete-account')} hitSlop={8} accessibilityRole="button" style={styles.deleteRow}>
+        <Text style={styles.deleteText}>계정 삭제</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -66,4 +86,9 @@ const styles = StyleSheet.create({
   email: { color: colors.textDim, fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: radius.card, backgroundColor: colors.surface },
   rowText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' },
+  links: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 10 },
+  link: { color: colors.textDim, fontSize: 14, textDecorationLine: 'underline' },
+  linkDot: { color: colors.textFaint, fontSize: 14 },
+  deleteRow: { alignSelf: 'center', paddingVertical: 10 },
+  deleteText: { color: colors.textFaint, fontSize: 14 },
 });

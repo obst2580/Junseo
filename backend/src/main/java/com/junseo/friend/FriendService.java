@@ -2,6 +2,7 @@ package com.junseo.friend;
 
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
+import com.junseo.safety.BlockRepository;
 import com.junseo.user.InviteCodes;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
@@ -22,13 +23,19 @@ public class FriendService {
 
     private final FriendshipRepository friendships;
     private final UserRepository users;
+    private final BlockRepository blocks;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
     public FriendService(
-            FriendshipRepository friendships, UserRepository users, ApplicationEventPublisher events, Clock clock) {
+            FriendshipRepository friendships,
+            UserRepository users,
+            BlockRepository blocks,
+            ApplicationEventPublisher events,
+            Clock clock) {
         this.friendships = friendships;
         this.users = users;
+        this.blocks = blocks;
         this.events = events;
         this.clock = clock;
     }
@@ -49,6 +56,13 @@ public class FriendService {
         long friendId = target.getId();
         if (friendId == me) {
             throw new ApiException(ErrorCode.CANNOT_ADD_SELF);
+        }
+        if (blocks.existsByBlockerIdAndBlockedId(me, friendId)) {
+            throw new ApiException(ErrorCode.BLOCKED_USER);
+        }
+        // 나를 차단한 사람: 차단 사실을 알리지 않고, 없는 코드처럼 답한다
+        if (blocks.existsByBlockerIdAndBlockedId(friendId, me)) {
+            throw new ApiException(ErrorCode.INVITE_CODE_NOT_FOUND);
         }
         users.lockAll(List.of(me, friendId));
         if (friendships.existsByUserIdAndFriendId(me, friendId)) {

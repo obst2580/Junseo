@@ -16,6 +16,7 @@ junseo:
     dir: build/test-media
   admin:
     token: test-admin-token
+    email: ops@test.junseo.app
 
 logging:
   level:

@@ -51,6 +51,9 @@ export default function LoginScreen() {
           <Link href="/signup" style={styles.link}>
             처음이에요 · 가입하기
           </Link>
+          <Link href="/forgot-password" style={[styles.link, styles.small]}>
+            비밀번호를 잊었어요
+          </Link>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -66,4 +69,5 @@ const styles = StyleSheet.create({
   tagline: { color: colors.text, fontSize: 24, fontWeight: '700', lineHeight: 32 },
   form: { gap: 14 },
   link: { color: colors.textDim, fontSize: 15, textAlign: 'center', paddingVertical: 8 },
+  small: { fontSize: 14, color: colors.textFaint, paddingVertical: 2 },
 });
