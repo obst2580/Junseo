@@ -272,27 +272,36 @@ metas['subway'] = save_overlay('subway', ov, {'slots': [{'quad': [list(p) for p 
                                                           'glow': {'grow': GLOW, 'blur': 0.045, 'wash': 0.35}}]}, (W, H))
 
 # ── 버스 옆면 광고 2칸: 곡면 차체에 붙인 랩핑 ─────────────────────────────────────────
-# 판 모양은 밝기로 정확히 딴다. 차체 곡면 명암(아래로 휘어 들어가며 어두워짐)과 이음새 홈(어두운 선 + 아래 턱의 빛),
+# 광고는 반듯한 사각형(원근)이다 — 원래 흰 판은 모양이 고르지 않아서(오른쪽 좁은 띠가 아래로 더 내려온다 등)
+# 사각형 밖으로 삐져나온 흰 판은 바탕에서 둘레 차체 색으로 칠한다 (사진 끝에 흰 틈 · 계단이 안 생긴다).
+# 차체 곡면 명암(아래로 휘어 들어가며 어두워짐)과 이음새 홈(옅은 선 + 아래 턱의 빛),
 # 흐린 하늘이 비치는 위쪽 광택과 비스듬한 반사, 랩핑 끝의 얇은 선.
 S = 1.5
 im = Image.open(f'{SRC}/bus-src.png').convert('RGB')
 im = im.resize((round(im.width * S), round(im.height * S)), Image.LANCZOS)
 W, H = im.size
-bg = save_bg('bus', im)
-L = bg.mean(-1)
+src = np.asarray(im).astype(float)
+L = src.mean(-1)
 quads = [[(41.3, 450.3), (320.3, 446.9), (312.2, 694.8), (34.7, 622.4)],
          [(556.4, 554.9), (789.0, 574.4), (777.9, 914.1), (549.1, 836.0)]]
 Qs = [[(x * S, y * S) for x, y in q] for q in quads]
+holes = [poly_cover((W, H), q, radius=4.0) for q in Qs]
+hole = np.clip(holes[0] + holes[1], 0, 1)
+# 흰 판 남은 자리 = 광고 둘레의 밝은 판 (광고가 덮는 곳은 빼고)
+white = np.maximum.reduce([np.clip((L - 115) / 60, 0, 1) * dilate(poly_cover((W, H), q), 24) for q in Qs])
+white = dilate(white, 2)
+leftover = np.clip(white - dilate(hole, 1), 0, 1)
+paint_from = (1 - white) * (1 - hole)
+fill = gblur(src * paint_from[..., None], 5) / np.maximum(gblur(paint_from, 5), 1e-3)[..., None]
+wide = gblur(src * paint_from[..., None], 14) / np.maximum(gblur(paint_from, 14), 1e-3)[..., None]
+fill = np.where((gblur(paint_from, 5) > 0.08)[..., None], fill, wide)
+painted = src * (1 - leftover[..., None]) + fill * leftover[..., None]
+bg = save_bg('bus', Image.fromarray(np.clip(painted, 0, 255).astype('uint8')))
 layers = []
-holes = []
-grows = []
-for q in Qs:
-    h_ = panel_mask(L, q, 115, 185, in_px=4, out_px=4) * poly_cover((W, H), grow_quad(q, 4), radius=4.0)
-    holes.append(h_)
-    grows.append(cover_grow(h_, q))
+for q, h_ in zip(Qs, holes):
     core = erode(h_, 4)
+    # 명암 · 이음새는 원래 흰 판의 밝기에서 (광고가 붙은 판 그대로)
     dark, light = light_shading(L, h_, 75, 9, 1.25, 0.5, 1.3, 0.22)
-    # 이음새 홈: 주변보다 어두운 가는 선 → 어두운 선 + 바로 아래 턱에 맺힌 빛
     hp = L - norm_blur(L, core, 2.5)
     seam = gblur(np.clip((-hp - 6) / 30, 0, 1) * core, 0.6)
     lip = np.clip(shift(seam, 0, 2) - seam, 0, 1)
@@ -304,14 +313,14 @@ for q in Qs:
         (np.array([150.0, 158, 168]), 0.06 * h_),  # 흐린 날 빛 (살짝 차분하게)
         (BLACK, (dark + curve) * h_),
         (WHITE, light * h_),
-        (BLACK, 0.2 * seam),
-        (WHITE, 0.12 * lip * core),
+        (BLACK, 0.16 * seam),
+        (WHITE, 0.1 * lip * core),
         (WHITE, gloss * h_),
         (BLACK, edge),
     ]
-hole = np.clip(holes[0] + holes[1], 0, 1)
+grows = [cover_grow(h_, q) for q, h_ in zip(Qs, holes)]
 ring_px = math.ceil(max(grows) * 1.4) + 2
-layers.append((edge_fill(bg, hole, ring_px), (1 - hole) * dilate(hole, ring_px)))
+layers.append((bg, (1 - hole) * dilate(hole, ring_px)))
 ov = compose(layers, (W, H))
 metas['bus'] = save_overlay('bus', ov, {'slots': [{'quad': [list(p) for p in Qs[0]], 'aspect': 1.55, 'grow': grows[0]},
                                                    {'quad': [list(p) for p in Qs[1]], 'aspect': 0.85, 'grow': grows[1]}]}, (W, H))
