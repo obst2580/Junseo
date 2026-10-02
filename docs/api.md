@@ -219,6 +219,7 @@
 
 - 대상 사진: 내가 받은 친구 사진 중 가장 최근 것 (내 사진 제외).
 - `If-None-Match`에 이전 ETag를 보내면 바뀐 게 없을 때 304 (본문 없음).
+- `X-Widget-Source: notification | widget` (선택): 누가 받으러 왔는지. 이 폰이 **새 사진을 처음** 받아 갈 때 서버가 사진이 올라온 뒤 걸린 시간을 경로별로 로그에 남긴다 (`Widget got new photo … source=… after=…ms`, 실기기 점검은 `docs/widget-check.md`).
 
 ## 기기 (푸시 토큰)
 

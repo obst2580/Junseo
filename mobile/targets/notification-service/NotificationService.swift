@@ -28,7 +28,7 @@ final class NotificationService: UNNotificationServiceExtension {
         Task {
             if type == "moment" || type == "reaction" || type == "comment" {
                 // 확장은 30초 안에 끝나야 해서 여유를 두고 20초까지만 기다린다.
-                if await WidgetSync.refresh(timeout: 20) == .updated {
+                if await WidgetSync.refresh(timeout: 20, source: .notification) == .updated {
                     WidgetCenter.shared.reloadTimelines(ofKind: SharedConfig.widgetKind)
                 }
             }

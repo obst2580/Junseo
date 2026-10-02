@@ -52,7 +52,7 @@ struct MomentProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<MomentEntry>) -> Void) {
         Task {
             // 알림 서비스 확장이 먼저 캐시를 채워 뒀다면 304 로 바로 끝난다.
-            _ = await WidgetSync.refresh(timeout: 8)
+            _ = await WidgetSync.refresh(timeout: 8, source: .widget)
             // 푸시가 오지 않아도 15분 뒤에는 다시 확인하도록 예약한다 (실제 시점은 iOS가 예산에 맞춰 정한다).
             let next = Date().addingTimeInterval(15 * 60)
             completion(Timeline(entries: [MomentEntry.current()], policy: .after(next)))

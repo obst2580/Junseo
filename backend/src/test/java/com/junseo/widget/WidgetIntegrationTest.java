@@ -14,6 +14,9 @@ import com.jayway.jsonpath.JsonPath;
 import com.junseo.support.IntegrationTest;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -113,6 +116,40 @@ class WidgetIntegrationTest extends IntegrationTest {
 
         deleteAs(owner, "/api/comments/" + comment).andExpect(status().isNoContent());
         assertThat(version(viewer)).isNotIn(v2, v3, v4, v5);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    void logsHowLongANewPhotoTookToReachEachPhone(CapturedOutput output) throws Exception {
+        var owner = signup("민지");
+        var viewer = signup("준서");
+        var other = signup("지우");
+        befriend(owner, viewer);
+        befriend(owner, other);
+        long m = upload(owner);
+
+        String v1 = body(mvc.perform(get("/api/widget/latest")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(viewer))
+                        .header(WidgetController.SOURCE_HEADER, "notification"))
+                .andExpect(status().isOk()).andReturn());
+        assertThat(output.getOut()).containsPattern(
+                "Widget got new photo: user=" + viewer.id() + " moment=" + m + " source=notification after=\\d+ms");
+
+        // Same photo with a new comment: a refresh, not a new photo.
+        postJson("/api/moments/" + m + "/comments", other, Map.of("text", "와")).andExpect(status().isCreated());
+        mvc.perform(get("/api/widget/latest")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(viewer))
+                        .header(HttpHeaders.IF_NONE_MATCH, "\"" + JsonPath.read(v1, "$.version") + "\"")
+                        .header(WidgetController.SOURCE_HEADER, "widget"))
+                .andExpect(status().isOk());
+        assertThat(output.getOut()).doesNotContain("source=widget");
+
+        // A header that is not a plain word never reaches the log as is (newlines are already refused by the firewall).
+        mvc.perform(get("/api/widget/latest")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(other))
+                        .header(WidgetController.SOURCE_HEADER, "Fake source=admin"))
+                .andExpect(status().isOk());
+        assertThat(output.getOut()).contains("user=" + other.id() + " moment=" + m + " source=unknown").doesNotContain("source=admin");
     }
 
     @Test

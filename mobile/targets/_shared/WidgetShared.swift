@@ -150,9 +150,15 @@ enum SyncResult {
     case updated, unchanged, empty, signedOut, failed
 }
 
+/// 누가 받으러 갔는지. 서버가 「사진이 찍히고 몇 초 뒤 이 폰에 닿았는지」를 경로별로 기록한다 (X-Widget-Source).
+enum SyncSource: String {
+    case notification // 알림 서비스 확장 (사진 알림을 받은 순간)
+    case widget // 위젯 타임라인 (위젯 푸시 · 15분 예약 · 앱이 요청)
+}
+
 enum WidgetSync {
     /// 서버에서 최신 위젯 데이터를 받아 캐시를 갱신한다. 바뀐 게 없으면 304 로 빠르게 끝난다.
-    static func refresh(timeout: TimeInterval) async -> SyncResult {
+    static func refresh(timeout: TimeInterval, source: SyncSource) async -> SyncResult {
         guard let token = SharedStore.accessToken,
               let base = SharedStore.apiBaseUrl,
               let userId = SharedStore.userId
@@ -165,6 +171,7 @@ enum WidgetSync {
         var request = URLRequest(url: base.appendingPathComponent("api/widget/latest"))
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(source.rawValue, forHTTPHeaderField: "X-Widget-Source")
         let cached = WidgetCache.load().flatMap { $0.userId == userId ? $0 : nil }
         if let etag = cached?.etag, let cached, WidgetCache.imageExists(cached.imageFile) {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
