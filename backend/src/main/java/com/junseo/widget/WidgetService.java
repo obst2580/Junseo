@@ -17,6 +17,8 @@ import com.junseo.widget.WidgetLatest.WidgetMoment;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -32,30 +34,57 @@ public class WidgetService {
 
     static final int TOP_REACTIONS = 3;
     static final int RECENT_COMMENTS = 2;
+    /** The widget pages through at most this many photos ... */
+    public static final int FEED_SIZE = 5;
+    /** ... taken within this window (or just the newest one when none is that recent). */
+    public static final Duration FEED_WINDOW = Duration.ofHours(24);
 
     private final MomentRepository moments;
     private final ReactionRepository reactions;
     private final CommentRepository comments;
     private final UserRepository users;
     private final MediaUrlSigner signer;
+    private final Clock clock;
 
     public WidgetService(
             MomentRepository moments,
             ReactionRepository reactions,
             CommentRepository comments,
             UserRepository users,
-            MediaUrlSigner signer) {
+            MediaUrlSigner signer,
+            Clock clock) {
         this.moments = moments;
         this.reactions = reactions;
         this.comments = comments;
         this.users = users;
         this.signer = signer;
+        this.clock = clock;
     }
 
     /** The newest friend photo I received that I can still see; my own photos never show here. */
     @Transactional(readOnly = true)
     public Optional<WidgetLatest> latest(long viewerId) {
         return moments.findLatestReceived(viewerId).map(this::build);
+    }
+
+    /**
+     * What the widget pages through: the newest {@link #FEED_SIZE} friend photos taken in the last
+     * {@link #FEED_WINDOW}, newest first, or just the newest one when none is that recent.
+     * {@code fromId} narrows it to one friend (a widget set to that person); null means every friend.
+     */
+    @Transactional(readOnly = true)
+    public Optional<WidgetFeed> feed(long viewerId, Long fromId) {
+        long sender = fromId == null ? 0 : fromId;
+        List<Moment> recent = moments.findRecentReceived(viewerId, sender, clock.instant().minus(FEED_WINDOW), FEED_SIZE);
+        if (recent.isEmpty()) {
+            recent = moments.findLatestReceivedFrom(viewerId, sender).map(List::of).orElse(List.of());
+        }
+        if (recent.isEmpty()) {
+            return Optional.empty();
+        }
+        List<WidgetLatest> items = recent.stream().map(this::build).toList();
+        String version = items.getFirst().moment().id() + "-" + digest(String.join(",", items.stream().map(WidgetLatest::version).toList()));
+        return Optional.of(new WidgetFeed(version, items));
     }
 
     private WidgetLatest build(Moment moment) {
@@ -105,8 +134,12 @@ public class WidgetService {
         comments.forEach(c -> s.append(':').append(c.getId()));
         s.append("|s");
         shown.forEach(c -> s.append(':').append(c.author()));
+        return digest(s.toString());
+    }
+
+    private static String digest(String text) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(s.toString().getBytes(StandardCharsets.UTF_8));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(digest, 0, 4);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);

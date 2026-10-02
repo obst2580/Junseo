@@ -203,7 +203,8 @@
 
 | 메서드 | 경로 | 응답 |
 |---|---|---|
-| GET | `/api/widget/latest` | 200 `WidgetLatest`, 보여줄 사진이 없으면 204 |
+| GET | `/api/widget/feed?from=` | 200 `WidgetFeed`, 보여줄 사진이 없으면 204 (위젯이 이걸 쓴다) |
+| GET | `/api/widget/latest` | 200 `WidgetLatest`, 보여줄 사진이 없으면 204 (넘겨 보기 전 버전용) |
 
 ```jsonc
 // WidgetLatest
@@ -215,9 +216,14 @@
   "comments": [ { "author": "지우", "text": "대박" } ],   // 최근 2개, 오래된 것 → 최신 순
   "commentCount": 4
 }
+// WidgetFeed: 위젯이 양옆을 눌러 넘겨 보는 사진들, 최신 → 오래된 순
+{ "version": "301-a1b2", "items": [WidgetLatest] }
 ```
 
-- 대상 사진: 내가 받은 친구 사진 중 가장 최근 것 (내 사진 제외).
+- 대상 사진: 내가 받은 친구 사진 (내 사진 제외). `feed` 는 **최근 24시간 안의 최대 5장**, 그런 사진이 없으면 가장 최근 1장. `latest` 는 가장 최근 1장.
+- `from`: 위젯 편집에서 한 친구만 고른 위젯. 그 친구가 보낸 사진만 같은 규칙으로. 친구가 아니면 204.
+- `version`(ETag)은 가장 새 사진 ID 로 시작하고, 어느 장의 사진·댓글·반응이 바뀌어도 달라진다.
+- 반응·댓글이 생기면 그 사진이 피드에 들어 있는 사람들(같은 친구의 더 새 사진이 5장 미만이고 24시간 안, 또는 그 친구의 가장 최근 사진)에게만 위젯 푸시를 보낸다.
 - `If-None-Match`에 이전 ETag를 보내면 바뀐 게 없을 때 304 (본문 없음).
 - `X-Widget-Source: notification | widget` (선택): 누가 받으러 왔는지. 이 폰이 **새 사진을 처음** 받아 갈 때 서버가 사진이 올라온 뒤 걸린 시간을 경로별로 로그에 남긴다 (`Widget got new photo … source=… after=…ms`, 실기기 점검은 `docs/widget-check.md`).
 

@@ -22,7 +22,9 @@ import com.junseo.reaction.ReactionEvents.ReactionRemoved;
 import com.junseo.reaction.ReactionEvents.ReactionSet;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
+import com.junseo.widget.WidgetService;
 import java.text.Collator;
+import java.time.Clock;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,6 +57,7 @@ public class PushNotifier {
     private final MomentRepository moments;
     private final MediaUrlSigner signer;
     private final ObjectMapper json;
+    private final Clock clock;
 
     public PushNotifier(
             PushSender sender,
@@ -62,13 +65,15 @@ public class PushNotifier {
             UserRepository users,
             MomentRepository moments,
             MediaUrlSigner signer,
-            ObjectMapper json) {
+            ObjectMapper json,
+            Clock clock) {
         this.sender = sender;
         this.devices = devices;
         this.users = users;
         this.moments = moments;
         this.signer = signer;
         this.json = json;
+        this.clock = clock;
     }
 
     @Async(AppConfig.PUSH_EXECUTOR)
@@ -183,9 +188,13 @@ public class PushNotifier {
         guard("unfriended", () -> sendWidgetPushes(List.of(e.userId(), e.formerFriendId())));
     }
 
-    /** Only people whose widget is showing this moment right now; the sender's widget never shows their own. */
+    /** Only people whose widget can show this moment (it is in their widget feed); never the actor. */
     private List<Long> widgetViewersExcept(Moment moment, long actorId) {
-        return moments.findWidgetViewerIds(moment.getId()).stream().filter(id -> id != actorId).toList();
+        return moments.findWidgetViewerIds(
+                        moment.getId(), clock.instant().minus(WidgetService.FEED_WINDOW), WidgetService.FEED_SIZE)
+                .stream()
+                .filter(id -> id != actorId)
+                .toList();
     }
 
     private Map<String, Object> alert(String title, String body, String threadId, String type) {

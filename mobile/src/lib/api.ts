@@ -52,6 +52,8 @@ export type WidgetLatest = {
   comments: { author: string; text: string }[];
   commentCount: number;
 };
+/** 위젯이 넘겨 보는 사진들 (최신 → 오래된 순, 최근 24시간 최대 5장. 없으면 가장 최근 1장) */
+export type WidgetFeed = { version: string; items: WidgetLatest[] };
 
 export class ApiError extends Error {
   constructor(
@@ -183,6 +185,7 @@ export const api = {
   leaveGroup: (id: number) => request<void>(`/api/groups/${id}/members/me`, { method: 'DELETE' }),
 
   widgetLatest: () => request<WidgetLatest | undefined>('/api/widget/latest'),
+  widgetFeed: (from?: number) => request<WidgetFeed | undefined>(`/api/widget/feed${q({ from })}`),
 
   registerDevice: (token: string, kind: 'app' | 'widget', environment: 'development' | 'production') =>
     request<void>('/api/devices', { method: 'PUT', body: { token, kind, environment } }),

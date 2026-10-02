@@ -1,5 +1,6 @@
 package com.junseo.moment;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +50,29 @@ public interface MomentRepository extends JpaRepository<Moment, Long> {
             limit 1""")
     Optional<Moment> findLatestReceived(long viewer);
 
+    /**
+     * Widget feed: still-visible received moments taken after {@code since}, newest first;
+     * {@code sender = 0} means every friend. My own moments never show on my widget.
+     */
+    @Query(nativeQuery = true, value = """
+            select m.* from moment_recipients r
+            join moments m on m.id = r.moment_id
+            join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+            where r.recipient_id = :viewer and m.created_at > :since and (:sender = 0 or m.sender_id = :sender)
+            order by r.moment_id desc
+            limit :limit""")
+    List<Moment> findRecentReceived(long viewer, long sender, Instant since, int limit);
+
+    /** The newest still-visible received moment, of any age; {@code sender = 0} means every friend. */
+    @Query(nativeQuery = true, value = """
+            select m.* from moment_recipients r
+            join moments m on m.id = r.moment_id
+            join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
+            where r.recipient_id = :viewer and (:sender = 0 or m.sender_id = :sender)
+            order by r.moment_id desc
+            limit 1""")
+    Optional<Moment> findLatestReceivedFrom(long viewer, long sender);
+
     /** Recipients who can still see the moment (excludes the sender). */
     @Query(nativeQuery = true, value = """
             select r.recipient_id from moment_recipients r
@@ -58,21 +82,24 @@ public interface MomentRepository extends JpaRepository<Moment, Long> {
     List<Long> findCurrentRecipientIds(long momentId);
 
     /**
-     * Recipients whose widget currently shows this moment, i.e. it is their latest still-visible received
-     * moment (same rule as {@link #findLatestReceived}). Widget pushes for reactions and comments go only to
-     * them, so older photos don't burn the WidgetKit push budget.
+     * Recipients whose widget can show this moment: it is in one of their widget feeds (see
+     * WidgetService#feed). A feed holds the newest {@code feedSize} photos taken after {@code since}, or
+     * just the newest one when there are none; a one-friend feed is the same over that friend's photos, so
+     * the test is "fewer than {@code feedSize} newer photos from the same friend (taken recently), or none".
+     * Widget pushes for reactions and comments go only to them, so older photos don't burn the WidgetKit
+     * push budget.
      */
     @Query(nativeQuery = true, value = """
             select r.recipient_id from moment_recipients r
             join moments m on m.id = r.moment_id
             join friendships f on f.user_id = r.recipient_id and f.friend_id = m.sender_id
             where r.moment_id = :momentId
-              and not exists (
-                  select 1 from moment_recipients r2
-                  join moments m2 on m2.id = r2.moment_id
-                  join friendships f2 on f2.user_id = r2.recipient_id and f2.friend_id = m2.sender_id
-                  where r2.recipient_id = r.recipient_id and r2.moment_id > r.moment_id)""")
-    List<Long> findWidgetViewerIds(long momentId);
+              and (select count(*) from moment_recipients r2
+                   join moments m2 on m2.id = r2.moment_id
+                   join friendships f2 on f2.user_id = r2.recipient_id and f2.friend_id = m2.sender_id
+                   where r2.recipient_id = r.recipient_id and m2.sender_id = m.sender_id and r2.moment_id > r.moment_id)
+                  < case when m.created_at > :since then :feedSize else 1 end""")
+    List<Long> findWidgetViewerIds(long momentId, Instant since, int feedSize);
 
     @Modifying
     @Query(nativeQuery = true, value = """

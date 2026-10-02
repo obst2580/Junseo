@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,16 +34,37 @@ public class WidgetController {
         this.clock = clock;
     }
 
+    /** The newest friend photo (widgets before paging). Kept for older builds; the widget now uses /feed. */
     @GetMapping("/api/widget/latest")
     ResponseEntity<WidgetLatest> latest(
             @CurrentUser long me,
             @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
             @RequestHeader(value = SOURCE_HEADER, required = false) String source) {
-        Optional<WidgetLatest> latest = widgetService.latest(me);
-        if (latest.isEmpty()) {
+        return respond(widgetService.latest(me), WidgetLatest::version, latest -> latest, me, ifNoneMatch, source);
+    }
+
+    /** The photos a widget pages through; {@code from} limits it to one friend (a widget set to that person). */
+    @GetMapping("/api/widget/feed")
+    ResponseEntity<WidgetFeed> feed(
+            @CurrentUser long me,
+            @RequestParam(required = false) Long from,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
+            @RequestHeader(value = SOURCE_HEADER, required = false) String source) {
+        return respond(widgetService.feed(me, from), WidgetFeed::version, feed -> feed.items().getFirst(), me, ifNoneMatch, source);
+    }
+
+    /** 204 when there is nothing to show, 304 when the client already has this version, else 200 with an ETag. */
+    private <T> ResponseEntity<T> respond(
+            Optional<T> found,
+            Function<T, String> versionOf,
+            Function<T, WidgetLatest> newestOf,
+            long me,
+            String ifNoneMatch,
+            String source) {
+        if (found.isEmpty()) {
             return ResponseEntity.noContent().build();
         }
-        String version = latest.get().version();
+        String version = versionOf.apply(found.get());
         String etag = "\"" + version + "\"";
         if (matches(ifNoneMatch, version)) {
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
@@ -49,11 +72,11 @@ public class WidgetController {
                     .header(HttpHeaders.CACHE_CONTROL, "private, no-cache")
                     .build();
         }
-        logNewPhoto(me, latest.get(), ifNoneMatch, source);
+        logNewPhoto(me, newestOf.apply(found.get()), ifNoneMatch, source);
         return ResponseEntity.ok()
                 .eTag(etag)
                 .header(HttpHeaders.CACHE_CONTROL, "private, no-cache")
-                .body(latest.get());
+                .body(found.get());
     }
 
     /**

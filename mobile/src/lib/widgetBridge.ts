@@ -12,6 +12,7 @@ const Keys = {
   userId: 'userId',
   widgetPushToken: 'widgetPushToken',
   widgetPushTokenRegistered: 'widgetPushTokenRegistered',
+  friends: 'friends',
 } as const;
 
 const storage = Platform.OS === 'ios' ? new ExtensionStorage(APP_GROUP) : null;
@@ -31,7 +32,14 @@ export const widgetBridge = {
     storage.remove(Keys.accessToken);
     storage.remove(Keys.userId);
     storage.remove(Keys.widgetPushTokenRegistered);
+    storage.remove(Keys.friends);
     this.reload();
+  },
+
+  /** 위젯 편집(위젯을 길게 누르기)에서 고를 친구 목록. 위젯은 서버에 묻지 않고 이걸 쓴다. */
+  setFriends(friends: { id: number; displayName: string }[]) {
+    if (!storage) return;
+    storage.set(Keys.friends, JSON.stringify(friends.map(({ id, displayName }) => ({ id, displayName }))));
   },
 
   /** 앱이 화면에 떠 있을 때의 갱신 요청은 WidgetKit 예산에서 차감되지 않는다. */

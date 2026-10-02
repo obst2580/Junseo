@@ -28,7 +28,8 @@ final class NotificationService: UNNotificationServiceExtension {
         Task {
             if type == "moment" || type == "reaction" || type == "comment" {
                 // 확장은 30초 안에 끝나야 해서 여유를 두고 20초까지만 기다린다.
-                if await WidgetSync.refresh(timeout: 20, source: .notification) == .updated {
+                // 모든 친구 피드와, 홈 화면에 한 친구만 고른 위젯들의 피드까지 한꺼번에
+                if await WidgetSync.refreshAll(timeout: 20, source: .notification) {
                     WidgetCenter.shared.reloadTimelines(ofKind: SharedConfig.widgetKind)
                 }
             }

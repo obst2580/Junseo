@@ -154,18 +154,34 @@ class PushIntegrationTest extends IntegrationTest {
     }
 
     @Test
-    void activityOnAnOlderPhotoSkipsWidgetsShowingANewerOne() throws Exception {
+    void activityOnAnOlderPhotoStillOnTheWidgetRefreshesIt() throws Exception {
         long older = upload(owner);
         settle();
         befriend(b, c);
-        upload(c); // b's widget now shows c's newer photo; c's widget still shows the owner's.
+        upload(c); // b's widget now opens on c's newer photo, but the owner's is one tap away (the widget pages).
         await().atMost(WAIT).until(() -> !push.to(bDevices.widget()).isEmpty());
         push.clear();
 
         postJson("/api/moments/" + older + "/comments", owner, Map.of("text", "다들 뭐해")).andExpect(status().isCreated());
 
         awaitOne(cDevices.widget());
+        awaitOne(bDevices.widget());
+    }
+
+    @Test
+    void activityOnAPhotoThatLeftTheWidgetSkipsIt() throws Exception {
+        long older = upload(owner);
+        settle();
+        upload(owner);
+        settle();
+        // A day later the older photo is no longer on anyone's widget (only the newest of that day-old pair is).
+        jdbc.update("update moments set created_at = now() - interval '2 days' where sender_id = ?", owner.id());
+
+        postJson("/api/moments/" + older + "/comments", b, Map.of("text", "옛날 사진이다")).andExpect(status().isCreated());
+
+        awaitOne(ownerDevices.app()); // the owner is still told about the comment
         assertThat(push.to(bDevices.widget())).isEmpty();
+        assertThat(push.to(cDevices.widget())).isEmpty();
     }
 
     @Test

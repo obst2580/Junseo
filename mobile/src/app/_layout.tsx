@@ -8,6 +8,7 @@ import { ActivityIndicator, AppState, View } from 'react-native';
 import { ZoomProvider } from '@/components/PinchZoom';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { events } from '@/lib/events';
+import { api } from '@/lib/api';
 import { resetChats } from '@/lib/chats';
 import { listenPush, registerPush } from '@/lib/push';
 import { realtime } from '@/lib/realtime';
@@ -43,6 +44,10 @@ function RootStack() {
   useEffect(() => {
     if (!signedIn) return;
     registerPush().catch(() => {});
+    // 위젯 편집에서 고를 친구 목록을 위젯에 넘겨 둔다 (친구가 바뀔 때마다 다시)
+    const syncFriends = () => void api.friends().then((r) => widgetBridge.setFriends(r.friends)).catch(() => {});
+    syncFriends();
+    const offFriends = events.on('friends', syncFriends);
     // 채팅 실시간 신호 (메시지·읽음). 앱이 뒤로 가면 끊고 앞으로 나오면 다시 잇는다.
     realtime.start();
     const stopPush = listenPush((data) => {
@@ -58,6 +63,7 @@ function RootStack() {
     });
     return () => {
       stopPush();
+      offFriends();
       sub.remove();
       realtime.stop();
       // 다음에 로그인하는 사람에게 이전 대화가 보이지 않게
