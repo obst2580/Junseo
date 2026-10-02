@@ -38,7 +38,7 @@ public class ReactionController {
     MomentView react(@CurrentUser long me, @PathVariable long id, @Valid @RequestBody ReactionRequest request) {
         String emoji = ReactionEmojis.canonical(request.emoji());
         if (emoji == null) {
-            throw new ApiException(ErrorCode.VALIDATION_FAILED, "이모지는 ❤️ 😂 😢 👍 🖕 중에서 골라 주세요.");
+            throw new ApiException(ErrorCode.VALIDATION_FAILED, "이모지는 ❤️ 🖕 😂 😢 👍 중에서 골라 주세요.");
         }
         return reactionService.react(me, id, emoji, request.count() == null ? 1 : request.count());
     }

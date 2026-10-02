@@ -115,10 +115,10 @@
 
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| POST | `/api/moments/{id}/reactions` | `{ emoji, count? }` (emoji: ❤️ 😂 😢 👍 🖕 중 하나, count: 1~20, 기본 1) | 200 `Moment` |
+| POST | `/api/moments/{id}/reactions` | `{ emoji, count? }` (emoji: ❤️ 🖕 😂 😢 👍 중 하나, count: 1~20, 기본 1) | 200 `Moment` |
 | DELETE | `/api/moments/{id}/reactions` | | 204 (이 사진에 내가 누른 반응 전부 지우기) |
 
-- 고를 수 있는 이모지는 ❤️ 😂 😢 👍 🖕 다섯 개뿐이다. 다른 값은 `VALIDATION_FAILED`. 변형 선택자 없이 온 하트(`❤`)는 ❤️ 로 저장한다.
+- 고를 수 있는 이모지는 ❤️ 🖕 😂 😢 👍 다섯 개뿐이다. 다른 값은 `VALIDATION_FAILED`. 변형 선택자 없이 온 하트(`❤`)는 ❤️ 로 저장한다.
 - **여러 번 누를 수 있다.** 누를 때마다 그 이모지의 내 횟수가 늘고, 여러 이모지를 섞어 누를 수도 있다. 한 사람이 이모지 하나에 최대 99번.
 - 앱은 빠르게 연달아 누른 걸 모아 `count` 로 한 번에 보낸다 (마지막 탭 후 0.6초).
 - `reactions` 의 `count` 는 사람 수가 아니라 **누른 횟수의 합**이다.

@@ -5,7 +5,7 @@ import java.util.List;
 /** The only reactions the app offers. Checked here so every client and every widget shows the same five. */
 public final class ReactionEmojis {
 
-    public static final List<String> ALLOWED = List.of("❤️", "😂", "😢", "👍", "🖕");
+    public static final List<String> ALLOWED = List.of("❤️", "🖕", "😂", "😢", "👍");
 
     /** Taps one person can leave per emoji on one photo (also enforced by a DB check). */
     public static final int MAX_TAPS = 99;
