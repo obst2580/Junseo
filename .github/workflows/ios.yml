@@ -85,8 +85,14 @@ jobs:
           xcrun simctl bootstatus "$UDID" -b
           xcrun simctl install "$UDID" build/Build/Products/Release-iphonesimulator/Junseo.app
           xcrun simctl launch "$UDID" com.junseo.app
-          sleep 25
+          sleep 45
           xcrun simctl io "$UDID" screenshot launch.png
+          # 앱이 남긴 오류 · 경고 (자바스크립트 오류는 ReactNativeJS 로 찍힌다)
+          echo "::group::앱 로그"
+          xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+            --predicate 'process == "Junseo" AND (messageType == error OR messageType == fault OR subsystem == "com.facebook.react.log")' \
+            | grep -v "^Filtering" | tail -80 || true
+          echo "::endgroup::"
           # 앱이 아직 살아 있는지 (켜자마자 죽으면 여기서 실패)
           xcrun simctl spawn "$UDID" launchctl list | grep -i "com.junseo.app" || { echo "앱이 꺼졌어요"; exit 1; }
           # 화면을 실제로 그렸는지: 로그인 화면의 글자를 읽어 본다 (빨간 오류 화면이나 빈 화면이면 실패)

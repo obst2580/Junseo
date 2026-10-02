@@ -1,5 +1,7 @@
 import type { ImageSourcePropType } from 'react-native';
 
+import type { Quad } from '@/lib/warp';
+
 import { api, type Moment } from '@/lib/api';
 import { radius } from '@/lib/theme';
 
@@ -13,8 +15,16 @@ import { radius } from '@/lib/theme';
  */
 export const SLOT_CORNER = radius.photo / 366;
 
-/** radius: 그림에 그려진 칸의 모서리(px). 없으면 카메라 화면 비율(SLOT_CORNER). */
-export type TemplateSlot = { x: number; y: number; size: number; radius?: number };
+/** 정사각형 칸. radius: 그림에 그려진 칸의 모서리(px). 없으면 카메라 화면 비율(SLOT_CORNER). */
+export type SquareSlot = { x: number; y: number; size: number; radius?: number };
+/**
+ * 네 꼭짓점 칸 (왼위 · 오위 · 오아래 · 왼아래). 액자 · 광고판 · 버스 옆면처럼 비스듬히 보이는 판에 사진을 원근으로 붙인다.
+ * aspect: 그 판의 실제 가로/세로 — 정사각형 사진을 이 비율로 가운데 잘라 붙인다.
+ * grow: 사진을 바깥으로 이만큼(px) 더 키운다. 넘친 부분은 앞장 그림(overlay)의 판 테두리가 덮는다.
+ */
+export type QuadSlot = { quad: Quad; aspect: number; grow?: number };
+export type TemplateSlot = SquareSlot | QuadSlot;
+export const isQuadSlot = (slot: TemplateSlot): slot is QuadSlot => 'quad' in slot;
 export type Template = {
   id: string;
   name: string;
@@ -51,6 +61,56 @@ export const TEMPLATES: Template[] = [
     background: require('../../assets/templates/thumbnail.jpg'),
     overlay: require('../../assets/templates/thumbnail-title.png'),
     slots: [{ x: 20, y: 74, size: 1560, radius: 283 }],
+  },
+  // 받은 그림들은 scripts/templates/make_templates.py 로 바탕(jpg) + 앞장(png)을 만든다.
+  // 앞장 = 사진 칸 테두리 · 판의 빛과 그늘 · 이음새 · 카드 글자. 사진은 바탕과 앞장 사이에 들어간다.
+  // 미술관: 금박 액자 속 (액자 안쪽 352×494, 5:7). 액자 안쪽 그늘이 사진 위에 진다.
+  {
+    id: 'museum',
+    name: '미술관',
+    width: 1226,
+    height: 1532,
+    backgroundColor: '#7a0a1c',
+    background: require('../../assets/templates/museum.jpg'),
+    overlay: require('../../assets/templates/museum-overlay.png'),
+    slots: [{ quad: [[459, 459], [813, 459], [813, 955], [459, 955]], aspect: 352 / 494 }],
+  },
+  // 지하철 광고판: 왼쪽에서 비스듬히 본 조명 광고판 (원근 · 가장자리 어둑함 · 천장 불빛 반사). 받은 그림을 2배로.
+  {
+    id: 'subway',
+    name: '지하철 광고',
+    width: 1344,
+    height: 1680,
+    backgroundColor: '#151515',
+    background: require('../../assets/templates/subway.jpg'),
+    overlay: require('../../assets/templates/subway-overlay.png'),
+    slots: [{ quad: [[207, 538.6], [1180.6, 461.2], [1178, 1106], [207, 1023.8]], aspect: 2, grow: 3 }],
+  },
+  // 버스 옆면 광고 2칸 (앞쪽 가로판 · 뒤쪽 세로판). 판의 이음새와 광택이 사진 위에 남는다. 받은 그림을 1.5배로.
+  {
+    id: 'bus',
+    name: '버스 광고',
+    width: 1268,
+    height: 1586,
+    backgroundColor: '#8a8a8a',
+    background: require('../../assets/templates/bus.jpg'),
+    overlay: require('../../assets/templates/bus-overlay.png'),
+    slots: [
+      { quad: [[61.9, 675.5], [480.5, 670.3], [468.3, 1042.2], [52.1, 933.6]], aspect: 1.55, grow: 3 },
+      { quad: [[834.6, 832.3], [1183.5, 861.6], [1166.8, 1371.2], [823.7, 1254]], aspect: 0.85, grow: 3 },
+    ],
+  },
+  // 선수 카드: 카드 그림 자리에 사진. 양옆 · 위는 카드에 스며들고, 아래는 노란 선(빛줄기)에서 그늘지며 카드로 넘어간다.
+  // 「97 ST」 글자와 아이콘은 사진 위에 남는다. 받은 그림을 2배로.
+  {
+    id: 'card',
+    name: '선수 카드',
+    width: 1428,
+    height: 1786,
+    backgroundColor: '#14182e',
+    background: require('../../assets/templates/card.jpg'),
+    overlay: require('../../assets/templates/card-overlay.png'),
+    slots: [{ quad: [[412, 450], [1022, 450], [1022, 1120], [412, 1120]], aspect: 610 / 670 }],
   },
 ];
 
