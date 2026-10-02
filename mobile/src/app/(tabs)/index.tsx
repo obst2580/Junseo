@@ -47,8 +47,6 @@ export default function CameraScreen() {
   const [facing, setFacing] = useState<CameraType>('back');
   const [lenses, setLenses] = useState<string[]>([]);
   const [zoom, setZoom] = useState<Zoom>('wide');
-  // 플래시: 끄고 시작한다. 켜면 후면은 실제 플래시, 전면은 iOS 가 화면을 하얗게 밝혀 찍는다(Retina Flash).
-  const [flashOn, setFlashOn] = useState(false);
   const { ultra, wide } = pickLenses(lenses);
   const selectedLens = zoom === 'ultra' && ultra ? ultra : wide;
   const [shot, setShot] = useState<Shot | null>(null);
@@ -317,21 +315,10 @@ export default function CameraScreen() {
                 facing={facing}
                 mirror={facing === 'front'}
                 selectedLens={selectedLens}
-                flash={flashOn ? 'on' : 'off'}
+                // 플래시는 쓰지 않는다 (값을 안 주면 expo-camera 가 「자동」이라 어두우면 저절로 터진다)
+                flash="off"
                 onAvailableLensesChanged={(e) => setLenses(e.lenses)}
               />
-              <Pressable
-                onPress={() => {
-                  Haptics.selectionAsync().catch(() => {});
-                  setFlashOn((on) => !on);
-                }}
-                hitSlop={8}
-                style={[styles.flashButton, flashOn && styles.flashButtonOn]}
-                accessibilityRole="switch"
-                accessibilityState={{ checked: flashOn }}
-                accessibilityLabel={`플래시 ${flashOn ? '켜짐' : '꺼짐'}`}>
-                <Icon name={flashOn ? 'flashOn' : 'flashOff'} size={21} strokeWidth={2.2} color={flashOn ? colors.accent : '#fff'} />
-              </Pressable>
               {ultra && (
                 <View style={styles.zoomRow}>
                   {(['ultra', 'wide'] as const).map((z) => {
@@ -465,19 +452,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  // 플래시: 사진 왼쪽 위 (아이폰 카메라처럼)
-  flashButton: {
-    position: 'absolute',
-    left: 12,
-    top: 12,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  flashButtonOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
   zoomPill: { minWidth: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   zoomPillOn: { backgroundColor: 'rgba(0,0,0,0.55)' },
   zoomText: { color: '#fff', fontSize: 12, fontWeight: '700' },
