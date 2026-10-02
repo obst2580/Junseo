@@ -180,7 +180,7 @@ struct MomentWidget: Widget {
             MomentWidgetView(entry: entry)
         }
         .configurationDisplayName("친구 사진")
-        .description("친구가 보낸 최신 사진과 댓글, 이모지를 보여줘요.")
+        .description("친구가 보낸 최신 사진과 댓글을 보여줘요.")
         .supportedFamilies([.systemSmall, .systemLarge])
         .momentPushHandlerIfAvailable()
     }

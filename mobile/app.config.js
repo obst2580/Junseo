@@ -39,6 +39,8 @@ module.exports = {
     ['expo-camera', { cameraPermission: '친구에게 보낼 사진을 찍으려면 카메라 권한이 필요해요.', microphonePermission: false, recordAudioAndroid: false }],
     ['expo-notifications', { mode: APNS_ENV }],
     '@bacons/apple-targets',
+    // 이 앱의 핵심인 위젯이 iOS 17 API(containerBackground 등)를 쓴다. 앱도 17 부터 깔리게 맞춘다 (16 에서는 위젯이 안 보인다).
+    ['expo-build-properties', { ios: { deploymentTarget: '17.0' } }],
     // 템플릿을 만들 때 보는 보상형 광고. 실제 AdMob 앱 ID 를 받기 전까지는 Google 의 테스트 앱 ID 를 쓴다.
     ['react-native-google-mobile-ads', { iosAppId: process.env.ADMOB_IOS_APP_ID ?? 'ca-app-pub-3940256099942544~1458002511' }],
     // 만든 템플릿을 사진첩에 저장 (쓰기만)
