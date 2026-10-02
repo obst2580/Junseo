@@ -23,6 +23,23 @@ export const TemplateCanvas = forwardRef<View, { template: Template; photos: (Mo
         collapsable={false}
         style={{ width, height: template.height * s, backgroundColor: template.backgroundColor, overflow: 'hidden' }}>
         {template.background && <Image source={template.background} style={StyleSheet.absoluteFill} contentFit="fill" />}
+        {/* 빛번짐: 흐린 사진을 판보다 크게 사진 밑에 깐다 (어디까지 보일지는 앞장 그림이 정한다) */}
+        {template.slots.map((slot, i) => {
+          const photo = photos[i];
+          if (!photo || !isQuadSlot(slot) || !slot.glow) return null;
+          const quad = slot.quad.map(([x, y]) => [x * s, y * s]) as unknown as Quad;
+          return (
+            <WarpedPhoto
+              key={`glow-${i}`}
+              uri={absoluteUrl(photo.imageUrl)}
+              quad={growQuad(quad, slot.glow.grow * s)}
+              aspect={slot.aspect}
+              grid={3}
+              blur={slot.glow.blur}
+              wash={slot.glow.wash}
+            />
+          );
+        })}
         {template.slots.map((slot, i) => {
           const photo = photos[i];
           if (isQuadSlot(slot)) {
