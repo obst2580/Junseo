@@ -10,6 +10,7 @@ import { colors } from '@/lib/theme';
  * 말풍선 하나. 옆의 숫자는 아직 안 읽은 사람 수다 (1:1 이면 상대가 안 읽었을 때 1, 다 읽으면 사라진다).
  * sender: 단챗에서 남이 보낸 말의 첫 줄이면 얼굴·이름, 이어지는 줄이면 null(자리만), 1:1 은 넘기지 않는다.
  * status: 내가 방금 보낸 말이 아직 서버에 없을 때 (보내는 중 · 실패). 실패하면 다시 보내거나 지운다.
+ * joinAbove · showTime: 같은 사람이 같은 분에 이어 보낸 말은 위 말풍선에 바짝 붙고, 시간은 그 묶음의 마지막 말에만 (lib/chatRuns).
  * 값이 같으면 다시 그리지 않는다 (memo) — 새 메시지가 와도 이미 있는 말풍선은 그대로 둔다.
  */
 export const ChatBubble = memo(function ChatBubble({
@@ -22,6 +23,8 @@ export const ChatBubble = memo(function ChatBubble({
   reason,
   onRetry,
   onDiscard,
+  joinAbove = false,
+  showTime = true,
   children,
 }: {
   mine: boolean;
@@ -33,18 +36,27 @@ export const ChatBubble = memo(function ChatBubble({
   reason?: string;
   onRetry?: () => void;
   onDiscard?: () => void;
+  joinAbove?: boolean;
+  showTime?: boolean;
   /** 말풍선 위에 붙는 것 (사진 답장 등) */
   children?: ReactNode;
 }) {
   const grouped = sender !== undefined && !mine;
   return (
-    <View style={[styles.row, mine ? styles.right : styles.left]}>
+    <View style={[styles.row, mine ? styles.right : styles.left, joinAbove ? styles.joined : styles.apart]}>
       {grouped && (sender ? <Avatar id={sender.id} name={sender.displayName} size={32} /> : <View style={styles.avatarSpace} />)}
       <View style={[styles.column, mine ? styles.alignEnd : styles.alignStart]}>
         {grouped && sender && <Text style={styles.sender}>{sender.displayName}</Text>}
         {children}
         <View style={[styles.line, mine && styles.lineMine]}>
-          <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs, status === 'sending' && styles.sending, status === 'failed' && styles.failed]}>
+          <View
+            style={[
+              styles.bubble,
+              mine ? styles.bubbleMine : styles.bubbleTheirs,
+              joinAbove && (mine ? styles.joinMine : styles.joinTheirs),
+              status === 'sending' && styles.sending,
+              status === 'failed' && styles.failed,
+            ]}>
             <Text style={[styles.text, mine && { color: colors.accentText }]}>{text}</Text>
           </View>
           {!status && unread > 0 && (
@@ -64,8 +76,10 @@ export const ChatBubble = memo(function ChatBubble({
               <Text style={[styles.failText, styles.discard]}>지우기</Text>
             </Pressable>
           </View>
+        ) : status === 'sending' ? (
+          <Text style={styles.time}>보내는 중</Text>
         ) : (
-          <Text style={styles.time}>{status === 'sending' ? '보내는 중' : clockTime(createdAt)}</Text>
+          showTime && <Text style={styles.time}>{clockTime(createdAt)}</Text>
         )}
       </View>
     </View>
@@ -76,6 +90,9 @@ const styles = StyleSheet.create({
   row: { maxWidth: '84%', flexDirection: 'row', gap: 8 },
   left: { alignSelf: 'flex-start' },
   right: { alignSelf: 'flex-end' },
+  // 목록에는 간격이 없고 말풍선이 스스로 띄운다: 묶음 안은 바짝, 묶음 사이는 넉넉히
+  joined: { marginTop: 3 },
+  apart: { marginTop: 12 },
   avatarSpace: { width: 32 },
   column: { flexShrink: 1, gap: 4 },
   alignStart: { alignItems: 'flex-start' },
@@ -87,6 +104,9 @@ const styles = StyleSheet.create({
   bubble: { flexShrink: 1, paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
   bubbleMine: { backgroundColor: colors.accent, borderBottomRightRadius: 6 },
   bubbleTheirs: { backgroundColor: colors.surfaceHigh, borderBottomLeftRadius: 6 },
+  // 위 말풍선과 붙는 쪽 모서리도 작게 → 한 덩어리처럼 보인다
+  joinMine: { borderTopRightRadius: 6 },
+  joinTheirs: { borderTopLeftRadius: 6 },
   sending: { opacity: 0.6 },
   failed: { opacity: 0.5 },
   text: { color: colors.text, fontSize: 15, lineHeight: 21 },

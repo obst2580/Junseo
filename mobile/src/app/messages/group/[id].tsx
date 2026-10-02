@@ -9,6 +9,7 @@ import { ChatComposer } from '@/components/ChatComposer';
 import { Icon } from '@/components/Icon';
 import { api, type GroupChat, type GroupMessage, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { runAt } from '@/lib/chatRuns';
 import { isLocal, useChatThread, type LocalMessage } from '@/lib/chatThread';
 import { groupKey, groupSource, knownGroup, rememberGroup } from '@/lib/chats';
 import { events } from '@/lib/events';
@@ -76,6 +77,8 @@ export default function GroupChatScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: GroupMessage | LocalMessage; index: number }) => {
+      // 같은 사람 · 같은 분에 이어 보낸 말은 붙이고, 얼굴·이름은 첫 말에만, 시간은 마지막 말에만
+      const { joinAbove, last } = runAt(rows, index, me?.id);
       if (isLocal(item)) {
         return (
           <ChatBubble
@@ -83,6 +86,8 @@ export default function GroupChatScreen() {
             text={item.text}
             createdAt={item.createdAt}
             unread={0}
+            joinAbove={joinAbove}
+            showTime={last}
             status={item.status}
             reason={item.reason}
             onRetry={() => retry(item.localId)}
@@ -91,11 +96,18 @@ export default function GroupChatScreen() {
         );
       }
       const mine = item.senderId === me?.id;
-      // 같은 사람이 이어서 보낸 말에는 얼굴·이름을 한 번만 (목록이 뒤집혀 있어서 바로 앞 말은 index + 1)
-      const older = rows?.[index + 1];
-      const firstOfRun = !older || isLocal(older) || older.senderId !== item.senderId;
       const sender = people.get(item.senderId) ?? LEFT;
-      return <ChatBubble mine={mine} text={item.text} createdAt={item.createdAt} unread={item.unreadCount} sender={firstOfRun ? sender : null} />;
+      return (
+        <ChatBubble
+          mine={mine}
+          text={item.text}
+          createdAt={item.createdAt}
+          unread={item.unreadCount}
+          sender={joinAbove ? null : sender}
+          joinAbove={joinAbove}
+          showTime={last}
+        />
+      );
     },
     [me?.id, people, retry, discard, rows],
   );
@@ -143,5 +155,6 @@ const keyOf = (m: GroupMessage | LocalMessage) => (isLocal(m) ? m.localId : Stri
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  list: { padding: 12, gap: 10 },
+  // 말풍선끼리 간격은 말풍선이 스스로 띄운다 (ChatBubble)
+  list: { paddingHorizontal: 12, paddingVertical: 8 },
 });

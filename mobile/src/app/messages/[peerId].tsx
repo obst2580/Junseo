@@ -9,6 +9,7 @@ import { ChatBubble } from '@/components/ChatBubble';
 import { ChatComposer } from '@/components/ChatComposer';
 import { api, type Message, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { runAt } from '@/lib/chatRuns';
 import { isLocal, useChatThread, type LocalMessage } from '@/lib/chatThread';
 import { dmKey, dmSource, knownPeer, rememberPeer } from '@/lib/chats';
 import { absoluteUrl } from '@/lib/config';
@@ -52,7 +53,9 @@ export default function ChatScreen() {
   }, [peer]);
 
   const renderItem = useCallback(
-    ({ item }: { item: Message | LocalMessage }) => {
+    ({ item, index }: { item: Message | LocalMessage; index: number }) => {
+      // 같은 사람 · 같은 분에 이어 보낸 말은 붙이고 시간은 마지막 말에만
+      const { joinAbove, last } = runAt(rows, index, me?.id);
       if (isLocal(item)) {
         return (
           <ChatBubble
@@ -60,6 +63,8 @@ export default function ChatScreen() {
             text={item.text}
             createdAt={item.createdAt}
             unread={0}
+            joinAbove={joinAbove}
+            showTime={last}
             status={item.status}
             reason={item.reason}
             onRetry={() => retry(item.localId)}
@@ -70,7 +75,7 @@ export default function ChatScreen() {
       const mine = item.senderId === me?.id;
       // 상대가 아직 안 읽은 내 메시지에는 1
       return (
-        <ChatBubble mine={mine} text={item.text} createdAt={item.createdAt} unread={mine && !item.readAt ? 1 : 0}>
+        <ChatBubble mine={mine} text={item.text} createdAt={item.createdAt} unread={mine && !item.readAt ? 1 : 0} joinAbove={joinAbove} showTime={last}>
           {item.moment && (
             <Pressable onPress={() => router.push(`/moments/${item.moment!.id}`)}>
               <Image source={{ uri: absoluteUrl(item.moment.thumbUrl) }} style={styles.momentThumb} contentFit="cover" />
@@ -80,7 +85,7 @@ export default function ChatScreen() {
         </ChatBubble>
       );
     },
-    [me?.id, retry, discard],
+    [me?.id, retry, discard, rows],
   );
 
   return (
@@ -117,7 +122,8 @@ const keyOf = (m: Message | LocalMessage) => (isLocal(m) ? m.localId : String(m.
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  list: { padding: 12, gap: 10 },
+  // 말풍선끼리 간격은 말풍선이 스스로 띄운다 (ChatBubble)
+  list: { paddingHorizontal: 12, paddingVertical: 8 },
   momentThumb: { width: 120, height: 120, borderRadius: Math.round(radius.photo * 0.4), backgroundColor: colors.surface },
   replyLabel: { color: colors.textFaint, fontSize: 12, marginTop: 4 },
 });
