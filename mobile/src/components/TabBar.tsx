@@ -1,13 +1,12 @@
 import { BlurView } from 'expo-blur';
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PressScale } from '@/components/PressScale';
 import { Icon, type IconName } from '@/components/Icon';
-import { api } from '@/lib/api';
-import { events } from '@/lib/events';
+import { refreshConversations, useConversations } from '@/lib/chats';
 import { colors, radius } from '@/lib/theme';
 
 // 라우트 이름 → 아이콘 (고른 탭은 강조색)
@@ -27,23 +26,15 @@ export function useTabBarSpace() {
 
 /** 홈 · 카메라 · 챗. 화면 아래에 떠 있는 둥근 탭 바. 챗에는 안 읽은 메시지 수가 붙는다. */
 export function TabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
-  const [unread, setUnread] = useState(0);
-  const loadUnread = useCallback(() => {
-    api
-      .conversations()
-      .then((r) => setUnread([...r.items, ...r.groups].reduce((sum, c) => sum + c.unreadCount, 0)))
-      .catch(() => {});
-  }, []);
-
+  // 챗 탭 목록과 같은 대화 목록을 쓴다 (따로 받지 않는다)
+  const conversations = useConversations();
+  const unread = useMemo(
+    () => (conversations ? [...conversations.items, ...conversations.groups].reduce((sum, c) => sum + c.unreadCount, 0) : 0),
+    [conversations],
+  );
   useEffect(() => {
-    loadUnread();
-    const offMessages = events.on('messages', loadUnread);
-    const offUnread = events.on('unread', loadUnread);
-    return () => {
-      offMessages();
-      offUnread();
-    };
-  }, [loadUnread, state.index]);
+    refreshConversations({ soon: true });
+  }, [state.index]);
 
   return (
     <View style={[styles.wrap, { paddingBottom: bottomGap(insets.bottom) }]}>

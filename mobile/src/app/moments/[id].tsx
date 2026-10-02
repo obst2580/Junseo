@@ -161,7 +161,8 @@ export default function MomentScreen() {
           headerRight: mine ? () => <IconButton icon="trash" size={20} onPress={removeMoment} label="사진 삭제" /> : undefined,
         }}
       />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
+      {/* 화면 맨 위(투명 헤더 밑)부터 시작하므로 키보드 보정값은 0 이다 */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" scrollEnabled={!zooming}>
           <PinchToZoom uri={absoluteUrl(moment.imageUrl)} radius={radius.photo} onZoomingChange={setZooming}>
             <Image source={{ uri: absoluteUrl(moment.imageUrl) }} style={[styles.photo, { width: size, height: size }]} contentFit="cover" transition={150} />

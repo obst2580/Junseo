@@ -60,7 +60,8 @@
 
 // Message
 { "id": 77, "senderId": 12, "receiverId": 15, "text": "ㅋㅋㅋ", "createdAt": "...", "readAt": null,
-  "moment": { "id": 301, "thumbUrl": "/media/..." } | null }   // 사진에 답장한 메시지면 원본 사진
+  "moment": { "id": 301, "thumbUrl": "/media/..." } | null,   // 사진에 답장한 메시지면 원본 사진
+  "clientId": "m1x2y3-ab12cd34" | null }                      // 보낼 때 붙인 ID. 보낸 사람에게만 보인다
 ```
 
 ## 인증
@@ -137,15 +138,17 @@
 
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| POST | `/api/moments/{id}/replies` | `{ text }` (1~500자) | 201 `Message` (사진 주인에게 가는 1:1 메시지) |
+| POST | `/api/moments/{id}/replies` | `{ text, clientId? }` (1~500자) | 201 `Message` (사진 주인에게 가는 1:1 메시지) |
 | GET | `/api/conversations` | | 200 `{ items: [{ peer: UserSummary, lastMessage: Message, unreadCount }], groups: [GroupConversation] }` 각각 최근 대화순 (앱이 둘을 섞는다) |
 | GET | `/api/conversations/{peerId}/messages?cursor=&limit=50` | | 200 `{ items: [Message], nextCursor }` 최신순 |
-| POST | `/api/conversations/{peerId}/messages` | `{ text }` (1~500자) | 201 `Message` (친구에게만) |
+| POST | `/api/conversations/{peerId}/messages` | `{ text, clientId? }` (1~500자) | 201 `Message` (친구에게만) |
 | POST | `/api/conversations/{peerId}/read` | | 204 (상대가 보낸 메시지를 읽음 처리) |
 
 - 답장은 사진 주인과 나만 본다. 댓글과 다르다.
 - 내 사진에는 답장할 수 없다 (`NOT_ALLOWED_ON_OWN_MOMENT`).
 - 읽음 표시: 내가 보낸 `Message` 의 `readAt` 이 비어 있으면 상대가 아직 안 읽은 것이다. 앱은 말풍선 옆에 `1` 을 띄운다.
+- **같은 메시지가 두 번 저장되지 않게** (`clientId`, 단챗도 같음): 앱이 보낼 때마다 새 ID(`[A-Za-z0-9_-]` 8~64자)를 붙이고, 응답을 못 받아 다시 보낼 때는 같은 ID를 쓴다. 서버는 보낸 사람마다 ID를 한 번만 받는다 — 이미 저장된 ID면 처음 것을 그대로 돌려주고 알림도 다시 보내지 않는다 (동시에 와도 하나만 남는다). 형식이 틀리면 400.
+  목록을 다시 받을 때 내 메시지의 `clientId` 로 「보내는 중·실패」 말풍선과 짝을 맞춰 지운다 (응답이 사라졌어도 다시 보내기를 누를 필요가 없다).
 
 ## 단챗
 
@@ -155,7 +158,7 @@
 | GET | `/api/groups` | | 200 `{ items: [GroupChat] }` 만든 순 (최신 먼저) |
 | GET | `/api/groups/{id}` | | 200 `GroupChat` |
 | GET | `/api/groups/{id}/messages?cursor=&limit=50` | | 200 `{ items: [GroupMessage], nextCursor }` 최신순 |
-| POST | `/api/groups/{id}/messages` | `{ text }` (1~500자) | 201 `GroupMessage` |
+| POST | `/api/groups/{id}/messages` | `{ text, clientId? }` (1~500자) | 201 `GroupMessage` |
 | POST | `/api/groups/{id}/read` | | 204 (지금까지 온 메시지를 읽음 처리) |
 | DELETE | `/api/groups/{id}/members/me` | | 204 나가기. 마지막 사람이 나가면 방과 메시지가 지워진다 |
 
@@ -163,7 +166,7 @@
 // GroupChat: members 에 나도 들어 있다(이름순). name 이 null 이면 앱은 나를 뺀 사람들 이름으로 부른다.
 { "id": 7, "name": "한강 크루", "members": [UserSummary], "createdAt": "..." }
 // GroupMessage: unreadCount = 보낸 사람을 빼고 아직 안 읽은 사람 수 (앱은 말풍선 옆에 숫자로 띄운다)
-{ "id": 91, "groupId": 7, "senderId": 12, "text": "토요일?", "createdAt": "...", "unreadCount": 2 }
+{ "id": 91, "groupId": 7, "senderId": 12, "text": "토요일?", "createdAt": "...", "unreadCount": 2, "clientId": null }
 // GroupConversation (/api/conversations 의 groups)
 { "group": GroupChat, "lastMessage": GroupMessage | null, "unreadCount": 3 }
 ```
@@ -181,7 +184,7 @@
 { "type": "auth", "token": "<accessToken>" }
 // 서버 → 앱
 { "type": "ready" }
-// 앱 → 서버 (25초마다) / 서버 → 앱
+// 앱 → 서버 (15초마다, 그리고 메시지를 보낸 직후) / 서버 → 앱. 6초 안에 아무 응답이 없으면 앱이 끊고 다시 잇는다
 { "type": "ping" }  /  { "type": "pong" }
 
 // 신호 (서버 → 앱). 커밋이 끝난 뒤에만 보낸다
@@ -192,7 +195,8 @@
 ```
 
 - 브라우저 WebSocket 은 헤더를 못 붙여서 토큰을 첫 프레임으로 받는다 (URL 에 넣지 않아 로그에 안 남는다).
-- 신호는 최선 전송이다. 앱은 연결될 때(`ready`)마다 한 번 다시 받는다. 열린 대화 화면은 끊겨 있는 동안 5초마다, 연결돼 있어도 30초마다 한 번 더 확인한다.
+- 신호는 최선 전송이다. 앱은 연결될 때(`ready`)마다, 앱이 앞으로 나올 때마다 한 번 다시 받는다. 열린 대화 화면은 끊겨 있는 동안 5초마다, 연결돼 있어도 30초마다 한 번 더 확인한다.
+- 와이파이 ↔ LTE 전환처럼 연결이 소리 없이 죽으면: 가만히 있을 때는 20초 안에, 메시지를 보낸 뒤에는 6초 안에 알아채고 다시 잇는다. 연결 직후 10초 안에 `ready` 가 안 오면 다시 시도한다.
 - 지금은 서버 한 대의 메모리에서 연결을 관리한다. 서버를 여러 대로 늘리면 Redis pub/sub 같은 걸로 신호를 나눠야 한다.
 
 ## 위젯

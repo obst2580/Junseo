@@ -9,7 +9,7 @@ import { colors } from '@/lib/theme';
 /**
  * 말풍선 하나. 옆의 숫자는 아직 안 읽은 사람 수다 (1:1 이면 상대가 안 읽었을 때 1, 다 읽으면 사라진다).
  * sender: 단챗에서 남이 보낸 말의 첫 줄이면 얼굴·이름, 이어지는 줄이면 null(자리만), 1:1 은 넘기지 않는다.
- * status: 내가 방금 보낸 말이 아직 서버에 없을 때 (보내는 중 · 실패). 실패하면 눌러서 다시 보낸다.
+ * status: 내가 방금 보낸 말이 아직 서버에 없을 때 (보내는 중 · 실패). 실패하면 다시 보내거나 지운다.
  * 값이 같으면 다시 그리지 않는다 (memo) — 새 메시지가 와도 이미 있는 말풍선은 그대로 둔다.
  */
 export const ChatBubble = memo(function ChatBubble({
@@ -21,6 +21,7 @@ export const ChatBubble = memo(function ChatBubble({
   status,
   reason,
   onRetry,
+  onDiscard,
   children,
 }: {
   mine: boolean;
@@ -31,6 +32,7 @@ export const ChatBubble = memo(function ChatBubble({
   status?: 'sending' | 'failed';
   reason?: string;
   onRetry?: () => void;
+  onDiscard?: () => void;
   /** 말풍선 위에 붙는 것 (사진 답장 등) */
   children?: ReactNode;
 }) {
@@ -52,9 +54,16 @@ export const ChatBubble = memo(function ChatBubble({
           )}
         </View>
         {status === 'failed' ? (
-          <Pressable onPress={onRetry} hitSlop={8} accessibilityRole="button" accessibilityLabel="다시 보내기">
-            <Text style={styles.failText}>{reason ?? '보내지 못했어요'} · 다시 보내기</Text>
-          </Pressable>
+          <View style={styles.failRow}>
+            <Text style={styles.failText}>{reason ?? '보내지 못했어요'} · </Text>
+            <Pressable onPress={onRetry} hitSlop={8} accessibilityRole="button" accessibilityLabel="다시 보내기">
+              <Text style={styles.failText}>다시 보내기</Text>
+            </Pressable>
+            <Text style={styles.failText}> · </Text>
+            <Pressable onPress={onDiscard} hitSlop={8} accessibilityRole="button" accessibilityLabel="보내지 않고 지우기">
+              <Text style={[styles.failText, styles.discard]}>지우기</Text>
+            </Pressable>
+          </View>
         ) : (
           <Text style={styles.time}>{status === 'sending' ? '보내는 중' : clockTime(createdAt)}</Text>
         )}
@@ -83,5 +92,7 @@ const styles = StyleSheet.create({
   text: { color: colors.text, fontSize: 15, lineHeight: 21 },
   unread: { color: colors.accent, fontSize: 12, fontWeight: '800', marginBottom: 2 },
   time: { color: colors.textFaint, fontSize: 11 },
+  failRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' },
   failText: { color: colors.danger, fontSize: 12, fontWeight: '700' },
+  discard: { color: colors.textDim },
 });

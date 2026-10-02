@@ -25,12 +25,22 @@ export type Message = {
   createdAt: string;
   readAt: string | null;
   moment: { id: number; thumbUrl: string } | null;
+  /** 내가 보낸 메시지에만: 보낼 때 앱이 붙인 ID (보내는 중인 말풍선과 짝을 맞춘다) */
+  clientId?: string | null;
 };
 export type Conversation = { peer: UserSummary; lastMessage: Message; unreadCount: number };
 /** 단챗. members 에는 나도 들어 있다. name 이 없으면 나를 뺀 사람들 이름으로 부른다 (lib/groups.ts). */
 export type GroupChat = { id: number; name: string | null; members: UserSummary[]; createdAt: string };
 /** unreadCount: 보낸 사람을 빼고 아직 안 읽은 사람 수 */
-export type GroupMessage = { id: number; groupId: number; senderId: number; text: string; createdAt: string; unreadCount: number };
+export type GroupMessage = {
+  id: number;
+  groupId: number;
+  senderId: number;
+  text: string;
+  createdAt: string;
+  unreadCount: number;
+  clientId?: string | null;
+};
 export type GroupConversation = { group: GroupChat; lastMessage: GroupMessage | null; unreadCount: number };
 export type Page<T> = { items: T[]; nextCursor: string | null };
 export type AuthResponse = { accessToken: string; expiresAt: string; user: Me };
@@ -64,23 +74,32 @@ export function configureApi(options: { getToken: () => string | null; onUnautho
   onUnauthorized = options.onUnauthorized;
 }
 
-type RequestOptions = { method?: string; body?: unknown; form?: FormData };
+/** timeoutMs: 이 시간 안에 응답이 없으면 연결 문제로 본다 (기본: 기다린다) */
+type RequestOptions = { method?: string; body?: unknown; form?: FormData; timeoutMs?: number };
 
-async function request<T>(path: string, { method = 'GET', body, form }: RequestOptions = {}): Promise<T> {
+// 메시지 보내기는 이 시간이 지나면 「보내지 못했어요」로 바꾼다. 같은 ID로 다시 보내므로 두 번 가지 않는다.
+const SEND_TIMEOUT_MS = 15_000;
+
+async function request<T>(path: string, { method = 'GET', body, form, timeoutMs }: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const token = tokenProvider();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
+  const abort = timeoutMs ? new AbortController() : null;
+  const timer = abort ? setTimeout(() => abort.abort(), timeoutMs) : null;
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
       method,
       headers,
       body: form ?? (body !== undefined ? JSON.stringify(body) : undefined),
+      signal: abort?.signal,
     });
   } catch {
     throw new ApiError(0, 'NETWORK', '서버에 연결할 수 없어요. 네트워크를 확인해 주세요.');
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 
   if (res.status === 204) return undefined as T;
@@ -148,8 +167,8 @@ export const api = {
   conversations: () => request<{ items: Conversation[]; groups: GroupConversation[] }>('/api/conversations'),
   messages: (peerId: number, cursor?: string | null) =>
     request<Page<Message>>(`/api/conversations/${peerId}/messages${q({ cursor })}`),
-  sendMessage: (peerId: number, text: string) =>
-    request<Message>(`/api/conversations/${peerId}/messages`, { method: 'POST', body: { text } }),
+  sendMessage: (peerId: number, text: string, clientId?: string) =>
+    request<Message>(`/api/conversations/${peerId}/messages`, { method: 'POST', body: { text, clientId }, timeoutMs: SEND_TIMEOUT_MS }),
   markRead: (peerId: number) => request<void>(`/api/conversations/${peerId}/read`, { method: 'POST' }),
 
   /** 내 친구들 중 서로 친구인 쌍. 단챗은 모두가 서로 친구여야 만들 수 있다. */
@@ -158,7 +177,8 @@ export const api = {
   group: (id: number) => request<GroupChat>(`/api/groups/${id}`),
   createGroup: (memberIds: number[], name?: string) => request<GroupChat>('/api/groups', { method: 'POST', body: { memberIds, name } }),
   groupMessages: (id: number, cursor?: string | null) => request<Page<GroupMessage>>(`/api/groups/${id}/messages${q({ cursor })}`),
-  sendGroupMessage: (id: number, text: string) => request<GroupMessage>(`/api/groups/${id}/messages`, { method: 'POST', body: { text } }),
+  sendGroupMessage: (id: number, text: string, clientId?: string) =>
+    request<GroupMessage>(`/api/groups/${id}/messages`, { method: 'POST', body: { text, clientId }, timeoutMs: SEND_TIMEOUT_MS }),
   markGroupRead: (id: number) => request<void>(`/api/groups/${id}/read`, { method: 'POST' }),
   leaveGroup: (id: number) => request<void>(`/api/groups/${id}/members/me`, { method: 'DELETE' }),
 

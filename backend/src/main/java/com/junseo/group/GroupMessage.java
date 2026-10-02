@@ -19,14 +19,21 @@ public class GroupMessage {
     private Long senderId;
     private String text;
     private Instant createdAt;
+    /** The app's own id for this send, so a retry finds the first copy (see V4). */
+    private String clientId;
 
     protected GroupMessage() {}
 
     public GroupMessage(long groupId, long senderId, String text, Instant createdAt) {
+        this(groupId, senderId, text, createdAt, null);
+    }
+
+    public GroupMessage(long groupId, long senderId, String text, Instant createdAt, String clientId) {
         this.groupId = groupId;
         this.senderId = senderId;
         this.text = text;
         this.createdAt = createdAt;
+        this.clientId = clientId;
     }
 
     public Long getId() {
@@ -43,6 +50,10 @@ public class GroupMessage {
 
     public String getText() {
         return text;
+    }
+
+    public String getClientId() {
+        return clientId;
     }
 
     public Instant getCreatedAt() {

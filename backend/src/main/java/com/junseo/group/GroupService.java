@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -123,7 +124,7 @@ public class GroupService {
                     GroupMessage last = latest.get(g.id());
                     return new GroupConversation(
                             g,
-                            last == null ? null : messageView(last, byGroup.getOrDefault(g.id(), List.of())),
+                            last == null ? null : messageView(last, byGroup.getOrDefault(g.id(), List.of()), me),
                             unread.getOrDefault(g.id(), 0L));
                 })
                 .sorted(Comparator.comparing(GroupService::lastActivity).reversed())
@@ -143,19 +144,33 @@ public class GroupService {
         int size = CursorPage.clampLimit(limit);
         List<GroupMessage> rows = messages.findPage(groupId, CursorPage.before(cursor), size + 1);
         List<GroupMember> joined = members.findByGroupId(groupId);
-        return CursorPage.of(rows, size, GroupMessage::getId, page -> page.stream().map(m -> messageView(m, joined)).toList());
+        return CursorPage.of(rows, size, GroupMessage::getId, page -> page.stream().map(m -> messageView(m, joined, me)).toList());
     }
 
     @Transactional
-    public GroupMessageView send(long me, long groupId, String text) {
+    public GroupMessageView send(long me, long groupId, String text, String clientId) {
+        Optional<GroupMessageView> earlier = sentEarlier(me, clientId);
+        if (earlier.isPresent()) {
+            return earlier.get();
+        }
         ChatGroup group = requireMember(me, groupId);
         List<Long> memberIds = members.findByGroupId(groupId).stream().map(GroupMember::getUserId).toList();
-        GroupMessage message = messages.save(new GroupMessage(groupId, me, text, clock.instant()));
+        GroupMessage message = messages.save(new GroupMessage(groupId, me, text, clock.instant(), clientId));
         // Sending means I have seen everything up to my own message.
         members.advanceRead(groupId, me, message.getId());
         events.publishEvent(new GroupMessageSent(message.getId(), groupId, group.getName(), me, memberIds, text));
         return new GroupMessageView(
-                message.getId(), groupId, me, message.getText(), message.getCreatedAt(), memberIds.size() - 1);
+                message.getId(), groupId, me, message.getText(), message.getCreatedAt(), memberIds.size() - 1, clientId);
+    }
+
+    /** A retry of a send that already went through (same client id): the first copy, with no new push. */
+    @Transactional(readOnly = true)
+    public Optional<GroupMessageView> sentEarlier(long me, String clientId) {
+        if (clientId == null) {
+            return Optional.empty();
+        }
+        return messages.findBySenderIdAndClientId(me, clientId)
+                .map(m -> messageView(m, members.findByGroupId(m.getGroupId()), me));
     }
 
     @Transactional
@@ -188,11 +203,12 @@ public class GroupService {
         return groups.findById(groupId).orElseThrow(ApiException::notFound);
     }
 
-    private static GroupMessageView messageView(GroupMessage m, List<GroupMember> joined) {
+    private static GroupMessageView messageView(GroupMessage m, List<GroupMember> joined, long viewerId) {
         int unread = (int) joined.stream()
                 .filter(member -> !Objects.equals(member.getUserId(), m.getSenderId()) && member.getLastReadId() < m.getId())
                 .count();
-        return new GroupMessageView(m.getId(), m.getGroupId(), m.getSenderId(), m.getText(), m.getCreatedAt(), unread);
+        String clientId = Objects.equals(m.getSenderId(), viewerId) ? m.getClientId() : null;
+        return new GroupMessageView(m.getId(), m.getGroupId(), m.getSenderId(), m.getText(), m.getCreatedAt(), unread, clientId);
     }
 
     private static GroupView view(ChatGroup group, List<GroupMember> joined, Map<Long, User> people) {

@@ -55,7 +55,8 @@ mobile/                     Expo SDK 57 · React Native · Expo Router · TypeSc
   src/lib/widgetBridge.ts   App Group 저장소로 위젯·알림 확장에 토큰과 서버 주소를 넘김
   src/lib/push.ts           알림 권한 · APNs 토큰 등록 · 알림 탭 처리
   src/lib/realtime.ts       채팅 WebSocket (신호를 받으면 그 대화만 다시 받음, 끊기면 재연결)
-  src/lib/chatThread.ts     1:1·단챗 공통: 보내자마자 화면에 띄우기 · 순서 보장 · 실패 시 다시 보내기
+  src/lib/chatThread.ts     1:1·단챗 대화 저장소: 보내자마자 띄우기 · 순서 보장 · 같은 메시지 두 번 안 보내기 · 다시 들어가면 바로 보이기
+  src/lib/chats.ts          대화 목록(목록·탭 배지 공용, 신호를 모아 한 번만 받음) · 목록에서 누르는 순간 미리 받기
   targets/_shared/          위젯과 알림 확장이 함께 쓰는 Swift 코드 (서버 동기화 · 캐시 · 이미지 축소)
   targets/widget/           홈 화면 위젯 (SwiftUI, 작은 크기·큰 크기) + iOS 26 위젯 푸시 처리
   targets/notification-service/  알림 서비스 확장
@@ -73,7 +74,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 80개
+./gradlew test                                            # 통합·단위 테스트 85개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -109,8 +110,9 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 80개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 85개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
+- 채팅: 웹 미리보기(배포용 빌드)에서 앱 전환 · 소리 없이 죽은 연결 · 응답 유실 · 응답 없음 · 300개 넘는 대화방을 재현해 확인. 키보드 위치와 「보고 있는 방 알림 숨기기」는 아이폰에서만 확인할 수 있어 아직
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 최소 iOS 17). Swift 파일은 문법 검사만 했고, **Xcode 컴파일과 실기기 확인은 아직** 하지 못했습니다.
 
 ## 다음 할 일

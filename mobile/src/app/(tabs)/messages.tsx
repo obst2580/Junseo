@@ -1,5 +1,5 @@
 import { router, useFocusEffect, useNavigation } from 'expo-router';
-import { useCallback, useEffect, useLayoutEffect, useState, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState, type ReactNode } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PressScale } from '@/components/PressScale';
@@ -10,7 +10,7 @@ import { useTabBarSpace } from '@/components/TabBar';
 import { Avatar, Empty } from '@/components/ui';
 import { api, type Conversation, type GroupConversation, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { events } from '@/lib/events';
+import { prefetchDm, prefetchGroup, refreshConversations, useConversations } from '@/lib/chats';
 import { timeAgo } from '@/lib/format';
 import { groupTitle, linkKey } from '@/lib/groups';
 import { colors } from '@/lib/theme';
@@ -22,32 +22,21 @@ export default function ConversationsScreen() {
   const tabBarSpace = useTabBarSpace();
   const { me } = useAuth();
   const navigation = useNavigation();
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const conversations = useConversations();
   // 단챗 만들기: 열 때 친구 목록과 서로 친구인 쌍을 가져온다
   const [creating, setCreating] = useState<{ friends: UserSummary[]; links: Set<string> } | null>(null);
 
-  const load = useCallback(() => {
-    api
-      .conversations()
-      .then((r) =>
-        setRows(
-          [
-            ...r.items.map((c): Row => ({ kind: 'peer', key: `p${c.peer.id}`, at: c.lastMessage.createdAt, c })),
-            ...r.groups.map((g): Row => ({ kind: 'group', key: `g${g.group.id}`, at: g.lastMessage?.createdAt ?? g.group.createdAt, g })),
-          ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
-        ),
-      )
-      .catch(() => setRows((prev) => prev ?? []));
-  }, []);
-  useFocusEffect(load);
-  useEffect(() => {
-    const offMessages = events.on('messages', load);
-    const offUnread = events.on('unread', load);
-    return () => {
-      offMessages();
-      offUnread();
-    };
-  }, [load]);
+  const rows = useMemo<Row[] | null>(
+    () =>
+      conversations &&
+      [
+        ...conversations.items.map((c): Row => ({ kind: 'peer', key: `p${c.peer.id}`, at: c.lastMessage.createdAt, c })),
+        ...conversations.groups.map((g): Row => ({ kind: 'group', key: `g${g.group.id}`, at: g.lastMessage?.createdAt ?? g.group.createdAt, g })),
+      ].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)),
+    [conversations],
+  );
+  // 볼 때마다 최신으로. 새 메시지·읽음 신호는 목록 저장소가 모아서 한 번에 받는다 (lib/chats.ts).
+  useFocusEffect(useCallback(() => refreshConversations(), []));
 
   const openCreate = useCallback(() => {
     Promise.all([api.friends(), api.friendLinks()])
@@ -85,7 +74,8 @@ export default function ConversationsScreen() {
           onClose={() => setCreating(null)}
           onCreated={(group) => {
             setCreating(null);
-            events.emit('messages');
+            refreshConversations();
+            prefetchGroup(group);
             router.push(`/messages/group/${group.id}`);
           }}
         />
@@ -104,7 +94,12 @@ function PeerRow({ c, meId }: { c: Conversation; meId?: number }) {
       preview={`${last.senderId === meId ? '나: ' : ''}${last.moment ? '📷 ' : ''}${preview}`}
       at={last.createdAt}
       unread={c.unreadCount}
-      onPress={() => router.push(`/messages/${c.peer.id}`)}
+      // 손가락이 닿는 순간 메시지를 받기 시작한다 (화면이 뜰 때쯤 이미 와 있다)
+      onPressIn={() => prefetchDm(c.peer)}
+      onPress={() => {
+        prefetchDm(c.peer);
+        router.push(`/messages/${c.peer.id}`);
+      }}
     />
   );
 }
@@ -121,7 +116,11 @@ function GroupRow({ g, meId }: { g: GroupConversation; meId?: number }) {
       preview={last ? `${sender}: ${last.text}` : '단챗을 만들었어요'}
       at={last?.createdAt ?? g.group.createdAt}
       unread={g.unreadCount}
-      onPress={() => router.push(`/messages/group/${g.group.id}`)}
+      onPressIn={() => prefetchGroup(g.group)}
+      onPress={() => {
+        prefetchGroup(g.group);
+        router.push(`/messages/group/${g.group.id}`);
+      }}
     />
   );
 }
@@ -133,6 +132,7 @@ function ConversationRow({
   preview,
   at,
   unread,
+  onPressIn,
   onPress,
 }: {
   avatar: ReactNode;
@@ -141,10 +141,11 @@ function ConversationRow({
   preview: string;
   at: string;
   unread: number;
+  onPressIn: () => void;
   onPress: () => void;
 }) {
   return (
-    <PressScale style={styles.row} onPress={onPress}>
+    <PressScale style={styles.row} onPressIn={onPressIn} onPress={onPress}>
       {avatar}
       <View style={styles.body}>
         <View style={styles.nameRow}>

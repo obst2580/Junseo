@@ -10,12 +10,11 @@ import { Icon } from '@/components/Icon';
 import { api, type GroupChat, type GroupMessage, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { isLocal, useChatThread, type LocalMessage } from '@/lib/chatThread';
+import { groupKey, groupSource, knownGroup, rememberGroup } from '@/lib/chats';
 import { events } from '@/lib/events';
 import { groupTitle } from '@/lib/groups';
+import { useOpenChat } from '@/lib/push';
 import { colors } from '@/lib/theme';
-
-// 안 읽은 사람 수나 글이 바뀌었을 때만 다시 그린다
-const sameMessage = (a: GroupMessage, b: GroupMessage) => a.unreadCount === b.unreadCount && a.text === b.text;
 
 export default function GroupChatScreen() {
   // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
@@ -23,33 +22,34 @@ export default function GroupChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const groupId = Number(id);
   const { me } = useAuth();
-  const [group, setGroup] = useState<GroupChat | null>(null);
+  // 목록에서 들어왔으면 이름·멤버를 이미 안다. 멤버가 바뀌었을 수 있으니 뒤에서 한 번 더 받는다.
+  const [group, setGroup] = useState<GroupChat | null>(() => knownGroup(groupId));
   // 읽음 처리를 보낸 마지막 메시지. 같은 메시지로 여러 번 보내지 않는다.
   const markedUpTo = useRef(0);
+  useOpenChat(groupKey(groupId));
 
-  const { rows, loadOlder, send, retry } = useChatThread<GroupMessage>({
-    fetchPage: (cursor) => api.groupMessages(groupId, cursor),
-    sendText: async (text) => {
-      const msg = await api.sendGroupMessage(groupId, text);
-      markedUpTo.current = Math.max(markedUpTo.current, msg.id);
-      return msg;
-    },
+  const { rows, loadOlder, send, retry, discard } = useChatThread<GroupMessage>({
+    key: groupKey(groupId),
+    source: groupSource(groupId),
+    // 남이 보낸 새 메시지가 있을 때만 읽음 처리 (내가 보내면 서버가 이미 읽은 것으로 친다)
     afterFetch: async (page) => {
-      const newest = page[0]?.id ?? 0;
+      const newest = page.find((m) => m.senderId !== me?.id)?.id ?? 0;
       if (newest > markedUpTo.current) {
         markedUpTo.current = newest;
         await api.markGroupRead(groupId).catch(() => {});
         events.emit('unread');
       }
     },
-    same: sameMessage,
     matches: (s) => (s.type === 'group-message' || s.type === 'group-read') && s.groupId === groupId,
   });
 
   useEffect(() => {
     api
       .group(groupId)
-      .then(setGroup)
+      .then((g) => {
+        rememberGroup(g);
+        setGroup(g);
+      })
       .catch(() => {});
   }, [groupId]);
 
@@ -77,7 +77,18 @@ export default function GroupChatScreen() {
   const renderItem = useCallback(
     ({ item, index }: { item: GroupMessage | LocalMessage; index: number }) => {
       if (isLocal(item)) {
-        return <ChatBubble mine text={item.text} createdAt={item.createdAt} unread={0} status={item.status} reason={item.reason} onRetry={() => retry(item.localId)} />;
+        return (
+          <ChatBubble
+            mine
+            text={item.text}
+            createdAt={item.createdAt}
+            unread={0}
+            status={item.status}
+            reason={item.reason}
+            onRetry={() => retry(item.localId)}
+            onDiscard={() => discard(item.localId)}
+          />
+        );
       }
       const mine = item.senderId === me?.id;
       // 같은 사람이 이어서 보낸 말에는 얼굴·이름을 한 번만 (목록이 뒤집혀 있어서 바로 앞 말은 index + 1)
@@ -86,7 +97,7 @@ export default function GroupChatScreen() {
       const sender = people.get(item.senderId) ?? LEFT;
       return <ChatBubble mine={mine} text={item.text} createdAt={item.createdAt} unread={item.unreadCount} sender={firstOfRun ? sender : null} />;
     },
-    [me?.id, people, retry, rows],
+    [me?.id, people, retry, discard, rows],
   );
 
   return (
@@ -101,7 +112,8 @@ export default function GroupChatScreen() {
           ),
         }}
       />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
+      {/* 이 화면은 화면 맨 위(투명 헤더 밑)부터 시작하므로 키보드 보정값은 0 이다 */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         {rows === null ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : (

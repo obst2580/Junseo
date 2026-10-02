@@ -10,12 +10,11 @@ import { ChatComposer } from '@/components/ChatComposer';
 import { api, type Message, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { isLocal, useChatThread, type LocalMessage } from '@/lib/chatThread';
+import { dmKey, dmSource, knownPeer, rememberPeer } from '@/lib/chats';
 import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
+import { useOpenChat } from '@/lib/push';
 import { colors, radius } from '@/lib/theme';
-
-// 읽음(readAt)이나 글이 바뀌었을 때만 다시 그린다
-const sameMessage = (a: Message, b: Message) => a.readAt === b.readAt && a.text === b.text && a.moment?.id === b.moment?.id;
 
 export default function ChatScreen() {
   // 헤더가 바탕(그라데이션) 위에 투명하게 떠 있어서 그만큼 내려서 시작한다
@@ -23,11 +22,13 @@ export default function ChatScreen() {
   const { peerId } = useLocalSearchParams<{ peerId: string }>();
   const peer = Number(peerId);
   const { me } = useAuth();
-  const [peerInfo, setPeerInfo] = useState<UserSummary | null>(null);
+  // 목록에서 들어왔으면 이름을 이미 안다
+  const [peerInfo, setPeerInfo] = useState<UserSummary | null>(() => knownPeer(peer));
+  useOpenChat(dmKey(peer));
 
-  const { rows, loadOlder, send, retry } = useChatThread<Message>({
-    fetchPage: (cursor) => api.messages(peer, cursor),
-    sendText: (text) => api.sendMessage(peer, text),
+  const { rows, loadOlder, send, retry, discard } = useChatThread<Message>({
+    key: dmKey(peer),
+    source: dmSource(peer),
     // 상대가 보낸 안 읽은 메시지가 있으면 읽음 처리 (목록·탭 배지만 다시 불러온다)
     afterFetch: async (page) => {
       if (page.some((m) => m.senderId === peer && !m.readAt)) {
@@ -35,25 +36,36 @@ export default function ChatScreen() {
         events.emit('unread');
       }
     },
-    same: sameMessage,
     matches: (s) => (s.type === 'message' || s.type === 'read') && s.peerId === peer,
   });
 
+  // 알림을 눌러 바로 들어왔을 때처럼 이름을 모르면 찾아 온다 (친구가 아니게 된 상대는 대화 목록에만 있다)
   useEffect(() => {
-    api
-      .conversations()
-      .then((r) => setPeerInfo(r.items.find((c) => c.peer.id === peer)?.peer ?? null))
-      .catch(() => {});
-    api
-      .friends()
-      .then((r) => setPeerInfo((p) => p ?? r.friends.find((f) => f.id === peer) ?? null))
-      .catch(() => {});
+    if (knownPeer(peer)) return;
+    const found = (p: UserSummary | null | undefined) => {
+      if (!p) return;
+      rememberPeer(p);
+      setPeerInfo((cur) => cur ?? p);
+    };
+    api.friends().then((r) => found(r.friends.find((f) => f.id === peer))).catch(() => {});
+    api.conversations().then((r) => found(r.items.find((c) => c.peer.id === peer)?.peer)).catch(() => {});
   }, [peer]);
 
   const renderItem = useCallback(
     ({ item }: { item: Message | LocalMessage }) => {
       if (isLocal(item)) {
-        return <ChatBubble mine text={item.text} createdAt={item.createdAt} unread={0} status={item.status} reason={item.reason} onRetry={() => retry(item.localId)} />;
+        return (
+          <ChatBubble
+            mine
+            text={item.text}
+            createdAt={item.createdAt}
+            unread={0}
+            status={item.status}
+            reason={item.reason}
+            onRetry={() => retry(item.localId)}
+            onDiscard={() => discard(item.localId)}
+          />
+        );
       }
       const mine = item.senderId === me?.id;
       // 상대가 아직 안 읽은 내 메시지에는 1
@@ -68,13 +80,14 @@ export default function ChatScreen() {
         </ChatBubble>
       );
     },
-    [me?.id, retry],
+    [me?.id, retry, discard],
   );
 
   return (
     <SafeAreaView style={[styles.flex, { paddingTop: headerHeight }]} edges={['bottom']}>
       <Stack.Screen options={{ title: peerInfo?.displayName ?? '' }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex} keyboardVerticalOffset={90}>
+      {/* 이 화면은 화면 맨 위(투명 헤더 밑)부터 시작하므로 키보드 보정값은 0 이다 */}
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         {rows === null ? (
           <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
         ) : (

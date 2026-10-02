@@ -8,6 +8,7 @@ import { ActivityIndicator, AppState, View } from 'react-native';
 import { ZoomProvider } from '@/components/PinchZoom';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { events } from '@/lib/events';
+import { resetChats } from '@/lib/chats';
 import { listenPush, registerPush } from '@/lib/push';
 import { realtime } from '@/lib/realtime';
 import { colors, glow, motion } from '@/lib/theme';
@@ -59,6 +60,8 @@ function RootStack() {
       stopPush();
       sub.remove();
       realtime.stop();
+      // 다음에 로그인하는 사람에게 이전 대화가 보이지 않게
+      resetChats();
     };
   }, [signedIn]);
 

@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -62,7 +63,12 @@ public class GroupController {
     @PostMapping("/{id}/messages")
     @ResponseStatus(HttpStatus.CREATED)
     GroupMessageView send(@CurrentUser long me, @PathVariable long id, @Valid @RequestBody MessageRequest request) {
-        return groupService.send(me, id, request.text());
+        try {
+            return groupService.send(me, id, request.text(), request.clientId());
+        } catch (DataIntegrityViolationException e) {
+            // The same send raced itself (a retry while the first was still in flight): hand back the first copy.
+            return groupService.sentEarlier(me, request.clientId()).orElseThrow(() -> e);
+        }
     }
 
     @PostMapping("/{id}/read")

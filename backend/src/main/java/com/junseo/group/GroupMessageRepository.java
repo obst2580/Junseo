@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface GroupMessageRepository extends JpaRepository<GroupMessage, Long> {
 
+    Optional<GroupMessage> findBySenderIdAndClientId(long senderId, String clientId);
+
     @Query(nativeQuery = true, value = """
             select * from group_messages
             where group_id = :groupId and id < :before

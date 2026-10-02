@@ -18,6 +18,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.context.ApplicationEventPublisher;
@@ -59,21 +60,38 @@ public class ChatService {
 
     /** A private 1:1 reply to the photo's owner; seeing the photo already implies being friends. */
     @Transactional
-    public MessageView reply(long userId, long momentId, String text) {
+    public MessageView reply(long userId, long momentId, String text, String clientId) {
+        Optional<MessageView> earlier = sentEarlier(userId, clientId);
+        if (earlier.isPresent()) {
+            return earlier.get();
+        }
         Moment moment = access.requireVisible(userId, momentId);
         if (moment.getSenderId() == userId) {
             throw new ApiException(ErrorCode.NOT_ALLOWED_ON_OWN_MOMENT, "내 사진에는 답장할 수 없어요.");
         }
-        return send(userId, moment.getSenderId(), momentId, text);
+        return send(userId, moment.getSenderId(), momentId, text, clientId);
     }
 
     @Transactional
-    public MessageView sendMessage(long userId, long peerId, String text) {
+    public MessageView sendMessage(long userId, long peerId, String text, String clientId) {
+        Optional<MessageView> earlier = sentEarlier(userId, clientId);
+        if (earlier.isPresent()) {
+            return earlier.get();
+        }
         userService.require(peerId);
         if (!friends.areFriends(userId, peerId)) {
             throw new ApiException(ErrorCode.NOT_FRIENDS);
         }
-        return send(userId, peerId, null, text);
+        return send(userId, peerId, null, text, clientId);
+    }
+
+    /** A retry of a send that already went through (same client id): the first copy, with no new push. */
+    @Transactional(readOnly = true)
+    public Optional<MessageView> sentEarlier(long userId, String clientId) {
+        if (clientId == null) {
+            return Optional.empty();
+        }
+        return messages.findBySenderIdAndClientId(userId, clientId).map(m -> views(userId, List.of(m)).getFirst());
     }
 
     /** History stays readable after an unfriend; only sending is blocked. */
@@ -110,8 +128,8 @@ public class ChatService {
         }
     }
 
-    private MessageView send(long senderId, long receiverId, Long momentId, String text) {
-        Message message = messages.save(new Message(senderId, receiverId, momentId, text, clock.instant()));
+    private MessageView send(long senderId, long receiverId, Long momentId, String text, String clientId) {
+        Message message = messages.save(new Message(senderId, receiverId, momentId, text, clock.instant(), clientId));
         events.publishEvent(new MessageSent(message.getId(), senderId, receiverId, text));
         return views(senderId, List.of(message)).getFirst();
     }
@@ -129,7 +147,8 @@ public class ChatService {
                         m.getReadAt(),
                         m.getMomentId() != null && visibleMoments.contains(m.getMomentId())
                                 ? new MomentRef(m.getMomentId(), signer.url(m.getMomentId(), Variant.THUMB))
-                                : null))
+                                : null,
+                        m.getSenderId() == viewerId ? m.getClientId() : null))
                 .toList();
     }
 }

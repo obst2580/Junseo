@@ -2,11 +2,14 @@ package com.junseo.chat;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 public interface MessageRepository extends JpaRepository<Message, Long> {
+
+    Optional<Message> findBySenderIdAndClientId(long senderId, String clientId);
 
     /** Uses the (least, greatest) expression index so both directions of a thread are one range scan. */
     @Query(nativeQuery = true, value = """
