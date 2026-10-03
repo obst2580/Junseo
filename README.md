@@ -76,7 +76,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 126개
+./gradlew test                                            # 통합·단위 테스트 139개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -134,7 +134,7 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 
 ## 출시 전에 할 일 (안전 · 약관)
 
-App Store 는 사진 · 채팅처럼 사용자가 올리는 내용이 있는 앱에 신고 · 차단 · 약관 동의 · 앱 안 계정 삭제를 요구합니다. 신고·차단·삭제·재설정 코드를 포함합니다. 플랫폼 계정의 삭제 재인증과 운영 V8 배포는 아직 필요합니다 ([인계 문서](HANDOFF.md#9-검증-범위와-다음-작업)).
+App Store 는 사진 · 채팅처럼 사용자가 올리는 내용이 있는 앱에 신고 · 차단 · 약관 동의 · 앱 안 계정 삭제를 요구합니다. 신고·차단·계정 삭제(리리플레닛 계정은 삭제 직전 다시 로그인해 본인 확인)·내보내기가 들어 있습니다. 운영에는 V8 · V9 배포가 필요합니다 ([인계 문서](HANDOFF.md#9-검증-범위와-다음-작업)).
 
 - 약관 · 개인정보처리방침(`backend/src/main/resources/static/legal/`)의 `[운영자 이름]` · `[문의 이메일]` · `[시행일]` · `[서버 업체]` · `[메일 발송 업체]` · `[보호책임자 이름]` 채우기
 - SMTP 설정(`JUNSEO_SMTP_*`) — 로컬 인증 재설정·신고 메일용. 플랫폼 계정의 비밀번호 관리는 LiliPlanet에서 처리
@@ -144,7 +144,7 @@ App Store 는 사진 · 채팅처럼 사용자가 올리는 내용이 있는 앱
 ## 검증 상태
 
 - Android: `0.1.2` APK 배포, 로그인·업로드 회귀 13개 통과. 네이티브 위젯·FCM 설정과 서버 발송 구현. 실제 두 기기 수신 검증은 남음
-- 서버: 통합·단위 테스트 126개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 139개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - 채팅: 웹 미리보기(배포용 빌드)에서 앱 전환 · 소리 없이 죽은 연결 · 응답 유실 · 응답 없음 · 300개 넘는 대화방을 재현해 확인. 키보드 위치와 「보고 있는 방 알림 숨기기」는 아이폰에서만 확인할 수 있어 아직
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 앱·위젯·알림 확장 모두 최소 iOS 17). GitHub Actions 의 Mac 에서 앱·위젯·알림 확장을 Xcode 로 빌드하고 시뮬레이터에서 앱을 켜 본다 (`.github/workflows/ios.yml`). **실기기 확인은 아직** — 점검표: `docs/widget-check.md` (새 사진이 위젯에 닿기까지 걸린 시간은 서버 로그 `Widget got new photo` 로 잰다)

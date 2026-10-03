@@ -15,8 +15,8 @@
 | 사용자에게 전달한 APK | `0.1.2`, versionCode `3`, `com.junseo.app`, ARM64, Android 8 이상. 사진 업로드 수정 포함 |
 | Android 푸시 설정 | Firebase 프로젝트·발송 계정·Azure Key Vault 참조 설정 완료, FCM 활성화 |
 | iOS | 기존 Swift 위젯·알림 확장 유지, 공유 Keychain으로 토큰 저장 변경. APNs 운영 키·실기기 검증은 미완료 |
-| 운영 DB | **V1~V7 적용 완료**. 병합한 신고 기능은 **V8**, 이번 인계 작업에서는 운영에 적용하지 않음 |
-| 이번 병합 소스 | 서버 전체 테스트 **126개**, 모바일 회귀 테스트 **13개**, lint·타입 검사 통과. 새 JAR 빌드 성공 |
+| 운영 DB | **V1~V7 적용 완료**. 병합한 신고 기능 **V8**, 내보낸 사람 목록 **V9** 는 아직 운영에 적용하지 않음 (다음 배포 때 Flyway 가 적용) |
+| 현재 소스 | 서버 전체 테스트 **139개**, 모바일 회귀 테스트 **18개**, lint·타입 검사 통과 |
 
 **Git의 최신 소스와 운영 배포본은 다르다.** 운영 JAR은 신고·차단 기능 병합 전 버전이며 SHA-256은 `24e0475de871a92917e625f0e6f0050089e7db732fd11085e1e3c0e8c7aecdc3`이다. [운영 배포 기록](docs/azure-release.json)의 소스 지문은 당시 배포본을 가리킨다. 병합 후 서버·앱을 이번 인계 요청만으로 재배포하지 않았다.
 
@@ -28,6 +28,13 @@
 - `0.1.1`: 로그인 브라우저 복귀 시 중복 code 교환과 세션 저장/화면 이동 경쟁 수정. 앱 프로세스 재생성 후 PKCE 복원, 오류·재시도 화면 추가.
 - `0.1.2`: SDK 57의 multipart 인코더에 맞게 사진을 `expo-file-system`의 `File`로 전송. 이전 `{ uri, name, type }` 방식은 HTTP 요청 전에 실패해 네트워크 오류로 보였음.
 - 병합: 원본 개발자의 신고·차단·계정 삭제·비밀번호 재설정·약관 코드를 보존. 배포된 V6/V7을 유지하고 원격 `V6__safety.sql`을 **`V8__safety.sql`**로 이동. 로컬 비밀번호 재설정 서비스는 `local` 인증 모드에서만 생성해 운영 플랫폼 인증 기동과 충돌하지 않도록 처리.
+- 병합 후 검토 수정 (원본 개발자):
+  - iOS CI `npm ci` 실패(lock 불일치) 수정. 메일 서버 없이 `/actuator/health` 가 503 이던 것(메일 health) 수정. Blob 삭제 오류가 남은 삭제를 멈추던 것 수정.
+  - **계정 삭제를 리리플레닛 계정에 연결**: 앱이 삭제 직전 리리플레닛으로 다시 로그인(iOS 는 쿠키를 나누지 않는 창)하고 `exchange { reauth: true }` 로 받은 토큰으로 삭제. 서버는 그 토큰이 5분 안의 로그인(`auth_time` 또는 `iat`)인지 본다. 비밀번호는 묻지 않는다.
+  - **내보내기 = 다시 못 들어옴**: 운영자 계정 삭제가 `(issuer, sub)` (로컬은 이메일) 를 `banned_identities`(V9) 에 기록. 다시 로그인하면 403 `ACCOUNT_BANNED`. `GET/DELETE /api/admin/bans`.
+  - 로그인 시작 남용 방지 (주소당 대기 20개, 1만 개가 차면 가장 오래된 것부터 정리), FCM 죽은 토큰 정리 · 401 재시도 · 사람당 토큰 10개, 업로드 처리 대기 15초.
+  - Android: 사진·동영상·음악 **읽기 권한 제거**(저장만 함), 위젯 새로고침이 쌓이지 않게, 일시적인 Keystore 오류로 로그아웃되지 않게. 앱: 로그아웃 뒤 로그인은 다른 계정을 고를 수 있게(iOS), 위젯 연결 오류가 로그인을 막지 않게, 예전 평문 토큰 사본을 앱 시작 때 삭제.
+  - ops: `bootstrap.py` 가 DB 비밀번호를 평문 SQL 대신 서버 형식의 해시로 보낸다. 관리자 토큰을 Key Vault(`admin-token`)에 만들고 연결한다 (`JUNSEO_ADMIN_EMAIL` 은 환경 변수로 주면 설정). `register_auth.py` 는 공유 로그인 서버 재시작 전에 묻고, 플랫폼 저장소 경로는 `--platform-repo` 로 받는다.
 
 ## 2. 처음 시작할 때
 
@@ -110,7 +117,7 @@ DB는 TLS `verify-full`을 사용한다. Hikari pool은 최대 5 / minimum idle 
 | `JUNSEO_FCM_ENABLED` / `JUNSEO_FCM_PROJECT_ID` | `true` / `junseo-cbca7` |
 | `JUNSEO_FCM_SERVICE_ACCOUNT_JSON` | secret `fcm-service-account` 참조 |
 | `JUNSEO_APNS_ENABLED` | 미설정 기본값 `false`; Apple 키 확보 후 별도 활성화 |
-| `JUNSEO_ADMIN_TOKEN`, `JUNSEO_ADMIN_EMAIL` | 병합한 관리자·신고 운영용. 현재 운영 미설정 (이번 인계 점검에서 확인) |
+| `JUNSEO_ADMIN_TOKEN`, `JUNSEO_ADMIN_EMAIL` | 관리자·신고 운영용. 현재 운영 미설정. `bootstrap.py` 를 다시 실행하면 토큰은 Key Vault `admin-token` 참조로 설정되고, 메일은 실행할 때 `JUNSEO_ADMIN_EMAIL` 을 주면 설정된다 |
 | `JUNSEO_SMTP_HOST/PORT/USER/PASSWORD`, `JUNSEO_MAIL_FROM` | 병합한 로컬 인증 재설정/신고 메일용. 현재 운영 미설정 (이번 인계 점검에서 확인) |
 
 Key Vault 참조 형식: `@Microsoft.KeyVault(SecretUri=https://junseo-kv-f14e91.vault.azure.net/secrets/<이름>)`. 해당 참조의 상태가 `Resolved`인지 확인한다. 플랫폼 인증은 `prod` 프로필에서 강제되고, 개발 기본 서명키·HTTP 운영 endpoint·로컬 파일 저장소는 ProductionGuard가 거부한다.
@@ -149,7 +156,7 @@ WebSocket `/ws`는 첫 프레임 `{"type":"auth","token":"..."}`으로 인증한
 
 **현재 B1 한 인스턴스를 유지해야 한다.** 로그인 transaction/code와 WebSocket hub는 메모리에 있다. 재시작 시 진행 중인 로그인은 다시 시작해야 하며, 여러 인스턴스로 확장하기 전에 transaction 저장소와 실시간 fan-out을 공유 저장소로 옮겨야 한다.
 
-중앙 `liliplanet-auth`의 `JWT_ALLOWED_AUDIENCES`에 기존 항목을 보존하고 `junseo-api`를 추가했다. [변경 기록](docs/azure-auth-audience-change.json)을 참고한다. 별도 플랫폼 저장소의 `auth-api`, `platform-api` 기본 audience도 작업 당시 수정·테스트했으나 **이 Junseo Git 저장소에 포함되지 않는다**. 해당 저장소 담당자가 자체 변경·커밋 상태를 확인해야 한다. `register_auth.py`에는 작업자 Mac의 별도 저장소 경로가 있어 새 개발 환경에서 그대로 실행하면 안 된다.
+중앙 `liliplanet-auth`의 `JWT_ALLOWED_AUDIENCES`에 기존 항목을 보존하고 `junseo-api`를 추가했다. [변경 기록](docs/azure-auth-audience-change.json)을 참고한다. 별도 플랫폼 저장소의 `auth-api`, `platform-api` 기본 audience도 작업 당시 수정·테스트했으나 **이 Junseo Git 저장소에 포함되지 않는다**. 해당 저장소 담당자가 자체 변경·커밋 상태를 확인해야 한다. `register_auth.py` 는 공유 `liliplanet-auth` 를 재시작하기 전에 묻고(`--yes` 로 생략), 플랫폼 저장소는 `--platform-repo <경로>` 를 줄 때만 고친다.
 
 ## 5. Firebase / Android 푸시
 
@@ -242,7 +249,7 @@ Apple 개발자 계정·Xcode/iOS SDK·서명 설정을 준비해야 한다. APN
 
 ## 8. 서버 수정 후 배포 절차
 
-운영 재배포 전 V8과 아래 미완료 기능을 검토한다. **배포하면 Flyway V8이 자동 적용**되므로 원본 개발자의 예전 `V6__safety.sql`이 적용된 개발 DB는 별도 조정이 필요하다. 버전 6으로 신고 기능이 이미 기록된 DB에 현재 V6을 그냥 실행하거나 `repair`로 무시하지 않는다. 폐기 가능한 로컬 DB는 재생성하고, 보존해야 하는 DB는 history/스키마를 비교해 migration 계획을 세운다.
+운영 재배포 전 V8 · V9 와 아래 미완료 기능을 검토한다. **배포하면 Flyway V8 · V9 가 자동 적용**되므로 원본 개발자의 예전 `V6__safety.sql`이 적용된 개발 DB는 별도 조정이 필요하다. 버전 6으로 신고 기능이 이미 기록된 DB에 현재 V6을 그냥 실행하거나 `repair`로 무시하지 않는다. 폐기 가능한 로컬 DB는 재생성하고, 보존해야 하는 DB는 history/스키마를 비교해 migration 계획을 세운다.
 
 먼저 테스트·빌드·새 후보 manifest를 준비한다. 이 단계는 Azure를 변경하지 않는다.
 
@@ -277,7 +284,7 @@ az account set --subscription f14e91e2-b819-4cd6-ac39-e4a3909c17b9
 | `smoke.py` | 공개 API 12항목 확인, 점검 결과 JSON 갱신. 사용자 계정 로그인·FCM 수신을 대신하지 않음 |
 | `bootstrap.py` | 최초 자원·DB 역할·권한·비밀·App Service 설정 구성. 일상 배포마다 실행하지 않음 |
 | `configure_domain.py` | DNS/도메인/인증서 구성 변경. 현재 도메인은 이미 연결됨 |
-| `register_auth.py` | 공유 중앙 audience와 별도 플랫폼 저장소 변경. 현재 등록 완료, 경로 검토 없이 재실행하지 않음 |
+| `register_auth.py` | 공유 중앙 audience 추가 (재시작 전에 확인을 묻는다). 플랫폼 저장소는 `--platform-repo` 를 줄 때만. 현재 등록 완료 |
 | `configure_fcm.py` | FCM 비밀 저장·운영 설정 변경. 현재 설정 완료 |
 
 문제 확인: Azure Portal → `junseo-api` → Deployment Center / Diagnose and solve problems / Log stream. health와 Key Vault 참조 상태, managed identity 권한, DB 연결 한도를 먼저 확인한다. `az webapp log tail --resource-group studylog-rg --name junseo-api`는 작업자 콘솔에서 확인하되 원본 로그를 공유하기 전에 사용자 정보·자격증명 노출 여부를 점검한다.
@@ -288,8 +295,8 @@ az account set --subscription f14e91e2-b819-4cd6-ac39-e4a3909c17b9
 
 | 확인 항목 | 증거 / 제한 |
 |---|---|
-| 병합 후 backend | 실제 로컬 PostgreSQL, 126/126 성공, JAR 빌드. `docs/handoff-verification.json` |
-| 모바일 회귀 | 로그인 8 + multipart 업로드 5 = 13 성공, lint/typecheck 성공 |
+| 병합 후 backend | 실제 로컬 PostgreSQL, 139/139 성공 (검토 수정 포함). `docs/handoff-verification.json` 은 병합 시점(126) 기록 |
+| 모바일 회귀 | 로그인 8 + 계정 삭제 본인 확인 5 + multipart 업로드 5 = 18 성공, lint/typecheck 성공 |
 | 기존 Android `0.1.2` | release 서명·같은 키 업데이트 설치·Firebase SDK 초기화·Azure API 설정·로그인 화면 확인 |
 | native 업로드 transport | 실제 SDK File multipart가 서버의 401 응답까지 도달. 인증된 사용자 사진 전송 성공을 의미하지 않음 |
 | Android Keystore | 이전 빌드 instrumentation 4개 성공. 이번 문서 작업에서 네이티브 전체 빌드를 반복하지 않음 |
@@ -300,7 +307,7 @@ az account set --subscription f14e91e2-b819-4cd6-ac39-e4a3909c17b9
 우선 이어서 할 일:
 
 1. **두 실기기로 인수 검증**: 공통 로그인 → 닉네임 → 앱 재시작 → 친구 추가 → 카메라/갤러리 사진 전송 → 상대 조회 → FCM → 잠금/절전 상태 위젯, 개인/그룹 채팅, 로그아웃 후 이전 사진 제거. S26의 로그인 검은 화면 및 사진 네트워크 오류는 코드·회귀 검증을 마쳤으나 전체 실기기 성공 판정은 별도로 기록해야 한다.
-2. **병합한 안전 기능을 플랫폼 인증에 맞추기**: 신고/차단은 V8 배포 후 사용 가능. 원격 계정 삭제 구현은 Junseo password hash 재확인을 전제로 해서 중앙 사용자(로컬 password 없음)는 삭제할 수 없다. 중앙 재인증 및 앱 데이터 삭제/중앙 계정 삭제 범위를 정한 뒤 연결해야 한다. 운영 플랫폼 계정의 비밀번호 찾기도 LiliPlanet에서 처리해야 한다. Junseo `password-reset`은 local 모드 API로 유지했다. 현재 모바일 delete-account 화면은 이 연결이 완료된 기능으로 취급하지 말 것.
+2. **안전 기능 배포**: 신고/차단 · 계정 삭제(리리플레닛 재로그인) · 내보내기는 코드 완료, V8 · V9 배포 후 사용 가능. 계정 삭제는 Junseo 앱 데이터만 지운다 (리리플레닛 계정 자체는 남는다고 앱에 안내함). 실기기에서 삭제 흐름 확인 필요: iOS 는 쿠키를 나누지 않는 창이라 비밀번호를 다시 넣고, Android(Custom Tabs)는 리리플레닛 로그인이 남아 있으면 바로 돌아올 수 있다. 중앙 토큰에 `auth_time` 이 없으면 `iat` 로 판단하므로, 중앙이 조용히 토큰을 재발급하는 기능을 넣으면 `auth_time` 을 꼭 넣어야 한다. 비밀번호 찾기는 LiliPlanet 에서 처리한다 (Junseo `password-reset` 은 local 모드 API).
 3. **운영 관리자·약관·메일**: `static/legal/`의 운영자/문의/시행일 등 placeholder를 채우고 운영 정책을 검토. 신고 담당자, 관리자 비밀, 처리 절차, SMTP를 설정. 원격 README의 삭제/재설정 완료 설명은 로컬 인증 기준이므로 플랫폼 운영 완료로 해석하지 않는다.
 4. **iOS 서명/APNs**: Apple 계정, `.p8`, provisioning, shared Keychain·위젯 실기기, TestFlight.
 5. **운영 보강**: 중앙 token refresh/계정 변경 연동, migration job 분리, DB/Blob 복구 연습, B1 부하·메모리·예산 측정, 사진 삭제 실패 재시도/URL 회수 정책. 다중 인스턴스 전환은 공유 로그인 저장소·실시간 전달 구현 후 진행.

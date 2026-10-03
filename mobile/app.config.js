@@ -41,6 +41,14 @@ module.exports = {
     package: ANDROID_PACKAGE,
     versionCode: 3,
     allowBackup: false,
+    // 사진첩에는 저장만 한다 (Android 10+ 는 저장에 권한이 필요 없다). 읽기 권한은 Play 의 사진·동영상 권한 정책에 걸리므로 빼 둔다.
+    blockedPermissions: [
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
+      'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
+    ],
     ...(GOOGLE_SERVICES ? { googleServicesFile: GOOGLE_SERVICES } : {}),
     adaptiveIcon: {
       foregroundImage: './assets/android-icon-foreground.png',
@@ -70,7 +78,7 @@ module.exports = {
       androidAppId: process.env.ADMOB_ANDROID_APP_ID ?? 'ca-app-pub-3940256099942544~3347511713',
     }],
     // 만든 템플릿을 사진첩에 저장 (쓰기만)
-    ['expo-media-library', { savePhotosPermission: '만든 사진을 사진첩에 저장하려면 권한이 필요해요.', isAccessMediaLocationEnabled: false }],
+    ['expo-media-library', { savePhotosPermission: '만든 사진을 사진첩에 저장하려면 권한이 필요해요.', isAccessMediaLocationEnabled: false, granularPermissions: [] }],
   ],
   experiments: {
     typedRoutes: true,

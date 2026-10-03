@@ -130,8 +130,18 @@ class WidgetRefreshWorker(context: Context, parameters: WorkerParameters) : Work
     private const val PERIODIC = "junseo-widget-periodic"
     private const val IMMEDIATE = "junseo-widget-refresh"
     private fun constraints() = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-    fun enqueue(context: Context) {
-      WorkManager.getInstance(context).enqueueUniqueWork(IMMEDIATE, ExistingWorkPolicy.APPEND_OR_REPLACE,
+    /**
+     * At most one refresh waits behind the running one. A waiting refresh fetches everything new when it runs, so more
+     * pushes (or app foregrounds) while offline or in retry backoff must not pile up runs that then go back to back.
+     */
+    @Synchronized fun enqueue(context: Context) {
+      val manager = WorkManager.getInstance(context)
+      val waiting = try {
+        manager.getWorkInfosForUniqueWork(IMMEDIATE).get(2, TimeUnit.SECONDS)
+          .any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+      } catch (_: Exception) { false }
+      if (waiting) return
+      manager.enqueueUniqueWork(IMMEDIATE, ExistingWorkPolicy.APPEND_OR_REPLACE,
         OneTimeWorkRequestBuilder<WidgetRefreshWorker>().setConstraints(constraints()).build())
     }
     fun schedule(context: Context) {

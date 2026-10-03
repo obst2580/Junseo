@@ -4,6 +4,9 @@
 Secrets pass through memory or mode-0600 temporary files, never command arguments,
 stdout or source control. The existing PostgreSQL firewall and app plan stay intact.
 """
+import base64
+import hashlib
+import hmac
 import json
 import os
 from pathlib import Path
@@ -69,6 +72,26 @@ def psql(database, sql, username, password):
     return result.stdout.strip()
 
 
+def password_verifier(role, password, encryption):
+    """What PostgreSQL would store for this password, computed here so the plaintext never appears in SQL.
+
+    Statement logging, error logs and pg_stat_statements on the shared server would otherwise keep it. PostgreSQL stores
+    a pre-hashed value as given, so it is produced in the server's own format (password_encryption): logins behave
+    exactly as with the plaintext. Generated passwords are ASCII, so SCRAM's SASLprep step changes nothing.
+    """
+    if encryption == "scram-sha-256":
+        iterations = 4096
+        salt = secrets.token_bytes(16)
+        salted = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+        client_key = hmac.new(salted, b"Client Key", "sha256").digest()
+        server_key = hmac.new(salted, b"Server Key", "sha256").digest()
+        b64 = lambda raw: base64.b64encode(raw).decode("ascii")
+        return f"SCRAM-SHA-256${iterations}:{b64(salt)}${b64(hashlib.sha256(client_key).digest())}:{b64(server_key)}"
+    if encryption == "md5":
+        return "md5" + hashlib.md5((password + role).encode("utf-8")).hexdigest()
+    raise RuntimeError("Unexpected password_encryption setting")
+
+
 def main():
     account = az("account", "show")
     if account["id"] != "f14e91e2-b819-4cd6-ac39-e4a3909c17b9":
@@ -114,17 +137,21 @@ def main():
     runtime_password = vault_secret("db-runtime-password")
     migration_password = vault_secret("db-migration-password")
     vault_secret("media-signing-secret")
+    # X-Admin-Token for report handling and template uploads (read it from Key Vault when needed; never printed)
+    vault_secret("admin-token")
     step("Creating/checking isolated Junseo database and least-privilege roles")
     auth_settings = {x["name"]: x["value"] for x in az("webapp", "config", "appsettings", "list", "-g", RG, "-n", "liliplanet-auth")}
     admin = auth_settings["AUTH_DB_USERNAME"]
     admin_password = auth_settings["AUTH_DB_PASSWORD"]
     if admin != "studylogadmin":
         raise RuntimeError("Unexpected PostgreSQL administrator")
+    encryption = psql("postgres", "SHOW password_encryption;", admin, admin_password)
     for role, password, limit in [("junseo_migrator", migration_password, 2), ("junseo_runtime", runtime_password, 5)]:
-        # Identifiers are constants and passwords are generated URL-safe values.
+        # Identifiers are constants; the password goes over as a hash in the server's format, never as plaintext.
+        verifier = password_verifier(role, password, encryption)
         psql("postgres", f"""DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='{role}') THEN
           CREATE ROLE {role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF; END $$;
-          ALTER ROLE {role} PASSWORD '{password}' CONNECTION LIMIT {limit};""", admin, admin_password)
+          ALTER ROLE {role} PASSWORD '{verifier}' CONNECTION LIMIT {limit};""", admin, admin_password)
     psql("postgres", "GRANT junseo_migrator TO studylogadmin;", admin, admin_password)
     exists = psql("postgres", "SELECT EXISTS(SELECT FROM pg_database WHERE datname='junseo');", admin, admin_password)
     if exists == "f":
@@ -158,8 +185,12 @@ def main():
         "JUNSEO_MIGRATION_USER": "junseo_migrator", "JUNSEO_MIGRATION_PASSWORD": ref("db-migration-password"),
         "JUNSEO_MEDIA_SECRET": ref("media-signing-secret"), "JUNSEO_PUBLIC_BASE_URL": "https://" + DOMAIN,
         "JUNSEO_BLOB_ENDPOINT": storage["primaryEndpoints"]["blob"].rstrip("/"),
+        "JUNSEO_ADMIN_TOKEN": ref("admin-token"),
         "WEBSITE_SKIP_AUTOCONFIGURE_DATABASE": "true", "WEBSITES_CONTAINER_START_TIME_LIMIT": "600"
     }
+    # Where new reports are mailed (needs SMTP: JUNSEO_SMTP_* as Key Vault references, set separately)
+    if os.environ.get("JUNSEO_ADMIN_EMAIL"):
+        settings["JUNSEO_ADMIN_EMAIL"] = os.environ["JUNSEO_ADMIN_EMAIL"]
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         os.chmod(f.name, 0o600)
         json.dump(settings, f)

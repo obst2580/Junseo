@@ -8,6 +8,8 @@ import org.json.JSONObject
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -41,8 +43,16 @@ internal object WidgetSession {
         clear(context)
         null
       } else token
-    } catch (_: Exception) { clear(context); null }
+    } catch (e: Exception) {
+      // Wipe only when the stored credential can never be read again (tampered, key gone or invalidated, corrupt).
+      // A transient Keystore error (device busy, keystore daemon restart) must not silently sign the person out.
+      if (unreadable(e)) clear(context)
+      null
+    }
   }
+
+  private fun unreadable(e: Exception) = e is AEADBadTagException || e is KeyPermanentlyInvalidatedException ||
+    e is IllegalArgumentException || e is IndexOutOfBoundsException || e is org.json.JSONException
 
   @Synchronized fun setToken(context: Context, value: String?) {
     if (value == null) { clear(context); return }
