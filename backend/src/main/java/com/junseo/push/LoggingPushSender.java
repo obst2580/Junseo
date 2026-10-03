@@ -10,8 +10,7 @@ public class LoggingPushSender implements PushSender {
 
     @Override
     public PushOutcome send(PushMessage m) {
-        String shortToken = m.token().length() > 8 ? m.token().substring(0, 8) + "…" : m.token();
-        log.info("[push:{}] user={} token={} ({}) payload={}", m.type(), m.userId(), shortToken, m.environment(), m.payload());
+        log.debug("Push disabled: type={}", m.type());
         return PushOutcome.SENT;
     }
 }

@@ -18,6 +18,7 @@ public enum ErrorCode {
     EMAIL_TAKEN(HttpStatus.CONFLICT, "이미 가입된 이메일이에요."),
     ALREADY_FRIENDS(HttpStatus.CONFLICT, "이미 친구예요."),
     FRIEND_LIMIT_REACHED(HttpStatus.CONFLICT, "친구는 20명까지 추가할 수 있어요."),
+    TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "요청이 많아요. 잠시 후 다시 시도해 주세요."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;

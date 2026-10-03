@@ -1,0 +1,6 @@
+{
+  "app": "liliplanet-auth",
+  "setting": "JWT_ALLOWED_AUDIENCES",
+  "before": "liliplanet,seniorchat-web,seniorchat-api,liliplanet-subscription,aimmate-api,liliplanet-ai,saverain-api,strade-api,selfeditor-api,lilitour-api",
+  "after": "liliplanet,seniorchat-web,seniorchat-api,liliplanet-subscription,aimmate-api,liliplanet-ai,saverain-api,strade-api,selfeditor-api,lilitour-api,junseo-api"
+}

@@ -23,16 +23,22 @@ public class DeviceToken {
     private Long userId;
     private String kind;
     private String environment;
+    private String platform;
     private Instant createdAt;
     private Instant updatedAt;
 
     protected DeviceToken() {}
 
     public DeviceToken(String token, long userId, String kind, String environment, Instant at) {
+        this(token, userId, kind, environment, "ios", at);
+    }
+
+    public DeviceToken(String token, long userId, String kind, String environment, String platform, Instant at) {
         this.token = token;
         this.userId = userId;
         this.kind = kind;
         this.environment = environment;
+        this.platform = platform;
         this.createdAt = at;
         this.updatedAt = at;
     }
@@ -56,4 +62,6 @@ public class DeviceToken {
     public String getEnvironment() {
         return environment;
     }
+
+    public String getPlatform() { return platform; }
 }

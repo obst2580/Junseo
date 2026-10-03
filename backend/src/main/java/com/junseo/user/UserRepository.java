@@ -13,7 +13,10 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
+    @Query("select u from User u where u.email = :email and u.externalSubject is null")
     Optional<User> findByEmail(String email);
+
+    Optional<User> findByExternalIssuerAndExternalSubject(String externalIssuer, String externalSubject);
 
     boolean existsByEmail(String email);
 

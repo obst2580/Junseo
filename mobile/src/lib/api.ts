@@ -1,8 +1,9 @@
 import { API_BASE_URL } from './config';
+import { File } from 'expo-file-system';
 
 // docs/api.md 의 객체들
 export type UserSummary = { id: number; displayName: string };
-export type Me = UserSummary & { email: string; inviteCode: string; friendCount: number; friendLimit: number };
+export type Me = UserSummary & { email: string; inviteCode: string; friendCount: number; friendLimit: number; needsOnboarding?: boolean };
 export type ReactionCount = { emoji: string; count: number };
 export type Comment = { id: number; momentId: number; author: UserSummary; text: string; createdAt: string };
 export type Moment = {
@@ -59,7 +60,7 @@ export type RemoteTemplate = {
   requires: string[];
   version: number;
 };
-export type AuthResponse = { accessToken: string; expiresAt: string; user: Me };
+export type AuthResponse = { accessToken: string; expiresAt: string; user: Me; needsOnboarding?: boolean };
 export type WidgetLatest = {
   version: string;
   moment: { id: number; sender: UserSummary; createdAt: string; thumbUrl: string };
@@ -123,7 +124,7 @@ async function request<T>(path: string, { method = 'GET', body, form, timeoutMs 
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    if (res.status === 401 && token) onUnauthorized();
+    if (res.status === 401 && token && token === tokenProvider()) onUnauthorized();
     throw new ApiError(res.status, data?.code ?? 'UNKNOWN', data?.message ?? '문제가 생겼어요. 잠시 후 다시 시도해 주세요.');
   }
   return data as T;
@@ -138,6 +139,11 @@ const q = (params: Record<string, string | number | null | undefined>) => {
 };
 
 export const api = {
+  startLogin: (codeChallenge: string, returnUri: string) =>
+    request<{ launchUrl: string; state: string }>('/api/auth/start', { method: 'POST', body: { codeChallenge, returnUri }, timeoutMs: 15_000 }),
+  exchangeLogin: (code: string, codeVerifier: string) =>
+    request<AuthResponse>('/api/auth/exchange', { method: 'POST', body: { code, codeVerifier }, timeoutMs: 15_000 }),
+  logout: () => request<void>('/api/auth/logout', { method: 'POST', timeoutMs: 10_000 }),
   signup: (email: string, password: string, displayName: string) =>
     request<AuthResponse>('/api/auth/signup', { method: 'POST', body: { email, password, displayName } }),
   login: (email: string, password: string) =>
@@ -154,8 +160,8 @@ export const api = {
   /** recipientIds 를 주면 그 친구들에게만, 빼면 친구 전체에게 보낸다. */
   uploadMoment: (fileUri: string, recipientIds?: number[]) => {
     const form = new FormData();
-    // React Native 의 FormData 는 { uri, name, type } 객체를 파일로 보낸다.
-    form.append('image', { uri: fileUri, name: 'moment.jpg', type: 'image/jpeg' } as unknown as Blob);
+    // Expo 57의 기본 fetch는 파일 바이트를 읽을 수 있는 File을 받는다.
+    form.append('image', new File(fileUri));
     recipientIds?.forEach((id) => form.append('recipientIds', String(id)));
     return request<Moment>('/api/moments', { method: 'POST', form });
   },
@@ -204,7 +210,7 @@ export const api = {
   widgetLatest: () => request<WidgetLatest | undefined>('/api/widget/latest'),
   widgetFeed: (from?: number) => request<WidgetFeed | undefined>(`/api/widget/feed${q({ from })}`),
 
-  registerDevice: (token: string, kind: 'app' | 'widget', environment: 'development' | 'production') =>
-    request<void>('/api/devices', { method: 'PUT', body: { token, kind, environment } }),
+  registerDevice: (token: string, kind: 'app' | 'widget', environment: 'development' | 'production', platform: 'ios' | 'android' = 'ios') =>
+    request<void>('/api/devices', { method: 'PUT', body: { token, kind, environment, platform } }),
   unregisterDevice: (token: string) => request<void>(`/api/devices/${encodeURIComponent(token)}`, { method: 'DELETE' }),
 };

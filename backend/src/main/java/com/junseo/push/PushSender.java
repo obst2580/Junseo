@@ -17,5 +17,9 @@ public interface PushSender {
         FAILED
     }
 
-    record PushMessage(long userId, String token, String environment, PushType type, String payload) {}
+    record PushMessage(long userId, String token, String environment, PushType type, String payload, String platform) {
+        public PushMessage(long userId, String token, String environment, PushType type, String payload) {
+            this(userId, token, environment, type, payload, "ios");
+        }
+    }
 }

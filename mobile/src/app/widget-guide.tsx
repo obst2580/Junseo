@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { WidgetPreview } from '@/components/WidgetPreview';
 import { api, type WidgetFeed } from '@/lib/api';
 import { colors, radius } from '@/lib/theme';
+import { widgetBridge } from '@/lib/widgetBridge';
 
-const STEPS = [
+const STEPS = Platform.OS === 'android' ? [
+  '아래 [홈 화면에 추가]를 누르거나 홈 화면의 빈 곳을 길게 눌러요.',
+  '[위젯] 목록에서 Junseo 사진을 찾아 홈 화면에 놓아요.',
+  '위젯의 테두리를 드래그해 작은 크기나 큰 크기로 조절해요.',
+  '오른쪽 아래 톱니바퀴를 눌러 모든 친구 또는 한 친구를 골라요.',
+  '양옆 화살표로 사진을 넘기고, 사진을 누르면 앱에서 크게 볼 수 있어요.',
+] : [
   '홈 화면의 빈 곳을 길게 눌러요.',
   '왼쪽 위의 [편집] → [위젯 추가]를 눌러요.',
   '목록에서 junseo를 찾아 작은 크기나 큰 크기를 골라요.',
@@ -42,8 +49,17 @@ export default function WidgetGuideScreen() {
           </View>
         ))}
       </View>
+      {Platform.OS === 'android' && (
+        <Pressable style={styles.addButton} onPress={() => {
+          if (!widgetBridge.requestPin()) Alert.alert('위젯 추가', '홈 화면의 빈 곳을 길게 눌러 [위젯]에서 Junseo 사진을 추가해 주세요.');
+        }}>
+          <Text style={styles.addButtonText}>홈 화면에 추가</Text>
+        </Pressable>
+      )}
       <Text style={styles.note}>
-        알림을 허용하면 사진이 몇 초 안에 위젯에 떠요. 알림을 끄면 iOS가 정한 주기(보통 15분 안팎)에 맞춰 갱신돼요.
+        {Platform.OS === 'android'
+          ? '알림을 허용하면 새 사진과 메시지를 받을 수 있어요. 위젯은 앱을 열거나 새로고침 버튼을 눌러 갱신할 수 있고, 백그라운드에서도 주기적으로 확인해요. 절전 설정과 네트워크 상태에 따라 갱신이 늦어질 수 있어요.'
+          : '알림을 허용하면 사진이 몇 초 안에 위젯에 떠요. 알림을 끄면 iOS가 정한 주기에 맞춰 갱신돼요.'}
       </Text>
     </ScrollView>
   );
@@ -51,6 +67,8 @@ export default function WidgetGuideScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  addButton: { backgroundColor: colors.accent, padding: 16, borderRadius: radius.card, alignItems: 'center' },
+  addButtonText: { color: colors.accentText, fontWeight: '800', fontSize: 16 },
   content: { padding: 20, gap: 24, maxWidth: 560, width: '100%', alignSelf: 'center' },
   title: { color: colors.text, fontSize: 26, fontWeight: '800', lineHeight: 34 },
   previews: { flexDirection: 'row', alignItems: 'center', gap: 16 },

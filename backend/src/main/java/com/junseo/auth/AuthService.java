@@ -12,11 +12,13 @@ import com.junseo.user.UserService;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "local", matchIfMissing = true)
 public class AuthService {
 
     /** BCrypt only looks at the first 72 bytes; refuse rather than silently ignore the rest. */

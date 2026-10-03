@@ -1,9 +1,10 @@
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
+import Security
 
 // 위젯 확장과 알림 서비스 확장이 함께 쓰는 코드.
-// 앱(React Native)이 App Group 저장소에 넣어 준 토큰으로 서버에서 최신 사진을 받아, 공유 컨테이너에 캐시한다.
+// 공유 Keychain의 로그인 토큰으로 서버에서 최신 사진을 받아, App Group 컨테이너에 캐시한다.
 
 enum SharedConfig {
     /// 앱 쪽 WIDGET_KIND (src/lib/config.ts) 와 같아야 한다.
@@ -23,7 +24,21 @@ enum SharedConfig {
 enum SharedStore {
     static var defaults: UserDefaults? { UserDefaults(suiteName: SharedConfig.appGroup) }
 
-    static var accessToken: String? { defaults?.string(forKey: "accessToken") }
+    static var accessToken: String? {
+        let key = Data("junseo.accessToken".utf8)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "junseo.auth:no-auth",
+            kSecAttrAccount as String: key,
+            kSecAttrGeneric as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
     static var apiBaseUrl: URL? { defaults?.string(forKey: "apiBaseUrl").flatMap(URL.init(string:)) }
     static var userId: Int? {
         let id = defaults?.integer(forKey: "userId") ?? 0
@@ -270,6 +285,7 @@ enum WidgetSync {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { return .failed }
+            guard SharedStore.accessToken == token, SharedStore.userId == userId else { return .failed }
             switch http.statusCode {
             case 200: break
             case 304: return .unchanged
@@ -309,6 +325,7 @@ enum WidgetSync {
             // 가장 새 사진을 못 받았으면 다음에 다시 (ETag 를 저장하지 않아 304 로 막히지 않는다)
             guard items.first?.momentId == latest.items.first?.moment.id else { return .failed }
             let complete = items.count == latest.items.count
+            guard SharedStore.accessToken == token, SharedStore.userId == userId else { return .failed }
             try WidgetCache.save(FeedSnapshot(
                 etag: complete ? (http.value(forHTTPHeaderField: "ETag") ?? "\"\(latest.version)\"") : nil,
                 userId: userId,

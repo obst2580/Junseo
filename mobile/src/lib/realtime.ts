@@ -1,6 +1,6 @@
 import { AppState, type NativeEventSubscription } from 'react-native';
 
-import { currentToken } from '@/lib/api';
+import { api, currentToken } from '@/lib/api';
 import { API_BASE_URL } from '@/lib/config';
 import { events } from '@/lib/events';
 
@@ -73,7 +73,10 @@ function open() {
     events.emit('unread');
   };
   ws.onerror = () => drop(ws);
-  ws.onclose = () => drop(ws);
+  ws.onclose = (event) => {
+    if (event.code === 1008) void api.me().catch(() => {});
+    drop(ws);
+  };
 }
 
 /** 답이 없으면 죽은 연결로 보고 다시 잇는다 */

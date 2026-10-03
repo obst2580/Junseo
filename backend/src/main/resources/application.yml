@@ -24,6 +24,9 @@ spring:
       max-request-size: 11MB
 
 junseo:
+  auth:
+    mode: ${JUNSEO_AUTH_MODE:local}
+    public-base-url: ${JUNSEO_PUBLIC_BASE_URL:http://localhost:8080}
   jwt:
     # Override in every non-local environment (>= 32 bytes).
     secret: ${JUNSEO_JWT_SECRET:dev-only-jwt-secret-change-me-0123456789}
@@ -32,6 +35,8 @@ junseo:
     signing-secret: ${JUNSEO_MEDIA_SECRET:dev-only-media-secret-change-me-0123456789}
   storage:
     dir: ${JUNSEO_STORAGE_DIR:./data/media}
+    provider: ${JUNSEO_STORAGE_PROVIDER:local}
+    endpoint: ${JUNSEO_BLOB_ENDPOINT:}
   cors:
     # http://localhost:8081 (Expo web) is always allowed; add more with a comma-separated list.
     extra-origins: ${JUNSEO_CORS_EXTRA_ORIGINS:}
@@ -44,6 +49,11 @@ junseo:
     team-id: ${JUNSEO_APNS_TEAM_ID:}
     bundle-id: ${JUNSEO_APNS_BUNDLE_ID:}
     key-path: ${JUNSEO_APNS_KEY_PATH:}
+  fcm:
+    enabled: ${JUNSEO_FCM_ENABLED:false}
+    project-id: ${JUNSEO_FCM_PROJECT_ID:}
+    # In Azure, reference a Key Vault secret; never commit service-account credentials.
+    service-account-json: ${JUNSEO_FCM_SERVICE_ACCOUNT_JSON:}
 
 logging:
   level:

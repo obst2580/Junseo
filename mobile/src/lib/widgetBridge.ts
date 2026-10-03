@@ -2,6 +2,7 @@ import { ExtensionStorage } from '@bacons/apple-targets';
 import { Platform } from 'react-native';
 
 import { API_BASE_URL, APNS_ENVIRONMENT, APP_GROUP, WIDGET_KIND } from './config';
+import { androidWidget } from './androidWidget';
 
 // 위젯과 알림 확장은 앱과 별도 프로세스라서, 서버에 붙는 데 필요한 값을 App Group 저장소로 넘겨준다.
 // 키 이름은 targets/_shared/WidgetShared.swift 의 SharedStore 와 같아야 한다.
@@ -18,9 +19,10 @@ const Keys = {
 const storage = Platform.OS === 'ios' ? new ExtensionStorage(APP_GROUP) : null;
 
 export const widgetBridge = {
-  signIn(accessToken: string, userId: number) {
+  signIn(userId: number) {
+    androidWidget?.signIn(API_BASE_URL, userId);
     if (!storage) return;
-    storage.set(Keys.accessToken, accessToken);
+    storage.remove(Keys.accessToken); // Legacy UserDefaults copy; credentials now live only in Keychain.
     storage.set(Keys.apiBaseUrl, API_BASE_URL);
     storage.set(Keys.apnsEnvironment, APNS_ENVIRONMENT);
     storage.set(Keys.userId, userId);
@@ -28,6 +30,7 @@ export const widgetBridge = {
   },
 
   signOut() {
+    androidWidget?.signOut();
     if (!storage) return;
     storage.remove(Keys.accessToken);
     storage.remove(Keys.userId);
@@ -38,13 +41,19 @@ export const widgetBridge = {
 
   /** 위젯 편집(위젯을 길게 누르기)에서 고를 친구 목록. 위젯은 서버에 묻지 않고 이걸 쓴다. */
   setFriends(friends: { id: number; displayName: string }[]) {
+    androidWidget?.setFriends(JSON.stringify(friends.map(({ id, displayName }) => ({ id, displayName }))));
     if (!storage) return;
     storage.set(Keys.friends, JSON.stringify(friends.map(({ id, displayName }) => ({ id, displayName }))));
   },
 
   /** 앱이 화면에 떠 있을 때의 갱신 요청은 WidgetKit 예산에서 차감되지 않는다. */
   reload() {
+    androidWidget?.reload();
     if (Platform.OS === 'ios') ExtensionStorage.reloadWidget(WIDGET_KIND);
+  },
+
+  requestPin(): boolean {
+    return androidWidget?.requestPin() ?? false;
   },
 
   /** iOS 26 위젯 확장이 받은 위젯 푸시 토큰. 확장이 서버 등록에 실패했을 때 앱이 대신 올린다. */

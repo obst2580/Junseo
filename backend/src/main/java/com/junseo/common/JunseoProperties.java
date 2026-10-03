@@ -12,18 +12,33 @@ public record JunseoProperties(
         @DefaultValue Storage storage,
         @DefaultValue Cors cors,
         @DefaultValue Apns apns,
-        @DefaultValue Admin admin) {
+        @DefaultValue Fcm fcm,
+        @DefaultValue Admin admin,
+        @DefaultValue Auth auth) {
 
     public record Jwt(String secret, @DefaultValue("30d") Duration ttl) {}
 
     public record Media(String signingSecret) {}
 
-    public record Storage(@DefaultValue("./data/media") String dir) {}
+    public record Storage(@DefaultValue("./data/media") String dir,
+            @DefaultValue("local") String provider, String endpoint,
+            @DefaultValue("media") String container) {}
 
     public record Cors(@DefaultValue List<String> extraOrigins) {}
 
     public record Apns(boolean enabled, String keyId, String teamId, String bundleId, String keyPath) {}
 
+    public record Fcm(boolean enabled, String projectId, String serviceAccountJson) {}
+
     /** token: X-Admin-Token for /api/admin/** (adding templates). Blank switches those endpoints off. */
     public record Admin(String token) {}
+
+    public record Auth(
+            @DefaultValue("local") String mode,
+            @DefaultValue("auth.liliplanet.net") String issuer,
+            @DefaultValue("https://auth.liliplanet.net/.well-known/jwks.json") String jwksUrl,
+            @DefaultValue("junseo-api") String audience,
+            @DefaultValue("https://login.liliplanet.net") String loginUrl,
+            @DefaultValue("http://localhost:8080") String publicBaseUrl,
+            @DefaultValue({"junseo://auth", "http://localhost:8081/auth-callback", "http://localhost:8080/login"}) List<String> returnUris) {}
 }

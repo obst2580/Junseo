@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -50,7 +51,8 @@ public class SecurityConfig {
                 .requestCache(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/start", "/api/auth/exchange").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/", "/login", "/login.html", "/auth/**", "/api/auth/config", "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/media/**").permitAll()
                         // 관리자 API 는 로그인 대신 X-Admin-Token 을 컨트롤러가 확인한다 (TemplateAdminController)
                         .requestMatchers("/api/admin/**").permitAll()
@@ -72,18 +74,21 @@ public class SecurityConfig {
         DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
         return request -> {
             String path = request.getRequestURI().substring(request.getContextPath().length());
-            return path.startsWith("/api/auth/") || path.startsWith("/api/admin/") || path.startsWith("/media/") || path.equals("/ws")
+            return path.equals("/api/auth/signup") || path.equals("/api/auth/login") || path.equals("/api/auth/start") || path.equals("/api/auth/exchange")
+                    || path.startsWith("/auth/") || path.startsWith("/api/admin/") || path.startsWith("/media/") || path.equals("/ws")
                     ? null
                     : delegate.resolve(request);
         };
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "local", matchIfMissing = true)
     SecretKey jwtSecretKey(JunseoProperties props) {
         return Secrets.hmacKey("junseo.jwt.secret", props.jwt().secret());
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "local", matchIfMissing = true)
     JwtDecoder jwtDecoder(SecretKey jwtSecretKey) {
         return NimbusJwtDecoder.withSecretKey(jwtSecretKey).macAlgorithm(MacAlgorithm.HS256).build();
     }
@@ -96,7 +101,8 @@ public class SecurityConfig {
     /** Only for local development from Expo web; native apps do not send an Origin. */
     @Bean
     CorsConfigurationSource corsConfigurationSource(JunseoProperties props) {
-        List<String> origins = new ArrayList<>(List.of(EXPO_WEB_ORIGIN));
+        List<String> origins = new ArrayList<>();
+        if ("local".equals(props.auth().mode())) origins.add(EXPO_WEB_ORIGIN);
         props.cors().extraOrigins().stream().map(String::trim).filter(o -> !o.isEmpty()).forEach(origins::add);
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(origins);

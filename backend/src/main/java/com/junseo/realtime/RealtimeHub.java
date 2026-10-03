@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.ConcurrentWebSocketSessionDecorator;
 import tools.jackson.databind.ObjectMapper;
@@ -67,5 +68,14 @@ public class RealtimeHub {
     int openSockets(long userId) {
         Set<WebSocketSession> sessions = byUser.get(userId);
         return sessions == null ? 0 : sessions.size();
+    }
+
+    public void closeToken(String jti) {
+        byUser.values().forEach(sessions -> sessions.forEach(session -> {
+            if (jti != null && jti.equals(session.getAttributes().get("jti"))) {
+                try { session.close(CloseStatus.POLICY_VIOLATION.withReason("session revoked")); }
+                catch (IOException ignored) { }
+            }
+        }));
     }
 }

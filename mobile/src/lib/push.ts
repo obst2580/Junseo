@@ -1,4 +1,5 @@
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect, type Href } from 'expo-router';
@@ -9,6 +10,7 @@ import { api } from './api';
 import { dmKey, groupKey } from './chats';
 import { APNS_ENVIRONMENT } from './config';
 import { widgetBridge } from './widgetBridge';
+import { androidWidget } from './androidWidget';
 
 let registeredToken: string | null = null;
 /** 지금 화면에 떠 있는 대화 (dm:12, group:7) */
@@ -29,7 +31,14 @@ async function apnsEnvironment(): Promise<'development' | 'production'> {
 
 /** 알림 권한을 받고 APNs 기기 토큰을 서버에 등록한다. 사진이 위젯에 빨리 뜨는 핵심 경로다. */
 export async function registerPush(): Promise<'granted' | 'denied' | 'unavailable'> {
-  if (Platform.OS !== 'ios' || !Device.isDevice) return 'unavailable';
+  if (Platform.OS === 'web' || (Platform.OS === 'ios' && !Device.isDevice)) return 'unavailable';
+  if (Platform.OS === 'android') {
+    if (!Constants.expoConfig?.extra?.androidPushConfigured) return 'unavailable';
+    await Notifications.setNotificationChannelAsync('junseo', {
+      name: '사진과 메시지', importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250], lightColor: '#29ff01',
+    });
+  }
 
   let { status } = await Notifications.getPermissionsAsync();
   if (status !== 'granted') {
@@ -39,10 +48,11 @@ export async function registerPush(): Promise<'granted' | 'denied' | 'unavailabl
   }
   if (status !== 'granted') return 'denied';
 
-  const environment = await apnsEnvironment();
+  const environment = Platform.OS === 'android' ? 'production' : await apnsEnvironment();
   const { data } = await Notifications.getDevicePushTokenAsync();
   registeredToken = String(data);
-  await api.registerDevice(registeredToken, 'app', environment);
+  await api.registerDevice(registeredToken, 'app', environment, Platform.OS === 'android' ? 'android' : 'ios');
+  androidWidget?.rememberPushToken(registeredToken);
 
   // iOS 26 위젯 푸시 토큰: 위젯 확장이 직접 등록하지만, 실패했으면 앱이 대신 올린다.
   const widgetToken = widgetBridge.pendingWidgetPushToken();
@@ -54,7 +64,8 @@ export async function registerPush(): Promise<'granted' | 'denied' | 'unavailabl
 }
 
 export async function unregisterPush() {
-  if (registeredToken) await api.unregisterDevice(registeredToken);
+  const token = registeredToken ?? androidWidget?.pushToken();
+  if (token) await api.unregisterDevice(token);
   registeredToken = null;
 }
 
@@ -110,12 +121,22 @@ export function listenPush(onReceived: (data: PushData) => void) {
   open(Notifications.getLastNotificationResponse());
 
   const tapSub = Notifications.addNotificationResponseReceivedListener(open);
+  const tokenSub = Notifications.addPushTokenListener((token) => {
+    const next = String(token.data);
+    void (async () => {
+      const environment = Platform.OS === 'android' ? 'production' : await apnsEnvironment();
+      await api.registerDevice(next, 'app', environment, Platform.OS === 'android' ? 'android' : 'ios');
+      registeredToken = next;
+      androidWidget?.rememberPushToken(next);
+    })().catch(() => {});
+  });
   const receiveSub = Notifications.addNotificationReceivedListener((n) => {
     widgetBridge.reload();
     onReceived(n.request.content.data as PushData);
   });
   return () => {
     tapSub.remove();
+    tokenSub.remove();
     receiveSub.remove();
   };
 }

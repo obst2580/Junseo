@@ -1,0 +1,33 @@
+{
+  "checkedAt": "2026-10-03T06:24:19.604456+00:00",
+  "projectId": "junseo-cbca7",
+  "projectNumber": "321160323457",
+  "androidAppId": "1:321160323457:android:977f115ceb66aadc528880",
+  "package": "com.junseo.app",
+  "httpV1ApiEnabled": true,
+  "clientConfiguration": "/Users/obst/personal_project/junseo/mobile/.credentials/firebase/google-services.json",
+  "clientConfigurationSha256": "e4f7717c063c5a34149c4076440a11cf19c43bd8ded4528bd9e4175fd1e84ea4",
+  "configurationSource": "Firebase Console visible Android identifiers and the auto-created Android key restricted to 25 Firebase APIs; no account or server credentials in APK.",
+  "androidPushConfigured": true,
+  "firebaseSdkInitialization": "passed on API 36 emulator",
+  "serviceAccount": "junseo-fcm-sender@junseo-cbca7.iam.gserviceaccount.com",
+  "serviceAccountCreated": true,
+  "requestedRole": "roles/firebasecloudmessaging.admin",
+  "roleGrant": "applied after explicit user approval",
+  "serverKey": "one dedicated service-account JSON key generated, stored locally with mode 0600 in an ignored directory and copied to Azure Key Vault",
+  "azureFcmEnabled": true,
+  "endToEndDelivery": "not performed; requires real-account sign-in and physical Android device",
+  "accountEmail": "leejihun@gmail.com",
+  "projectUrl": "https://console.firebase.google.com/project/junseo-cbca7/overview",
+  "creationOptions": {
+    "geminiSelected": false,
+    "googleAnalyticsSelected": false
+  },
+  "azureKeyVault": "junseo-kv-f14e91",
+  "serverKeyVaultSecretName": "fcm-service-account",
+  "reviewScreenshot": "docs/firebase-screenshots/fcm-permission-review.jpg",
+  "appScreenshot": "docs/android-screenshots/firebase-login.png",
+  "completedScreenshot": "docs/firebase-screenshots/fcm-key-created.jpg",
+  "serverVerification": "docs/firebase-server-verification.json",
+  "keyVaultReferenceStatus": "Resolved"
+}

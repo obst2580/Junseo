@@ -12,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.concurrent.Semaphore;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -34,10 +35,16 @@ public class ImageProcessor {
     public static final int FULL_SIDE = 1440;
     public static final int THUMB_SIDE = 540;
     static final long MAX_PIXELS = 50_000_000L;
+    private final Semaphore processingSlots = new Semaphore(2);
 
     public record ProcessedImage(byte[] full, byte[] thumb) {}
 
     public ProcessedImage process(byte[] data) {
+        if (!processingSlots.tryAcquire()) throw new ApiException(ErrorCode.TOO_MANY_REQUESTS);
+        try { return processImage(data); } finally { processingSlots.release(); }
+    }
+
+    private ProcessedImage processImage(byte[] data) {
         if (data == null || data.length == 0 || data.length > MAX_BYTES) {
             throw invalid();
         }
@@ -85,7 +92,10 @@ public class ImageProcessor {
                 if (pixels <= 0 || pixels > MAX_PIXELS) {
                     throw invalid();
                 }
-                BufferedImage image = reader.read(0);
+                var params = reader.getDefaultReadParam();
+                int subsample = Math.max(1, Math.max(reader.getWidth(0), reader.getHeight(0)) / FULL_SIDE);
+                params.setSourceSubsampling(subsample, subsample, 0, 0);
+                BufferedImage image = reader.read(0, params);
                 if (image == null) {
                     throw invalid();
                 }

@@ -40,7 +40,7 @@ export default function RootLayout() {
 
 function RootStack() {
   const { ready, me } = useAuth();
-  const signedIn = !!me;
+  const signedIn = !!me && !me.needsOnboarding;
 
   useEffect(() => {
     if (!signedIn) return;
@@ -108,9 +108,15 @@ function RootStack() {
         <Stack.Screen name="templates/[id]" options={{ title: '' }} />
       </Stack.Protected>
       <Stack.Protected guard={!signedIn}>
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="signup" options={{ title: '' }} />
+        <Stack.Protected guard={!me}>
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+        </Stack.Protected>
+        <Stack.Protected guard={!!me}>
+          <Stack.Screen name="signup" options={{ title: '' }} />
+        </Stack.Protected>
       </Stack.Protected>
+      <Stack.Screen name="auth" options={{ headerShown: false }} />
+      <Stack.Screen name="auth-callback" options={{ headerShown: false }} />
     </Stack>
   );
 }

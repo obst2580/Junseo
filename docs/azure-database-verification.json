@@ -1,0 +1,35 @@
+{
+  "roles": [
+    "junseo_migrator:super=false,createdb=false,createrole=false,connections=2",
+    "junseo_runtime:super=false,createdb=false,createrole=false,connections=5"
+  ],
+  "runtime_schema_create": "f",
+  "runtime_history_select": "f",
+  "runtime_history_update": "f",
+  "migrations": [
+    "1:true",
+    "2:true",
+    "3:true",
+    "4:true",
+    "5:true",
+    "6:true"
+  ],
+  "runtime_nonpublic_owner_tables": "0",
+  "application_table_privileges": [
+    "chat_group_members:read=true,write=true",
+    "chat_groups:read=true,write=true",
+    "comments:read=true,write=true",
+    "device_tokens:read=true,write=true",
+    "friendships:read=true,write=true",
+    "group_messages:read=true,write=true",
+    "messages:read=true,write=true",
+    "moment_recipients:read=true,write=true",
+    "moments:read=true,write=true",
+    "reactions:read=true,write=true",
+    "revoked_tokens:read=true,write=true",
+    "templates:read=true,write=true",
+    "users:read=true,write=true"
+  ],
+  "central_database_name": "liliplanet_auth_db",
+  "central_tables_runtime_can_read": "0"
+}

@@ -7,13 +7,14 @@ module.exports = (config) => ({
   bundleIdentifier: '.widget',
   // containerBackground, contentMargins 등 iOS 17 위젯 API 를 쓴다. 위젯 푸시는 iOS 26 에서만 켜진다.
   deploymentTarget: '17.0',
-  frameworks: ['SwiftUI', 'WidgetKit'],
+  frameworks: ['SwiftUI', 'WidgetKit', 'Security'],
   colors: {
     $accent: '#29FF01', // 로고 초록
     $widgetBackground: '#0e0d0c',
   },
   entitlements: {
     'com.apple.security.application-groups': config.ios.entitlements['com.apple.security.application-groups'],
+    'keychain-access-groups': config.ios.entitlements['keychain-access-groups'],
     // iOS 26 위젯 푸시를 받으려면 위젯 확장에도 푸시 권한이 있어야 한다.
     'aps-environment': process.env.APNS_ENV ?? 'development',
   },

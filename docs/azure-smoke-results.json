@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-10-03T06:22:12.789126+00:00",
+  "baseUrl": "https://junseo-api.liliplanet.net",
+  "checks": {
+    "runtime_database_blob_health": true,
+    "platform_auth_config": true,
+    "login_page": true,
+    "same_origin_login_start": true,
+    "central_login_redirect": true,
+    "browser_cookie_security": true,
+    "invalid_central_token_rejected": true,
+    "external_redirect_rejected": true,
+    "anonymous_profile_rejected": true,
+    "product_password_login_disabled": true,
+    "central_login_available": true,
+    "central_jwks_available": true
+  },
+  "realAccountLogin": "pending user sign-in",
+  "iOSDeviceLogin": "not performed"
+}

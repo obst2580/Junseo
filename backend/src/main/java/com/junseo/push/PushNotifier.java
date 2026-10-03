@@ -220,6 +220,9 @@ public class PushNotifier {
 
     private void sendWidgetPushes(Collection<Long> userIds) {
         dispatch(userIds, DeviceToken.KIND_WIDGET, PushType.WIDGETS, WIDGET_PAYLOAD);
+        for (DeviceToken device : devices.findByUserIdInAndPlatform(userIds, "android")) {
+            deliver(device, PushType.WIDGETS, WIDGET_PAYLOAD);
+        }
     }
 
     private void dispatch(Collection<Long> userIds, String kind, PushType type, String payload) {
@@ -227,19 +230,23 @@ public class PushNotifier {
             return;
         }
         for (DeviceToken device : devices.findByUserIdInAndKind(userIds, kind)) {
+            deliver(device, type, payload);
+        }
+    }
+
+    private void deliver(DeviceToken device, PushType type, String payload) {
             PushMessage message = new PushMessage(
-                    device.getUserId(), device.getToken(), device.getEnvironment(), type, payload);
+                    device.getUserId(), device.getToken(), device.getEnvironment(), type, payload, device.getPlatform());
             PushOutcome outcome;
             try {
                 outcome = sender.send(message);
             } catch (RuntimeException ex) {
                 log.warn("Push to user {} failed", device.getUserId(), ex);
-                continue;
+                return;
             }
             if (outcome == PushOutcome.INVALID_TOKEN) {
                 devices.deleteByToken(device.getToken());
             }
-        }
     }
 
     private String name(long userId) {

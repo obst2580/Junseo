@@ -4,12 +4,13 @@ import { api, configureApi, type AuthResponse, type Me } from './api';
 import { unregisterPush } from './push';
 import { tokenStore } from './tokenStore';
 import { widgetBridge } from './widgetBridge';
+import { platformLogin, resumePlatformLogin } from './platformLogin';
 
 type AuthState = {
   ready: boolean;
   me: Me | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signIn: () => Promise<boolean>;
+  finishSignIn: (url: string) => Promise<AuthResponse>;
   signOut: () => Promise<void>;
   refreshMe: () => Promise<void>;
   setMe: (me: Me) => void;
@@ -21,12 +22,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
   const tokenRef = useRef<string | null>(null);
+  const finishRef = useRef<{ url: string; promise: Promise<AuthResponse> } | null>(null);
 
   const clear = useCallback(async () => {
     tokenRef.current = null;
     setMe(null);
-    widgetBridge.signOut();
     await tokenStore.set(null);
+    widgetBridge.signOut();
   }, []);
 
   useEffect(() => {
@@ -38,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const user = await api.me();
           setMe(user);
-          widgetBridge.signIn(saved, user.id);
+          widgetBridge.signIn(user.id);
         } catch {
           // 401 이면 onUnauthorized 가 정리한다. 네트워크 오류면 다음 실행에서 다시 시도한다.
         }
@@ -48,27 +50,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clear]);
 
   const accept = useCallback(async (res: AuthResponse) => {
-    tokenRef.current = res.accessToken;
     await tokenStore.set(res.accessToken);
-    widgetBridge.signIn(res.accessToken, res.user.id);
+    tokenRef.current = res.accessToken;
+    widgetBridge.signIn(res.user.id);
     setMe(res.user);
   }, []);
 
   // 함수들은 참조가 바뀌지 않게 따로 만든다. 화면들이 이펙트 의존성으로 쓰기 때문이다.
-  const signIn = useCallback(async (email: string, password: string) => accept(await api.login(email.trim(), password)), [accept]);
-  const signUp = useCallback(
-    async (email: string, password: string, displayName: string) => accept(await api.signup(email.trim(), password, displayName.trim())),
-    [accept],
-  );
+  const finishSignIn = useCallback((url: string) => {
+    if (finishRef.current?.url === url) return finishRef.current.promise;
+    const promise = resumePlatformLogin(url).then(async (response) => {
+      await accept(response);
+      return response;
+    });
+    finishRef.current = { url, promise };
+    return promise;
+  }, [accept]);
+
+  const signIn = useCallback(async () => {
+    const response = await platformLogin(finishSignIn);
+    return response.needsOnboarding ?? false;
+  }, [finishSignIn]);
   const signOut = useCallback(async () => {
     await unregisterPush().catch(() => {});
+    await api.logout().catch(() => {});
     await clear();
   }, [clear]);
   const refreshMe = useCallback(async () => setMe(await api.me()), []);
 
   const value = useMemo<AuthState>(
-    () => ({ ready, me, signIn, signUp, signOut, refreshMe, setMe }),
-    [ready, me, signIn, signUp, signOut, refreshMe],
+    () => ({ ready, me, signIn, finishSignIn, signOut, refreshMe, setMe }),
+    [ready, me, signIn, finishSignIn, signOut, refreshMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

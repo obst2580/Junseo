@@ -1,8 +1,8 @@
 import Constants from 'expo-constants';
 
-const extra = (Constants.expoConfig?.extra ?? {}) as { appGroup?: string; apnsEnvironment?: string };
+const extra = (Constants.expoConfig?.extra ?? {}) as { appGroup?: string; apnsEnvironment?: string; apiUrl?: string };
 
-export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080').replace(/\/+$/, '');
+export const API_BASE_URL = (process.env.EXPO_PUBLIC_API_URL ?? extra.apiUrl ?? 'https://junseo-api.liliplanet.net').replace(/\/+$/, '');
 export const APP_GROUP = extra.appGroup ?? 'group.com.junseo.app';
 export const APNS_ENVIRONMENT: 'development' | 'production' =
   extra.apnsEnvironment === 'production' ? 'production' : 'development';

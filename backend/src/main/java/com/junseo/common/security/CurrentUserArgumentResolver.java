@@ -2,7 +2,7 @@ package com.junseo.common.security;
 
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
-import com.junseo.user.UserRepository;
+import com.junseo.auth.PlatformIdentityService;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -15,10 +15,10 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 @Component
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 
-    private final UserRepository users;
+    private final PlatformIdentityService identities;
 
-    public CurrentUserArgumentResolver(UserRepository users) {
-        this.users = users;
+    public CurrentUserArgumentResolver(PlatformIdentityService identities) {
+        this.identities = identities;
     }
 
     @Override
@@ -35,16 +35,6 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
         if (!(SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken auth)) {
             throw new ApiException(ErrorCode.UNAUTHORIZED);
         }
-        long id;
-        try {
-            id = Long.parseLong(auth.getToken().getSubject());
-        } catch (NumberFormatException e) {
-            throw new ApiException(ErrorCode.UNAUTHORIZED);
-        }
-        // A valid signature is not enough: the account may have been removed (e.g. dev DB reset).
-        if (!users.existsById(id)) {
-            throw new ApiException(ErrorCode.UNAUTHORIZED);
-        }
-        return id;
+        return identities.require(auth.getToken());
     }
 }

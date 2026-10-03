@@ -14,14 +14,16 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     @Transactional
     @Modifying
     @Query(nativeQuery = true, value = """
-            insert into device_tokens (token, user_id, kind, environment, created_at, updated_at)
-            values (:token, :userId, :kind, :environment, :now, :now)
+            insert into device_tokens (token, user_id, kind, environment, platform, created_at, updated_at)
+            values (:token, :userId, :kind, :environment, :platform, :now, :now)
             on conflict (token) do update
                 set user_id = excluded.user_id, kind = excluded.kind,
-                    environment = excluded.environment, updated_at = excluded.updated_at""")
-    int upsert(String token, long userId, String kind, String environment, Instant now);
+                    environment = excluded.environment, platform = excluded.platform, updated_at = excluded.updated_at""")
+    int upsert(String token, long userId, String kind, String environment, String platform, Instant now);
 
     List<DeviceToken> findByUserIdInAndKind(Collection<Long> userIds, String kind);
+
+    List<DeviceToken> findByUserIdInAndPlatform(Collection<Long> userIds, String platform);
 
     @Transactional
     @Modifying

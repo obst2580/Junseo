@@ -1,18 +1,14 @@
 import { Image } from 'expo-image';
-import { Link } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, ErrorText, Field } from '@/components/ui';
-import { ApiError } from '@/lib/api';
+import { Button, ErrorText } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { colors } from '@/lib/theme';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -20,9 +16,9 @@ export default function LoginScreen() {
     setError(null);
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signIn();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '로그인하지 못했어요.');
+      setError(e instanceof Error ? e.message : '로그인하지 못했어요.');
     } finally {
       setLoading(false);
     }
@@ -36,21 +32,9 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>친한 친구의 지금이{'\n'}내 홈 화면에 뜬다</Text>
         </View>
         <View style={styles.form}>
-          <Field
-            label="이메일"
-            value={email}
-            onChangeText={setEmail}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            placeholder="you@example.com"
-          />
-          <Field label="비밀번호" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" placeholder="8자 이상" onSubmitEditing={submit} />
           {error && <ErrorText>{error}</ErrorText>}
-          <Button title="로그인" onPress={submit} loading={loading} disabled={!email || password.length < 8} />
-          <Link href="/signup" style={styles.link}>
-            처음이에요 · 가입하기
-          </Link>
+          <Button title="리리플레닛으로 로그인" onPress={submit} loading={loading} />
+          <Text style={styles.link}>리리플레닛 계정으로 시작해요.{'\n'}계정이 없으면 로그인 화면에서 가입할 수 있어요.</Text>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

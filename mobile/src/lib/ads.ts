@@ -1,8 +1,9 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import mobileAds, { AdEventType, RewardedAd, RewardedAdEventType, TestIds } from 'react-native-google-mobile-ads';
 
-// 실제 광고 단위는 app.config.js 의 ADMOB_IOS_REWARDED_ID. 비어 있으면 Google 테스트 광고가 나온다.
-const unitId = ((Constants.expoConfig?.extra ?? {}) as { admobRewardedId?: string }).admobRewardedId || TestIds.REWARDED;
+const extra = (Constants.expoConfig?.extra ?? {}) as { admobIosRewardedId?: string; admobAndroidRewardedId?: string };
+const unitId = (Platform.OS === 'android' ? extra.admobAndroidRewardedId : extra.admobIosRewardedId) || TestIds.REWARDED;
 
 let ready: Promise<unknown> | null = null;
 

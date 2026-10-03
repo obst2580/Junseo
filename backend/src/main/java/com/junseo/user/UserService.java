@@ -55,7 +55,8 @@ public class UserService {
                 user.getDisplayName(),
                 user.getInviteCode(),
                 friendships.countByUserId(user.getId()),
-                FRIEND_LIMIT);
+                FRIEND_LIMIT,
+                !user.isOnboarded());
     }
 
     public User require(long userId) {

@@ -2,6 +2,7 @@ package com.junseo.media;
 
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
+import com.junseo.moment.MomentRepository;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -17,10 +18,12 @@ public class MediaController {
 
     private final MediaUrlSigner signer;
     private final MediaStorage storage;
+    private final MomentRepository moments;
 
-    public MediaController(MediaUrlSigner signer, MediaStorage storage) {
+    public MediaController(MediaUrlSigner signer, MediaStorage storage, MomentRepository moments) {
         this.signer = signer;
         this.storage = storage;
+        this.moments = moments;
     }
 
     @GetMapping("/media/{momentId}/{variant}.jpg")
@@ -41,6 +44,7 @@ public class MediaController {
         if (!signer.verify(id, v.id(), expiresAt, sig)) {
             throw forbidden();
         }
+        if (!moments.existsById(id)) throw ApiException.notFound();
         Resource image = storage.get(MediaStorage.key(id, v)).orElseThrow(ApiException::notFound);
         return ResponseEntity.ok()
                 .contentType(MediaType.IMAGE_JPEG)
