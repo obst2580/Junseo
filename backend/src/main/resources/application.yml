@@ -68,6 +68,14 @@ junseo:
     # In Azure, reference a Key Vault secret; never commit service-account credentials.
     service-account-json: ${JUNSEO_FCM_SERVICE_ACCOUNT_JSON:}
 
+management:
+  health:
+    # spring.mail.host is always present (blank when JUNSEO_SMTP_HOST is unset), so Boot builds a mail sender and
+    # its health check would fail without SMTP and take /actuator/health (deploy + App Service probe) DOWN.
+    # Mail is not needed to serve the app: MailConfig falls back to logging when the host is blank.
+    mail:
+      enabled: false
+
 logging:
   level:
     org.hibernate.orm.deprecation: error
