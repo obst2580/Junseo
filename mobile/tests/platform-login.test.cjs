@@ -20,9 +20,9 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-function harness({ storage = new Map(), exchange = async () => session(), browser = async () => ({ type: 'success', url: callback }) } = {}) {
+function harness({ storage = new Map(), exchange = async () => session(), browser = async () => ({ type: 'success', url: callback }), saved = null, me = null } = {}) {
   const modules = new Map();
-  const calls = { exchanges: [], redirects: [], tokens: [], widgets: [] };
+  const calls = { exchanges: [], redirects: [], tokens: [], widgets: [], browsers: [], deletes: [], backs: 0 };
   let auth;
   const mocks = {
     'react-native': { Platform: { OS: 'android' }, StyleSheet: { create: value => value }, ActivityIndicator: 'ActivityIndicator', Text: 'Text', View: 'View' },
@@ -33,21 +33,24 @@ function harness({ storage = new Map(), exchange = async () => session(), browse
       digestStringAsync: async (_, value) => crypto.createHash('sha256').update(value).digest('base64'),
     },
     'expo-secure-store': { AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY: 1, getItemAsync: async key => storage.get(key) ?? null, setItemAsync: async (key, value) => { storage.set(key, value); }, deleteItemAsync: async key => { storage.delete(key); } },
-    'expo-web-browser': { openAuthSessionAsync: browser },
+    'expo-web-browser': { openAuthSessionAsync: (...args) => { calls.browsers.push(args); return browser(...args); } },
     'expo-router': {
       useLocalSearchParams: () => ({ code, state }),
-      router: { replace: url => { calls.redirects.push(url); } },
+      router: { replace: url => { calls.redirects.push(url); }, back: () => { calls.backs += 1; }, canGoBack: () => true },
       Redirect: ({ href }) => { calls.redirects.push(href); return React.createElement('Redirect', { href }); },
     },
     '@/components/ui': { Button: props => React.createElement('Button', props), ErrorText: props => React.createElement('ErrorText', props) },
     '@/lib/theme': { colors: { accent: '#ff0', text: '#fff' } },
-    './api': { configureApi: () => {}, api: {
+    './api': { configureApi: () => {}, ApiError: class ApiError extends Error {}, api: {
       startLogin: async (challenge, returnUri) => { calls.challenge = challenge; calls.returnUri = returnUri; return { state, launchUrl: 'https://example.test/auth/launch' }; },
       exchangeLogin: async (...args) => { calls.exchanges.push(args); return exchange(...args); },
+      me: async () => me,
+      logout: async () => {},
+      deleteAccount: async (args) => { calls.deletes.push(args); },
     } },
     './push': { unregisterPush: async () => {} },
-    './tokenStore': { tokenStore: { get: async () => null, set: async token => { calls.tokens.push(token); } } },
-    './widgetBridge': { widgetBridge: { signIn: id => { calls.widgets.push(id); }, signOut: () => {} } },
+    './tokenStore': { tokenStore: { get: async () => saved, set: async token => { calls.tokens.push(token); } } },
+    './widgetBridge': { widgetBridge: { signIn: id => { calls.widgets.push(id); }, signOut: () => {}, purgeLegacyToken: () => {} } },
   };
   function load(file) {
     const filename = path.resolve(root, file);
@@ -168,4 +171,69 @@ test('an old in-flight exchange cannot accept or delete a newer login', async ()
   result.resolve(session());
   await assert.rejects(old);
   assert.equal(pending.state, 'n'.repeat(43));
+});
+
+const platformUser = { id: 7, displayName: '준서', needsOnboarding: false, loginMethod: 'platform' };
+
+async function signedIn(options = {}) {
+  const h = harness({ saved: 'current-session', me: platformUser, ...options });
+  const { AuthProvider, useAuth } = h.load('src/lib/auth.tsx');
+  let auth;
+  function Capture() { auth = useAuth(); return null; }
+  let renderer;
+  await act(async () => { renderer = create(React.createElement(AuthProvider, null, React.createElement(Capture))); });
+  return { h, auth: () => auth, renderer };
+}
+
+test('platform account deletion logs in again (ephemeral, reauth) and deletes with that fresh token', async () => {
+  const fresh = { ...session(), accessToken: 'fresh-login', user: platformUser };
+  const { h, auth, renderer } = await signedIn({ exchange: async () => fresh });
+  assert.equal(auth().me.id, 7);
+  await act(async () => { await auth().deleteAccount(); });
+  assert.equal(h.calls.browsers[0][2].preferEphemeralSession, true);
+  assert.equal(h.calls.exchanges[0][2], true, 'exchanged as reauth so the server never provisions an account');
+  assert.equal(JSON.stringify(h.calls.deletes), JSON.stringify([{ token: 'fresh-login' }]));
+  // The fresh login never replaced the session; afterwards everything is signed out
+  assert.equal(h.calls.tokens.includes('fresh-login'), false);
+  assert.equal(auth().me, null);
+  await act(async () => renderer.unmount());
+});
+
+test('re-login as another LiliPlanet account deletes nothing and keeps the session', async () => {
+  const other = { ...session(), accessToken: 'someone-else', user: { ...platformUser, id: 99 } };
+  const { h, auth, renderer } = await signedIn({ exchange: async () => other });
+  await act(async () => { await assert.rejects(auth().deleteAccount(), /다른 리리플레닛 계정/); });
+  assert.equal(h.calls.deletes.length, 0);
+  assert.equal(auth().me.id, 7);
+  await act(async () => renderer.unmount());
+});
+
+test('cancelling the confirmation login deletes nothing', async () => {
+  const { h, auth, renderer } = await signedIn({ browser: async () => ({ type: 'cancel' }) });
+  await act(async () => { await assert.rejects(auth().deleteAccount(), /삭제하지 않았어요/); });
+  assert.equal(h.calls.deletes.length, 0);
+  assert.equal(auth().me.id, 7);
+  await act(async () => renderer.unmount());
+});
+
+test('an auth link opened while signed in goes back without touching the session', async () => {
+  const h = harness({ saved: 'current-session', me: platformUser });
+  const { AuthProvider } = h.load('src/lib/auth.tsx');
+  const AuthReturn = h.load('src/app/auth.tsx').default;
+  const { useAuth } = h.load('src/lib/auth.tsx');
+  function Gate() { const { ready } = useAuth(); return ready ? React.createElement(AuthReturn) : null; }
+  let renderer;
+  await act(async () => { renderer = create(React.createElement(AuthProvider, null, React.createElement(Gate))); });
+  assert.equal(h.calls.backs, 1);
+  assert.equal(h.calls.exchanges.length, 0);
+  assert.equal(h.calls.redirects.length, 0);
+  await act(async () => renderer.unmount());
+});
+
+test('after signing out, the next login does not reuse the old LiliPlanet browser session', async () => {
+  const { h, auth, renderer } = await signedIn();
+  await act(async () => { await auth().signOut(); });
+  await act(async () => { await auth().signIn(); });
+  assert.equal(h.calls.browsers.at(-1)[2].preferEphemeralSession, true);
+  await act(async () => renderer.unmount());
 });

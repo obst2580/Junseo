@@ -5,6 +5,7 @@ import com.junseo.realtime.RealtimeHub;
 import com.junseo.user.Me;
 import com.junseo.user.User;
 import com.junseo.user.UserService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -24,7 +25,8 @@ import org.springframework.web.bind.annotation.*;
 @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "platform")
 public class PlatformAuthController {
     public record StartRequest(@NotBlank @Size(max = 128) String codeChallenge, @NotBlank @Size(max = 512) String returnUri) {}
-    public record ExchangeRequest(@NotBlank @Size(max = 128) String code, @NotBlank @Size(max = 128) String codeVerifier) {}
+    /** reauth: logging in again to confirm (account deletion). Never creates an account for an unknown identity. */
+    public record ExchangeRequest(@NotBlank @Size(max = 128) String code, @NotBlank @Size(max = 128) String codeVerifier, Boolean reauth) {}
     public record Session(String accessToken, Instant expiresAt, Me user, boolean needsOnboarding) {}
     private final PlatformLoginFlow flow;
     private final PlatformIdentityService identities;
@@ -45,8 +47,10 @@ public class PlatformAuthController {
     }
 
     @PostMapping("/api/auth/start")
-    ResponseEntity<PlatformLoginFlow.Start> start(@Valid @RequestBody StartRequest request) {
-        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store").body(flow.start(request.codeChallenge(), request.returnUri()));
+    ResponseEntity<PlatformLoginFlow.Start> start(@Valid @RequestBody StartRequest request, HttpServletRequest http) {
+        // Behind App Service, server.forward-headers-strategy turns X-Forwarded-For into the remote address
+        return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(flow.start(request.codeChallenge(), request.returnUri(), http.getRemoteAddr()));
     }
 
     @GetMapping("/auth/launch")
@@ -71,7 +75,7 @@ public class PlatformAuthController {
     @PostMapping("/api/auth/exchange")
     ResponseEntity<Session> exchange(@Valid @RequestBody ExchangeRequest request) {
         Jwt jwt = flow.exchange(request.code(), request.codeVerifier());
-        User user = identities.provision(jwt);
+        User user = Boolean.TRUE.equals(request.reauth()) ? identities.existing(jwt) : identities.provision(jwt);
         return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .body(new Session(jwt.getTokenValue(), jwt.getExpiresAt(), profiles.toMe(user), !user.isOnboarded()));
     }

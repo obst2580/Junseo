@@ -32,6 +32,8 @@ public class AdminController {
 
     public record ReportList(List<ReportView> items) {}
 
+    public record BanList(List<Bans.BanView> items) {}
+
     private final AdminAuth admin;
     private final ReportService reports;
     private final MomentService moments;
@@ -39,6 +41,7 @@ public class AdminController {
     private final MessageRepository messages;
     private final GroupMessageRepository groupMessages;
     private final AccountService accounts;
+    private final Bans bans;
 
     public AdminController(
             AdminAuth admin,
@@ -47,7 +50,8 @@ public class AdminController {
             CommentService comments,
             MessageRepository messages,
             GroupMessageRepository groupMessages,
-            AccountService accounts) {
+            AccountService accounts,
+            Bans bans) {
         this.admin = admin;
         this.reports = reports;
         this.moments = moments;
@@ -55,6 +59,7 @@ public class AdminController {
         this.messages = messages;
         this.groupMessages = groupMessages;
         this.accounts = accounts;
+        this.bans = bans;
     }
 
     /** 처리하지 않은 신고 (오래된 것부터). all=true 면 처리한 것까지 최근 순으로. */
@@ -101,11 +106,33 @@ public class AdminController {
         groupMessages.delete(groupMessages.findById(id).orElseThrow(ApiException::notFound));
     }
 
-    /** 계정을 지운다 (사진 · 댓글 · 메시지까지 모두). */
+    /**
+     * 계정을 지운다 (사진 · 댓글 · 메시지까지 모두). 기본으로 다시 들어오지 못하게 막는다:
+     * 리리플레닛 계정은 같은 사람이 다시 로그인해도, 이메일 계정은 같은 이메일로 다시 가입해도 거절된다. ban=false 면 지우기만 한다.
+     */
     @DeleteMapping("/api/admin/users/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void removeUser(@RequestHeader(value = AdminAuth.HEADER, required = false) String token, @PathVariable long id) {
+    void removeUser(
+            @RequestHeader(value = AdminAuth.HEADER, required = false) String token,
+            @PathVariable long id,
+            @RequestParam(defaultValue = "true") boolean ban,
+            @RequestParam(required = false) String reason) {
         admin.check(token);
-        accounts.deleteByOperator(id);
+        accounts.deleteByOperator(id, ban, reason);
+    }
+
+    /** 내보낸 사람 (최근 것 먼저) */
+    @GetMapping("/api/admin/bans")
+    BanList bans(@RequestHeader(value = AdminAuth.HEADER, required = false) String token) {
+        admin.check(token);
+        return new BanList(bans.list());
+    }
+
+    /** 다시 받아 준다 (새 빈 계정으로 시작한다) */
+    @DeleteMapping("/api/admin/bans/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void lift(@RequestHeader(value = AdminAuth.HEADER, required = false) String token, @PathVariable long id) {
+        admin.check(token);
+        if (!bans.lift(id)) throw ApiException.notFound();
     }
 }

@@ -44,6 +44,9 @@ public class DeviceController {
         }
     }
 
+    /** Per person: app + widget token on each of a few phones and tablets. */
+    static final int MAX_TOKENS_PER_USER = 10;
+
     private final DeviceTokenRepository devices;
     private final Clock clock;
 
@@ -57,6 +60,7 @@ public class DeviceController {
     void register(@CurrentUser long me, @Valid @RequestBody RegisterDeviceRequest request) {
         String token = "ios".equals(request.resolvedPlatform()) ? normalize(request.token()) : request.token();
         devices.upsert(token, me, request.kind(), request.environment(), request.resolvedPlatform(), clock.instant());
+        devices.trimToNewest(me, MAX_TOKENS_PER_USER);
     }
 
     /** Idempotent: unknown tokens and tokens owned by someone else are left alone. */

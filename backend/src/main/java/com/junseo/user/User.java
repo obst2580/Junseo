@@ -77,6 +77,13 @@ public class User {
 
     public boolean isOnboarded() { return onboarded; }
 
+    /** Signed in through the central LiliPlanet login (no local password). */
+    public boolean isPlatform() { return externalSubject != null; }
+
+    public String getExternalIssuer() { return externalIssuer; }
+
+    public String getExternalSubject() { return externalSubject; }
+
     public String getInviteCode() {
         return inviteCode;
     }

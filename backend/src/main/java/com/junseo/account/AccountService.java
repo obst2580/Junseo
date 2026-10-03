@@ -1,5 +1,6 @@
 package com.junseo.account;
 
+import com.junseo.auth.TokenRevocations;
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.Transactions;
@@ -9,13 +10,19 @@ import com.junseo.group.ChatGroupRepository;
 import com.junseo.media.MediaStorage;
 import com.junseo.media.MediaStorage.Variant;
 import com.junseo.moment.MomentRepository;
+import com.junseo.realtime.RealtimeHub;
+import com.junseo.safety.Bans;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccountService {
 
+    /** A LiliPlanet account has no password here: the app logs in again right before deleting, within this window. */
+    static final Duration REAUTH_WINDOW = Duration.ofMinutes(5);
+    private static final Duration CLOCK_SKEW = Duration.ofMinutes(1);
+
     private static final Logger log = LoggerFactory.getLogger(AccountService.class);
 
     private final UserRepository users;
@@ -35,6 +46,10 @@ public class AccountService {
     private final MediaStorage storage;
     private final PasswordEncoder passwordEncoder;
     private final ApplicationEventPublisher events;
+    private final TokenRevocations revocations;
+    private final RealtimeHub hub;
+    private final Bans bans;
+    private final Clock clock;
 
     public AccountService(
             UserRepository users,
@@ -43,7 +58,11 @@ public class AccountService {
             ChatGroupRepository groups,
             MediaStorage storage,
             PasswordEncoder passwordEncoder,
-            ApplicationEventPublisher events) {
+            ApplicationEventPublisher events,
+            TokenRevocations revocations,
+            RealtimeHub hub,
+            Bans bans,
+            Clock clock) {
         this.users = users;
         this.friendships = friendships;
         this.moments = moments;
@@ -51,22 +70,44 @@ public class AccountService {
         this.storage = storage;
         this.passwordEncoder = passwordEncoder;
         this.events = events;
+        this.revocations = revocations;
+        this.hub = hub;
+        this.bans = bans;
+        this.clock = clock;
     }
 
-    /** The person deletes their own account; the password is asked again so a phone left unlocked can't do it. */
+    /**
+     * The person deletes their own account, proving it is really them so a phone left unlocked can't do it:
+     * a local account gives its password again, a LiliPlanet account sends a token from a login made just now.
+     */
     @Transactional
-    public void deleteOwn(long userId, String password) {
+    public void deleteOwn(long userId, String password, Jwt token) {
         User user = users.findById(userId).orElseThrow(ApiException::notFound);
-        if (password == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
+        if (user.isPlatform()) {
+            requireFreshLogin(token);
+            // The central token stays valid until it expires: end it here (and its sockets) like a logout
+            if (token.getId() != null && token.getExpiresAt() != null) revocations.revoke(token);
+        } else if (password == null || user.getPasswordHash() == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new ApiException(ErrorCode.WRONG_PASSWORD);
         }
         delete(user);
     }
 
-    /** Operator removes an account (a report was upheld). */
+    /** Operator removes an account (a report was upheld). ban: also refuse the same person coming back. */
     @Transactional
-    public void deleteByOperator(long userId) {
-        delete(users.findById(userId).orElseThrow(ApiException::notFound));
+    public void deleteByOperator(long userId, boolean ban, String reason) {
+        User user = users.findById(userId).orElseThrow(ApiException::notFound);
+        if (ban) bans.ban(user, reason == null || reason.isBlank() ? null : reason.strip(), clock.instant());
+        delete(user);
+    }
+
+    /** auth_time (when the person actually signed in) if the central token has it, otherwise when it was issued. */
+    private void requireFreshLogin(Jwt token) {
+        Instant at = token.hasClaim("auth_time") ? token.getClaimAsInstant("auth_time") : token.getIssuedAt();
+        Instant now = clock.instant();
+        if (at == null || at.isBefore(now.minus(REAUTH_WINDOW)) || at.isAfter(now.plus(CLOCK_SKEW))) {
+            throw new ApiException(ErrorCode.REAUTH_REQUIRED);
+        }
     }
 
     private void delete(User user) {
@@ -78,6 +119,7 @@ public class AccountService {
         users.flush();
         groups.deleteEmpty();
         Transactions.afterCommit(() -> {
+            hub.closeUser(userId);
             for (long id : momentIds) {
                 storage.delete(MediaStorage.key(id, Variant.FULL));
                 storage.delete(MediaStorage.key(id, Variant.THUMB));

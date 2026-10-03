@@ -39,9 +39,15 @@ public class PushConfig {
                 throw new IllegalStateException("FCM service account must belong to junseo.fcm.project-id");
             }
             var scoped = credentials.createScoped(List.of("https://www.googleapis.com/auth/firebase.messaging"));
-            android = new FcmPushSender(ApnsTransport.http2(), () -> {
-                scoped.refreshIfExpired();
-                return scoped.getAccessToken().getTokenValue();
+            android = new FcmPushSender(ApnsTransport.http2(), new FcmPushSender.AccessToken() {
+                @Override public String get() throws IOException {
+                    scoped.refreshIfExpired();
+                    return scoped.getAccessToken().getTokenValue();
+                }
+
+                @Override public void invalidate() throws IOException {
+                    scoped.refresh();
+                }
             }, fcm.projectId(), json);
         }
         return new PlatformPushSender(ios, android);

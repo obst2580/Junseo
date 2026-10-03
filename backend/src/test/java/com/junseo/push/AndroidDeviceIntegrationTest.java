@@ -55,6 +55,16 @@ class AndroidDeviceIntegrationTest extends IntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test void onePersonKeepsOnlyTheirNewestTokens() throws Exception {
+        var user = signup("준서");
+        for (int i = 0; i < 25; i++) {
+            putJson("/api/devices", user, Map.of("token", "junk-token-" + i + "-" + "x".repeat(20), "kind", "app", "environment", "production", "platform", "android"))
+                    .andExpect(status().isNoContent());
+        }
+        var kept = jdbc.queryForList("select token from device_tokens where user_id = ? order by updated_at desc, id desc", String.class, user.id());
+        assertThat(kept).hasSize(10).first().asString().startsWith("junk-token-24-");
+    }
+
     private void register(TestUser user) throws Exception {
         putJson("/api/devices", user, Map.of("token", TOKEN, "kind", "app", "environment", "production", "platform", "android"))
                 .andExpect(status().isNoContent());

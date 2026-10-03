@@ -21,6 +21,14 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
                     environment = excluded.environment, platform = excluded.platform, updated_at = excluded.updated_at""")
     int upsert(String token, long userId, String kind, String environment, String platform, Instant now);
 
+    /** Keeps a user's newest tokens only (phones come and go; nobody needs dozens, and every push fans out to all). */
+    @Transactional
+    @Modifying
+    @Query(nativeQuery = true, value = """
+            delete from device_tokens where user_id = :userId and id not in (
+                select id from device_tokens where user_id = :userId order by updated_at desc, id desc limit :keep)""")
+    int trimToNewest(long userId, int keep);
+
     List<DeviceToken> findByUserIdInAndKind(Collection<Long> userIds, String kind);
 
     List<DeviceToken> findByUserIdInAndPlatform(Collection<Long> userIds, String platform);

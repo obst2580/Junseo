@@ -1,6 +1,7 @@
 import type { AuthResponse } from './api';
 
-export type PendingLogin = { state: string; verifier: string; returnUri: string; expiresAt: number };
+/** reauth: 계정 삭제 전 본인 확인 로그인 (세션을 바꾸지 않고, 서버는 계정을 새로 만들지 않는다) */
+export type PendingLogin = { state: string; verifier: string; returnUri: string; expiresAt: number; reauth?: boolean };
 type PendingStore = { read: () => Promise<PendingLogin | null>; write: (value: PendingLogin | null) => Promise<void> };
 
 export function loginCode(url: string, returnUri: string, state: string): string {
@@ -18,7 +19,10 @@ export function loginCode(url: string, returnUri: string, state: string): string
 export class LoginTransaction {
   private completion: { url: string; promise: Promise<AuthResponse> } | null = null;
 
-  constructor(private readonly store: PendingStore, private readonly exchange: (code: string, verifier: string) => Promise<AuthResponse>) {}
+  constructor(
+    private readonly store: PendingStore,
+    private readonly exchange: (code: string, verifier: string, reauth?: boolean) => Promise<AuthResponse>,
+  ) {}
 
   async begin(pending: PendingLogin): Promise<void> {
     await this.store.write(pending);
@@ -41,7 +45,7 @@ export class LoginTransaction {
     // Reject unrelated callbacks before consuming or changing the active transaction.
     const code = loginCode(url, pending.returnUri, pending.state);
     try {
-      const response = await this.exchange(code, pending.verifier);
+      const response = await this.exchange(code, pending.verifier, pending.reauth === true);
       const current = await this.store.read();
       if (current?.state !== pending.state) throw new Error('새 로그인 시도가 시작되었어요. 다시 로그인해 주세요.');
       return response;

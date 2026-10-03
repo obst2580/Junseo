@@ -38,15 +38,22 @@ const transaction = new LoginTransaction({
 
 export const resumePlatformLogin = (url: string) => transaction.complete(url);
 
-export async function platformLogin(complete = resumePlatformLogin): Promise<AuthResponse> {
+/**
+ * fresh: 로그인 창이 예전 리리플레닛 로그인을 이어 쓰지 않는다 (iOS: 쿠키를 나누지 않는 인증 창). 로그아웃한 뒤 · 본인 확인에 쓴다.
+ * reauth: 계정 삭제 전 본인 확인. 응답은 지금 세션을 바꾸지 않고 호출한 쪽이 쓴다.
+ */
+export async function platformLogin(
+  complete = resumePlatformLogin,
+  { fresh = false, reauth = false }: { fresh?: boolean; reauth?: boolean } = {},
+): Promise<AuthResponse> {
   const bytes = await Crypto.getRandomBytesAsync(32);
   const verifier = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
   const hash = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier, { encoding: Crypto.CryptoEncoding.BASE64 });
   const returnUri = Platform.OS === 'web' ? `${globalThis.location.origin}/auth-callback` : NATIVE_RETURN;
   const started = await api.startLogin(base64url(hash), returnUri);
   // Android may recreate the app while Chrome is open. Keep PKCE until the callback finishes.
-  await transaction.begin({ state: started.state, verifier, returnUri, expiresAt: Date.now() + 10 * 60_000 });
-  const result = await WebBrowser.openAuthSessionAsync(started.launchUrl, returnUri);
+  await transaction.begin({ state: started.state, verifier, returnUri, expiresAt: Date.now() + 10 * 60_000, ...(reauth ? { reauth } : {}) });
+  const result = await WebBrowser.openAuthSessionAsync(started.launchUrl, returnUri, { preferEphemeralSession: fresh || reauth });
   // Keep the pending transaction: an Android URL intent can arrive after the browser reports dismiss.
   if (result.type !== 'success') throw new Error('로그인이 취소되었어요.');
   return complete(result.url);

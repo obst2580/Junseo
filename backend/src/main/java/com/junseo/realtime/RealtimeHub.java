@@ -70,6 +70,16 @@ public class RealtimeHub {
         return sessions == null ? 0 : sessions.size();
     }
 
+    /** The account is gone: its open sockets must not keep receiving signals. */
+    public void closeUser(long userId) {
+        Set<WebSocketSession> sessions = byUser.remove(userId);
+        if (sessions == null) return;
+        sessions.forEach(session -> {
+            try { session.close(CloseStatus.POLICY_VIOLATION.withReason("account deleted")); }
+            catch (IOException ignored) { }
+        });
+    }
+
     public void closeToken(String jti) {
         byUser.values().forEach(sessions -> sessions.forEach(session -> {
             if (jti != null && jti.equals(session.getAttributes().get("jti"))) {

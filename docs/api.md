@@ -27,12 +27,16 @@
 | 403 | `FORBIDDEN` | 권한 없음 (남의 댓글 삭제 등) |
 | 403 | `NOT_FRIENDS` | 친구가 아닌 사람에게 메시지, 친구가 아닌 사람을 단챗에 초대 |
 | 403 | `NOT_MUTUAL_FRIENDS` | 단챗에 서로 친구가 아닌 사람이 섞임 |
+| 403 | `REAUTH_REQUIRED` | 리리플레닛 계정 삭제인데 토큰이 방금(5분 안) 로그인한 것이 아님. 앱은 다시 로그인한 뒤 그 토큰으로 보낸다 (401 이 아니라서 세션은 그대로) |
+| 403 | `ACCOUNT_BANNED` | 운영자가 내보낸 사람의 로그인 · 가입 |
 | 404 | `NOT_FOUND` | 대상 없음, 또는 볼 권한이 없는 사진 (존재 여부를 숨기려고 404로 통일) |
 | 404 | `INVITE_CODE_NOT_FOUND` | 초대 코드 없음 |
 | 409 | `EMAIL_TAKEN` | 이미 가입된 이메일 |
 | 409 | `ALREADY_FRIENDS` | 이미 친구 |
 | 409 | `FRIEND_LIMIT_REACHED` | 나 또는 상대가 친구 20명 |
 | 409 | `BLOCKED_USER` | 내가 차단한 사람의 초대 코드 (나를 차단한 사람의 코드는 `INVITE_CODE_NOT_FOUND`) |
+| 409 | `REAUTH_NO_ACCOUNT` | 본인 확인 로그인(`reauth: true`)을 이 앱 계정이 없는 리리플레닛 계정으로 함 |
+| 429 | `TOO_MANY_REQUESTS` | 한 주소에서 로그인 시작이 너무 많음 · 사진 처리 대기 15초 초과 |
 
 ## 공통 객체
 
@@ -41,7 +45,8 @@
 { "id": 12, "displayName": "민지" }
 
 // Me
-{ "id": 12, "email": "minji@example.com", "displayName": "민지", "inviteCode": "K7Q2MX9A", "friendCount": 3, "friendLimit": 20, "needsOnboarding": false }
+{ "id": 12, "email": "minji@example.com", "displayName": "민지", "inviteCode": "K7Q2MX9A", "friendCount": 3, "friendLimit": 20, "needsOnboarding": false,
+  "loginMethod": "platform" }   // "platform" (리리플레닛, 비밀번호 없음) | "password" (로컬 이메일 계정)
 
 // ReactionCount
 { "emoji": "❤️", "count": 2 }
@@ -78,12 +83,15 @@
 | POST | `/api/auth/start` | `{ codeChallenge: S256, returnUri }` | `{ state, launchUrl }` |
 | GET | `/auth/launch?state=...` | 시스템 브라우저 | 302 중앙 로그인 + HttpOnly/Secure/SameSite=Lax 쿠키 |
 | GET | `/auth/callback?state=...&token=...` | 중앙 로그인 callback + 위 쿠키 | 302 허용된 반환 주소, `code`/`state`만 전달 |
-| POST | `/api/auth/exchange` | `{ code, codeVerifier }` | `{ accessToken, expiresAt, user: Me, needsOnboarding }` |
+| POST | `/api/auth/exchange` | `{ code, codeVerifier, reauth? }` | `{ accessToken, expiresAt, user: Me, needsOnboarding }` |
 | POST | `/api/auth/logout` | Bearer token | 204, Junseo jti 폐기·동일 토큰 WS 종료 |
 
 - RS256 / issuer `auth.liliplanet.net` / audience `junseo-api`, 중앙 JWKS 검증. sub·jti·exp 필수.
 - 중앙 sub는 Junseo 사용자 ID가 아니다. `(issuer, sub)`로 내부 ID를 찾는다.
 - transaction 10분, code 60초·일회용·PKCE S256. 운영 return URI는 `junseo://auth`와 운영 `/login`만 허용.
+- 로그인 시작은 계정 없이 부를 수 있어서, 한 주소(요청의 remote address)가 대기 중인 로그인을 20개까지만 가질 수 있다 (넘으면 429). 표가 가득 차면(1만 개) 가장 오래된 대기 로그인을 지워 자리를 만든다 — 아무도 다른 사람의 로그인을 막을 수 없다.
+- `reauth: true`: 계정 삭제 전 본인 확인. 이미 있는 계정만 돌려주고 새 계정을 만들지 않는다 (없으면 409 `REAUTH_NO_ACCOUNT`). 앱은 돌아온 `user.id` 가 지금 계정과 같은지 확인한다.
+- 운영자가 내보낸 `(issuer, sub)` 는 다시 로그인해도 403 `ACCOUNT_BANNED`.
 - 최초 프로필은 `needsOnboarding: true`. `PATCH /api/me`로 이름을 저장하면 완료된다.
 - JWT 갱신·중앙 전역 로그아웃은 아직 미연동. 운영 자체 signup/login/password-reset endpoint는 비활성화되어 404다.
 - iOS 공유 Keychain / Android Keystore / 웹 sessionStorage 사용. 토큰은 callback 앱 URL에 넣지 않는다.
@@ -111,11 +119,12 @@
 | GET | `/api/me` | | 200 `Me` |
 | PATCH | `/api/me` | `{ displayName }` | 200 `Me` |
 | POST | `/api/me/invite-code` | | 200 `Me` (초대 코드를 새로 발급, 이전 코드는 무효) |
-| POST | `/api/me/delete` | `{ password }` | 204 로컬 계정 삭제 |
+| POST | `/api/me/delete` | 로컬 계정 `{ password }` · 리리플레닛 계정 본문 없음 | 204 계정 삭제 |
 
-플랫폼 사용자에게는 Junseo password hash가 없으므로 현재 이 삭제 API를 완료된 중앙 계정 삭제 경로로 사용할 수 없다. 중앙 재인증 연결이 남아 있다.
-
-- 계정 삭제: 내 사진(파일 포함) · 반응 · 댓글 · 메시지 · 친구 · 차단 · 기기 토큰을 바로 지운다. 내가 마지막 사람이던 단챗도 지운다. 친구들의 위젯에서도 내 사진이 빠지도록 친구 끊기와 같은 신호를 보낸다. 같은 이메일로 다시 가입할 수 있다.
+- 본인 확인: 로컬(이메일) 계정은 비밀번호. 리리플레닛 계정은 비밀번호가 없으므로 **방금 로그인한 토큰**으로 보낸다. 서버는 `auth_time`(있으면) 또는 `iat` 가 5분 안인지 본다. 아니면 403 `REAUTH_REQUIRED`.
+  앱 흐름: 확인 → 리리플레닛 로그인 창(iOS 는 쿠키를 나누지 않는 창이라 비밀번호를 다시 넣는다) → `exchange { reauth: true }` → 같은 계정이면 그 토큰으로 `POST /api/me/delete`. 지금 세션은 바꾸지 않는다.
+- 삭제하면 그 토큰은 폐기되고 그 사람의 WebSocket 은 모두 닫힌다. 다른 기기의 예전 토큰도 계정이 없어서 401 이다.
+- 계정 삭제: 내 사진(파일 포함) · 반응 · 댓글 · 메시지 · 친구 · 차단 · 기기 토큰을 바로 지운다. 내가 마지막 사람이던 단챗도 지운다. 친구들의 위젯에서도 내 사진이 빠지도록 친구 끊기와 같은 신호를 보낸다. 같은 이메일(로컬) · 같은 리리플레닛 계정으로 다시 시작할 수 있다 (빈 계정).
 
 초대 코드: 8자, 헷갈리는 글자(0 O 1 I L) 제외한 대문자·숫자.
 
@@ -155,7 +164,11 @@
 | GET | `/api/admin/reports?all=false` | | 200 `{ items: ReportView[] }` (처리 안 한 것, 오래된 것 먼저. `all=true` 면 전부 최근 것 먼저) |
 | POST | `/api/admin/reports/{id}/resolve` | `{ resolution }` (예: "사진 삭제, 계정 삭제") | 204 |
 | DELETE | `/api/admin/{moments\|comments\|messages\|group-messages}/{id}` | | 204 내용 지우기 |
-| DELETE | `/api/admin/users/{id}` | | 204 계정 삭제 (내보내기) |
+| DELETE | `/api/admin/users/{id}?ban=true&reason=` | | 204 계정 삭제 + 다시 못 들어오게 막기 (`ban=false` 면 지우기만) |
+| GET | `/api/admin/bans` | | 200 `{ items: [{ id, externalIssuer, externalSubject, email, displayName, reason, createdAt }] }` |
+| DELETE | `/api/admin/bans/{id}` | | 204 막은 것 풀기 (다시 오면 빈 새 계정) |
+
+- 내보내기는 리리플레닛 계정이면 `(issuer, sub)`, 로컬 계정이면 이메일로 막는다. 계정만 지우면 같은 사람이 다시 로그인해 새 계정을 받을 수 있어서다.
 
 ```jsonc
 // ReportView
@@ -340,6 +353,8 @@
 | DELETE | `/api/devices/{token}` | | 204 (로그아웃할 때) |
 
 - `platform` 생략 시 `ios`. iOS `token`은 APNs 16진수 문자열, Android는 대소문자 구분 FCM 토큰 (최대 2048자), `kind=app`, `environment=production`만 허용한다. 같은 토큰이 다른 계정으로 오면 새 계정으로 옮긴다.
+- 한 사람당 최근 토큰 10개까지만 남긴다 (오래된 것부터 지움). 푸시는 모든 토큰으로 가므로 쓰레기 토큰이 쌓이지 않게 한다.
+- FCM 이 `UNREGISTERED`(404) · `SENDER_ID_MISMATCH`(403) · `message.token` 을 가리키는 `INVALID_ARGUMENT`(400) 로 답하면 그 토큰을 지운다. 401 이면 OAuth 토큰을 새로 받아 한 번 다시 보낸다.
 - `kind: "app"`: 앱의 알림 토큰. `kind: "widget"`: iOS 26 위젯 푸시 토큰 (위젯 확장이 직접 등록).
 
 ## 사진 파일

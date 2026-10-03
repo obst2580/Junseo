@@ -52,6 +52,34 @@ class FcmPushSenderTest {
         }
     }
 
+    @Test void tokensFromAnotherProjectOrNotATokenAreRemovedButPayloadErrorsAreNot() {
+        response = new ApnsTransport.Response(403, "{\"error\":{\"details\":[{\"@type\":\"type.googleapis.com/google.firebase.fcm.v1.FcmError\",\"errorCode\":\"SENDER_ID_MISMATCH\"}]}}");
+        assertThat(sender.send(message(PushType.WIDGETS, "{}"))).isEqualTo(PushOutcome.INVALID_TOKEN);
+        response = new ApnsTransport.Response(400, "{\"error\":{\"details\":[{\"@type\":\"type.googleapis.com/google.firebase.fcm.v1.FcmError\",\"errorCode\":\"INVALID_ARGUMENT\"},"
+                + "{\"@type\":\"type.googleapis.com/google.rpc.BadRequest\",\"fieldViolations\":[{\"field\":\"message.token\",\"description\":\"Invalid registration token\"}]}]}}");
+        assertThat(sender.send(message(PushType.WIDGETS, "{}"))).isEqualTo(PushOutcome.INVALID_TOKEN);
+        // INVALID_ARGUMENT about the payload, or a proxy's HTML page: the token may be fine
+        response = new ApnsTransport.Response(400, "{\"error\":{\"details\":[{\"@type\":\"type.googleapis.com/google.firebase.fcm.v1.FcmError\",\"errorCode\":\"INVALID_ARGUMENT\"},"
+                + "{\"@type\":\"type.googleapis.com/google.rpc.BadRequest\",\"fieldViolations\":[{\"field\":\"message.data\"}]}]}}");
+        assertThat(sender.send(message(PushType.WIDGETS, "{}"))).isEqualTo(PushOutcome.FAILED);
+        response = new ApnsTransport.Response(403, "<html>Forbidden</html>");
+        assertThat(sender.send(message(PushType.WIDGETS, "{}"))).isEqualTo(PushOutcome.FAILED);
+    }
+
+    @Test void unauthorizedRefreshesTheOAuthTokenAndRetriesOnce() {
+        List<String> used = new ArrayList<>();
+        String[] current = {"stale"};
+        var retrying = new FcmPushSender((uri, headers, body) -> {
+            used.add(headers.get("Authorization"));
+            return headers.get("Authorization").equals("Bearer stale") ? new ApnsTransport.Response(401, "{}") : new ApnsTransport.Response(200, "{}");
+        }, new FcmPushSender.AccessToken() {
+            @Override public String get() { return current[0]; }
+            @Override public void invalidate() { current[0] = "fresh"; }
+        }, "junseo-test", json);
+        assertThat(retrying.send(message(PushType.WIDGETS, "{}"))).isEqualTo(PushOutcome.SENT);
+        assertThat(used).containsExactly("Bearer stale", "Bearer fresh");
+    }
+
     @Test void credentialNetworkFailureDoesNotFailTheDomainEvent() {
         var unavailable = new FcmPushSender((uri, headers, body) -> { throw new IOException(); },
                 () -> "token", "junseo-test", json);

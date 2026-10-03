@@ -3,7 +3,15 @@ import { File } from 'expo-file-system';
 
 // docs/api.md 의 객체들
 export type UserSummary = { id: number; displayName: string };
-export type Me = UserSummary & { email: string; inviteCode: string; friendCount: number; friendLimit: number; needsOnboarding?: boolean };
+/** loginMethod: 'platform' (리리플레닛 로그인, 비밀번호 없음) · 'password' (개발용 이메일 로그인) */
+export type Me = UserSummary & {
+  email: string;
+  inviteCode: string;
+  friendCount: number;
+  friendLimit: number;
+  needsOnboarding?: boolean;
+  loginMethod?: 'platform' | 'password';
+};
 export type ReactionCount = { emoji: string; count: number };
 export type Comment = { id: number; momentId: number; author: UserSummary; text: string; createdAt: string };
 export type Moment = {
@@ -97,14 +105,15 @@ export function configureApi(options: { getToken: () => string | null; onUnautho
 }
 
 /** timeoutMs: 이 시간 안에 응답이 없으면 연결 문제로 본다 (기본: 기다린다) */
-type RequestOptions = { method?: string; body?: unknown; form?: FormData; timeoutMs?: number };
+/** token: 지금 세션 대신 이 토큰으로 보낸다 (계정 삭제 직전 다시 로그인한 토큰). 401 이어도 로그아웃하지 않는다. */
+type RequestOptions = { method?: string; body?: unknown; form?: FormData; timeoutMs?: number; token?: string };
 
 // 메시지 보내기는 이 시간이 지나면 「보내지 못했어요」로 바꾼다. 같은 ID로 다시 보내므로 두 번 가지 않는다.
 const SEND_TIMEOUT_MS = 15_000;
 
-async function request<T>(path: string, { method = 'GET', body, form, timeoutMs }: RequestOptions = {}): Promise<T> {
+async function request<T>(path: string, { method = 'GET', body, form, timeoutMs, token: override }: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
-  const token = tokenProvider();
+  const token = override ?? tokenProvider();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
 
@@ -144,21 +153,19 @@ const q = (params: Record<string, string | number | null | undefined>) => {
 export const api = {
   startLogin: (codeChallenge: string, returnUri: string) =>
     request<{ launchUrl: string; state: string }>('/api/auth/start', { method: 'POST', body: { codeChallenge, returnUri }, timeoutMs: 15_000 }),
-  exchangeLogin: (code: string, codeVerifier: string) =>
-    request<AuthResponse>('/api/auth/exchange', { method: 'POST', body: { code, codeVerifier }, timeoutMs: 15_000 }),
+  /** reauth: 계정 삭제 전에 본인 확인으로 다시 로그인한 것. 서버가 계정을 새로 만들지 않는다. */
+  exchangeLogin: (code: string, codeVerifier: string, reauth = false) =>
+    request<AuthResponse>('/api/auth/exchange', {
+      method: 'POST',
+      body: reauth ? { code, codeVerifier, reauth } : { code, codeVerifier },
+      timeoutMs: 15_000,
+    }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST', timeoutMs: 10_000 }),
-  signup: (email: string, password: string, displayName: string) =>
-    request<AuthResponse>('/api/auth/signup', { method: 'POST', body: { email, password, displayName } }),
-  login: (email: string, password: string) =>
-    request<AuthResponse>('/api/auth/login', { method: 'POST', body: { email, password } }),
-
-  // 비밀번호 찾기: 메일로 받은 6자리 코드 + 새 비밀번호 → 바로 로그인 (다른 기기의 로그인은 끝난다)
-  requestPasswordReset: (email: string) => request<void>('/api/auth/password-reset', { method: 'POST', body: { email } }),
-  confirmPasswordReset: (email: string, code: string, password: string) =>
-    request<AuthResponse>('/api/auth/password-reset/confirm', { method: 'POST', body: { email, code, password } }),
 
   me: () => request<Me>('/api/me'),
-  deleteAccount: (password: string) => request<void>('/api/me/delete', { method: 'POST', body: { password } }),
+  /** 이메일 계정은 비밀번호, 리리플레닛 계정은 방금 다시 로그인한 토큰으로 본인을 확인한다 */
+  deleteAccount: ({ password, token }: { password?: string; token?: string }) =>
+    request<void>('/api/me/delete', { method: 'POST', body: password ? { password } : {}, token }),
 
   // 차단 · 신고
   blocks: () => request<{ items: UserSummary[] }>('/api/blocks'),

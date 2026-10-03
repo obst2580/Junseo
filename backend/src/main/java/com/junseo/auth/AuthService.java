@@ -6,6 +6,7 @@ import com.junseo.auth.AuthController.SignupRequest;
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.security.JwtService;
+import com.junseo.safety.Bans;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
 import com.junseo.user.UserService;
@@ -28,6 +29,7 @@ public class AuthService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final Bans bans;
     private final Clock clock;
 
     public AuthService(
@@ -35,11 +37,13 @@ public class AuthService {
             UserService userService,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
+            Bans bans,
             Clock clock) {
         this.users = users;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.bans = bans;
         this.clock = clock;
     }
 
@@ -47,6 +51,9 @@ public class AuthService {
     public AuthResponse signup(SignupRequest request) {
         if (request.password().getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_BYTES) {
             throw new ApiException(ErrorCode.VALIDATION_FAILED, "비밀번호가 너무 길어요. 조금 더 짧게 입력해 주세요.");
+        }
+        if (bans.isEmailBanned(request.email())) {
+            throw new ApiException(ErrorCode.ACCOUNT_BANNED);
         }
         if (users.existsByEmail(request.email())) {
             throw new ApiException(ErrorCode.EMAIL_TAKEN);

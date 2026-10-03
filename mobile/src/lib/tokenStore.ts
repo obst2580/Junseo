@@ -20,6 +20,8 @@ export const tokenStore = {
         return globalThis.sessionStorage?.getItem(KEY) ?? null;
       }
       if (androidWidget) return await androidWidget.getTokenAsync();
+      // 예전 버전의 앱 전용 Keychain 항목 (위젯과 나누지 않던 것). 지금은 쓰지 않으니 남겨 두지 않는다.
+      await SecureStore.deleteItemAsync(KEY).catch(() => {});
       return await SecureStore.getItemAsync(KEY, options);
     } catch {
       return null;

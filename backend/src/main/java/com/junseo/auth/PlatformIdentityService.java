@@ -4,6 +4,7 @@ import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.JunseoProperties;
 import com.junseo.common.security.Sessions;
+import com.junseo.safety.Bans;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
 import com.junseo.user.UserService;
@@ -21,14 +22,17 @@ public class PlatformIdentityService {
     private final Clock clock;
     private final JunseoProperties props;
     private final Sessions sessions;
+    private final Bans bans;
 
-    public PlatformIdentityService(UserRepository users, UserService profiles, JdbcTemplate jdbc, Clock clock, JunseoProperties props, Sessions sessions) {
+    public PlatformIdentityService(UserRepository users, UserService profiles, JdbcTemplate jdbc, Clock clock, JunseoProperties props, Sessions sessions,
+            Bans bans) {
         this.users = users;
         this.profiles = profiles;
         this.jdbc = jdbc;
         this.clock = clock;
         this.props = props;
         this.sessions = sessions;
+        this.bans = bans;
     }
 
     @Transactional
@@ -37,6 +41,8 @@ public class PlatformIdentityService {
         String subject = token.getSubject();
         // Serialize concurrent first logins, without matching email or the two databases' numeric IDs.
         jdbc.queryForList("select pg_advisory_xact_lock(hashtextextended(?, 0))", issuer + ":" + subject);
+        // Removed by an operator: logging in again must not hand out a fresh account
+        if (bans.isBanned(issuer, subject)) throw new ApiException(ErrorCode.ACCOUNT_BANNED);
         return users.findByExternalIssuerAndExternalSubject(issuer, subject).orElseGet(() -> {
             String email = token.getClaimAsString("email");
             if (email == null || email.isBlank() || email.length() > 254) {
@@ -44,6 +50,13 @@ public class PlatformIdentityService {
             }
             return users.saveAndFlush(User.platform(issuer, subject, email, profiles.newInviteCode(), clock.instant()));
         });
+    }
+
+    /** The account this central identity already has (re-confirming who you are must not provision one). */
+    @Transactional(readOnly = true)
+    public User existing(Jwt token) {
+        return users.findByExternalIssuerAndExternalSubject(token.getClaimAsString("iss"), token.getSubject())
+                .orElseThrow(() -> new ApiException(ErrorCode.REAUTH_NO_ACCOUNT));
     }
 
     @Transactional(readOnly = true)

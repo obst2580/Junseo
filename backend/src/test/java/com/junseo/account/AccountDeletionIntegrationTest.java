@@ -68,9 +68,25 @@ class AccountDeletionIntegrationTest extends IntegrationTest {
     @Test
     void operatorCanRemoveAnAccount() throws Exception {
         var a = signup("준서");
+        getAs(a, "/api/me").andExpect(jsonPath("$.loginMethod").value("password"));
         mvc.perform(delete("/api/admin/users/" + a.id())).andExpect(status().isForbidden());
         mvc.perform(delete("/api/admin/users/" + a.id()).header(AdminAuth.HEADER, "test-admin-token")).andExpect(status().isNoContent());
         getAs(a, "/api/me").andExpect(status().isUnauthorized());
         assertThat(jdbc.queryForObject("select count(*) from users where id = ?", Long.class, a.id())).isZero();
+        // 내보낸 사람은 같은 이메일로 다시 가입할 수 없다 (대소문자 무시)
+        signupWith(a.email().toUpperCase()).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCOUNT_BANNED"));
+    }
+
+    @Test
+    void operatorCanRemoveWithoutBanning() throws Exception {
+        var a = signup("준서");
+        mvc.perform(delete("/api/admin/users/" + a.id()).param("ban", "false").header(AdminAuth.HEADER, "test-admin-token"))
+                .andExpect(status().isNoContent());
+        signupWith(a.email()).andExpect(status().isCreated());
+    }
+
+    private org.springframework.test.web.servlet.ResultActions signupWith(String email) throws Exception {
+        return mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON)
+                .content(toJson(Map.of("email", email, "password", "password123!", "displayName", "준서"))));
     }
 }

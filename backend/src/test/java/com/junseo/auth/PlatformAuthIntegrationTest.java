@@ -86,7 +86,7 @@ class PlatformAuthIntegrationTest extends IntegrationTest {
         return token(subject, "auth.liliplanet.net", "junseo-api", Instant.now().plusSeconds(600), true);
     }
     private PlatformLoginFlow.Callback callback(String raw, String verifier) {
-        var start = flow.start(PlatformLoginFlow.challenge(verifier), "junseo://auth");
+        var start = flow.start(PlatformLoginFlow.challenge(verifier), "junseo://auth", java.util.UUID.randomUUID().toString());
         var launch = flow.launch(start.state());
         return flow.callback(start.state(), launch.cookie(), raw);
     }
@@ -134,7 +134,7 @@ class PlatformAuthIntegrationTest extends IntegrationTest {
 
     @Test void callbackIsBoundToBrowserAndLaunchIsSingleUse() throws Exception {
         String raw = token("central-789");
-        var start = flow.start(PlatformLoginFlow.challenge("a".repeat(64)), "junseo://auth");
+        var start = flow.start(PlatformLoginFlow.challenge("a".repeat(64)), "junseo://auth", java.util.UUID.randomUUID().toString());
         var launch = flow.launch(start.state());
         assertThat(launch.loginUrl()).startsWith("https://login.liliplanet.net?client=junseo-api&redirect=");
         assertThatThrownBy(() -> flow.launch(start.state())).isInstanceOf(ApiException.class);
@@ -147,7 +147,7 @@ class PlatformAuthIntegrationTest extends IntegrationTest {
 
     @Test void launchSetsHttpOnlyCookieAndDoesNotExposeTokenInAppRedirect() throws Exception {
         String verifier = "b".repeat(64), raw = token("central-browser");
-        var start = flow.start(PlatformLoginFlow.challenge(verifier), "junseo://auth");
+        var start = flow.start(PlatformLoginFlow.challenge(verifier), "junseo://auth", java.util.UUID.randomUUID().toString());
         var launch = mvc.perform(get("/auth/launch").param("state", start.state()))
                 .andExpect(status().isFound()).andExpect(header().string("Referrer-Policy", "no-referrer")).andReturn();
         String setCookie = launch.getResponse().getHeader("Set-Cookie");
@@ -184,7 +184,7 @@ class PlatformAuthIntegrationTest extends IntegrationTest {
     }
 
     @Test void rejectsExternalReturnUriAndLocalPasswordEndpointsAreUnavailable() throws Exception {
-        assertThatThrownBy(() -> flow.start(PlatformLoginFlow.challenge("c".repeat(64)), "https://evil.example/auth")).isInstanceOf(ApiException.class);
+        assertThatThrownBy(() -> flow.start(PlatformLoginFlow.challenge("c".repeat(64)), "https://evil.example/auth", "test-client")).isInstanceOf(ApiException.class);
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isNotFound());
         mvc.perform(post("/api/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isNotFound());
     }

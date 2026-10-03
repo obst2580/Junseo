@@ -12,6 +12,10 @@ public enum ErrorCode {
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "로그인이 필요해요."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 맞지 않아요."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "권한이 없어요."),
+    // 403, not 401: the app signs out on 401, and here the session itself is fine
+    REAUTH_REQUIRED(HttpStatus.FORBIDDEN, "안전을 위해 리리플레닛으로 다시 로그인한 뒤 삭제해 주세요."),
+    ACCOUNT_BANNED(HttpStatus.FORBIDDEN, "운영 정책을 어겨 이용이 제한된 계정이에요."),
+    REAUTH_NO_ACCOUNT(HttpStatus.CONFLICT, "이 앱을 쓰지 않는 리리플레닛 계정이에요. 지금 쓰는 계정으로 다시 로그인해 주세요."),
     NOT_FRIENDS(HttpStatus.FORBIDDEN, "친구에게만 메시지를 보낼 수 있어요."),
     NOT_MUTUAL_FRIENDS(HttpStatus.FORBIDDEN, "서로 친구인 사람끼리만 단챗을 만들 수 있어요."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "찾을 수 없어요."),

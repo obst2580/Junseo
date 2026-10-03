@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -39,8 +40,16 @@ public class ImageProcessor {
 
     public record ProcessedImage(byte[] full, byte[] thumb) {}
 
+    /** A photo takes well under a second: a few uploads at once wait their turn instead of failing at once. */
+    static final long SLOT_WAIT_SECONDS = 15;
+
     public ProcessedImage process(byte[] data) {
-        if (!processingSlots.tryAcquire()) throw new ApiException(ErrorCode.TOO_MANY_REQUESTS);
+        try {
+            if (!processingSlots.tryAcquire(SLOT_WAIT_SECONDS, TimeUnit.SECONDS)) throw new ApiException(ErrorCode.TOO_MANY_REQUESTS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ApiException(ErrorCode.TOO_MANY_REQUESTS);
+        }
         try { return processImage(data); } finally { processingSlots.release(); }
     }
 

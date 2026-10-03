@@ -3,14 +3,17 @@ import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, Vi
 import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { Button, ErrorText, Field } from '@/components/ui';
-import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { colors, radius } from '@/lib/theme';
 
-/** 계정 삭제: 무엇이 지워지는지 알리고, 비밀번호를 한 번 더 받는다. 되돌릴 수 없다. */
+/**
+ * 계정 삭제: 무엇이 지워지는지 알리고 본인인지 한 번 더 확인한다. 되돌릴 수 없다.
+ * 리리플레닛 계정은 비밀번호가 없어서 그 자리에서 리리플레닛으로 다시 로그인한다. 이메일 계정(개발용)은 비밀번호를 받는다.
+ */
 export default function DeleteAccountScreen() {
   const headerHeight = useHeaderHeight();
-  const { deleteAccount } = useAuth();
+  const { me, deleteAccount } = useAuth();
+  const platform = me?.loginMethod === 'platform';
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -20,23 +23,25 @@ export default function DeleteAccountScreen() {
     setError(null);
     try {
       // 성공하면 로그아웃 상태가 되어 로그인 화면으로 간다
-      await deleteAccount(password);
+      await deleteAccount(platform ? undefined : password);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '삭제하지 못했어요. 잠시 후 다시 해 주세요.');
+      setError(e instanceof Error && e.message ? e.message : '삭제하지 못했어요. 잠시 후 다시 해 주세요.');
       setBusy(false);
     }
   };
 
   const confirm = () => {
     const title = '정말 계정을 삭제할까요?';
-    const detail = '사진 · 댓글 · 메시지 · 친구가 모두 지워지고 되돌릴 수 없어요.';
+    const detail = platform
+      ? '사진 · 댓글 · 메시지 · 친구가 모두 지워지고 되돌릴 수 없어요. 본인 확인으로 리리플레닛 로그인 창이 열려요.'
+      : '사진 · 댓글 · 메시지 · 친구가 모두 지워지고 되돌릴 수 없어요.';
     if (Platform.OS === 'web') {
       if (globalThis.confirm?.(`${title}\n${detail}`)) void run();
       return;
     }
     Alert.alert(title, detail, [
       { text: '취소', style: 'cancel' },
-      { text: '삭제', style: 'destructive', onPress: () => void run() },
+      { text: platform ? '확인하고 삭제' : '삭제', style: 'destructive', onPress: () => void run() },
     ]);
   };
 
@@ -56,10 +61,25 @@ export default function DeleteAccountScreen() {
             </Text>
           ))}
         </View>
-        <Text style={styles.note}>지운 계정은 되돌릴 수 없어요. 같은 이메일로 새로 가입할 수는 있어요.</Text>
-        <Field label="비밀번호 확인" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" placeholder="지금 비밀번호" />
+        {platform ? (
+          <Text style={styles.note}>
+            지운 계정은 되돌릴 수 없어요. 리리플레닛 계정은 그대로 남아서, 나중에 다시 로그인하면 빈 계정으로 새로 시작해요.{'\n\n'}
+            본인인지 확인하려고 삭제 직전에 리리플레닛으로 한 번 더 로그인해요.
+          </Text>
+        ) : (
+          <>
+            <Text style={styles.note}>지운 계정은 되돌릴 수 없어요. 같은 이메일로 새로 가입할 수는 있어요.</Text>
+            <Field label="비밀번호 확인" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" placeholder="지금 비밀번호" />
+          </>
+        )}
         {error && <ErrorText>{error}</ErrorText>}
-        <Button title="계정 삭제" variant="danger" onPress={confirm} loading={busy} disabled={password.length < 8} />
+        <Button
+          title={platform ? '리리플레닛으로 확인하고 삭제' : '계정 삭제'}
+          variant="danger"
+          onPress={confirm}
+          loading={busy}
+          disabled={!platform && password.length < 8}
+        />
       </ScrollView>
     </KeyboardAvoidingView>
   );

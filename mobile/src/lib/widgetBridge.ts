@@ -19,6 +19,11 @@ const Keys = {
 const storage = Platform.OS === 'ios' ? new ExtensionStorage(APP_GROUP) : null;
 
 export const widgetBridge = {
+  /** 예전 버전이 App Group(UserDefaults)에 평문으로 둔 토큰 사본. 업데이트 뒤 다시 로그인하지 않아도 앱을 켜면 지운다. */
+  purgeLegacyToken() {
+    storage?.remove(Keys.accessToken);
+  },
+
   signIn(userId: number) {
     androidWidget?.signIn(API_BASE_URL, userId);
     if (!storage) return;

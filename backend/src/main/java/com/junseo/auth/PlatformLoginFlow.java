@@ -11,25 +11,37 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 
-/** Single-instance login transactions. Codes are short lived, single use and bound to S256 PKCE. */
+/**
+ * Single-instance login transactions. Codes are short lived, single use and bound to S256 PKCE.
+ * Starting a login needs no account, so it must not be possible to use up everyone's slots: each client address may
+ * hold only a few pending logins, and when the table is full the oldest pending login makes room (a real login
+ * finishes within a minute or two; flooding past that needs far more requests than the per-address cap allows).
+ */
 @Service
 @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "platform")
 public class PlatformLoginFlow {
     public record Start(String launchUrl, String state) {}
     public record Launch(String loginUrl, String cookie) {}
     public record Callback(String returnUrl, String code, String state) {}
-    private record Transaction(String challenge, String returnUri, Instant expiresAt, String cookie) {}
+    private record Transaction(String challenge, String returnUri, Instant expiresAt, String cookie, String client) {}
     private record Grant(String challenge, Jwt jwt, Instant expiresAt) {}
-    private final Map<String, Transaction> transactions = new ConcurrentHashMap<>();
-    private final Map<String, Grant> grants = new ConcurrentHashMap<>();
+    static final int MAX_PENDING = 10_000;
+    static final int MAX_PER_CLIENT = 20;
+    static final int MAX_GRANTS = 1_000;
+    // Insertion order = age (every transaction lives 10 minutes), so the first entry is the oldest. Guarded by this.
+    private final Map<String, Transaction> transactions = new LinkedHashMap<>();
+    private final Map<String, Integer> perClient = new HashMap<>();
+    private final Map<String, Grant> grants = new LinkedHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final JunseoProperties props;
     private final JwtDecoder decoder;
@@ -41,13 +53,25 @@ public class PlatformLoginFlow {
         this.clock = clock;
     }
 
-    public synchronized Start start(String challenge, String returnUri) {
+    /** client: the caller's address, to cap how many pending logins one client can hold. */
+    public synchronized Start start(String challenge, String returnUri, String client) {
         purge();
         if (challenge == null || !challenge.matches("[A-Za-z0-9_-]{43}") || !props.auth().returnUris().contains(returnUri)) throw invalid();
-        if (transactions.size() >= 1000 || grants.size() >= 1000) throw invalid();
+        String key = client == null || client.isBlank() ? "unknown" : client;
+        if (perClient.getOrDefault(key, 0) >= MAX_PER_CLIENT) throw new ApiException(ErrorCode.TOO_MANY_REQUESTS);
+        while (transactions.size() >= MAX_PENDING) {
+            Iterator<Map.Entry<String, Transaction>> oldest = transactions.entrySet().iterator();
+            forget(oldest.next().getValue());
+            oldest.remove();
+        }
         String state = nonce();
-        transactions.put(state, new Transaction(challenge, returnUri, clock.instant().plus(Duration.ofMinutes(10)), null));
+        transactions.put(state, new Transaction(challenge, returnUri, clock.instant().plus(Duration.ofMinutes(10)), null, key));
+        perClient.merge(key, 1, Integer::sum);
         return new Start(base() + "/auth/launch?state=" + state, state);
+    }
+
+    synchronized int pending() {
+        return transactions.size();
     }
 
     public synchronized Launch launch(String state) {
@@ -55,7 +79,7 @@ public class PlatformLoginFlow {
         // A launch URL is used once; returning to it cannot replace the cookie for an existing flow.
         if (t.cookie() != null) throw invalid();
         String cookie = nonce();
-        transactions.put(state, new Transaction(t.challenge(), t.returnUri(), t.expiresAt(), cookie));
+        transactions.put(state, new Transaction(t.challenge(), t.returnUri(), t.expiresAt(), cookie, t.client()));
         String callback = base() + "/auth/callback?state=" + encode(state);
         return new Launch(props.auth().loginUrl() + "?client=" + encode(props.auth().audience()) + "&redirect=" + encode(callback), cookie);
     }
@@ -69,7 +93,13 @@ public class PlatformLoginFlow {
         } catch (JwtException | IllegalArgumentException e) {
             throw invalid();
         }
-        transactions.remove(state);
+        forget(transactions.remove(state));
+        // Grants need a valid central token, so they cannot be flooded anonymously; still keep the table bounded.
+        while (grants.size() >= MAX_GRANTS) {
+            Iterator<String> oldest = grants.keySet().iterator();
+            oldest.next();
+            oldest.remove();
+        }
         String code = nonce();
         grants.put(code, new Grant(t.challenge(), jwt, clock.instant().plusSeconds(60)));
         return new Callback(t.returnUri(), code, state);
@@ -100,8 +130,16 @@ public class PlatformLoginFlow {
 
     private void purge() {
         Instant now = clock.instant();
-        transactions.values().removeIf(t -> !t.expiresAt().isAfter(now));
+        transactions.values().removeIf(t -> {
+            if (t.expiresAt().isAfter(now)) return false;
+            forget(t);
+            return true;
+        });
         grants.values().removeIf(t -> !t.expiresAt().isAfter(now));
+    }
+
+    private void forget(Transaction t) {
+        if (t != null) perClient.computeIfPresent(t.client(), (k, n) -> n > 1 ? n - 1 : null);
     }
 
     private String nonce() { byte[] bytes = new byte[32]; random.nextBytes(bytes); return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes); }
