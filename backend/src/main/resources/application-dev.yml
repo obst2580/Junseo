@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/junseo
+    username: junseo
+    password: junseo
+
+logging:
+  level:
+    com.junseo: debug

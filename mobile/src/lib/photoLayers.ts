@@ -1,0 +1,45 @@
+/**
+ * 찍은 사진 위에 얹는 요소 (눈 가리개 · 텍스트). 보낼 때 사진에 합성된다.
+ * 위치(x, y: 가운데)와 크기는 사진 한 변에 대한 비율이라 화면 크기와 상관없다. rotation 은 도(°).
+ */
+type Base = { id: number; x: number; y: number; scale: number; rotation: number };
+export type PhotoLayer = (Base & { kind: 'bar' }) | (Base & { kind: 'text'; text: string; font: TextFont });
+
+/**
+ * 글자 모양. 모두 흰 글자 + 그림자.
+ * - plain: 기본
+ * - gungseo: 궁서체 (은 궁서)
+ * - tall: 예능 썸네일처럼 세로로 긴 글씨 (고딕 A1 ExtraBold 를 세로로 늘림)
+ */
+export type TextFont = 'plain' | 'gungseo' | 'tall';
+export const TEXT_FONTS: { key: TextFont; label: string }[] = [
+  { key: 'plain', label: '기본' },
+  { key: 'gungseo', label: '궁서체' },
+  { key: 'tall', label: '길쭉' },
+];
+/** useFonts 로 불러온 이름 (루트 레이아웃) */
+export const FONT_FAMILY = { gungseo: 'UnGungseo', tall: 'GothicA1_800ExtraBold' } as const;
+/**
+ * 길쭉: 참고 썸네일(「상견례 프리빠꾸」)을 재 보니 글자마다 같은 비율(2.70~2.95배)로 세로로 늘린 굵은 고딕이었다.
+ * 그보다 조금 더 길게 3.2배로 쓴다. 글자 사이는 글꼴 그대로, 낱말 사이만 0.14em 더 넓다. 디자인 랩도 같은 값을 쓴다.
+ */
+export const TALL = { stretch: 3.2, wordGap: 0.14 };
+
+/** 기생충 포스터 같은 검은 눈 가리개 */
+export const BAR = { width: 0.64, height: 0.07 };
+export const TEXT = { size: 0.075, maxWidth: 0.86, lineHeight: 1.15, maxLength: 60 };
+export const LAYER_SCALE = { min: 0.25, max: 4 };
+
+let lastId = 0;
+
+export function newBar(): PhotoLayer {
+  // 셀카에서 눈이 대개 이 높이쯤에 온다
+  return { id: ++lastId, kind: 'bar', x: 0.5, y: 0.42, scale: 1, rotation: 0 };
+}
+
+export function newText(text: string, font: TextFont): PhotoLayer {
+  return { id: ++lastId, kind: 'text', x: 0.5, y: 0.74, scale: 1, rotation: 0, text, font };
+}
+
+/** 줄바꿈·연속 공백을 한 칸으로 (입력에서 줄바꿈 키는 '완료') */
+export const cleanLayerText = (text: string) => text.replace(/\s+/g, ' ').trim();

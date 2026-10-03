@@ -1,0 +1,23 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/junseo_test
+    username: junseo
+    password: junseo
+  flyway:
+    # The test schema is rebuilt from the migrations once per test run (see TestConfig).
+    clean-disabled: false
+
+junseo:
+  jwt:
+    secret: test-jwt-secret-0123456789abcdefghijklmnopqrstuvwxyz
+  media:
+    signing-secret: test-media-secret-0123456789abcdefghijklmnopqrstuvwxyz
+  storage:
+    dir: build/test-media
+  admin:
+    token: test-admin-token
+    email: ops@test.junseo.app
+
+logging:
+  level:
+    com.junseo: info

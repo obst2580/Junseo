@@ -1,0 +1,78 @@
+{
+  "checkedAt": "2026-10-03T14:38:51.492802+00:00",
+  "scope": "Merged handoff source; no production deployment performed in this handoff turn",
+  "mergedRemoteCommit": "8962c76",
+  "sourceFingerprint": {
+    "algorithm": "sha256(path UTF-8 + NUL + raw SHA256(file bytes), sorted paths)",
+    "sha256": "9e05d388302307ed0043e844a7ed76c5548c5a927fc4824c831f4a1975931361",
+    "files": 262,
+    "scope": [
+      "backend/src/",
+      "mobile/src/",
+      "mobile/modules/",
+      "mobile/plugins/",
+      "mobile/tests/",
+      "backend/build.gradle.kts",
+      "mobile/package.json",
+      "mobile/package-lock.json",
+      "mobile/app.config.js"
+    ]
+  },
+  "backend": {
+    "command": "./gradlew test bootJar --console=plain",
+    "database": "local junseo_test",
+    "results": {
+      "tests": 126,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "jarSha256": "6efcb961364f3e59715528e8a25835d45ba56afb16eaaa22446f149b6ea79905",
+    "deployed": false
+  },
+  "mobile": {
+    "regressionTests": 13,
+    "loginTests": 8,
+    "uploadTests": 5,
+    "failures": 0,
+    "lint": "passed",
+    "typecheck": "passed",
+    "nativeBuildRepeatedDuringHandoff": false
+  },
+  "ops": {
+    "pythonSyntax": "passed",
+    "candidatePreparation": "passed; 126 tests, no Azure writes",
+    "scriptHelp": "passed"
+  },
+  "production": {
+    "app": "junseo-api",
+    "state": "Running",
+    "profile": "prod",
+    "subscription": "f14e91e2-b819-4cd6-ac39-e4a3909c17b9",
+    "fcmEnabled": true,
+    "fcmProject": "junseo-cbca7",
+    "fcmCredentialIsKeyVaultReference": true,
+    "apnsEnabled": false,
+    "adminTokenConfigured": false,
+    "smtpConfigured": false,
+    "deployedJarSha256": "24e0475de871a92917e625f0e6f0050089e7db732fd11085e1e3c0e8c7aecdc3",
+    "appliedMigrations": "V1-V7; V8 source only",
+    "publicSmoke": {
+      "checkedAt": "2026-10-03T14:36:42.582508+00:00",
+      "checks": 12,
+      "passed": true
+    }
+  },
+  "pending": [
+    "Physical-device authenticated photo delivery and end-to-end FCM/widget tests",
+    "V8 review and production deployment",
+    "Platform reauthentication for account deletion; central password management",
+    "iOS signing/APNs/physical-device tests"
+  ],
+  "excludedFromGit": [
+    "Android signing key and password file",
+    "FCM service-account private key",
+    "Firebase client config JSON",
+    "APK/ZIP and generated native/build directories"
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "nativeMultipartProbe": {
+    "oldError": "Unsupported FormDataPart implementation",
+    "newStatus": 401,
+    "newCode": "UNAUTHORIZED",
+    "passed": true
+  },
+  "device": "API 36 ARM64 emulator",
+  "target": "https://junseo-api.liliplanet.net/api/moments",
+  "scope": "No user token: verifies native file encoding and HTTPS transport to authentication boundary; no photo created or notification sent.",
+  "checkedAt": "2026-10-03T11:19:04.737134+00:00",
+  "reportedSymptom": "Network error when sending after adding a friend",
+  "rootCause": "Expo SDK 57 replaces global fetch with expo/fetch. Its multipart encoder rejects React Native uri-only file descriptors before sending HTTP; api.uploadMoment used that legacy descriptor and mapped the encoding exception to NETWORK.",
+  "fix": "Append an expo-file-system File so the SDK reads the local image bytes.",
+  "sdk": "57.0.26",
+  "regression": {
+    "beforeFix": {
+      "passed": 1,
+      "failed": 4
+    },
+    "afterFix": {
+      "uploadTests": 5,
+      "loginTests": 8,
+      "failures": 0
+    },
+    "sdkMultipartEncoder": "Uses installed Expo implementation, including binary body and recipient fields."
+  },
+  "checks": {
+    "lint": true,
+    "typecheck": true,
+    "webExport": true,
+    "releaseBuild": true,
+    "samePreviewSigningCertificate": true,
+    "emulatorUpdateInstall": true,
+    "productionEntrypointVerified": true,
+    "compiledUploadFixVerified": true,
+    "productionLoginScreen": true,
+    "firebaseInitialization": true,
+    "phoneDownloadMetadataVerified": true
+  },
+  "productionHealth": {
+    "url": "https://junseo-api.liliplanet.net/actuator/health",
+    "status": "UP",
+    "httpStatus": 200
+  },
+  "documentation": "https://docs.expo.dev/versions/v57.0.0/sdk/filesystem/#uploading-files-using-expofetch",
+  "nativeProbeScreenshot": "docs/android-screenshots/upload-transport-probe.png",
+  "pending": "Authenticated photo delivery between physical devices requires retry with the updated APK.",
+  "version": "0.1.2",
+  "status": "DONE_WITH_CONCERNS",
+  "apkSha256": "eb13d1826fced0f2e21caa9a09e2d08b616cd2eecd9cd3ff4b74276b63a1c50b"
+}

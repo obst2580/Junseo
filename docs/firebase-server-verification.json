@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-03T06:21:25.883117+00:00",
+  "projectId": "junseo-cbca7",
+  "serviceAccount": "junseo-fcm-sender@junseo-cbca7.iam.gserviceaccount.com",
+  "oauthCredentialRefresh": true,
+  "httpV1ValidateOnlyStatus": 200,
+  "delivered": false,
+  "realDeviceDelivery": "not performed",
+  "httpV1ValidateOnly": "passed",
+  "azure": {
+    "checkedAt": "2026-10-03T06:22:58.975780+00:00",
+    "keyVaultReferenceStatus": "Resolved",
+    "vaultName": "junseo-kv-f14e91",
+    "secretName": "fcm-service-account",
+    "fcmEnabled": true,
+    "credentialStoredInAppSettings": false,
+    "publicHealth": "UP",
+    "publicDeploymentChecks": 12
+  },
+  "executionEnvironment": "local operator host using the same dedicated credential stored in Azure Key Vault; validate_only performs no delivery"
+}

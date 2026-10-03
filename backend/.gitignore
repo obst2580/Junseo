@@ -1,0 +1,9 @@
+.gradle/
+build/
+out/
+bin/
+data/
+*.p8
+.idea/
+*.iml
+.vscode/

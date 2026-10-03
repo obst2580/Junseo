@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer"><title>Junseo · 로그인</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#11141e;color:#fff;font:16px system-ui,sans-serif;padding:24px}
+main{width:min(100%,440px)}h1{font-size:36px;margin-bottom:12px}p{line-height:1.65;color:#bbc1d2}button,input{font:inherit;padding:14px;border-radius:12px;width:100%;margin:8px 0}
+button{background:#b4a0ff;color:#171322;border:0;cursor:pointer;font-weight:700}button:disabled{opacity:.5}input{background:#202534;color:white;border:1px solid #566077}
+#error{color:#ffb1ad;white-space:pre-wrap}#profile{white-space:pre-wrap}
+</style>
+<main><h1>Junseo</h1><p>친한 친구의 지금이<br>내 홈 화면에 뜬다.</p>
+<p id="preview" hidden></p>
+<button id="login">리리플레닛으로 로그인</button>
+<section id="session" hidden><p id="profile"></p>
+<form id="nickname" hidden><label for="name">친구들이 부를 이름</label><input id="name" maxlength="20" required placeholder="예: 준서"><button>시작하기</button></form>
+<button id="logout">로그아웃</button></section><p id="error" role="alert"></p></main>
+<script>
+(()=>{
+const login=document.querySelector('#login'),session=document.querySelector('#session'),profile=document.querySelector('#profile'),nickname=document.querySelector('#nickname'),error=document.querySelector('#error');
+if(!['http:','https:'].includes(location.protocol)||location.origin==='null'){
+ const preview=document.querySelector('#preview');
+ preview.textContent='로그인은 Junseo 웹사이트에서 진행해 주세요.';preview.hidden=false;
+ login.textContent='로그인 페이지 열기';
+ login.onclick=()=>location.assign('https://junseo-api.liliplanet.net/login');
+ return;
+}
+const tokenKey='junseo.accessToken',flowKey='junseo.loginFlow';
+async function request(path,body,method=body?'POST':'GET'){
+ const token=sessionStorage.getItem(tokenKey);
+ const response=await fetch(path,{method,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
+ const data=response.status===204?null:await response.json();
+ if(!response.ok){if(response.status===401)sessionStorage.removeItem(tokenKey);throw Error(data?.message||'연결하지 못했어요. 다시 시도해 주세요.');}
+ return data;
+}
+function show(user){login.hidden=true;session.hidden=false;nickname.hidden=!user.needsOnboarding;profile.textContent=user.needsOnboarding?'로그인했어요. 이름을 정해 주세요.':user.displayName+'님, 로그인했어요.\n친구 초대 코드: '+user.inviteCode;}
+login.onclick=async()=>{
+ login.disabled=true;error.textContent='';
+ try{
+  const bytes=crypto.getRandomValues(new Uint8Array(32));
+  const verifier=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+  const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)));
+  const challenge=btoa(String.fromCharCode(...digest)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  const flow=await request('/api/auth/start',{codeChallenge:challenge,returnUri:location.origin+'/login'});
+  sessionStorage.setItem(flowKey,JSON.stringify({verifier,state:flow.state}));
+  location.assign(flow.launchUrl);
+ }catch(e){error.textContent=e.message;login.disabled=false;}
+};
+nickname.onsubmit=async(event)=>{event.preventDefault();try{show(await request('/api/me',{displayName:document.querySelector('#name').value.trim()},'PATCH'));}catch(e){error.textContent=e.message;}};
+document.querySelector('#logout').onclick=async()=>{try{await request('/api/auth/logout',{});}catch(e){error.textContent=e.message;}finally{sessionStorage.removeItem(tokenKey);sessionStorage.removeItem(flowKey);location.replace('/login');}};
+(async()=>{
+ try{
+  const params=new URLSearchParams(location.search);
+  history.replaceState(null,'','/login');
+  if(params.has('code')){
+   const flow=JSON.parse(sessionStorage.getItem(flowKey)||'null');sessionStorage.removeItem(flowKey);
+   if(!flow||params.get('state')!==flow.state)throw Error('로그인 연결이 만료되었어요. 다시 시작해 주세요.');
+   const result=await request('/api/auth/exchange',{code:params.get('code'),codeVerifier:flow.verifier});
+   sessionStorage.setItem(tokenKey,result.accessToken);show(result.user);
+  }else if(sessionStorage.getItem(tokenKey)){show(await request('/api/me'));}
+ }catch(e){error.textContent=e.message;}
+})();
+})();
+</script>
+</html>
