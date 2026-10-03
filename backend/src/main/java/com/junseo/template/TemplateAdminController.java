@@ -2,10 +2,8 @@ package com.junseo.template;
 
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
-import com.junseo.common.JunseoProperties;
+import com.junseo.common.security.AdminAuth;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,23 +16,21 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Adding templates after launch (scripts/templates/upload_template.py calls this).
- * Guarded by the {@code X-Admin-Token} header, not a user login; switched off (404) unless JUNSEO_ADMIN_TOKEN is set.
+ * Adding templates after launch (scripts/templates/upload_template.py calls this). Operator only ({@link AdminAuth}).
  */
 @RestController
 public class TemplateAdminController {
 
-    static final String TOKEN_HEADER = "X-Admin-Token";
+    static final String TOKEN_HEADER = AdminAuth.HEADER;
 
     private final TemplateService templates;
     private final ObjectMapper json;
-    private final byte[] token;
+    private final AdminAuth admin;
 
-    public TemplateAdminController(TemplateService templates, ObjectMapper json, JunseoProperties props) {
+    public TemplateAdminController(TemplateService templates, ObjectMapper json, AdminAuth admin) {
         this.templates = templates;
         this.json = json;
-        String t = props.admin().token();
-        this.token = t == null || t.isBlank() ? null : t.getBytes(StandardCharsets.UTF_8);
+        this.admin = admin;
     }
 
     /** multipart: meta (JSON {@link TemplateSpec}), background (JPG/PNG), overlay (PNG, optional). Replaces the whole template. */
@@ -46,7 +42,7 @@ public class TemplateAdminController {
             @RequestParam("background") MultipartFile background,
             @RequestParam(value = "overlay", required = false) MultipartFile overlay)
             throws IOException {
-        check(given);
+        admin.check(given);
         TemplateSpec spec;
         try {
             spec = json.readValue(meta, TemplateSpec.class);
@@ -58,17 +54,8 @@ public class TemplateAdminController {
 
     @DeleteMapping("/api/admin/templates/{id}")
     ResponseEntity<Void> hide(@RequestHeader(value = TOKEN_HEADER, required = false) String given, @PathVariable String id) {
-        check(given);
+        admin.check(given);
         templates.hide(id);
         return ResponseEntity.noContent().build();
-    }
-
-    private void check(String given) {
-        if (token == null) {
-            throw ApiException.notFound();
-        }
-        if (given == null || !MessageDigest.isEqual(token, given.getBytes(StandardCharsets.UTF_8))) {
-            throw new ApiException(ErrorCode.FORBIDDEN, "관리자 토큰이 올바르지 않아요.");
-        }
     }
 }

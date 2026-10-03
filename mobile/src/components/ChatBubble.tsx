@@ -25,6 +25,8 @@ export const ChatBubble = memo(function ChatBubble({
   onDiscard,
   joinAbove = false,
   showTime = true,
+  onLongPress,
+  pressKey,
   children,
 }: {
   mine: boolean;
@@ -38,6 +40,9 @@ export const ChatBubble = memo(function ChatBubble({
   onDiscard?: () => void;
   joinAbove?: boolean;
   showTime?: boolean;
+  /** 말풍선을 꾹 눌렀을 때 (남의 말: 신고 · 차단). pressKey 를 넘겨준다 — 함수 하나를 모든 말풍선이 같이 써서 memo 가 유지된다 */
+  onLongPress?: (key: number) => void;
+  pressKey?: number;
   /** 말풍선 위에 붙는 것 (사진 답장 등) */
   children?: ReactNode;
 }) {
@@ -49,7 +54,9 @@ export const ChatBubble = memo(function ChatBubble({
         {grouped && sender && <Text style={styles.sender}>{sender.displayName}</Text>}
         {children}
         <View style={[styles.line, mine && styles.lineMine]}>
-          <View
+          <Pressable
+            onLongPress={onLongPress && pressKey !== undefined ? () => onLongPress(pressKey) : undefined}
+            disabled={!onLongPress}
             style={[
               styles.bubble,
               mine ? styles.bubbleMine : styles.bubbleTheirs,
@@ -58,7 +65,7 @@ export const ChatBubble = memo(function ChatBubble({
               status === 'failed' && styles.failed,
             ]}>
             <Text style={[styles.text, mine && { color: colors.accentText }]}>{text}</Text>
-          </View>
+          </Pressable>
           {!status && unread > 0 && (
             <Text style={styles.unread} accessibilityLabel={`안 읽은 사람 ${unread}명`}>
               {unread}

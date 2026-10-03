@@ -43,6 +43,12 @@ const ICONS = {
   camera: [p('M4 8.5a2 2 0 0 1 2-2h2l1.5-2h5l1.5 2h2a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z'), { circle: [12, 12.5, 3.5] }],
   home: [p('M4 11l8-7 8 7v8.5a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z')],
   close: [p('M6 6l12 12M18 6L6 18')],
+  // 더 보기 (···): 신고 · 차단 메뉴
+  more: [
+    { circle: [5.5, 12, 1.8], fill: 'color', stroke: 'none' },
+    { circle: [12, 12, 1.8], fill: 'color', stroke: 'none' },
+    { circle: [18.5, 12, 1.8], fill: 'color', stroke: 'none' },
+  ],
   x: [{ circle: [12, 12, 8.5] }, p('M9.3 9.3l5.4 5.4M14.7 9.3l-5.4 5.4')],
   plus: [p('M12 6v12M6 12h12')],
   plane: [p('M20.5 3.5L3.5 10.2l6.8 2.7 2.7 6.8z'), p('M10.3 12.9l4.5-4.5')],

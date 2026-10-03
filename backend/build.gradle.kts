@@ -26,6 +26,7 @@ dependencies {
     implementation("com.azure:azure-storage-blob:12.35.1")
     implementation("com.azure:azure-identity:1.18.6")
     implementation("com.google.auth:google-auth-library-oauth2-http:1.54.0")
+    implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("org.postgresql:postgresql")
 

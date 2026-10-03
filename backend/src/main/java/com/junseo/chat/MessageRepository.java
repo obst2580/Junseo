@@ -19,7 +19,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             limit :limit""")
     List<Message> findThread(long low, long high, long before, int limit);
 
-    /** Rows of {@code [peerId, lastMessageId, unreadCount]}, most recent conversation first. */
+    /** Rows of {@code [peerId, lastMessageId, unreadCount]}, most recent conversation first (people I blocked are left out). */
     @Query(nativeQuery = true, value = """
             select l.peer_id, l.last_id,
                    (select count(*) from messages u
@@ -30,6 +30,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
                 where sender_id = :me or receiver_id = :me
                 group by 1
             ) l
+            where l.peer_id not in (select blocked_id from blocks where blocker_id = :me)
             order by l.last_id desc""")
     List<Object[]> findConversations(long me);
 

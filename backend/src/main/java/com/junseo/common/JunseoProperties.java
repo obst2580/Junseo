@@ -14,7 +14,8 @@ public record JunseoProperties(
         @DefaultValue Apns apns,
         @DefaultValue Fcm fcm,
         @DefaultValue Admin admin,
-        @DefaultValue Auth auth) {
+        @DefaultValue Auth auth,
+        @DefaultValue Mail mail) {
 
     public record Jwt(String secret, @DefaultValue("30d") Duration ttl) {}
 
@@ -30,8 +31,8 @@ public record JunseoProperties(
 
     public record Fcm(boolean enabled, String projectId, String serviceAccountJson) {}
 
-    /** token: X-Admin-Token for /api/admin/** (adding templates). Blank switches those endpoints off. */
-    public record Admin(String token) {}
+    /** token: X-Admin-Token for templates/reports. Blank disables admin endpoints. */
+    public record Admin(String token, String email) {}
 
     public record Auth(
             @DefaultValue("local") String mode,
@@ -41,4 +42,7 @@ public record JunseoProperties(
             @DefaultValue("https://login.liliplanet.net") String loginUrl,
             @DefaultValue("http://localhost:8080") String publicBaseUrl,
             @DefaultValue({"junseo://auth", "http://localhost:8081/auth-callback", "http://localhost:8080/login"}) List<String> returnUris) {}
+
+    /** Sender address. SMTP itself is spring.mail.*. */
+    public record Mail(@DefaultValue("잡다 <no-reply@junseo.app>") String from) {}
 }

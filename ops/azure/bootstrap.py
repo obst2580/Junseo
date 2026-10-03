@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import secrets
 import subprocess
+import shutil
 import tempfile
 
 RG = "studylog-rg"
@@ -59,8 +60,9 @@ def vault_secret(name):
 def psql(database, sql, username, password):
     env = dict(os.environ, PGHOST=HOST, PGPORT="5432", PGDATABASE=database,
                PGUSER=username, PGPASSWORD=password, PGSSLMODE="verify-full",
-               PGSSLROOTCERT="/opt/homebrew/etc/ca-certificates/cert.pem", PGCONNECT_TIMEOUT="15")
-    result = subprocess.run(["/opt/homebrew/opt/postgresql@16/bin/psql", "-X", "-q", "-t", "-A",
+               PGSSLROOTCERT=os.environ.get("JUNSEO_PG_SSLROOTCERT", "/opt/homebrew/etc/ca-certificates/cert.pem"), PGCONNECT_TIMEOUT="15")
+    executable = os.environ.get("JUNSEO_PSQL") or shutil.which("psql") or "/opt/homebrew/opt/postgresql@16/bin/psql"
+    result = subprocess.run([executable, "-X", "-q", "-t", "-A",
                              "-v", "ON_ERROR_STOP=1"], input=sql, text=True, capture_output=True, env=env)
     if result.returncode:
         raise RuntimeError("Isolated Junseo database operation failed (secret-bearing diagnostics suppressed)")

@@ -3,6 +3,7 @@ package com.junseo.auth;
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.JunseoProperties;
+import com.junseo.common.security.Sessions;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
 import com.junseo.user.UserService;
@@ -19,13 +20,15 @@ public class PlatformIdentityService {
     private final JdbcTemplate jdbc;
     private final Clock clock;
     private final JunseoProperties props;
+    private final Sessions sessions;
 
-    public PlatformIdentityService(UserRepository users, UserService profiles, JdbcTemplate jdbc, Clock clock, JunseoProperties props) {
+    public PlatformIdentityService(UserRepository users, UserService profiles, JdbcTemplate jdbc, Clock clock, JunseoProperties props, Sessions sessions) {
         this.users = users;
         this.profiles = profiles;
         this.jdbc = jdbc;
         this.clock = clock;
         this.props = props;
+        this.sessions = sessions;
     }
 
     @Transactional
@@ -51,7 +54,7 @@ public class PlatformIdentityService {
         }
         try {
             long id = Long.parseLong(token.getSubject());
-            if (!users.existsById(id)) throw new ApiException(ErrorCode.UNAUTHORIZED);
+            if (!sessions.isValid(id, token)) throw new ApiException(ErrorCode.UNAUTHORIZED);
             return id;
         } catch (NumberFormatException e) {
             throw new ApiException(ErrorCode.UNAUTHORIZED);

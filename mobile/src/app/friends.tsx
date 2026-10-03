@@ -9,6 +9,7 @@ import { Avatar, Button, ErrorText } from '@/components/ui';
 import { api, ApiError, type UserSummary } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { events } from '@/lib/events';
+import { useSafety } from '@/lib/safety';
 import { colors, radius } from '@/lib/theme';
 
 export default function FriendsScreen() {
@@ -38,6 +39,8 @@ export default function FriendsScreen() {
     events.emit('friends');
     events.emit('moments');
   };
+  // 친구 ··· : 친구 삭제 · 신고 · 차단
+  const safety = useSafety(() => void changed());
 
   const add = async () => {
     setAdding(true);
@@ -146,11 +149,16 @@ export default function FriendsScreen() {
         <View key={f.id} style={styles.friend}>
           <Avatar id={f.id} name={f.displayName} size={40} />
           <Text style={styles.friendName}>{f.displayName}</Text>
-          <Pressable onPress={() => remove(f)} hitSlop={10} accessibilityLabel={`${f.displayName} 삭제`}>
-            <Icon name="x" size={22} color={colors.textFaint} />
+          <Pressable
+            onPress={() => safety.menu({ kind: 'user', user: f }, [{ label: '친구 삭제', destructive: true, onPress: () => remove(f) }])}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={`${f.displayName} 더 보기`}>
+            <Icon name="more" size={22} color={colors.textFaint} />
           </Pressable>
         </View>
       ))}
+      {safety.element}
     </ScrollView>
   );
 }

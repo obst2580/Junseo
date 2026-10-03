@@ -74,7 +74,7 @@ public class AuthService {
     }
 
     private AuthResponse respond(User user) {
-        JwtService.IssuedToken token = jwtService.issue(user.getId());
+        JwtService.IssuedToken token = jwtService.issue(user.getId(), user.getTokenVersion());
         return new AuthResponse(token.value(), token.expiresAt(), userService.toMe(user));
     }
 }

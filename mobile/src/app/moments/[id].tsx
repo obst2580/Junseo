@@ -27,6 +27,7 @@ import { absoluteUrl } from '@/lib/config';
 import { events } from '@/lib/events';
 import { timeAgo } from '@/lib/format';
 import { colors, QUICK_EMOJIS, radius } from '@/lib/theme';
+import { useSafety } from '@/lib/safety';
 import { useReactionTaps } from '@/lib/useReactionTaps';
 import { widgetBridge } from '@/lib/widgetBridge';
 
@@ -85,6 +86,14 @@ export default function MomentScreen() {
     }, [load]),
   );
   useEffect(() => events.on('moments', () => void load()), [load]);
+  // 신고 · 차단. 사진을 보낸 사람을 차단하면 이 사진은 더 볼 수 없어서 닫는다
+  const safety = useSafety((user) => {
+    if (user.id === moment?.sender.id) {
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
+    }
+    else void load();
+  });
 
   const afterTaps = useCallback(async () => {
     await load();
@@ -146,6 +155,15 @@ export default function MomentScreen() {
     });
   };
 
+  // 댓글 꾹: 내 댓글은 삭제, 남의 댓글은 신고 · 차단 (내 사진이면 삭제도)
+  const commentMenu = (c: Comment) => {
+    if (c.author.id === me.id) return removeComment(c);
+    safety.menu(
+      { kind: 'comment', targetId: c.id, user: c.author, what: '댓글' },
+      mine ? [{ label: '댓글 삭제', destructive: true, onPress: () => removeComment(c) }] : [],
+    );
+  };
+
   const removeMoment = () =>
     confirm('사진을 삭제할까요? 친구들의 위젯과 히스토리에서도 사라져요.', async () => {
       await api.deleteMoment(moment.id).catch(() => {});
@@ -158,7 +176,16 @@ export default function MomentScreen() {
       <Stack.Screen
         options={{
           title: mine ? '내 사진' : moment.sender.displayName,
-          headerRight: mine ? () => <IconButton icon="trash" size={20} onPress={removeMoment} label="사진 삭제" /> : undefined,
+          headerRight: mine
+            ? () => <IconButton icon="trash" size={20} onPress={removeMoment} label="사진 삭제" />
+            : () => (
+                <IconButton
+                  icon="more"
+                  size={22}
+                  onPress={() => safety.menu({ kind: 'moment', targetId: moment.id, user: moment.sender, what: '사진' })}
+                  label="신고 · 차단"
+                />
+              ),
         }}
       />
       {/* 화면 맨 위(투명 헤더 밑)부터 시작하므로 키보드 보정값은 0 이다 */}
@@ -199,7 +226,7 @@ export default function MomentScreen() {
             <Text style={styles.sectionTitle}>댓글 {moment.comments.length > 0 ? moment.comments.length : ''}</Text>
             {moment.comments.length === 0 && <Text style={styles.dim}>첫 댓글을 남겨 보세요. 친구들 위젯에서 사진 아래에 떠요.</Text>}
             {moment.comments.map((c) => (
-              <Pressable key={c.id} onLongPress={() => removeComment(c)} style={styles.comment}>
+              <Pressable key={c.id} onLongPress={() => commentMenu(c)} style={styles.comment}>
                 <Avatar id={c.author.id} name={c.author.displayName} size={26} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.commentText}>
@@ -243,6 +270,7 @@ export default function MomentScreen() {
           </View>
         </View>
       </KeyboardAvoidingView>
+      {safety.element}
     </SafeAreaView>
   );
 }

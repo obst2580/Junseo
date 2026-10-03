@@ -15,6 +15,7 @@ import { groupKey, groupSource, knownGroup, rememberGroup } from '@/lib/chats';
 import { events } from '@/lib/events';
 import { groupTitle } from '@/lib/groups';
 import { useOpenChat } from '@/lib/push';
+import { useSafety } from '@/lib/safety';
 import { colors } from '@/lib/theme';
 
 export default function GroupChatScreen() {
@@ -28,6 +29,8 @@ export default function GroupChatScreen() {
   // 읽음 처리를 보낸 마지막 메시지. 같은 메시지로 여러 번 보내지 않는다.
   const markedUpTo = useRef(0);
   useOpenChat(groupKey(groupId));
+  // 남의 메시지 꾹: 신고 · 차단 (차단하면 그 사람 메시지가 이 단챗에서 안 보인다)
+  const safety = useSafety();
 
   const { rows, loadOlder, send, retry, discard } = useChatThread<GroupMessage>({
     key: groupKey(groupId),
@@ -75,6 +78,21 @@ export default function GroupChatScreen() {
     ]);
   };
 
+  const { menu: safetyMenu } = safety;
+  const lookup = useRef({ rows, people });
+  useEffect(() => {
+    lookup.current = { rows, people };
+  });
+  // 모든 말풍선이 같은 함수를 쓴다 (memo 유지). 누른 메시지의 보낸 사람을 찾아 메뉴를 띄운다
+  const messageMenu = useCallback(
+    (id: number) => {
+      const m = lookup.current.rows?.find((x) => !isLocal(x) && x.id === id);
+      const sender = m && !isLocal(m) ? lookup.current.people.get(m.senderId) : undefined;
+      if (sender) safetyMenu({ kind: 'group-message', targetId: id, user: sender, what: '메시지' });
+    },
+    [safetyMenu],
+  );
+
   const renderItem = useCallback(
     ({ item, index }: { item: GroupMessage | LocalMessage; index: number }) => {
       // 같은 사람 · 같은 분에 이어 보낸 말은 붙이고, 얼굴·이름은 첫 말에만, 시간은 마지막 말에만
@@ -106,10 +124,12 @@ export default function GroupChatScreen() {
           sender={joinAbove ? null : sender}
           joinAbove={joinAbove}
           showTime={last}
+          onLongPress={mine || sender === LEFT ? undefined : messageMenu}
+          pressKey={item.id}
         />
       );
     },
-    [me?.id, people, retry, discard, rows],
+    [me?.id, people, retry, discard, rows, messageMenu],
   );
 
   return (
@@ -146,6 +166,7 @@ export default function GroupChatScreen() {
         )}
         <ChatComposer onSend={send} />
       </KeyboardAvoidingView>
+      {safety.element}
     </SafeAreaView>
   );
 }

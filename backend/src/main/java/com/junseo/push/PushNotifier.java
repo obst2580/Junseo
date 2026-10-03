@@ -20,16 +20,19 @@ import com.junseo.push.PushSender.PushOutcome;
 import com.junseo.push.PushSender.PushType;
 import com.junseo.reaction.ReactionEvents.ReactionRemoved;
 import com.junseo.reaction.ReactionEvents.ReactionSet;
+import com.junseo.safety.BlockRepository;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
 import com.junseo.widget.WidgetService;
 import java.text.Collator;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,6 +59,7 @@ public class PushNotifier {
     private final UserRepository users;
     private final MomentRepository moments;
     private final MediaUrlSigner signer;
+    private final BlockRepository blocks;
     private final ObjectMapper json;
     private final Clock clock;
 
@@ -65,6 +69,7 @@ public class PushNotifier {
             UserRepository users,
             MomentRepository moments,
             MediaUrlSigner signer,
+            BlockRepository blocks,
             ObjectMapper json,
             Clock clock) {
         this.sender = sender;
@@ -72,6 +77,7 @@ public class PushNotifier {
         this.users = users;
         this.moments = moments;
         this.signer = signer;
+        this.blocks = blocks;
         this.json = json;
         this.clock = clock;
     }
@@ -141,8 +147,10 @@ public class PushNotifier {
         guard("group-message", () -> {
             Map<Long, User> people = users.mapById(e.memberIds());
             String body = name(people, e.senderId()) + ": " + Texts.truncate(e.text(), MAX_BODY_CHARS);
+            // 보낸 사람을 차단한 멤버에게는 알리지 않는다 (그 사람 화면에서도 메시지가 숨겨진다)
+            Set<Long> blockedSender = new HashSet<>(blocks.findBlockersAmong(e.senderId(), e.memberIds()));
             for (long recipient : e.memberIds()) {
-                if (recipient == e.senderId()) {
+                if (recipient == e.senderId() || blockedSender.contains(recipient)) {
                     continue;
                 }
                 String title = e.groupName() != null

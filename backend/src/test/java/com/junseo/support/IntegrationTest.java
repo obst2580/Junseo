@@ -51,19 +51,23 @@ public abstract class IntegrationTest {
     protected RecordingPushSender push;
 
     @Autowired
+    protected RecordingMailer mail;
+
+    @Autowired
     protected ObjectMapper json;
 
     @LocalServerPort
     protected int port;
 
-    public record TestUser(long id, String token, String inviteCode, String name) {}
+    public record TestUser(long id, String token, String inviteCode, String name, String email) {}
 
     @BeforeEach
     void resetState() {
         // No RESTART IDENTITY: ids stay unique across tests, so a late async push from a previous
         // test can never be mistaken for one of this test's.
-        jdbc.execute("truncate table templates, device_tokens, group_messages, chat_group_members, chat_groups, messages, comments, reactions, moment_recipients, moments, friendships, users");
+        jdbc.execute("truncate table templates, reports, blocks, password_resets, device_tokens, group_messages, chat_group_members, chat_groups, messages, comments, reactions, moment_recipients, moments, friendships, users");
         push.clear();
+        mail.clear();
         FileSystemUtils.deleteRecursively(Path.of("build/test-media").toFile());
     }
 
@@ -75,7 +79,7 @@ public abstract class IntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn());
         return new TestUser(
-                longAt(body, "$.user.id"), JsonPath.read(body, "$.accessToken"), JsonPath.read(body, "$.user.inviteCode"), name);
+                longAt(body, "$.user.id"), JsonPath.read(body, "$.accessToken"), JsonPath.read(body, "$.user.inviteCode"), name, email);
     }
 
     protected void befriend(TestUser a, TestUser b) throws Exception {

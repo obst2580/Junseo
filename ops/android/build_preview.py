@@ -19,21 +19,24 @@ def run(command, env, cwd=MOBILE):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--skip-build", action="store_true", help="Sign the already verified release APK")
+    parser.add_argument("--new-preview-key", action="store_true", help="Explicitly create a NEW signing identity (cannot update existing installs)")
     args = parser.parse_args()
     env = dict(os.environ)
     env.setdefault("ANDROID_HOME", str(Path.home() / "Library/Android/sdk"))
     env.setdefault("JAVA_HOME", subprocess.check_output(["/usr/libexec/java_home", "-v", "17"], text=True).strip())
     env["CI"] = "1"
-    if not args.skip_build:
-        run(["npx", "expo", "prebuild", "--platform", "android", "--no-install"], env)
-        run(["./android/gradlew", "-p", "android", ":app:assembleRelease", "-PreactNativeArchitectures=arm64-v8a",
-             "--max-workers=4", "--console=plain"], env)
     credentials = MOBILE / ".credentials"
-    credentials.mkdir(mode=0o700, exist_ok=True)
     keystore = credentials / "junseo-preview.jks"
     settings = credentials / "android-preview.json"
     if keystore.exists() != settings.exists():
         raise RuntimeError("Preview key and password file must both exist; refusing to replace an existing key")
+    if not keystore.exists() and not args.new_preview_key:
+        raise RuntimeError("Restore the existing preview keystore and password file before building; see HANDOFF.md")
+    if not args.skip_build:
+        run(["npx", "expo", "prebuild", "--platform", "android", "--no-install"], env)
+        run(["./android/gradlew", "-p", "android", ":app:assembleRelease", "-PreactNativeArchitectures=arm64-v8a",
+             "--max-workers=4", "--console=plain"], env)
+    credentials.mkdir(mode=0o700, exist_ok=True)
     keytool = Path(env["JAVA_HOME"]) / "bin/keytool"
     if not keystore.exists():
         password = secrets.token_urlsafe(32)

@@ -1,6 +1,8 @@
 # junseo
 
-친한 친구(최대 20명)가 찍은 사진이 **내 홈 화면 위젯에 바로 뜨는** iOS 앱입니다.
+**개발을 이어받는 분은 [HANDOFF.md](HANDOFF.md)부터 읽어 주세요.** 실제 Azure 서버, LiliPlanet 로그인, Firebase/Android 푸시, 서명키 전달, 빌드·배포 방법과 미완료 항목을 정리했습니다. 운영 DB는 V1~V7이고 병합한 안전 기능 V8은 아직 운영 미배포입니다.
+
+친한 친구(최대 20명)가 찍은 사진이 **내 홈 화면 위젯에 바로 뜨는** iOS·Android 앱입니다.
 위젯에는 사진과 함께 친구들이 남긴 **댓글**이 사진 아래에 같이 보입니다 (보낸 사람은 글자로, 이모지 반응은 앱에서만). 위젯 **양옆을 누르면** 하루 동안 받은 사진을 5장까지 넘겨 보고, 위젯 편집에서 **한 친구만** 고를 수도 있습니다. 사진에 **1:1 답장**을 보내면 대화로 이어집니다.
 챗 탭 오른쪽 위 아이콘으로 **단챗**을 만들 수 있습니다 (모두가 서로 친구여야 함). 내가 보낸 메시지에는 안 읽은 사람 수(1:1 은 `1`)가 붙고, 읽으면 사라집니다. 같은 사람이 같은 분에 이어 보낸 메시지는 말풍선을 붙이고 시간은 마지막 말에만 씁니다 (단챗의 얼굴·이름은 첫 말에만).
 보낼 때는 카메라 위 「친구 n명」을 눌러 **받을 친구를 고를** 수 있습니다 (기본은 친구 전체, 보내기 싫은 친구만 빼기). 단챗을 고르면 그 방 사람들이 한꺼번에 들어가고 빠집니다.
@@ -18,7 +20,7 @@
 |---|---|---|---|
 | ![](docs/screenshots/06-friends.webp) | ![](docs/screenshots/07-messages.webp) | ![](docs/screenshots/08-chat.webp) | ![](docs/screenshots/09-profile.webp) |
 
-웹 미리보기로 서버와 앱을 같이 띄워 찍은 실제 화면입니다 (카메라 자리는 브라우저의 테스트 영상). 홈 화면 위젯 자체는 아이폰 개발 빌드에서만 보입니다.
+웹 미리보기로 서버와 앱을 같이 띄워 찍은 실제 화면입니다 (카메라 자리는 브라우저의 테스트 영상). 홈 화면 위젯은 iOS·Android 네이티브 빌드에서 확인합니다.
 
 ## 위젯이 갱신되는 방식
 
@@ -74,7 +76,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 96개
+./gradlew test                                            # 통합·단위 테스트 126개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -86,12 +88,18 @@ cd backend
 | `junseo.media.signing-secret` | `JUNSEO_MEDIA_SECRET` | 사진 URL 서명용. JWT 와 다른 값 |
 | `junseo.storage.dir` | `JUNSEO_STORAGE_DIR` | 사진 저장 위치 (기본 `./data/media`) |
 | `junseo.apns.enabled` · `key-id` · `team-id` · `bundle-id` · `key-path` | `JUNSEO_APNS_*` | 꺼져 있으면 보낼 푸시를 로그로만 남긴다 |
-| `junseo.admin.token` | `JUNSEO_ADMIN_TOKEN` | 템플릿 올리기(관리자 API) 토큰. 비우면 관리자 API 가 꺼진다 |
+| `junseo.admin.token` | `JUNSEO_ADMIN_TOKEN` | 관리자 API(템플릿 올리기 · 신고 처리) 토큰. 비우면 관리자 API 가 꺼진다 |
+| `junseo.admin.email` | `JUNSEO_ADMIN_EMAIL` | 신고가 들어오면 알림 메일을 받을 주소 |
+| `spring.mail.host` · `port` · `username` · `password` | `JUNSEO_SMTP_HOST` · `_PORT` · `_USER` · `_PASSWORD` | 비밀번호 재설정 메일. 비우면 메일 대신 로그에 남긴다 (출시에는 꼭 필요) |
+| `junseo.mail.from` | `JUNSEO_MAIL_FROM` | 보내는 사람 (기본 `잡다 <no-reply@junseo.app>`) |
 
-### 앱 (웹 미리보기)
+### 앱 (웹 UI 미리보기)
+
+현재 모바일 로그인은 LiliPlanet 방식입니다. 로컬 이메일 인증 서버와 웹 UI의 로그인 연결은 별도 작업이 필요합니다. 운영 웹 로그인은 [HTTPS 로그인 페이지](https://junseo-api.liliplanet.net/login)를 사용합니다. Android 네이티브 빌드는 [인계 문서](HANDOFF.md#6-android-빌드서명설치)를 따릅니다.
+
 ```bash
 cd mobile
-npm install
+npm ci
 npx expo start --web     # http://localhost:8081
 ```
 서버 주소는 `EXPO_PUBLIC_API_URL` 로 바꿉니다 (`.env.example` 참고).
@@ -124,9 +132,19 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 - 지금 앱이 그릴 수 있는 것(네모 칸 · 네 꼭짓점 칸 · 앞장 그림 · 빛번짐) 안에서는 데이터만으로 됩니다. 새 효과가 필요한 템플릿은 그 효과를 넣은 앱 업데이트가 먼저 나가야 하고, 예전 앱에서는 그 템플릿이 자동으로 숨겨집니다 (`requires`).
 - 템플릿 그림은 사진과 같은 저장소(`JUNSEO_STORAGE_DIR`)의 `templates/` 아래에 저장됩니다.
 
+## 출시 전에 할 일 (안전 · 약관)
+
+App Store 는 사진 · 채팅처럼 사용자가 올리는 내용이 있는 앱에 신고 · 차단 · 약관 동의 · 앱 안 계정 삭제를 요구합니다. 신고·차단·삭제·재설정 코드를 포함합니다. 플랫폼 계정의 삭제 재인증과 운영 V8 배포는 아직 필요합니다 ([인계 문서](HANDOFF.md#9-검증-범위와-다음-작업)).
+
+- 약관 · 개인정보처리방침(`backend/src/main/resources/static/legal/`)의 `[운영자 이름]` · `[문의 이메일]` · `[시행일]` · `[서버 업체]` · `[메일 발송 업체]` · `[보호책임자 이름]` 채우기
+- SMTP 설정(`JUNSEO_SMTP_*`) — 로컬 인증 재설정·신고 메일용. 플랫폼 계정의 비밀번호 관리는 LiliPlanet에서 처리
+- `JUNSEO_ADMIN_EMAIL` 로 신고 알림 받기, 신고는 24시간 안에 `GET /api/admin/reports` 로 확인하고 지우기 · 내보내기 (`docs/api.md` 「신고 처리」)
+- App Store 연령 등급 설문: 사용자 간 대화 · 사진이 있으므로 그에 맞게 답한다
+
 ## 검증 상태
 
-- 서버: 통합·단위 테스트 96개 통과 (실제 PostgreSQL)
+- Android: `0.1.2` APK 배포, 로그인·업로드 회귀 13개 통과. 네이티브 위젯·FCM 설정과 서버 발송 구현. 실제 두 기기 수신 검증은 남음
+- 서버: 통합·단위 테스트 126개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - 채팅: 웹 미리보기(배포용 빌드)에서 앱 전환 · 소리 없이 죽은 연결 · 응답 유실 · 응답 없음 · 300개 넘는 대화방을 재현해 확인. 키보드 위치와 「보고 있는 방 알림 숨기기」는 아이폰에서만 확인할 수 있어 아직
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 앱·위젯·알림 확장 모두 최소 iOS 17). GitHub Actions 의 Mac 에서 앱·위젯·알림 확장을 Xcode 로 빌드하고 시뮬레이터에서 앱을 켜 본다 (`.github/workflows/ios.yml`). **실기기 확인은 아직** — 점검표: `docs/widget-check.md` (새 사진이 위젯에 닿기까지 걸린 시간은 서버 로그 `Widget got new photo` 로 잰다)
@@ -134,7 +152,7 @@ APPLE_TEAM_ID=<팀 ID> EXPO_PUBLIC_API_URL=http://<PC의 LAN IP>:8080 npx expo r
 ## 다음 할 일
 
 - Xcode 에서 첫 빌드, 실기기에서 위젯 갱신 시간 측정 (알림 허용·거부 각각)
-- 토큰 갱신(지금은 30일 토큰 하나), 위젯·알림 확장의 토큰을 App Group UserDefaults 대신 공유 키체인으로
-- 사진 저장소를 S3 + CDN 으로 (`MediaStorage` 인터페이스만 바꾸면 됨)
+- 중앙 토큰 갱신·계정 변경 연동 (iOS 공유 Keychain·Android Keystore 저장은 구현 완료)
+- Azure Blob 사진 삭제 재시도·URL 회수 정책·복구 검증 (비공개 Blob 저장은 운영 적용)
 - 서버를 여러 대로 늘릴 때 채팅 신호를 Redis pub/sub 로 나누기 (지금은 서버 한 대의 메모리에서 WebSocket 연결 관리)
 - 눈 가리개 자동 위치: iOS Vision 얼굴 인식으로 눈 위에 바로 얹기 (지금은 손으로 옮기고 두 손가락으로 크기·각도 조절)

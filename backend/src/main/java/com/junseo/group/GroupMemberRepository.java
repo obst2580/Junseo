@@ -32,12 +32,13 @@ public interface GroupMemberRepository extends JpaRepository<GroupMember, GroupM
 
     /**
      * Rows of {@code [groupId, unreadCount]} for every group the user is in: messages from others newer
-     * than what the user has read.
+     * than what the user has read (people the user blocked don't count).
      */
     @Query(nativeQuery = true, value = """
             select gm.group_id,
                    (select count(*) from group_messages m
-                    where m.group_id = gm.group_id and m.id > gm.last_read_id and m.sender_id <> gm.user_id) as unread
+                    where m.group_id = gm.group_id and m.id > gm.last_read_id and m.sender_id <> gm.user_id
+                      and m.sender_id not in (select blocked_id from blocks where blocker_id = gm.user_id)) as unread
             from chat_group_members gm
             where gm.user_id = :userId""")
     List<Object[]> findUnreadCounts(long userId);

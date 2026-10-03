@@ -1,3 +1,5 @@
+> **과거 시점의 기록입니다.** 현재 운영 환경·커밋·FCM·Android·남은 작업은 [HANDOFF.md](../HANDOFF.md)를 먼저 읽으세요. 아래의 사전 조사/미완료/커밋 전 설명은 작성 당시 상태입니다.
+
 ## Android 지원 추가 (2026-10-03)
 
 Android 기기 등록과 FCM 발송 구현을 포함한 새 서버를 배포했다. 서버 테스트 113개와 운영 점검 12개를 통과했으며, 운영 DB에 V7 마이그레이션을 적용했다. FCM 실제 발송은 Firebase 설정 확인 후 활성화한다. Android APK와 위젯의 구현·검증 범위는 [android-implementation.md](android-implementation.md)에 기록했다. 최신 서버 해시와 배포 정보는 `azure-release.json`을 기준으로 한다.

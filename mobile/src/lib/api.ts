@@ -44,6 +44,9 @@ export type GroupMessage = {
 };
 export type GroupConversation = { group: GroupChat; lastMessage: GroupMessage | null; unreadCount: number };
 export type Page<T> = { items: T[]; nextCursor: string | null };
+/** 신고할 수 있는 것과 이유 (서버 ReportService 와 같다) */
+export type ReportKind = 'moment' | 'comment' | 'message' | 'group-message' | 'user';
+export type ReportReason = 'spam' | 'abuse' | 'sexual' | 'violence' | 'other';
 /**
  * 서버가 내려주는 템플릿 (GET /api/templates). slots 는 앱의 TemplateSlot 과 같은 모양.
  * requires: 이걸 그리려면 앱이 할 줄 알아야 하는 것 (quad · glow · overlay …). 모르는 게 있으면 앱이 건너뛴다.
@@ -149,7 +152,20 @@ export const api = {
   login: (email: string, password: string) =>
     request<AuthResponse>('/api/auth/login', { method: 'POST', body: { email, password } }),
 
+  // 비밀번호 찾기: 메일로 받은 6자리 코드 + 새 비밀번호 → 바로 로그인 (다른 기기의 로그인은 끝난다)
+  requestPasswordReset: (email: string) => request<void>('/api/auth/password-reset', { method: 'POST', body: { email } }),
+  confirmPasswordReset: (email: string, code: string, password: string) =>
+    request<AuthResponse>('/api/auth/password-reset/confirm', { method: 'POST', body: { email, code, password } }),
+
   me: () => request<Me>('/api/me'),
+  deleteAccount: (password: string) => request<void>('/api/me/delete', { method: 'POST', body: { password } }),
+
+  // 차단 · 신고
+  blocks: () => request<{ items: UserSummary[] }>('/api/blocks'),
+  block: (userId: number) => request<void>('/api/blocks', { method: 'POST', body: { userId } }),
+  unblock: (userId: number) => request<void>(`/api/blocks/${userId}`, { method: 'DELETE' }),
+  report: (r: { kind: ReportKind; targetId?: number; userId?: number; reason: ReportReason }) =>
+    request<{ id: number }>('/api/reports', { method: 'POST', body: r }),
   updateMe: (displayName: string) => request<Me>('/api/me', { method: 'PATCH', body: { displayName } }),
   rotateInviteCode: () => request<Me>('/api/me/invite-code', { method: 'POST' }),
 

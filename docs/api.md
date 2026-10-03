@@ -1,8 +1,9 @@
 # API 계약
 
-서버(`backend/`), 앱(`mobile/`), iOS 위젯·알림 확장(`mobile/targets/`)이 모두 이 문서를 기준으로 맞춘다.
+서버(`backend/`), 앱(`mobile/`), iOS 위젯·알림 확장(`mobile/targets/`), Android 위젯(`mobile/modules/junseo-widget/`)이 모두 이 문서를 기준으로 맞춘다.
 
-- 기본 주소: `http://<host>:8080`
+- 운영 주소: `https://junseo-api.liliplanet.net` / 로컬 주소: `http://<host>:8080`
+- 실제 배포 범위와 미완료 플랫폼 계정 기능은 [HANDOFF.md](../HANDOFF.md) 참고. 신고·차단 API는 병합 소스에 있으나 운영 V8 미배포
 - 인증: `Authorization: Bearer <accessToken>` (가입·로그인·`/media` 제외 전부 필요)
 - 요청·응답: JSON, 시각은 초 단위 ISO-8601 UTC 문자열 (`2026-09-30T12:34:56Z`, 소수점 없음)
 - ID: 숫자(long)
@@ -19,6 +20,8 @@
 | 400 | `INVALID_IMAGE` | JPEG/PNG가 아니거나 10MB 초과, 디코딩 실패 |
 | 400 | `CANNOT_ADD_SELF` | 내 초대 코드로 나를 추가 |
 | 400 | `NOT_ALLOWED_ON_OWN_MOMENT` | 내 사진에 반응·답장 |
+| 400 | `WRONG_PASSWORD` | 계정 삭제할 때 비밀번호가 틀림 |
+| 400 | `RESET_CODE_INVALID` | 비밀번호 재설정 코드가 틀렸거나 만료 · 5번 넘게 틀림 |
 | 401 | `UNAUTHORIZED` | 토큰 없음·만료·잘못됨 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 |
 | 403 | `FORBIDDEN` | 권한 없음 (남의 댓글 삭제 등) |
@@ -29,6 +32,7 @@
 | 409 | `EMAIL_TAKEN` | 이미 가입된 이메일 |
 | 409 | `ALREADY_FRIENDS` | 이미 친구 |
 | 409 | `FRIEND_LIMIT_REACHED` | 나 또는 상대가 친구 20명 |
+| 409 | `BLOCKED_USER` | 내가 차단한 사람의 초대 코드 (나를 차단한 사람의 코드는 `INVITE_CODE_NOT_FOUND`) |
 
 ## 공통 객체
 
@@ -37,7 +41,7 @@
 { "id": 12, "displayName": "민지" }
 
 // Me
-{ "id": 12, "email": "minji@example.com", "displayName": "민지", "inviteCode": "K7Q2MX9A", "friendCount": 3, "friendLimit": 20 }
+{ "id": 12, "email": "minji@example.com", "displayName": "민지", "inviteCode": "K7Q2MX9A", "friendCount": 3, "friendLimit": 20, "needsOnboarding": false }
 
 // ReactionCount
 { "emoji": "❤️", "count": 2 }
@@ -66,12 +70,38 @@
 
 ## 인증
 
+### 운영: LiliPlanet 플랫폼 인증
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/api/auth/config` | | `{ mode: "platform", loginUrl, audience: "junseo-api" }` |
+| POST | `/api/auth/start` | `{ codeChallenge: S256, returnUri }` | `{ state, launchUrl }` |
+| GET | `/auth/launch?state=...` | 시스템 브라우저 | 302 중앙 로그인 + HttpOnly/Secure/SameSite=Lax 쿠키 |
+| GET | `/auth/callback?state=...&token=...` | 중앙 로그인 callback + 위 쿠키 | 302 허용된 반환 주소, `code`/`state`만 전달 |
+| POST | `/api/auth/exchange` | `{ code, codeVerifier }` | `{ accessToken, expiresAt, user: Me, needsOnboarding }` |
+| POST | `/api/auth/logout` | Bearer token | 204, Junseo jti 폐기·동일 토큰 WS 종료 |
+
+- RS256 / issuer `auth.liliplanet.net` / audience `junseo-api`, 중앙 JWKS 검증. sub·jti·exp 필수.
+- 중앙 sub는 Junseo 사용자 ID가 아니다. `(issuer, sub)`로 내부 ID를 찾는다.
+- transaction 10분, code 60초·일회용·PKCE S256. 운영 return URI는 `junseo://auth`와 운영 `/login`만 허용.
+- 최초 프로필은 `needsOnboarding: true`. `PATCH /api/me`로 이름을 저장하면 완료된다.
+- JWT 갱신·중앙 전역 로그아웃은 아직 미연동. 운영 자체 signup/login/password-reset endpoint는 비활성화되어 404다.
+- iOS 공유 Keychain / Android Keystore / 웹 sessionStorage 사용. 토큰은 callback 앱 URL에 넣지 않는다.
+
+### 로컬 개발: 이메일·비밀번호 인증
+
+아래는 `junseo.auth.mode=local` (기본값, `dev`/`test`)에서만 활성화된다. 현재 모바일 로그인 UI는 위 플랫폼 방식이다.
+
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
 | POST | `/api/auth/signup` | `{ email, password(8~72자), displayName(1~20자) }` | 201 `{ accessToken, expiresAt, user: Me }` |
 | POST | `/api/auth/login` | `{ email, password }` | 200 `{ accessToken, expiresAt, user: Me }` |
+| POST | `/api/auth/password-reset` | `{ email }` | 204 (가입된 이메일이면 6자리 코드를 메일로 보낸다) |
+| POST | `/api/auth/password-reset/confirm` | `{ email, code, newPassword(8~72자) }` | 200 `{ accessToken, expiresAt, user: Me }` |
 
-- 토큰: JWT HS256, `sub` = 사용자 ID, 유효기간 30일. 위젯과 알림 확장도 같은 토큰을 쓴다 (MVP에서는 갱신 토큰 없음).
+- 토큰: JWT HS256, `sub` = 사용자 ID, `ver` = 토큰 세대, 유효기간 30일. 위젯과 알림 확장도 같은 토큰을 쓴다 (MVP에서는 갱신 토큰 없음).
+- 비밀번호를 바꾸면 세대가 올라가서 그 전에 받은 토큰(다른 폰 · 위젯 포함)이 모두 401 이 된다. WebSocket 인증/재연결도 같은 세대 검사를 한다.
+- 재설정: 없는 이메일이어도 똑같이 204 (가입 여부를 알 수 없게). 코드는 15분 동안 유효하고, 1분 안에 다시 요청하면 새로 보내지 않는다. 5번 틀리면 코드가 무효가 되어 다시 받아야 한다. 메일은 SMTP(`JUNSEO_SMTP_*`)로 보내고, 설정이 없으면 서버 로그에만 남긴다.
 - 이메일은 소문자로 정규화한다.
 
 ## 내 정보
@@ -81,6 +111,11 @@
 | GET | `/api/me` | | 200 `Me` |
 | PATCH | `/api/me` | `{ displayName }` | 200 `Me` |
 | POST | `/api/me/invite-code` | | 200 `Me` (초대 코드를 새로 발급, 이전 코드는 무효) |
+| POST | `/api/me/delete` | `{ password }` | 204 로컬 계정 삭제 |
+
+플랫폼 사용자에게는 Junseo password hash가 없으므로 현재 이 삭제 API를 완료된 중앙 계정 삭제 경로로 사용할 수 없다. 중앙 재인증 연결이 남아 있다.
+
+- 계정 삭제: 내 사진(파일 포함) · 반응 · 댓글 · 메시지 · 친구 · 차단 · 기기 토큰을 바로 지운다. 내가 마지막 사람이던 단챗도 지운다. 친구들의 위젯에서도 내 사진이 빠지도록 친구 끊기와 같은 신호를 보낸다. 같은 이메일로 다시 가입할 수 있다.
 
 초대 코드: 8자, 헷갈리는 글자(0 O 1 I L) 제외한 대문자·숫자.
 
@@ -96,6 +131,44 @@
 - 초대 코드로 추가하면 바로 서로 친구가 된다 (코드를 건넨 것 자체가 동의).
 - 한 사람당 최대 20명. 나나 상대 중 한쪽이라도 20명이면 `FRIEND_LIMIT_REACHED`.
 - 친구를 끊으면 서로의 사진·댓글·반응이 즉시 안 보이고, 메시지도 보낼 수 없다. 기존 대화 기록은 남는다.
+
+## 차단 · 신고
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/api/blocks` | | 200 `{ items: [UserSummary] }` (최근에 차단한 사람 먼저) |
+| POST | `/api/blocks` | `{ userId }` | 204 |
+| DELETE | `/api/blocks/{userId}` | | 204 (차단 풀기. 친구는 다시 초대 코드로) |
+| POST | `/api/reports` | `{ kind, targetId?, userId?, reason, detail?(500자) }` | 201 `{ id }` |
+
+- 차단하면 친구가 끊기고(친구 끊기 신호 포함), 다시 친구가 될 수 없다. 차단한 사람과 나를 차단한 사람 사이에서는 서로의 댓글 · 1:1 대화가 안 보이고, 단챗에서는 그 사람의 말과 안 읽은 수 · 푸시가 빠진다. 상대에게는 알리지 않는다.
+- 신고 `kind`: `moment` · `comment` · `message` · `group-message` (이때 `targetId`), `user` (이때 `userId`). `reason`: `spam` · `abuse` · `sexual` · `violence` · `other`.
+- 내가 볼 수 있는 것만 신고할 수 있다 (아니면 404). 내 것은 신고할 수 없다 (400). 글은 신고 시점의 내용을 같이 저장해서, 나중에 지워져도 운영자가 볼 수 있다.
+- 신고가 들어오면 서버 로그(WARN)에 남기고, `JUNSEO_ADMIN_EMAIL` 이 있으면 메일로 알린다. 처리한 신고는 1년 뒤 지운다.
+
+### 신고 처리 (관리자)
+
+`X-Admin-Token` 헤더 (템플릿 올리기와 같은 토큰). 약관에 「24시간 안에 확인」이라고 적었으니 매일 확인한다.
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| GET | `/api/admin/reports?all=false` | | 200 `{ items: ReportView[] }` (처리 안 한 것, 오래된 것 먼저. `all=true` 면 전부 최근 것 먼저) |
+| POST | `/api/admin/reports/{id}/resolve` | `{ resolution }` (예: "사진 삭제, 계정 삭제") | 204 |
+| DELETE | `/api/admin/{moments\|comments\|messages\|group-messages}/{id}` | | 204 내용 지우기 |
+| DELETE | `/api/admin/users/{id}` | | 204 계정 삭제 (내보내기) |
+
+```jsonc
+// ReportView
+{ "id": 3, "kind": "moment", "targetId": 301, "reason": "sexual", "detail": null,
+  "snapshot": null,                       // 댓글 · 메시지면 신고 시점의 글
+  "imageUrl": "/media/301/full.jpg?..." , // 사진이 아직 있으면 (서명 URL)
+  "reporter": UserSummary | null, "target": UserSummary | null,
+  "createdAt": "...", "resolvedAt": null, "resolution": null }
+```
+
+## 약관 · 개인정보처리방침
+
+`GET /legal/terms.html`, `GET /legal/privacy.html` (인증 없음). 앱의 가입 화면 · 내 정보에서 연다. 출시 전에 문서 안의 `[운영자 이름]` · `[문의 이메일]` · `[시행일]` · `[서버 업체]` · `[메일 발송 업체]` · `[보호책임자 이름]` 을 채운다.
 
 ## 사진 (moment)
 
@@ -263,10 +336,10 @@
 
 | 메서드 | 경로 | 요청 | 응답 |
 |---|---|---|---|
-| PUT | `/api/devices` | `{ token, kind: "app" \| "widget", environment: "development" \| "production" }` | 204 |
+| PUT | `/api/devices` | `{ token, kind: "app" \| "widget", environment: "development" \| "production", platform?: "ios" \| "android" }` | 204 |
 | DELETE | `/api/devices/{token}` | | 204 (로그아웃할 때) |
 
-- `token`: APNs 토큰 16진수 문자열. 같은 토큰이 다른 계정으로 오면 새 계정으로 옮긴다.
+- `platform` 생략 시 `ios`. iOS `token`은 APNs 16진수 문자열, Android는 대소문자 구분 FCM 토큰 (최대 2048자), `kind=app`, `environment=production`만 허용한다. 같은 토큰이 다른 계정으로 오면 새 계정으로 옮긴다.
 - `kind: "app"`: 앱의 알림 토큰. `kind: "widget"`: iOS 26 위젯 푸시 토큰 (위젯 확장이 직접 등록).
 
 ## 사진 파일
@@ -277,7 +350,11 @@
 - `sig` = HMAC-SHA256(`{momentId}/{variant}:{exp}`)을 base64url(패딩 없음)로. 만료는 발급 시점에서 7일 뒤를 하루 단위로 올림 (같은 날에는 URL이 같아서 캐시가 잘 맞는다).
 - 서명이 틀리거나 만료되면 403. `Cache-Control: private, max-age=86400`.
 
-## 푸시 (서버 → APNs)
+## 푸시 (서버 → APNs / FCM)
+
+Android는 FCM HTTP v1 data 메시지를 사용한다. 앱의 `getDevicePushTokenAsync()` 토큰을 등록하며 Expo Push Service 토큰은 사용하지 않는다. 사진·메시지 알림은 HIGH priority, 별도 위젯 갱신은 NORMAL / TTL 900초 / collapse key `junseo-widget`다. 네이티브 메시징 서비스가 WorkManager와 Expo 알림 처리를 연결한다. Firebase 키 설정과 검증 범위는 [인계 문서](../HANDOFF.md#5-firebase--android-푸시) 참고.
+
+아래 payload와 widget token 설명은 iOS APNs 경로다.
 
 | 사건 | 받는 사람 | 알림 (kind=app 토큰) | 위젯 푸시 (kind=widget 토큰) |
 |---|---|---|---|

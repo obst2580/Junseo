@@ -64,7 +64,7 @@ public class WidgetService {
     /** The newest friend photo I received that I can still see; my own photos never show here. */
     @Transactional(readOnly = true)
     public Optional<WidgetLatest> latest(long viewerId) {
-        return moments.findLatestReceived(viewerId).map(this::build);
+        return moments.findLatestReceived(viewerId).map(m -> build(m, viewerId));
     }
 
     /**
@@ -82,14 +82,14 @@ public class WidgetService {
         if (recent.isEmpty()) {
             return Optional.empty();
         }
-        List<WidgetLatest> items = recent.stream().map(this::build).toList();
+        List<WidgetLatest> items = recent.stream().map(m -> build(m, viewerId)).toList();
         String version = items.getFirst().moment().id() + "-" + digest(String.join(",", items.stream().map(WidgetLatest::version).toList()));
         return Optional.of(new WidgetFeed(version, items));
     }
 
-    private WidgetLatest build(Moment moment) {
+    private WidgetLatest build(Moment moment, long viewerId) {
         List<Reaction> all = reactions.findVisibleByMomentIds(List.of(moment.getId()));
-        List<Comment> allComments = comments.findVisibleByMomentId(moment.getId());
+        List<Comment> allComments = comments.findVisibleByMomentId(moment.getId(), viewerId);
         List<Comment> recent = allComments.subList(Math.max(0, allComments.size() - RECENT_COMMENTS), allComments.size());
 
         Set<Long> userIds = new HashSet<>();

@@ -50,4 +50,5 @@ const styles = StyleSheet.create({
   tagline: { color: colors.text, fontSize: 24, fontWeight: '700', lineHeight: 32 },
   form: { gap: 14 },
   link: { color: colors.textDim, fontSize: 15, textAlign: 'center', paddingVertical: 8 },
+  small: { fontSize: 14, color: colors.textFaint, paddingVertical: 2 },
 });

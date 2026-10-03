@@ -153,7 +153,7 @@
   "androidSupport": {
     "deviceRegistration": true,
     "fcmSenderImplemented": true,
-    "fcmLiveDelivery": "pending Firebase credentials"
+    "fcmLiveDelivery": "Credentials configured in Azure Key Vault; physical-device delivery pending (see firebase-server-verification.json)."
   },
   "loginPageFix": {
     "verifiedAt": "2026-10-03T05:35:22.335128+00:00",
@@ -165,5 +165,6 @@
     "liveHttpsContentMatchesSource": true,
     "productionSmokeChecks": 12,
     "runtimeRestarted": true
-  }
+  },
+  "recordScope": "Last deployed server artifact; merged V8 handoff source is not deployed. See HANDOFF.md and handoff-verification.json."
 }
