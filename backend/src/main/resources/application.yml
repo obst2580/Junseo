@@ -1,0 +1,83 @@
+server:
+  port: 8080
+  tomcat:
+    # Read the rest of an oversized upload (up to this much) so the client gets the JSON 400
+    # instead of a connection reset.
+    max-swallow-size: 64MB
+
+spring:
+  application:
+    name: junseo
+  datasource:
+    url: ${JUNSEO_DB_URL:jdbc:postgresql://localhost:5432/junseo}
+    username: ${JUNSEO_DB_USER:junseo}
+    password: ${JUNSEO_DB_PASSWORD:junseo}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration
+  # 비밀번호 재설정 메일. host 를 비워 두면 메일 대신 로그에 남긴다 (개발용).
+  mail:
+    host: ${JUNSEO_SMTP_HOST:}
+    port: ${JUNSEO_SMTP_PORT:587}
+    username: ${JUNSEO_SMTP_USER:}
+    password: ${JUNSEO_SMTP_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
+
+junseo:
+  auth:
+    mode: ${JUNSEO_AUTH_MODE:local}
+    public-base-url: ${JUNSEO_PUBLIC_BASE_URL:http://localhost:8080}
+  jwt:
+    # Override in every non-local environment (>= 32 bytes).
+    secret: ${JUNSEO_JWT_SECRET:dev-only-jwt-secret-change-me-0123456789}
+    # Session token lifetime. The app renews it once a day while it is used, so this is how long someone can go
+    # without opening the app before the widget asks them to sign in again.
+    ttl: ${JUNSEO_SESSION_TTL:90d}
+  media:
+    signing-secret: ${JUNSEO_MEDIA_SECRET:dev-only-media-secret-change-me-0123456789}
+  storage:
+    dir: ${JUNSEO_STORAGE_DIR:./data/media}
+    provider: ${JUNSEO_STORAGE_PROVIDER:local}
+    endpoint: ${JUNSEO_BLOB_ENDPOINT:}
+  cors:
+    # http://localhost:8081 (Expo web) is always allowed; add more with a comma-separated list.
+    extra-origins: ${JUNSEO_CORS_EXTRA_ORIGINS:}
+  admin:
+    # 템플릿 올리기 · 신고 처리 (X-Admin-Token 헤더). 비워 두면 관리자 API 가 꺼진다.
+    token: ${JUNSEO_ADMIN_TOKEN:}
+    # 신고가 들어오면 알림 메일을 받을 주소 (비우면 로그로만)
+    email: ${JUNSEO_ADMIN_EMAIL:}
+  mail:
+    from: ${JUNSEO_MAIL_FROM:잡다 <no-reply@junseo.app>}
+  apns:
+    enabled: ${JUNSEO_APNS_ENABLED:false}
+    key-id: ${JUNSEO_APNS_KEY_ID:}
+    team-id: ${JUNSEO_APNS_TEAM_ID:}
+    bundle-id: ${JUNSEO_APNS_BUNDLE_ID:}
+    key-path: ${JUNSEO_APNS_KEY_PATH:}
+  fcm:
+    enabled: ${JUNSEO_FCM_ENABLED:false}
+    project-id: ${JUNSEO_FCM_PROJECT_ID:}
+    # In Azure, reference a Key Vault secret; never commit service-account credentials.
+    service-account-json: ${JUNSEO_FCM_SERVICE_ACCOUNT_JSON:}
+
+management:
+  health:
+    # spring.mail.host is always present (blank when JUNSEO_SMTP_HOST is unset), so Boot builds a mail sender and
+    # its health check would fail without SMTP and take /actuator/health (deploy + App Service probe) DOWN.
+    # Mail is not needed to serve the app: MailConfig falls back to logging when the host is blank.
+    mail:
+      enabled: false
+
+logging:
+  level:
+    org.hibernate.orm.deprecation: error

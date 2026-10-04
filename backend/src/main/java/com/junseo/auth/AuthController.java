@@ -1,0 +1,106 @@
+package com.junseo.auth;
+
+import com.junseo.user.Me;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+import java.time.Instant;
+import java.util.Locale;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/auth")
+@ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "local", matchIfMissing = true)
+public class AuthController {
+
+    public record SignupRequest(
+            @NotBlank(message = "이메일을 입력해 주세요.")
+            @Email(message = "이메일 형식이 올바르지 않아요.")
+            @Size(max = 254, message = "이메일이 너무 길어요.")
+            String email,
+            @NotBlank(message = "비밀번호를 입력해 주세요.")
+            @Size(min = 8, max = 72, message = "비밀번호는 8~72자로 입력해 주세요.")
+            String password,
+            @NotBlank(message = "이름을 입력해 주세요.")
+            @Size(max = 20, message = "이름은 1~20자로 입력해 주세요.")
+            String displayName) {
+
+        public SignupRequest {
+            email = normalizeEmail(email);
+            displayName = displayName == null ? null : displayName.strip();
+        }
+    }
+
+    public record LoginRequest(
+            @NotBlank(message = "이메일을 입력해 주세요.") String email,
+            @NotBlank(message = "비밀번호를 입력해 주세요.") String password) {
+
+        public LoginRequest {
+            email = normalizeEmail(email);
+        }
+    }
+
+    public record AuthResponse(String accessToken, Instant expiresAt, Me user) {}
+
+    public record PasswordResetRequest(@NotBlank(message = "이메일을 입력해 주세요.") String email) {
+
+        public PasswordResetRequest {
+            email = normalizeEmail(email);
+        }
+    }
+
+    public record PasswordResetConfirm(
+            @NotBlank(message = "이메일을 입력해 주세요.") String email,
+            @NotBlank(message = "메일로 받은 코드를 입력해 주세요.") String code,
+            @NotBlank(message = "새 비밀번호를 입력해 주세요.")
+            @Size(min = 8, max = 72, message = "비밀번호는 8~72자로 입력해 주세요.")
+            String password) {
+
+        public PasswordResetConfirm {
+            email = normalizeEmail(email);
+        }
+    }
+
+    private final AuthService authService;
+    private final PasswordResetService passwordResets;
+
+    public AuthController(AuthService authService, PasswordResetService passwordResets) {
+        this.authService = authService;
+        this.passwordResets = passwordResets;
+    }
+
+    @PostMapping("/signup")
+    @ResponseStatus(HttpStatus.CREATED)
+    AuthResponse signup(@Valid @RequestBody SignupRequest request) {
+        return authService.signup(request);
+    }
+
+    @PostMapping("/login")
+    AuthResponse login(@Valid @RequestBody LoginRequest request) {
+        return authService.login(request);
+    }
+
+    /** 비밀번호 찾기 1: 코드 메일 보내기. 가입한 메일인지 알 수 없게 항상 204. */
+    @PostMapping("/password-reset")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        passwordResets.request(request.email());
+    }
+
+    /** 비밀번호 찾기 2: 코드 + 새 비밀번호 → 바꾸고 바로 로그인. */
+    @PostMapping("/password-reset/confirm")
+    AuthResponse confirmPasswordReset(@Valid @RequestBody PasswordResetConfirm request) {
+        return passwordResets.confirm(request.email(), request.code(), request.password());
+    }
+
+    static String normalizeEmail(String email) {
+        return email == null ? null : email.strip().toLowerCase(Locale.ROOT);
+    }
+}

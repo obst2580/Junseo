@@ -1,0 +1,15 @@
+{
+  "resourceGroup": "studylog-rg",
+  "app": "junseo-api",
+  "plan": "junseo-plan",
+  "sku": "B1",
+  "storage": "junseomediaf14e91",
+  "vault": "junseo-kv-f14e91",
+  "containerScope": "/subscriptions/f14e91e2-b819-4cd6-ac39-e4a3909c17b9/resourceGroups/studylog-rg/providers/Microsoft.Storage/storageAccounts/junseomediaf14e91/blobServices/default/containers/media",
+  "principalId": "4c799c33-0c26-4274-be2f-673581d37fb2",
+  "defaultHostname": "junseo-api.azurewebsites.net",
+  "domain": "junseo-api.liliplanet.net",
+  "customDomainVerificationId": "1B49B73DA816378E473B460111FF00562B39310D1CAEB848785D754CB96C13D8",
+  "database": "junseo",
+  "subscription": "f14e91e2-b819-4cd6-ac39-e4a3909c17b9"
+}

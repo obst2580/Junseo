@@ -1,0 +1,44 @@
+server:
+  forward-headers-strategy: framework
+spring:
+  datasource:
+    url: ${JUNSEO_DB_URL}
+    username: ${JUNSEO_DB_USER}
+    password: ${JUNSEO_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 0
+      connection-timeout: 10000
+  flyway:
+    url: ${JUNSEO_DB_URL}
+    user: ${JUNSEO_MIGRATION_USER}
+    password: ${JUNSEO_MIGRATION_PASSWORD}
+    clean-disabled: true
+junseo:
+  auth:
+    mode: platform
+    public-base-url: ${JUNSEO_PUBLIC_BASE_URL}
+    return-uris: junseo://auth,${JUNSEO_PUBLIC_BASE_URL}/login
+  jwt:
+    # Signs Junseo's session tokens (Key Vault reference, >= 32 bytes). Changing it signs everyone out once.
+    secret: ${JUNSEO_JWT_SECRET}
+  media:
+    signing-secret: ${JUNSEO_MEDIA_SECRET}
+  storage:
+    provider: blob
+    endpoint: ${JUNSEO_BLOB_ENDPOINT}
+    container: media
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+logging:
+  level:
+    com.junseo: info
+    org.springframework.web: warn

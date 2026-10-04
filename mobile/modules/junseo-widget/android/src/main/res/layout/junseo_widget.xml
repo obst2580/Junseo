@@ -1,0 +1,26 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+  android:orientation="vertical" android:background="@drawable/junseo_widget_background">
+  <TextView android:id="@+id/widget_author" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:text="Junseo" android:textColor="#29ff01" android:textStyle="bold" android:textSize="12sp" android:maxLines="1" />
+  <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:layout_marginTop="4dp">
+    <ImageView android:id="@+id/widget_photo" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:scaleType="centerCrop" android:contentDescription="친구가 보낸 사진" />
+    <TextView android:id="@+id/widget_message" android:layout_width="match_parent" android:layout_height="match_parent"
+      android:gravity="center" android:text="친구가 사진을 보내면 여기에 떠요" android:textColor="#dedbd8" android:textSize="12sp" />
+  </FrameLayout>
+  <TextView android:id="@+id/widget_comments" android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:textColor="#dedbd8" android:textSize="11sp" android:maxLines="2" android:ellipsize="end" android:layout_marginTop="4dp" />
+  <LinearLayout android:layout_width="match_parent" android:layout_height="28dp" android:gravity="center_vertical">
+    <TextView android:id="@+id/widget_previous" android:layout_width="32dp" android:layout_height="match_parent"
+      android:gravity="center" android:text="‹" android:textColor="#29ff01" android:textSize="22sp" android:contentDescription="이전 사진" />
+    <TextView android:id="@+id/widget_page" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent"
+      android:gravity="center" android:textColor="#9b9590" android:textSize="10sp" />
+    <TextView android:id="@+id/widget_next" android:layout_width="32dp" android:layout_height="match_parent"
+      android:gravity="center" android:text="›" android:textColor="#29ff01" android:textSize="22sp" android:contentDescription="다음 사진" />
+    <TextView android:id="@+id/widget_refresh" android:layout_width="28dp" android:layout_height="match_parent"
+      android:gravity="center" android:text="↻" android:textColor="#9b9590" android:textSize="17sp" android:contentDescription="새로고침" />
+    <TextView android:id="@+id/widget_configure" android:layout_width="28dp" android:layout_height="match_parent"
+      android:gravity="center" android:text="⚙" android:textColor="#9b9590" android:textSize="14sp" android:contentDescription="친구 선택" />
+  </LinearLayout>
+</LinearLayout>
