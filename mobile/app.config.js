@@ -39,7 +39,7 @@ module.exports = {
   },
   android: {
     package: ANDROID_PACKAGE,
-    versionCode: 3,
+    versionCode: 4,
     allowBackup: false,
     // 사진첩에는 저장만 한다 (Android 10+ 는 저장에 권한이 필요 없다). 읽기 권한은 Play 의 사진·동영상 권한 정책에 걸리므로 빼 둔다.
     blockedPermissions: [
