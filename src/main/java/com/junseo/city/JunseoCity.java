@@ -1,101 +1,123 @@
 package com.junseo.city;
 
+import com.junseo.city.character.CreationService;
 import com.junseo.city.command.AdminCommand;
-import com.junseo.city.command.PlayerCommands;
-import com.junseo.city.crime.CrimeListener;
 import com.junseo.city.crime.JailService;
-import com.junseo.city.crime.PoliceForce;
 import com.junseo.city.crime.RobberyService;
-import com.junseo.city.crime.WantedService;
-import com.junseo.city.data.PlayerDataStore;
+import com.junseo.city.data.CharacterRepository;
+import com.junseo.city.data.CharacterService;
+import com.junseo.city.data.Database;
 import com.junseo.city.economy.Economy;
-import com.junseo.city.economy.EconomyCommands;
 import com.junseo.city.hud.HudService;
 import com.junseo.city.job.DeliveryService;
 import com.junseo.city.job.JobService;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.menu.MenuListener;
 import com.junseo.city.npc.NpcService;
+import com.junseo.city.phone.DispatchService;
+import com.junseo.city.phone.GpsService;
+import com.junseo.city.phone.InteractionService;
+import com.junseo.city.phone.PhoneService;
 import com.junseo.city.place.PlaceRegistry;
 import com.junseo.city.place.PlaceType;
+import com.junseo.city.ui.UiService;
 import com.junseo.city.util.Keys;
+import com.junseo.city.util.Sched;
+import com.junseo.city.util.Text;
 import com.junseo.city.vehicle.CarService;
 import com.junseo.city.weapon.GunService;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.Location;
-import org.bukkit.command.PluginCommand;
-import org.bukkit.command.TabExecutor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitTask;
 
-/** 준서 시티 플러그인 시작점. 모든 기능(서비스)을 만들고 연결합니다. */
+import java.io.File;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * 준서 시티 플러그인 시작점. 모든 기능(서비스)을 만들고 연결합니다.
+ * Folia 호환: 메인 스레드를 가정하지 않고, 플레이어 일은 그 플레이어의 스레드에서 처리합니다.
+ */
 public final class JunseoCity extends JavaPlugin {
     private Settings settings;
-    private PlayerDataStore data;
+    private Database database;
+    private CharacterService characters;
     private PlaceRegistry places;
+    private UiService ui;
     private Economy economy;
     private HudService hud;
     private NpcService npcs;
     private JobService jobs;
     private DeliveryService delivery;
-    private WantedService wanted;
-    private PoliceForce police;
+    private DispatchService dispatch;
+    private GpsService gps;
     private JailService jail;
     private RobberyService robbery;
     private GunService guns;
     private CarService cars;
+    private PhoneService phone;
+    private CreationService creation;
     private PlayerListener playerListener;
-    private BukkitTask paydayTask;
+    private ScheduledTask paydayTask;
+    private final Map<UUID, ScheduledTask> tickers = new ConcurrentHashMap<>();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
         Keys.init(this);
+        Sched.init(this);
         settings = new Settings(getConfig());
-        data = new PlayerDataStore(this);
+
+        database = openDatabase();
+        database.migrate();
+        characters = new CharacterService(this, database, new CharacterRepository(ZoneId.of(settings.timezone)));
         places = new PlaceRegistry(this);
+        ui = new UiService(this);
         economy = new Economy(this);
         hud = new HudService(this);
         npcs = new NpcService(this);
         jobs = new JobService(this);
+        gps = new GpsService();
+        dispatch = new DispatchService(this);
         delivery = new DeliveryService(this);
-        wanted = new WantedService(this);
-        police = new PoliceForce(this);
         jail = new JailService(this);
         robbery = new RobberyService(this);
         guns = new GunService(this);
         cars = new CarService(this);
+        phone = new PhoneService(this);
+        creation = new CreationService(this);
         playerListener = new PlayerListener(this);
 
-        register(new MenuListener(), economy, npcs, police, robbery, guns, cars, playerListener, new CrimeListener(this));
+        register(new MenuListener(), characters, ui, economy, npcs, robbery, guns, cars, phone,
+                new InteractionService(this), creation, playerListener);
 
-        EconomyCommands economyCommands = new EconomyCommands(this);
-        command("money", economyCommands);
-        command("pay", economyCommands);
-        command("bank", economyCommands);
-        PlayerCommands playerCommands = new PlayerCommands(this);
-        for (String name : new String[]{"job", "delivery", "wanted", "call112", "car", "cityhelp"}) {
-            command(name, playerCommands);
-        }
-        command("cityadmin", new AdminCommand(this));
+        getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
+                event.registrar().register("cityadmin", "시티 관리자 명령어", List.of("시티관리"), new AdminCommand(this)));
 
-        var scheduler = getServer().getScheduler();
-        scheduler.runTaskTimer(this, () -> cars.tick(), 1L, 1L);
-        scheduler.runTaskTimer(this, () -> delivery.tick(), 10L, 10L);
-        scheduler.runTaskTimer(this, () -> {
-            wanted.tickSecond();
-            jail.tickSecond();
-            robbery.tickSecond();
-            hud.updateAll();
-        }, 20L, 20L);
-        scheduler.runTaskTimer(this, () -> data.saveDirty(), 6000L, 6000L);
+        Sched.globalRepeat(600, 600, t -> characters.saveDirty());
         schedulePayday();
 
         // /reload 등으로 다시 켜졌을 때 이미 접속한 사람들 처리
         for (Player player : getServer().getOnlinePlayers()) {
-            playerListener.handleJoin(player);
+            Sched.entity(player, () -> playerListener.handleJoin(player));
         }
-        getLogger().info(settings.serverName + " 준비 완료! 장소 " + places.all().size() + "곳");
+        getLogger().info(settings.serverName + " 준비 완료! (DB: " + database.dialect() + ", 장소 " + places.all().size() + "곳)");
+    }
+
+    private Database openDatabase() {
+        Settings.DatabaseSettings db = settings.database;
+        if (db.mysql()) {
+            getLogger().info("MySQL/MariaDB 에 연결합니다: " + db.host() + ":" + db.port() + "/" + db.database());
+            return Database.mysql(db.host(), db.port(), db.database(), db.user(), db.password(), db.poolSize(), getLogger());
+        }
+        File file = new File(getDataFolder(), "city.db");
+        return Database.sqlite(file.getAbsolutePath(), getLogger());
     }
 
     @Override
@@ -106,17 +128,47 @@ public final class JunseoCity extends JavaPlugin {
         if (cars != null) {
             cars.removeAll();
         }
-        if (police != null) {
-            police.removeAll();
-        }
         if (delivery != null) {
             delivery.cancelAll();
         }
-        if (robbery != null) {
-            robbery.cancelAll();
+        if (characters != null) {
+            characters.saveAllBlocking();
         }
-        if (data != null) {
-            data.saveAll();
+        if (places != null) {
+            places.save();
+        }
+        if (database != null) {
+            database.close();
+        }
+    }
+
+    /** 캐릭터가 준비됐을 때 (접속 또는 방금 생성): 화면 표시와 개인 타이머 시작. 플레이어 스레드에서 호출. */
+    public void onCharacterReady(Player player, CharacterData data) {
+        player.displayName(Text.mm("<white>" + Text.esc(data.name())));
+        player.playerListName(Text.mm("<white>" + Text.esc(data.name())));
+        hud.show(player);
+        jail.onJoin(player);
+        int[] count = {0};
+        ScheduledTask task = Sched.entityRepeat(player, 10, 10, t -> {
+            delivery.tick(player);
+            gps.tick(player);
+            if (++count[0] % 2 == 0) {
+                jail.tickSecond(player);
+                robbery.tickSecond(player);
+                hud.update(player);
+            }
+        });
+        ScheduledTask old = task == null ? null : tickers.put(player.getUniqueId(), task);
+        if (old != null) {
+            old.cancel();
+        }
+    }
+
+    /** 나갈 때: 개인 타이머 정리. */
+    public void forgetTicker(UUID uuid) {
+        ScheduledTask task = tickers.remove(uuid);
+        if (task != null) {
+            task.cancel();
         }
     }
 
@@ -131,23 +183,13 @@ public final class JunseoCity extends JavaPlugin {
             paydayTask.cancel();
         }
         long period = settings.paycheckMinutes * 60L * 20L;
-        paydayTask = getServer().getScheduler().runTaskTimer(this, () -> jobs.payday(), period, period);
+        paydayTask = Sched.globalRepeat(period, period, t -> jobs.payday());
     }
 
     private void register(Listener... listeners) {
         for (Listener listener : listeners) {
             getServer().getPluginManager().registerEvents(listener, this);
         }
-    }
-
-    private void command(String name, TabExecutor executor) {
-        PluginCommand command = getCommand(name);
-        if (command == null) {
-            getLogger().warning("plugin.yml 에 명령어가 없어요: " + name);
-            return;
-        }
-        command.setExecutor(executor);
-        command.setTabCompleter(executor);
     }
 
     /** 시티 스폰 → 월드 스폰 순서로 찾은 기본 위치. */
@@ -160,12 +202,16 @@ public final class JunseoCity extends JavaPlugin {
         return settings;
     }
 
-    public PlayerDataStore data() {
-        return data;
+    public CharacterService characters() {
+        return characters;
     }
 
     public PlaceRegistry places() {
         return places;
+    }
+
+    public UiService ui() {
+        return ui;
     }
 
     public Economy economy() {
@@ -188,12 +234,12 @@ public final class JunseoCity extends JavaPlugin {
         return delivery;
     }
 
-    public WantedService wanted() {
-        return wanted;
+    public DispatchService dispatch() {
+        return dispatch;
     }
 
-    public PoliceForce police() {
-        return police;
+    public GpsService gps() {
+        return gps;
     }
 
     public JailService jail() {
@@ -210,5 +256,13 @@ public final class JunseoCity extends JavaPlugin {
 
     public CarService cars() {
         return cars;
+    }
+
+    public PhoneService phone() {
+        return phone;
+    }
+
+    public CreationService creation() {
+        return creation;
     }
 }

@@ -1,5 +1,6 @@
 package com.junseo.city.util;
 
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.vehicle.CarType;
 import com.junseo.city.weapon.GunType;
 import org.bukkit.Material;
@@ -21,6 +22,8 @@ public final class CustomItems {
     public static final String BANDAGE = "bandage";
     public static final String CAR_KEY = "car_key";
     public static final String PACKAGE = "package";
+    public static final String PHONE = "phone";
+    public static final String ID_CARD = "id_card";
 
     private CustomItems() {
     }
@@ -43,6 +46,37 @@ public final class CustomItems {
             meta.getPersistentDataContainer().set(Keys.GUN_AMMO, PersistentDataType.INTEGER, type.magazine());
         });
         return stack;
+    }
+
+    /** 스마트폰. 우클릭하거나 G키를 누르면 열려요. (리소스팩 모델이 생기기 전까지는 임시 모양) */
+    public static ItemStack phone() {
+        ItemStack stack = usable(PHONE, "<gold>스마트폰", "minecraft:recovery_compass");
+        stack.editMeta(meta -> meta.lore(Text.lore("<yellow>G키</yellow> 또는 <yellow>우클릭</yellow>으로 열기",
+                "잃어버리면 연락·은행·신고를 할 수 없어요.")));
+        return stack;
+    }
+
+    /** 신분증: 이름과 주민번호가 적혀 있어요. */
+    public static ItemStack idCard(CharacterData who) {
+        ItemStack stack = new ItemStack(Material.PAPER);
+        stack.editMeta(meta -> {
+            meta.itemName(Text.plain("<white>신분증 <gray>(" + Text.esc(who.name()) + ")"));
+            meta.lore(Text.lore("이름: <white>" + Text.esc(who.name()) + "</white>",
+                    "주민번호: <white>" + who.citizenId() + "</white>"));
+            meta.setMaxStackSize(1);
+            meta.getPersistentDataContainer().set(Keys.ITEM, PersistentDataType.STRING, ID_CARD);
+            meta.getPersistentDataContainer().set(Keys.OWNER, PersistentDataType.STRING, who.citizenId());
+        });
+        return stack;
+    }
+
+    public static boolean has(org.bukkit.entity.Player player, String id) {
+        for (ItemStack stack : player.getInventory().getContents()) {
+            if (is(stack, id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static ItemStack ammo(int amount) {

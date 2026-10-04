@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:multi_action",
+  "title": {"text": "스마트폰", "color": "gold", "bold": true},
+  "external_title": "스마트폰",
+  "can_close_with_escape": true,
+  "pause": false,
+  "after_action": "wait_for_response",
+  "body": [
+    {"type": "minecraft:plain_message", "contents": {"text": "앱을 눌러 실행하세요", "color": "gray"}}
+  ],
+  "columns": 3,
+  "actions": [
+    {"label": {"text": "은행", "color": "aqua"}, "tooltip": "잔액 · 송금 · 거래내역", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/bank"}},
+    {"label": {"text": "내 정보", "color": "white"}, "tooltip": "이름 · 주민번호 · 직업", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/profile"}},
+    {"label": {"text": "긴급 신고", "color": "red"}, "tooltip": "112 경찰 · 119 구조", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/emergency"}},
+    {"label": {"text": "직업", "color": "yellow"}, "tooltip": "내 직업 · 출근/퇴근", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/job"}},
+    {"label": {"text": "알바", "color": "green"}, "tooltip": "택배 배달 미션", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/parttime"}},
+    {"label": {"text": "차고", "color": "gray"}, "tooltip": "내 차 위치 · 회수", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/garage"}},
+    {"label": {"text": "지도", "color": "dark_aqua"}, "tooltip": "장소로 길 안내", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/map"}},
+    {"label": {"text": "관리자 호출", "color": "light_purple"}, "tooltip": "신고 · 도움 요청", "width": 90,
+     "action": {"type": "minecraft:custom", "id": "junseocity:app/admin"}}
+  ],
+  "exit_action": {"label": "닫기", "width": 90}
+}

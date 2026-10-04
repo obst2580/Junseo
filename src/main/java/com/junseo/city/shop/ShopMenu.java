@@ -2,7 +2,7 @@ package com.junseo.city.shop;
 
 import com.junseo.city.JunseoCity;
 import com.junseo.city.economy.Economy;
-import com.junseo.city.logic.PlayerData;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.menu.Menu;
 import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Text;
@@ -113,9 +113,12 @@ public final class ShopMenu extends Menu {
         }
         int times = click.isShiftClick() ? entry.bulk() : 1;
         long total = entry.price() * times;
-        PlayerData data = plugin.data().get(player);
-        PlayerData.PayResult result = data.pay(total);
-        if (result == PlayerData.PayResult.INSUFFICIENT) {
+        CharacterData data = plugin.characters().get(player);
+        if (data == null) {
+            return;
+        }
+        CharacterData.PayResult result = data.pay(total);
+        if (result == CharacterData.PayResult.INSUFFICIENT) {
             Text.send(player, "<red>돈이 부족해요! <gray>(" + plugin.settings().money(total) + " 필요)");
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
             return;
@@ -123,7 +126,7 @@ public final class ShopMenu extends Menu {
         for (int i = 0; i < times; i++) {
             Economy.give(player, entry.product().apply(player));
         }
-        String how = result == PlayerData.PayResult.CASH ? "현금" : "카드";
+        String how = result == CharacterData.PayResult.CASH ? "현금" : "카드";
         Text.send(player, "<green>" + entry.name() + (times > 1 ? " x" + times : "") + " 구매 완료! <gray>("
                 + how + " 결제 " + plugin.settings().money(total) + ")");
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f);

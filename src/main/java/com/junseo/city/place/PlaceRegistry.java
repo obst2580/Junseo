@@ -8,17 +8,17 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 
-/** places.yml 에 병원·감옥·ATM 같은 장소를 저장합니다. */
+/** places.yml 에 병원·감옥·ATM 같은 장소를 저장합니다. 여러 스레드에서 읽어도 안전합니다. */
 public final class PlaceRegistry {
     private final JunseoCity plugin;
     private final File file;
-    private final List<Place> places = new ArrayList<>();
+    private final List<Place> places = new CopyOnWriteArrayList<>();
     private int nextId = 1;
 
     public PlaceRegistry(JunseoCity plugin) {
@@ -55,7 +55,7 @@ public final class PlaceRegistry {
         }
     }
 
-    public void save() {
+    public synchronized void save() {
         YamlConfiguration yml = new YamlConfiguration();
         for (Place p : places) {
             String base = "places." + p.id() + ".";
@@ -75,7 +75,7 @@ public final class PlaceRegistry {
         }
     }
 
-    public Place add(PlaceType type, Location location, String name) {
+    public synchronized Place add(PlaceType type, Location location, String name) {
         if (type.single()) {
             places.removeIf(p -> p.type() == type);
         }
@@ -85,8 +85,12 @@ public final class PlaceRegistry {
         return place;
     }
 
-    public Place removeNearest(Location location, double maxDistance) {
-        Place nearest = nearest(location, maxDistance, null);
+    public synchronized Place removeNearest(Location location, double maxDistance) {
+        return removeNearest(location, maxDistance, null);
+    }
+
+    public synchronized Place removeNearest(Location location, double maxDistance, PlaceType type) {
+        Place nearest = nearest(location, maxDistance, type);
         if (nearest != null) {
             places.remove(nearest);
             save();

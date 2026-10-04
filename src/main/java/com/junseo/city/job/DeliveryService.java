@@ -4,7 +4,7 @@ import com.junseo.city.JunseoCity;
 import com.junseo.city.economy.Economy;
 import com.junseo.city.logic.Compass;
 import com.junseo.city.logic.Job;
-import com.junseo.city.logic.PlayerData;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.place.Place;
 import com.junseo.city.place.PlaceType;
 import com.junseo.city.util.CustomItems;
@@ -23,10 +23,10 @@ import org.bukkit.inventory.PlayerInventory;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** 택배기사 미션: 택배 상자를 들고 배달지까지 제한 시간 안에 가기. */
@@ -51,10 +51,15 @@ public final class DeliveryService {
     }
 
     private final JunseoCity plugin;
-    private final Map<UUID, Mission> missions = new HashMap<>();
+    private final Map<UUID, Mission> missions = new ConcurrentHashMap<>();
 
     public DeliveryService(JunseoCity plugin) {
         this.plugin = plugin;
+        plugin.ui().onStaticAction("delivery", (player, rest) -> {
+            if (rest.equals("start")) {
+                start(player);
+            }
+        });
     }
 
     public boolean hasMission(Player player) {
@@ -62,9 +67,12 @@ public final class DeliveryService {
     }
 
     public void start(Player player) {
-        PlayerData data = plugin.data().get(player);
+        CharacterData data = plugin.characters().get(player);
+        if (data == null) {
+            return;
+        }
         if (data.job() != Job.DELIVERY) {
-            Text.send(player, "<red>택배기사만 할 수 있어요. <white>/직업</white> 으로 바꿔 보세요.");
+            Text.send(player, "<red>택배기사만 할 수 있어요. 폰의 <white>직업</white> 앱에서 바꿔 보세요.");
             return;
         }
         if (data.isJailed()) {
@@ -72,7 +80,7 @@ public final class DeliveryService {
             return;
         }
         if (hasMission(player)) {
-            Text.send(player, "<yellow>이미 배달 중이에요! 보스바의 화살표를 따라가세요. (취소: /택배 취소)");
+            Text.send(player, "<yellow>이미 배달 중이에요! 화면 위 화살표를 따라가세요. (취소: 폰 → 알바)");
             return;
         }
         Location from = player.getLocation();
@@ -108,6 +116,10 @@ public final class DeliveryService {
         update(player, missions.get(player.getUniqueId()));
     }
 
+    /**
+     * 배달지가 등록되지 않았을 때 무작위 좌표. 멀리 있는 청크는 다른 지역 스레드 소유일 수 있어서
+     * 블록을 읽지 않고 x·z 만 정합니다 (높이는 도착 판정에 쓰지 않음).
+     */
     private Location randomTarget(Location from) {
         World world = from.getWorld();
         ThreadLocalRandom r = ThreadLocalRandom.current();
@@ -116,19 +128,13 @@ public final class DeliveryService {
         double dist = r.nextDouble(s.deliveryRandomMin, s.deliveryRandomMax);
         int x = (int) Math.round(from.getX() + Math.cos(angle) * dist);
         int z = (int) Math.round(from.getZ() + Math.sin(angle) * dist);
-        int y = world.getHighestBlockYAt(x, z) + 1;
-        return new Location(world, x + 0.5, y, z + 0.5);
+        return new Location(world, x + 0.5, from.getY(), z + 0.5);
     }
 
-    /** 10틱마다: 보스바 갱신, 도착/시간초과 확인. */
-    public void tick() {
-        for (UUID uuid : new ArrayList<>(missions.keySet())) {
-            Player player = Bukkit.getPlayer(uuid);
-            Mission mission = missions.get(uuid);
-            if (player == null || mission == null) {
-                missions.remove(uuid);
-                continue;
-            }
+    /** 플레이어 스레드에서 10틱마다: 보스바 갱신, 도착/시간초과 확인. */
+    public void tick(Player player) {
+        Mission mission = missions.get(player.getUniqueId());
+        if (mission != null) {
             update(player, mission);
         }
     }
@@ -147,7 +153,7 @@ public final class DeliveryService {
         double dx = mission.target.getX() - loc.getX();
         double dz = mission.target.getZ() - loc.getZ();
         double horizontal = Math.sqrt(dx * dx + dz * dz);
-        if (horizontal <= 3.5 && Math.abs(mission.target.getY() - loc.getY()) <= 4) {
+        if (horizontal <= 3.5) {
             complete(player, mission);
             return;
         }
@@ -158,9 +164,11 @@ public final class DeliveryService {
         float progress = (float) (mission.deadlineMillis - now) / (mission.deadlineMillis - mission.startMillis);
         mission.bar.progress(Math.max(0f, Math.min(1f, progress)));
         mission.bar.color(progress < 0.25f ? BossBar.Color.RED : BossBar.Color.YELLOW);
-        if (horizontal < 96) {
-            for (int i = 0; i < 12; i++) {
-                player.spawnParticle(Particle.HAPPY_VILLAGER, mission.target.clone().add(0, i * 0.5, 0), 2, 0.2, 0.1, 0.2, 0);
+        if (horizontal < 64) {
+            Location beacon = mission.target.clone();
+            beacon.setY(loc.getY() - 1);
+            for (int i = 0; i < 16; i++) {
+                player.spawnParticle(Particle.HAPPY_VILLAGER, beacon.clone().add(0, i * 0.5, 0), 2, 0.2, 0.1, 0.2, 0);
             }
         }
     }
@@ -178,12 +186,16 @@ public final class DeliveryService {
         if (fast) {
             reward += reward * plugin.settings().deliveryFastBonusPercent / 100;
         }
-        plugin.data().get(player).addCash(reward);
+        CharacterData data = plugin.characters().get(player);
+        if (data != null) {
+            data.addCash(reward);
+        }
         player.showTitle(Title.title(Text.mm("<green>배달 완료!"),
                 Text.mm("<gold>+" + plugin.settings().money(reward) + (fast ? " <yellow>(빠른 배달 보너스!)" : "")),
                 Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500))));
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.5f);
-        player.sendMessage(Text.mm("<yellow>[다음 배달 시작하기]").clickEvent(ClickEvent.runCommand("/delivery start")));
+        player.sendMessage(Text.mm("<yellow><bold>[다음 배달 시작하기]")
+                .clickEvent(ClickEvent.custom(net.kyori.adventure.key.Key.key("junseocity", "delivery/start"), null)));
     }
 
     private static boolean takePackage(Player player) {
@@ -213,14 +225,19 @@ public final class DeliveryService {
         }
     }
 
+    /** 서버 종료 때: 보스바만 정리 (상자는 다음 접속 때 의미 없으므로 그대로). */
     public void cancelAll() {
         for (UUID uuid : new ArrayList<>(missions.keySet())) {
+            Mission mission = missions.remove(uuid);
             Player player = Bukkit.getPlayer(uuid);
-            if (player != null) {
-                cancel(player, null);
+            if (player != null && mission != null) {
+                player.hideBossBar(mission.bar);
             }
         }
-        missions.clear();
+    }
+
+    public void forget(UUID uuid) {
+        missions.remove(uuid);
     }
 
     /** 사이드바에 보여줄 한 줄. 배달 중이 아니면 null. */

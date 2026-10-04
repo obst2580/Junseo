@@ -1,6 +1,6 @@
 # ==========================================
 #  준서 시티 (JunseoCity) 설정 파일
-#  값을 바꾼 뒤 /시티관리 reload 하면 바로 적용됩니다.
+#  값을 바꾼 뒤 /시티관리 reload 하면 바로 적용됩니다. (database 는 서버 재시작 필요)
 # ==========================================
 
 # 서버 이름 (사이드바 제목, 환영 메시지에 표시)
@@ -9,17 +9,33 @@ server-name: "준서 시티"
 # 돈 단위
 currency: "원"
 
-# 처음 접속한 플레이어가 받는 돈
+# 주민번호 날짜 기준 시간대
+timezone: "Asia/Seoul"
+
+# 데이터 저장소
+#  sqlite : 서버 폴더 안 파일 하나 (내 PC 테스트, 소규모)
+#  mysql  : MySQL / MariaDB 서버 (운영, 수백 명)
+database:
+  type: sqlite
+  mysql:
+    host: localhost
+    port: 3306
+    database: junseocity
+    user: root
+    password: ""
+    pool-size: 4
+
+# 캐릭터를 처음 만들면 받는 돈
 starting-cash: 500
 starting-bank: 2000
 
-# 죽어도 아이템을 잃지 않음 (true 추천)
+# 죽어도 아이템을 잃지 않음
 keep-inventory: true
 
 # 죽으면 병원비로 현금의 몇 %를 잃는지
 hospital-fee-percent: 20
 
-# true 면 어디서든 /은행 사용 가능, false 면 ATM이나 은행원 근처에서만
+# true 면 폰 은행앱에서 어디서든 입금·출금, false 면 ATM이나 은행원 근처에서만 (송금은 어디서든)
 bank-anywhere: false
 # ATM/은행원 사용 가능 거리 (블록)
 atm-range: 5
@@ -30,26 +46,11 @@ paycheck:
   salary:
     citizen: 100
     police: 400
+    ems: 400
     delivery: 150
     miner: 150
 
-# 직업 소개소 NPC 없이도 /직업 으로 직업을 바꿀 수 있는지
-job-change-anywhere: true
-
-# 수배 시스템
-wanted:
-  # 범죄 없이 이 시간(초)이 지나면 별이 1개씩 줄어듦
-  decay-seconds: 60
-  # 별이 이 개수 이상이면 몸이 빛나서 위치가 들킴
-  glow-at: 3
-  # 별 개수(0~5)별로 출동하는 AI 경찰 수
-  police-per-star: [0, 0, 2, 3, 4, 6]
-  # 체포되면 별 1개당 감옥 시간(초)
-  jail-seconds-per-star: 30
-  # 경찰이 체포하면 받는 보상 (별 1개당)
-  arrest-reward-per-star: 300
-
-# 강도
+# 강도: 접속 중인 경찰이 min-police 명 이상이어야 시작할 수 있어요
 robbery:
   store:
     duration-seconds: 20
@@ -57,14 +58,16 @@ robbery:
     max-reward: 3000
     cooldown-minutes: 5
     radius: 6
+    min-police: 2
   bank:
     duration-seconds: 45
     min-reward: 8000
     max-reward: 15000
     cooldown-minutes: 15
     radius: 8
+    min-police: 4
 
-# 택배기사 미션
+# 택배 알바
 delivery:
   base-reward: 80
   reward-per-block: 1.2

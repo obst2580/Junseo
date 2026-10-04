@@ -1,10 +1,13 @@
 package com.junseo.city.weapon;
 
 import com.junseo.city.JunseoCity;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.logic.Job;
+import com.junseo.city.phone.DispatchService;
 import com.junseo.city.place.PlaceType;
 import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Keys;
+import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.FluidCollisionMode;
@@ -32,13 +35,12 @@ import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -48,9 +50,11 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class GunService implements Listener {
     private final JunseoCity plugin;
-    private final Map<UUID, Integer> mags = new HashMap<>();
-    private final Map<UUID, Integer> lastShotTick = new HashMap<>();
-    private final Map<UUID, BukkitTask> reloading = new HashMap<>();
+    private final Map<UUID, Integer> mags = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastShotMs = new ConcurrentHashMap<>();
+    /** 재장전 중인 사람 → 재장전 번호 (중간에 무기를 바꾸면 취소). */
+    private final Map<UUID, Long> reloading = new ConcurrentHashMap<>();
+    private long reloadSeq;
 
     public GunService(JunseoCity plugin) {
         this.plugin = plugin;
@@ -92,25 +96,27 @@ public final class GunService implements Listener {
 
     @EventHandler
     public void onHeld(PlayerItemHeldEvent event) {
-        BukkitTask task = reloading.remove(event.getPlayer().getUniqueId());
-        if (task != null) {
-            task.cancel();
+        if (reloading.remove(event.getPlayer().getUniqueId()) != null) {
             event.getPlayer().sendActionBar(Text.mm("<gray>장전 취소"));
         }
     }
 
     private void shoot(Player player, ItemStack hand, GunType type) {
-        if (plugin.data().get(player).isJailed()) {
+        CharacterData data = plugin.characters().get(player);
+        if (data == null) {
+            return;
+        }
+        if (data.isJailed()) {
             player.sendActionBar(Text.mm("<red>감옥에서는 총을 쏠 수 없어요"));
             return;
         }
-        if (type.policeOnly() && plugin.data().get(player).job() != Job.POLICE) {
+        if (type.policeOnly() && data.job() != Job.POLICE) {
             player.sendActionBar(Text.mm("<red>" + type.displayName() + "은(는) 경찰만 쓸 수 있어요"));
             return;
         }
         UUID uuid = player.getUniqueId();
-        int now = Bukkit.getCurrentTick();
-        if (now - lastShotTick.getOrDefault(uuid, -1000) < type.fireDelayTicks() || reloading.containsKey(uuid)) {
+        long now = System.currentTimeMillis();
+        if (now - lastShotMs.getOrDefault(uuid, 0L) < type.fireDelayTicks() * 50L - 10 || reloading.containsKey(uuid)) {
             return;
         }
         UUID gunId = CustomItems.uuid(hand, Keys.GUN_ID);
@@ -128,8 +134,11 @@ public final class GunService implements Listener {
             return;
         }
         mags.put(gunId, --rounds);
-        lastShotTick.put(uuid, now);
+        lastShotMs.put(uuid, now);
         fire(player, type);
+        if (type != GunType.TASER) {
+            plugin.dispatch().automatic(DispatchService.Line.POLICE, "shots", "총소리 신고", player.getLocation());
+        }
         showAmmo(player, type, rounds);
         if (rounds == 0 && (!type.usesAmmo() || countAmmo(player) > 0)) {
             startReload(player, hand, type);
@@ -244,10 +253,17 @@ public final class GunService implements Listener {
         }
         player.sendActionBar(Text.mm("<yellow>장전 중..."));
         player.playSound(player.getLocation(), Sound.ITEM_CROSSBOW_LOADING_START, 1f, 1f);
-        BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            reloading.remove(uuid);
+        long seq;
+        synchronized (this) {
+            seq = ++reloadSeq;
+        }
+        reloading.put(uuid, seq);
+        Sched.entityLater(player, type.reloadTicks(), () -> {
+            if (!reloading.remove(uuid, seq)) {
+                return; // 취소됨
+            }
             ItemStack now = player.getInventory().getItemInMainHand();
-            if (!player.isOnline() || !gunId.equals(CustomItems.uuid(now, Keys.GUN_ID))) {
+            if (!gunId.equals(CustomItems.uuid(now, Keys.GUN_ID))) {
                 return;
             }
             int have = rounds(gunId, now, type);
@@ -259,8 +275,7 @@ public final class GunService implements Listener {
             player.getInventory().setItemInMainHand(now);
             player.playSound(player.getLocation(), Sound.ITEM_CROSSBOW_LOADING_END, 1f, 1.2f);
             showAmmo(player, type, total);
-        }, type.reloadTicks());
-        reloading.put(uuid, task);
+        });
     }
 
     private int rounds(UUID gunId, ItemStack stack, GunType type) {
@@ -313,16 +328,21 @@ public final class GunService implements Listener {
         }
     }
 
-    public void onQuit(Player player) {
-        BukkitTask task = reloading.remove(player.getUniqueId());
-        if (task != null) {
-            task.cancel();
+    /** 서버 종료 때. Folia 에서는 다른 스레드의 인벤토리를 못 만질 수 있어서 실패해도 넘어갑니다. */
+    public void writeBackAll() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            try {
+                writeBack(player);
+            } catch (RuntimeException ignored) {
+                // Folia: 나갈 때(onQuit) 이미 저장됨
+            }
         }
-        lastShotTick.remove(player.getUniqueId());
-        writeBack(player);
     }
 
-    public void writeBackAll() {
-        Bukkit.getOnlinePlayers().forEach(this::writeBack);
+    /** 나갈 때 (플레이어 스레드). */
+    public void onQuit(Player player) {
+        reloading.remove(player.getUniqueId());
+        lastShotMs.remove(player.getUniqueId());
+        writeBack(player);
     }
 }

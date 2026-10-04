@@ -1,0 +1,14 @@
+name: JunseoCity
+version: '${version}'
+main: com.junseo.city.JunseoCity
+bootstrapper: com.junseo.city.JunseoBootstrap
+api-version: '26.2'
+# Folia(멀티스레드 서버)에서도 동작하도록 만들었습니다.
+folia-supported: true
+description: 마인크래프트판 FiveM 인생모드 (스마트폰 · 사람 경찰 · 도시 생활 RP)
+authors: [Junseo]
+
+permissions:
+  junseocity.admin:
+    description: 시티 관리자 명령어, 관리자 호출 수신
+    default: op

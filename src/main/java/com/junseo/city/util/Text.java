@@ -4,6 +4,7 @@ import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +40,11 @@ public final class Text {
 
     public static void send(Audience to, Component message) {
         to.sendMessage(PREFIX.append(message));
+    }
+
+    /** MiniMessage 태그를 뺀 순수 글자. */
+    public static String plainText(String miniMessage) {
+        return PlainTextComponentSerializer.plainText().serialize(MM.deserialize(miniMessage));
     }
 
     /** 플레이어 이름처럼 밖에서 들어온 글자에 &lt;태그&gt; 가 섞여도 안전하게. */

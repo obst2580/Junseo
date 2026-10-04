@@ -7,13 +7,20 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.EnumMap;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /** config.yml 값을 읽어 둔 것. /시티관리 reload 때 새로 만듭니다. */
 public final class Settings {
 
-    public record RobberySettings(int durationSeconds, long minReward, long maxReward, int cooldownMinutes, double radius) {
+    public record RobberySettings(int durationSeconds, long minReward, long maxReward, int cooldownMinutes, double radius,
+                                  int minPolice) {
+    }
+
+    public record DatabaseSettings(String type, String host, int port, String database, String user, String password,
+                                   int poolSize) {
+        public boolean mysql() {
+            return "mysql".equalsIgnoreCase(type) || "mariadb".equalsIgnoreCase(type);
+        }
     }
 
     public final String serverName;
@@ -27,11 +34,8 @@ public final class Settings {
     public final int paycheckMinutes;
     public final boolean jobChangeAnywhere;
 
-    public final int wantedDecaySeconds;
-    public final int glowAt;
-    public final int[] policePerStar;
-    public final int jailSecondsPerStar;
-    public final long arrestRewardPerStar;
+    public final DatabaseSettings database;
+    public final String timezone;
 
     public final RobberySettings storeRobbery;
     public final RobberySettings bankRobbery;
@@ -63,15 +67,18 @@ public final class Settings {
             salaries.put(job, c.getLong("paycheck.salary." + job.key(), 100));
         }
 
-        wantedDecaySeconds = Math.max(5, c.getInt("wanted.decay-seconds", 60));
-        glowAt = c.getInt("wanted.glow-at", 3);
-        List<Integer> perStar = c.getIntegerList("wanted.police-per-star");
-        policePerStar = perStar.isEmpty() ? new int[]{0, 0, 2, 3, 4, 6} : perStar.stream().mapToInt(Integer::intValue).toArray();
-        jailSecondsPerStar = Math.max(5, c.getInt("wanted.jail-seconds-per-star", 30));
-        arrestRewardPerStar = c.getLong("wanted.arrest-reward-per-star", 300);
+        database = new DatabaseSettings(
+                c.getString("database.type", "sqlite"),
+                c.getString("database.mysql.host", "localhost"),
+                c.getInt("database.mysql.port", 3306),
+                c.getString("database.mysql.database", "junseocity"),
+                c.getString("database.mysql.user", "root"),
+                c.getString("database.mysql.password", ""),
+                Math.max(1, c.getInt("database.mysql.pool-size", 4)));
+        timezone = c.getString("timezone", "Asia/Seoul");
 
-        storeRobbery = robbery(c, "robbery.store", 20, 1000, 3000, 5, 6);
-        bankRobbery = robbery(c, "robbery.bank", 45, 8000, 15000, 15, 8);
+        storeRobbery = robbery(c, "robbery.store", 20, 1000, 3000, 5, 6, 2);
+        bankRobbery = robbery(c, "robbery.bank", 45, 8000, 15000, 15, 8, 4);
 
         deliveryBaseReward = c.getLong("delivery.base-reward", 80);
         deliveryRewardPerBlock = c.getDouble("delivery.reward-per-block", 1.2);
@@ -85,14 +92,15 @@ public final class Settings {
     }
 
     private static RobberySettings robbery(FileConfiguration c, String path, int duration, long min, long max,
-                                           int cooldown, double radius) {
+                                           int cooldown, double radius, int minPolice) {
         long minReward = c.getLong(path + ".min-reward", min);
         return new RobberySettings(
                 Math.max(3, c.getInt(path + ".duration-seconds", duration)),
                 minReward,
                 Math.max(minReward, c.getLong(path + ".max-reward", max)),
                 c.getInt(path + ".cooldown-minutes", cooldown),
-                c.getDouble(path + ".radius", radius));
+                c.getDouble(path + ".radius", radius),
+                Math.max(0, c.getInt(path + ".min-police", minPolice)));
     }
 
     private static void readLongs(ConfigurationSection section, Map<String, Long> into) {

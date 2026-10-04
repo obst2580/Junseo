@@ -2,14 +2,15 @@ package com.junseo.city.vehicle;
 
 import com.junseo.city.JunseoCity;
 import com.junseo.city.logic.CarPhysics;
-import com.junseo.city.logic.Crime;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.logic.Job;
+import com.junseo.city.phone.DispatchService;
 import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Keys;
+import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
-import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -46,10 +47,10 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 자동차 소환/운전/내리기.
@@ -65,10 +66,9 @@ public final class CarService implements Listener {
     }
 
     private final JunseoCity plugin;
-    private final Map<UUID, Car> byEntity = new HashMap<>();
-    private final Map<UUID, Car> byKey = new HashMap<>();
-    private final List<Car> cars = new ArrayList<>();
-    private final Map<UUID, Integer> lastRunOver = new HashMap<>();
+    private final Map<UUID, Car> byEntity = new ConcurrentHashMap<>();
+    private final Map<UUID, Car> byKey = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> lastRunOver = new ConcurrentHashMap<>();
 
     public CarService(JunseoCity plugin) {
         this.plugin = plugin;
@@ -99,7 +99,7 @@ public final class CarService implements Listener {
     // ------------------------------------------------------------------ 소환 / 제거
 
     public Car spawn(CarType type, UUID owner, UUID keyId, Location at) {
-        Car old = byKey.get(keyId);
+        Car old = byKey.remove(keyId);
         if (old != null) {
             despawn(old);
         }
@@ -145,6 +145,7 @@ public final class CarService implements Listener {
             base.addPassenger(display);
             displays.add(display);
         }
+        // 클릭 판정도 차에 태워서 매 틱 따로 옮기지 않아도 되게 (Folia 에서 순간이동은 비싸요)
         Interaction hitbox = world.spawn(loc, Interaction.class, i -> {
             i.setInteractionWidth(2.2f);
             i.setInteractionHeight(1.8f);
@@ -152,12 +153,20 @@ public final class CarService implements Listener {
             i.setPersistent(false);
             tag(i);
         });
+        base.addPassenger(hitbox);
         Car car = new Car(type, owner, keyId, base, hitbox, displays, yaw);
-        cars.add(car);
         byKey.put(keyId, car);
         byEntity.put(base.getUniqueId(), car);
         byEntity.put(hitbox.getUniqueId(), car);
         displays.forEach(d -> byEntity.put(d.getUniqueId(), car));
+        car.task = Sched.entityRepeat(base, 1, 1, t -> {
+            if (car.removed || !car.base.isValid()) {
+                t.cancel();
+                cleanup(car);
+                return;
+            }
+            drive(car);
+        });
         world.playSound(loc, Sound.BLOCK_PISTON_EXTEND, 1f, 0.6f);
         return car;
     }
@@ -172,44 +181,70 @@ public final class CarService implements Listener {
         entity.getPersistentDataContainer().set(Keys.CAR, PersistentDataType.BYTE, (byte) 1);
     }
 
+    /** 어느 스레드에서 불러도 됩니다: 실제 제거는 차가 있는 지역 스레드에서. */
     public void despawn(Car car) {
+        car.removed = true;
+        byKey.remove(car.keyId, car);
+        Sched.entity(car.base, () -> removeEntities(car));
+    }
+
+    /** 차 스레드에서: 엔티티 제거. */
+    private void removeEntities(Car car) {
         Player driver = car.driver();
         if (driver != null) {
             driver.leaveVehicle();
         }
-        cars.remove(car);
+        for (BlockDisplay part : car.parts) {
+            part.remove();
+        }
+        car.hitbox.remove();
+        car.base.remove();
+        cleanup(car);
+    }
+
+    private void cleanup(Car car) {
+        car.removed = true;
         byKey.remove(car.keyId, car);
         byEntity.remove(car.base.getUniqueId());
         byEntity.remove(car.hitbox.getUniqueId());
         for (BlockDisplay part : car.parts) {
             byEntity.remove(part.getUniqueId());
-            part.remove();
         }
-        car.hitbox.remove();
-        car.base.remove();
+        if (car.task != null) {
+            car.task.cancel();
+        }
+    }
+
+    public List<Car> ownedBy(UUID owner) {
+        List<Car> out = new ArrayList<>();
+        for (Car car : byKey.values()) {
+            if (!car.removed && car.owner.equals(owner)) {
+                out.add(car);
+            }
+        }
+        return out;
     }
 
     public void despawnOwned(UUID owner, CarType type) {
-        for (Car car : new ArrayList<>(cars)) {
-            if (car.owner.equals(owner) && (type == null || car.type == type)) {
+        for (Car car : ownedBy(owner)) {
+            if (type == null || car.type == type) {
                 despawn(car);
             }
         }
     }
 
     public int countOwned(UUID owner) {
-        int n = 0;
-        for (Car car : cars) {
-            if (car.owner.equals(owner)) {
-                n++;
-            }
-        }
-        return n;
+        return ownedBy(owner).size();
     }
 
+    /** 서버 종료 때. Paper 에서는 바로 지우고, Folia 에서는 저장되지 않는 엔티티라 그냥 사라집니다. */
     public void removeAll() {
-        for (Car car : new ArrayList<>(cars)) {
-            despawn(car);
+        for (Car car : new ArrayList<>(byKey.values())) {
+            try {
+                removeEntities(car);
+            } catch (RuntimeException e) {
+                cleanup(car);
+            }
         }
     }
 
@@ -220,18 +255,8 @@ public final class CarService implements Listener {
 
     // ------------------------------------------------------------------ 운전 (매 틱)
 
-    public void tick() {
-        int now = Bukkit.getCurrentTick();
-        for (Car car : new ArrayList<>(cars)) {
-            if (!car.base.isValid()) {
-                despawn(car);
-                continue;
-            }
-            drive(car, now);
-        }
-    }
-
-    private void drive(Car car, int now) {
+    private void drive(Car car) {
+        long now = ++car.ticks;
         CarType type = car.type;
         Player driver = car.driver();
         double speed = car.speed;
@@ -285,11 +310,8 @@ public final class CarService implements Listener {
         }
         car.speed = speed;
         car.yaw = yaw;
+        car.lastKnown = loc;
 
-        Location hit = car.hitbox.getLocation();
-        if (hit.getWorld() != loc.getWorld() || hit.distanceSquared(loc) > 0.0004) {
-            car.hitbox.teleport(loc);
-        }
         if (driver != null && Math.abs(speed) > 0.3) {
             runOver(car, driver, loc, f, speed, now);
         }
@@ -312,7 +334,7 @@ public final class CarService implements Listener {
         loc.getWorld().playSound(loc, Sound.BLOCK_NOTE_BLOCK_BIT, 2f, 0.9f);
     }
 
-    private void siren(Car car, Location loc, int now) {
+    private void siren(Car car, Location loc, long now) {
         boolean high = (now / 10) % 2 == 0;
         World world = loc.getWorld();
         world.playSound(loc, Sound.BLOCK_NOTE_BLOCK_PLING, 2.5f, high ? 1.6f : 1.2f);
@@ -322,17 +344,18 @@ public final class CarService implements Listener {
     }
 
     /** 달리는 차에 부딪힌 생명체는 다치고 날아갑니다. */
-    private void runOver(Car car, Player driver, Location loc, double[] f, double speed, int now) {
+    private void runOver(Car car, Player driver, Location loc, double[] f, double speed, long now) {
         Location front = loc.clone().add(f[0] * 1.2 * Math.signum(speed), 0.8, f[1] * 1.2 * Math.signum(speed));
         for (Entity entity : loc.getWorld().getNearbyEntities(front, 1.3, 1.0, 1.3)) {
             if (!(entity instanceof LivingEntity victim) || entity instanceof ArmorStand || entity == driver || isCarPart(entity)
                     || plugin.npcs().typeOf(entity) != null || driver.getPassengers().contains(entity)) {
                 continue;
             }
-            if (now - lastRunOver.getOrDefault(victim.getUniqueId(), -100) < 15) {
+            long ms = System.currentTimeMillis();
+            if (ms - lastRunOver.getOrDefault(victim.getUniqueId(), 0L) < 750) {
                 continue;
             }
-            lastRunOver.put(victim.getUniqueId(), now);
+            lastRunOver.put(victim.getUniqueId(), ms);
             double damage = Math.min(16, Math.abs(speed) * 12);
             victim.damage(damage, driver);
             victim.setVelocity(new Vector(f[0] * speed * 1.4, 0.45, f[1] * speed * 1.4));
@@ -351,27 +374,22 @@ public final class CarService implements Listener {
             Text.send(player, "<yellow>이미 누가 운전하고 있어요.");
             return;
         }
-        if (plugin.data().get(player).isJailed()) {
+        CharacterData data = plugin.characters().get(player);
+        if (data == null || data.isJailed()) {
             return;
         }
-        boolean police = plugin.data().get(player).job() == Job.POLICE;
-        if (!hasKey(player, car.keyId)) {
-            if (car.type == CarType.POLICE) {
-                if (!police) {
-                    plugin.wanted().commit(player, Crime.POLICE_CAR_THEFT);
-                    Text.send(player, "<red>경찰차를 훔쳤어요!");
-                }
-            } else {
-                plugin.wanted().commit(player, Crime.CAR_THEFT);
-                Text.send(player, "<red>남의 차를 훔쳤어요!");
-            }
+        boolean police = data.job() == Job.POLICE;
+        if (!hasKey(player, car.keyId) && !(car.type == CarType.POLICE && police)) {
+            plugin.dispatch().automatic(DispatchService.Line.POLICE, "car_theft",
+                    car.type == CarType.POLICE ? "경찰차 도난 신고" : "차량 도난 신고", player.getLocation());
+            Text.send(player, car.type == CarType.POLICE ? "<red>경찰차를 훔쳤어요!" : "<red>남의 차를 훔쳤어요!");
         }
         player.leaveVehicle();
         if (!car.base.addPassenger(player)) {
             Text.send(player, "<red>차에 탈 수 없어요.");
             return;
         }
-        car.enteredTick = Bukkit.getCurrentTick();
+        car.enteredTick = car.ticks;
         car.prevSprint = true;
         setAttribute(player.getAttribute(Attribute.CAMERA_DISTANCE), DRIVER_CAMERA_DISTANCE);
         player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, 0.8f, 1.4f);
@@ -442,9 +460,9 @@ public final class CarService implements Listener {
             exit = loc.clone().add(0, 2.0, 0);
         }
         Location target = exit;
-        Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline() && !player.isInsideVehicle()) {
-                player.teleport(target);
+        Sched.entityLater(player, 1, () -> {
+            if (!player.isInsideVehicle()) {
+                player.teleportAsync(target);
             }
         });
     }
@@ -481,11 +499,15 @@ public final class CarService implements Listener {
         if (player.isInsideVehicle()) {
             return;
         }
-        if (type == CarType.POLICE && plugin.data().get(player).job() != Job.POLICE) {
+        CharacterData data = plugin.characters().get(player);
+        if (data == null) {
+            return;
+        }
+        if (type == CarType.POLICE && data.job() != Job.POLICE) {
             Text.send(player, "<red>경찰차는 경찰만 꺼낼 수 있어요.");
             return;
         }
-        if (plugin.data().get(player).isJailed()) {
+        if (data.isJailed()) {
             Text.send(player, "<red>감옥에서는 차를 꺼낼 수 없어요.");
             return;
         }

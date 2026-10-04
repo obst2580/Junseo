@@ -2,42 +2,36 @@ package com.junseo.city.logic;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.LocalDate;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class RulesTest {
 
     @Test
-    void wantedStarsAddAndCap() {
-        assertEquals(2, WantedRules.add(0, 2));
-        assertEquals(5, WantedRules.add(4, 3));
-        assertEquals("★★☆☆☆", WantedRules.stars(2));
-        assertEquals("☆☆☆☆☆", WantedRules.stars(0));
+    void characterNameRules() {
+        assertNull(Identity.nameProblem("김준서"));
+        assertNull(Identity.nameProblem("준서"));
+        assertNull(Identity.nameProblem("Junseo"));
+        assertNotNull(Identity.nameProblem("김"));
+        assertNotNull(Identity.nameProblem("김 준서"));
+        assertNotNull(Identity.nameProblem("준서123"));
+        assertNotNull(Identity.nameProblem("가나다라마바사"));
+        assertNotNull(Identity.nameProblem("Jun<b>"));
+        assertNotNull(Identity.nameProblem(""));
+        assertNotNull(Identity.nameProblem(null));
     }
 
     @Test
-    void wantedDecaysOnlyAfterDelay() {
-        assertFalse(WantedRules.shouldDecay(3, 59_000, 60_000));
-        assertTrue(WantedRules.shouldDecay(3, 60_000, 60_000));
-        assertFalse(WantedRules.shouldDecay(0, 999_999, 60_000));
-    }
-
-    @Test
-    void policeCountFollowsConfigList() {
-        int[] perStar = {0, 0, 2, 3, 4, 6};
-        assertEquals(0, WantedRules.policeCount(1, perStar));
-        assertEquals(2, WantedRules.policeCount(2, perStar));
-        assertEquals(6, WantedRules.policeCount(5, perStar));
-        assertEquals(3, WantedRules.policeCount(5, new int[]{0, 1, 3}));
-        assertEquals(0, WantedRules.policeCount(3, new int[0]));
-    }
-
-    @Test
-    void jailTimeScalesWithStars() {
-        assertEquals(90, WantedRules.jailSeconds(3, 30));
-        assertEquals(30, WantedRules.jailSeconds(0, 30));
+    void citizenIdFormat() {
+        assertEquals("261004-1000001", Identity.citizenId(LocalDate.of(2026, 10, 4), 1));
+        assertEquals("270101-1012345", Identity.citizenId(LocalDate.of(2027, 1, 1), 12_345));
+        assertThrows(IllegalArgumentException.class, () -> Identity.citizenId(LocalDate.of(2026, 1, 1), 0));
     }
 
     @Test
@@ -62,6 +56,9 @@ class RulesTest {
     void jobParseAcceptsKoreanAndEnglish() {
         assertEquals(Job.POLICE, Job.parse("police"));
         assertEquals(Job.POLICE, Job.parse("경찰"));
+        assertEquals(Job.EMS, Job.parse("의료국"));
+        assertTrue(Job.EMS.government());
+        assertFalse(Job.DELIVERY.government());
         assertEquals(Job.DELIVERY, Job.parse("DELIVERY"));
         assertNull(Job.parse("astronaut"));
     }

@@ -2,9 +2,10 @@ package com.junseo.city.job;
 
 import com.junseo.city.JunseoCity;
 import com.junseo.city.economy.Economy;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.logic.Job;
-import com.junseo.city.logic.PlayerData;
 import com.junseo.city.util.CustomItems;
+import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
 import com.junseo.city.vehicle.CarType;
 import com.junseo.city.weapon.GunType;
@@ -27,10 +28,14 @@ public final class JobService {
         this.plugin = plugin;
     }
 
-    public void setJob(Player player, Job job) {
-        PlayerData data = plugin.data().get(player);
+    /** 플레이어 스레드에서 호출. */
+    public void setJob(Player player, Job job, int grade) {
+        CharacterData data = plugin.characters().get(player);
+        if (data == null) {
+            return;
+        }
         Job old = data.job();
-        data.setJob(job);
+        data.setJob(job, grade);
         if (old == Job.POLICE && job != Job.POLICE) {
             removePoliceGear(player);
         }
@@ -40,16 +45,10 @@ public final class JobService {
         if (job == Job.POLICE) {
             givePoliceKit(player);
         }
-        player.showTitle(Title.title(Text.mm("<gold>" + job.displayName()), Text.mm("<gray>새 직업을 시작했어요!"),
-                Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500))));
-        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
-        Text.send(player, "<green>직업이 <white>" + job.displayName() + "</white>(으)로 바뀌었어요!");
-        switch (job) {
-            case POLICE -> Text.send(player, "<aqua>수배자를 <white>수갑</white>으로 때리면 체포! <white>/수배자</white> 로 위치를 볼 수 있어요. "
-                    + "경찰차 열쇠로 땅을 우클릭하면 경찰차가 나와요.");
-            case DELIVERY -> Text.send(player, "<aqua>택배 물류센터 NPC를 우클릭하거나 <white>/택배 시작</white> 으로 배달을 시작하세요.");
-            case MINER -> Text.send(player, "<aqua>광물을 캐서 광물 거래소에 팔면 <white>x" + plugin.settings().minerSellBonus + "</white> 가격으로 팔 수 있어요.");
-            case CITIZEN -> Text.send(player, "<aqua>자유롭게 시티를 즐기세요!");
+        if (old != job) {
+            player.showTitle(Title.title(Text.mm("<gold>" + job.displayName()), Text.mm("<gray>새 직업을 시작했어요!"),
+                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500))));
+            player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
         }
     }
 
@@ -86,12 +85,15 @@ public final class JobService {
         plugin.cars().despawnOwned(player.getUniqueId(), CarType.POLICE);
     }
 
-    /** 월급날: 접속 중인 모든 사람에게 직업별 월급을 은행으로. */
+    /** 월급날 (전역 스케줄러): 접속 중인 모든 사람에게 직업별 월급을 은행으로. */
     public void payday() {
         for (Player player : Bukkit.getOnlinePlayers()) {
-            PlayerData data = plugin.data().get(player);
+            CharacterData data = plugin.characters().get(player);
+            if (data == null) {
+                continue;
+            }
             if (data.isJailed()) {
-                Text.send(player, "<gray>감옥에 있어서 이번 월급은 없어요.");
+                Sched.entity(player, () -> Text.send(player, "<gray>감옥에 있어서 이번 월급은 없어요."));
                 continue;
             }
             long salary = plugin.settings().salary(data.job());
@@ -99,9 +101,12 @@ public final class JobService {
                 continue;
             }
             data.addBank(salary);
-            Text.send(player, "<gold>월급날! <white>" + data.job().displayName() + "</white> 월급 <green>"
-                    + plugin.settings().money(salary) + "</green>이 은행에 들어왔어요.");
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.5f);
+            plugin.characters().logMoney(data, salary, "bank", "월급", data.job().key());
+            Sched.entity(player, () -> {
+                Text.send(player, "<gold>월급날! <white>" + data.job().displayName() + "</white> 월급 <green>"
+                        + plugin.settings().money(salary) + "</green>이 은행에 들어왔어요.");
+                player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.5f);
+            });
         }
     }
 }

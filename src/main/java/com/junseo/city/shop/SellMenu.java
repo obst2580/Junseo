@@ -2,7 +2,7 @@ package com.junseo.city.shop;
 
 import com.junseo.city.JunseoCity;
 import com.junseo.city.logic.Job;
-import com.junseo.city.logic.PlayerData;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.menu.Menu;
 import com.junseo.city.util.Text;
 import net.kyori.adventure.text.Component;
@@ -50,8 +50,13 @@ public final class SellMenu extends Menu {
         }
     }
 
+    private Job jobOf(Player player) {
+        CharacterData data = plugin.characters().get(player);
+        return data == null ? Job.CITIZEN : data.job();
+    }
+
     private double bonus(Player player) {
-        return plugin.data().get(player).job() == Job.MINER ? plugin.settings().minerSellBonus : 1.0;
+        return jobOf(player) == Job.MINER ? plugin.settings().minerSellBonus : 1.0;
     }
 
     private static int count(Player player, Material material) {
@@ -80,9 +85,12 @@ public final class SellMenu extends Menu {
         if (base == null) {
             return;
         }
+        CharacterData data = plugin.characters().get(player);
+        if (data == null) {
+            return;
+        }
         long each = Math.round(base * bonus(player));
         player.getInventory().removeItem(new ItemStack(material, amount));
-        PlayerData data = plugin.data().get(player);
         long total = each * amount;
         data.addCash(total);
         Text.send(player, "<green>" + amount + "개를 팔아서 " + plugin.settings().money(total) + "을 벌었어요!");

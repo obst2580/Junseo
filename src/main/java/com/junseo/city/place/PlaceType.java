@@ -11,7 +11,9 @@ public enum PlaceType {
     ATM("atm", "ATM", false, true),
     DELIVERY_POINT("delivery_point", "택배 배달지", false, false),
     STORE_SAFE("store_safe", "편의점 금고", false, true),
-    BANK_VAULT("bank_vault", "은행 금고", false, true);
+    BANK_VAULT("bank_vault", "은행 금고", false, true),
+    /** NPC 를 세우면 자동으로 기록 (폰 지도 앱에서 찾기용). 이름 = NPC 종류 id. */
+    NPC("npc", "NPC", false, false);
 
     private final String id;
     private final String displayName;

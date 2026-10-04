@@ -1,20 +1,16 @@
 package com.junseo.city;
 
-import com.junseo.city.logic.Crime;
-import com.junseo.city.logic.Job;
-import com.junseo.city.logic.PlayerData;
-import com.junseo.city.logic.WantedRules;
+import com.junseo.city.logic.CharacterData;
 import com.junseo.city.place.PlaceType;
 import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Keys;
+import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -30,20 +26,16 @@ import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
-/** 접속/퇴장, 죽음(WASTED/BUSTED), 부활, 붕대, 시티 아이템 조합 막기. */
+/** 접속/퇴장, 죽음(WASTED), 부활, 붕대, 시티 아이템 조합 막기. */
 public final class PlayerListener implements Listener {
     private final JunseoCity plugin;
-    /** 경찰에게 죽어서 부활하면 감옥에 갈 사람: 수배 별 개수. */
-    private final Map<UUID, Integer> busted = new HashMap<>();
-    /** 경찰 플레이어가 잡았으면 그 경찰 (체포 보상용). */
-    private final Map<UUID, UUID> bustedBy = new HashMap<>();
-    /** 그냥 죽은 사람: 잃은 병원비. */
-    private final Map<UUID, Long> wasted = new HashMap<>();
-    private final Map<UUID, Long> bandageCooldown = new HashMap<>();
+    /** 죽은 사람: 잃은 병원비. */
+    private final Map<UUID, Long> wasted = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> bandageCooldown = new ConcurrentHashMap<>();
 
     public PlayerListener(JunseoCity plugin) {
         this.plugin = plugin;
@@ -56,76 +48,50 @@ public final class PlayerListener implements Listener {
 
     /** 플러그인을 다시 불러올 때도 접속자마다 호출합니다. */
     public void handleJoin(Player player) {
-        boolean firstJoin = !plugin.data().exists(player.getUniqueId());
-        PlayerData data = plugin.data().get(player);
-        data.setName(player.getName());
-        plugin.hud().show(player);
-        plugin.wanted().updateGlow(player);
-        plugin.jail().onJoin(player);
-        if (firstJoin) {
-            Location spawn = plugin.places().location(PlaceType.SPAWN);
-            if (spawn != null) {
-                player.teleport(spawn);
+        plugin.characters().ensureLoaded(player).whenComplete((found, error) -> Sched.entity(player, () -> {
+            if (error != null) {
+                plugin.getLogger().warning("캐릭터 확인 실패: " + player.getName() + " " + error);
+                player.kick(Text.mm("<red>서버 데이터를 불러오지 못했어요. 잠시 뒤 다시 접속해 주세요."));
+                return;
             }
-            player.showTitle(Title.title(Text.mm("<gold><bold>" + Text.esc(plugin.settings().serverName)),
-                    Text.mm("<white>에 오신 걸 환영해요!"),
-                    Title.Times.times(Duration.ofMillis(500), Duration.ofSeconds(3), Duration.ofMillis(1000))));
-            Text.send(player, "<green>환영 선물로 현금 " + plugin.settings().money(data.cash()) + "과 은행 "
-                    + plugin.settings().money(data.bank()) + "을 받았어요! <white>/도움말</white> 을 입력해 보세요.");
-            player.getInventory().addItem(new ItemStack(Material.BREAD, 5));
-        } else {
-            Text.send(player, "<gray>다시 오신 걸 환영해요! <white>/도움말");
-        }
+            if (found.isPresent()) {
+                plugin.onCharacterReady(player, found.get());
+                Text.send(player, "<gray>다시 오신 걸 환영해요, <white>" + Text.esc(found.get().name()) + "</white> 님! <yellow>G키</yellow><gray>: 스마트폰");
+            } else {
+                plugin.creation().start(player);
+            }
+        }));
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+        plugin.creation().stop(uuid);
+        plugin.forgetTicker(uuid);
         plugin.delivery().cancel(player, null);
-        plugin.robbery().cancel(player, null);
-        plugin.police().dismiss(player);
+        plugin.robbery().forget(uuid);
         plugin.cars().onQuit(player);
         plugin.guns().onQuit(player);
-        plugin.jail().onQuit(player);
-        plugin.hud().remove(player);
-        plugin.wanted().forget(player);
-        Integer pendingJail = busted.remove(player.getUniqueId());
-        if (pendingJail != null) {
-            // 체포된 채로 나가도 다음 접속 때 감옥에서 시작해요.
-            plugin.data().get(player).setJailSeconds(
-                    WantedRules.jailSeconds(pendingJail, plugin.settings().jailSecondsPerStar));
-        }
-        bustedBy.remove(player.getUniqueId());
-        wasted.remove(player.getUniqueId());
-        bandageCooldown.remove(player.getUniqueId());
-        plugin.data().unload(player.getUniqueId());
+        plugin.jail().forget(uuid);
+        plugin.gps().forget(uuid);
+        plugin.hud().forget(uuid);
+        plugin.ui().forget(uuid);
+        plugin.dispatch().forget(uuid);
+        wasted.remove(uuid);
+        bandageCooldown.remove(uuid);
+        plugin.characters().unload(uuid);
     }
 
     @EventHandler(priority = EventPriority.HIGH)
     public void onDeath(PlayerDeathEvent event) {
         Player victim = event.getPlayer();
-        PlayerData data = plugin.data().get(victim);
-        int stars = data.wanted();
-        Entity cause = event.getDamageSource().getCausingEntity();
-        Player killer = victim.getKiller();
-        boolean byCop = plugin.police().isCop(cause)
-                || (killer != null && plugin.data().get(killer).job() == Job.POLICE);
-
-        if (killer != null && !killer.equals(victim) && stars == 0) {
-            plugin.wanted().commit(killer, data.job() == Job.POLICE ? Crime.COP_KILL : Crime.MURDER);
-        }
-        if (stars > 0 && byCop && !data.isJailed()) {
-            busted.put(victim.getUniqueId(), stars);
-            if (killer != null && plugin.data().get(killer).job() == Job.POLICE) {
-                bustedBy.put(victim.getUniqueId(), killer.getUniqueId());
-            }
-        } else if (!data.isJailed()) {
+        CharacterData data = plugin.characters().get(victim);
+        if (data != null && !data.isJailed()) {
             wasted.put(victim.getUniqueId(), data.loseCashPercent(plugin.settings().hospitalFeePercent));
         }
-        plugin.wanted().clear(victim);
         plugin.delivery().cancel(victim, "<red>쓰러져서 배달에 실패했어요.");
         plugin.robbery().cancel(victim, "<red>쓰러져서 강도에 실패했어요.");
-
         if (plugin.settings().keepInventory) {
             event.setKeepInventory(true);
             event.getDrops().clear();
@@ -137,20 +103,8 @@ public final class PlayerListener implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onRespawn(PlayerRespawnEvent event) {
         Player player = event.getPlayer();
-        UUID uuid = player.getUniqueId();
-        Integer stars = busted.remove(uuid);
-        UUID copId = bustedBy.remove(uuid);
-        if (stars != null) {
-            event.setRespawnLocation(plugin.jail().jailLocation(player));
-            plugin.getServer().getScheduler().runTask(plugin, () -> {
-                if (player.isOnline()) {
-                    plugin.data().get(player).setWanted(stars, System.currentTimeMillis());
-                    plugin.jail().arrest(player, copId == null ? null : plugin.getServer().getPlayer(copId));
-                }
-            });
-            return;
-        }
-        if (plugin.data().get(player).isJailed()) {
+        CharacterData data = plugin.characters().get(player);
+        if (data != null && data.isJailed()) {
             event.setRespawnLocation(plugin.jail().jailLocation(player));
             return;
         }
@@ -158,15 +112,10 @@ public final class PlayerListener implements Listener {
         if (hospital != null) {
             event.setRespawnLocation(hospital);
         }
-        Long lost = wasted.remove(uuid);
-        plugin.getServer().getScheduler().runTask(plugin, () -> {
-            if (!player.isOnline()) {
-                return;
-            }
-            player.showTitle(Title.title(Text.mm("<dark_red><bold>WASTED"),
-                    Text.mm(lost != null && lost > 0 ? "<gray>병원비 " + plugin.settings().money(lost) + "을 냈어요" : "<gray>병원에서 깨어났어요"),
-                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(3), Duration.ofMillis(800))));
-        });
+        Long lost = wasted.remove(player.getUniqueId());
+        Sched.entityLater(player, 1, () -> player.showTitle(Title.title(Text.mm("<dark_red><bold>WASTED"),
+                Text.mm(lost != null && lost > 0 ? "<gray>병원비 " + plugin.settings().money(lost) + "을 냈어요" : "<gray>병원에서 깨어났어요"),
+                Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(3), Duration.ofMillis(800)))));
     }
 
     /** 붕대: 우클릭하면 체력 회복. */
@@ -199,7 +148,7 @@ public final class PlayerListener implements Listener {
         player.sendActionBar(Text.mm("<red>붕대를 감았어요 +3칸"));
     }
 
-    /** 총·수갑·총알 같은 시티 아이템을 재료로 조합하지 못하게. */
+    /** 총·수갑·폰·신분증 같은 시티 아이템을 재료로 조합하지 못하게. */
     @EventHandler
     public void onCraft(PrepareItemCraftEvent event) {
         for (ItemStack stack : event.getInventory().getMatrix()) {
