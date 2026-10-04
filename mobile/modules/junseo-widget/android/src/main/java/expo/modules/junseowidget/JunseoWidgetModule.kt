@@ -39,6 +39,10 @@ class JunseoWidgetModule : Module() {
       WidgetSession.prefs(context).edit().putString("registeredFcmToken", token).putString("pendingFcmToken", token).apply()
     }
     Function("pushToken") { WidgetSession.prefs(context).getString("registeredFcmToken", null) }
+    /** Widgets of this app on the home screen (the post-login setup screen waits for the first one). */
+    Function("installedCount") {
+      AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, MomentWidgetProvider::class.java)).size
+    }
     Function("requestPin") {
       val manager = AppWidgetManager.getInstance(context)
       manager.isRequestPinAppWidgetSupported && manager.requestPinAppWidget(

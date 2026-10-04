@@ -1,6 +1,6 @@
 import { GothicA1_800ExtraBold } from '@expo-google-fonts/gothic-a1/800ExtraBold';
 import { useFonts } from 'expo-font';
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
@@ -12,6 +12,7 @@ import { api } from '@/lib/api';
 import { resetChats } from '@/lib/chats';
 import { listenPush, registerPush } from '@/lib/push';
 import { realtime } from '@/lib/realtime';
+import { shouldOfferWidgetSetup } from '@/lib/homeWidget';
 import { refreshTemplates } from '@/lib/templateCatalog';
 import { colors, glow, motion } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
@@ -74,6 +75,22 @@ function RootStack() {
     };
   }, [signedIn]);
 
+  // 가입 · 로그인하면 바로 위젯을 홈 화면에 놓게 한다 (아직 하나도 없으면). 화면 전환이 끝난 뒤에 띄운다.
+  const meId = me?.id;
+  useEffect(() => {
+    if (!signedIn || meId === undefined) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      void shouldOfferWidgetSetup(meId).then((offer) => {
+        if (active && offer) router.push({ pathname: '/widget-guide', params: { first: '1' } });
+      });
+    }, 500);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [signedIn, meId]);
+
   if (!ready) {
     return (
       <View style={[glow, { flex: 1, alignItems: 'center', justifyContent: 'center' }]}>
@@ -105,7 +122,7 @@ function RootStack() {
         <Stack.Screen name="profile" options={{ title: '내 정보' }} />
         <Stack.Screen name="blocked" options={{ title: '차단한 사람' }} />
         <Stack.Screen name="delete-account" options={{ title: '계정 삭제' }} />
-        <Stack.Screen name="widget-guide" options={{ title: '위젯 추가하기', presentation: 'modal' }} />
+        <Stack.Screen name="widget-guide" options={{ title: '홈 화면 위젯', presentation: 'modal' }} />
         <Stack.Screen name="templates/index" options={{ title: '오늘 템플릿' }} />
         <Stack.Screen name="templates/[id]" options={{ title: '' }} />
       </Stack.Protected>

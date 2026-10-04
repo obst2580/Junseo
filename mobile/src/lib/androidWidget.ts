@@ -9,6 +9,7 @@ type AndroidWidget = {
   setFriends(json: string): void;
   reload(): void;
   requestPin(): boolean;
+  installedCount(): number;
   rememberPushToken(token: string): void;
   pushToken(): string | null;
 };
