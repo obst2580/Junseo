@@ -1,0 +1,23 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# runServer 로 생성되는 테스트 서버 폴더
+run/
+
+# 직접 실행하는 서버 폴더의 월드/로그 등 (스크립트와 안내문만 커밋)
+server/*
+!server/start.bat
+!server/start.sh
+!server/README.md
+
+# IDE
+.idea/
+*.iml
+.vscode/
+out/
+
+# OS
+.DS_Store
+Thumbs.db

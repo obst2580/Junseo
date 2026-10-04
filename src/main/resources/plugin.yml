@@ -1,0 +1,48 @@
+name: JunseoCity
+version: '${version}'
+main: com.junseo.city.JunseoCity
+api-version: '26.2'
+description: GTA / FiveM 인생모드 스타일 마인크래프트 서버 플러그인
+authors: [Junseo]
+
+commands:
+  money:
+    description: 내 현금과 은행 잔액을 확인합니다
+    aliases: [돈, 지갑]
+  pay:
+    description: 다른 플레이어에게 은행 송금
+    usage: /<command> <플레이어> <금액>
+    aliases: [송금]
+  bank:
+    description: 은행 입금/출금 (ATM이나 은행원 근처에서)
+    usage: /<command> <입금|출금> <금액|전부>
+    aliases: [은행, atm]
+  job:
+    description: 직업을 고릅니다
+    aliases: [직업]
+  delivery:
+    description: 택배 미션 시작/취소
+    usage: /<command> [시작|취소]
+    aliases: [택배]
+  wanted:
+    description: 현재 수배자 목록
+    aliases: [수배자, 수배]
+  call112:
+    description: 경찰에 신고합니다
+    usage: /<command> <내용>
+    aliases: ['112', 신고]
+  car:
+    description: 내 차량 도움말 / 차 빼기
+    aliases: [차, 차량]
+  cityhelp:
+    description: 준서 시티 도움말
+    aliases: [도움말, 시티]
+  cityadmin:
+    description: 시티 관리자 명령어
+    permission: junseocity.admin
+    aliases: [시티관리]
+
+permissions:
+  junseocity.admin:
+    description: 시티 관리자 명령어와 ATM 거리 제한 무시
+    default: op

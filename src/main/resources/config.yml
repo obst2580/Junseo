@@ -1,0 +1,107 @@
+# ==========================================
+#  준서 시티 (JunseoCity) 설정 파일
+#  값을 바꾼 뒤 /시티관리 reload 하면 바로 적용됩니다.
+# ==========================================
+
+# 서버 이름 (사이드바 제목, 환영 메시지에 표시)
+server-name: "준서 시티"
+
+# 돈 단위
+currency: "원"
+
+# 처음 접속한 플레이어가 받는 돈
+starting-cash: 500
+starting-bank: 2000
+
+# 죽어도 아이템을 잃지 않음 (true 추천)
+keep-inventory: true
+
+# 죽으면 병원비로 현금의 몇 %를 잃는지
+hospital-fee-percent: 20
+
+# true 면 어디서든 /은행 사용 가능, false 면 ATM이나 은행원 근처에서만
+bank-anywhere: false
+# ATM/은행원 사용 가능 거리 (블록)
+atm-range: 5
+
+# 월급 (은행으로 입금)
+paycheck:
+  interval-minutes: 10
+  salary:
+    citizen: 100
+    police: 400
+    delivery: 150
+    miner: 150
+
+# 직업 소개소 NPC 없이도 /직업 으로 직업을 바꿀 수 있는지
+job-change-anywhere: true
+
+# 수배 시스템
+wanted:
+  # 범죄 없이 이 시간(초)이 지나면 별이 1개씩 줄어듦
+  decay-seconds: 60
+  # 별이 이 개수 이상이면 몸이 빛나서 위치가 들킴
+  glow-at: 3
+  # 별 개수(0~5)별로 출동하는 AI 경찰 수
+  police-per-star: [0, 0, 2, 3, 4, 6]
+  # 체포되면 별 1개당 감옥 시간(초)
+  jail-seconds-per-star: 30
+  # 경찰이 체포하면 받는 보상 (별 1개당)
+  arrest-reward-per-star: 300
+
+# 강도
+robbery:
+  store:
+    duration-seconds: 20
+    min-reward: 1000
+    max-reward: 3000
+    cooldown-minutes: 5
+    radius: 6
+  bank:
+    duration-seconds: 45
+    min-reward: 8000
+    max-reward: 15000
+    cooldown-minutes: 15
+    radius: 8
+
+# 택배기사 미션
+delivery:
+  base-reward: 80
+  reward-per-block: 1.2
+  # 배달지가 하나도 등록되지 않았을 때 무작위 배달지를 고르는 거리
+  random-min-distance: 80
+  random-max-distance: 250
+  # 제한시간의 절반 안에 배달하면 받는 보너스 비율
+  fast-bonus-percent: 30
+
+# 상점 판매 가격 (구매가)
+prices:
+  bread: 15
+  steak: 40
+  golden_apple: 500
+  bandage: 120
+  torch: 30
+  pistol: 2000
+  shotgun: 5000
+  rifle: 9000
+  ammo: 300
+  armor: 1500
+  car_compact: 6000
+  car_sedan: 15000
+  car_sports: 40000
+
+# 광물 거래소에 팔 때 받는 가격 (1개당)
+sell-prices:
+  coal: 5
+  copper_ingot: 4
+  raw_iron: 12
+  iron_ingot: 15
+  raw_gold: 25
+  gold_ingot: 30
+  redstone: 3
+  lapis_lazuli: 4
+  emerald: 120
+  diamond: 150
+
+# 광부 직업이면 광물을 이 배수만큼 더 비싸게 팜
+miner-sell-bonus: 1.5
