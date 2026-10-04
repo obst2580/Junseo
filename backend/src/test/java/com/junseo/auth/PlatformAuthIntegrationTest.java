@@ -57,7 +57,9 @@ class PlatformAuthIntegrationTest extends IntegrationTest {
     }
     @Autowired PlatformLoginFlow flow;
     @Autowired PlatformIdentityService identities;
-    @Autowired JwtDecoder decoder;
+    @Autowired @org.springframework.beans.factory.annotation.Qualifier("centralJwtDecoder") JwtDecoder decoder;
+    @Autowired com.junseo.common.security.Sessions sessions;
+    @Autowired com.junseo.common.security.JwtService jwtService;
     @Autowired UserRepository users;
 
     private static final class SocketInbox extends TextWebSocketHandler {
@@ -99,23 +101,30 @@ class PlatformAuthIntegrationTest extends IntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.needsOnboarding").value(true))
                 .andExpect(header().string("Cache-Control", "no-store")).andReturn());
         long id = longAt(result, "$.user.id");
-        assertThat(identities.require(decoder.decode(raw))).isEqualTo(id);
-        mvc.perform(patch("/api/me").header("Authorization", "Bearer " + raw).contentType(MediaType.APPLICATION_JSON)
+        // The app keeps Junseo's own session token, never the central one (which lives ~12h and cannot be refreshed)
+        String session = com.jayway.jsonpath.JsonPath.read(result, "$.accessToken");
+        assertThat(session).isNotEqualTo(raw);
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + raw)).andExpect(status().isUnauthorized());
+        mvc.perform(patch("/api/me").header("Authorization", "Bearer " + session).contentType(MediaType.APPLICATION_JSON)
                 .content(toJson(Map.of("displayName", "친구")))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
                 .andExpect(jsonPath("$.needsOnboarding").value(false));
         SocketInbox inbox = new SocketInbox();
-        WebSocketSession socket = connect(raw, inbox);
+        WebSocketSession socket = connect(session, inbox);
         try {
-            mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer " + raw)).andExpect(status().isNoContent());
+            mvc.perform(post("/api/auth/logout").header("Authorization", "Bearer " + session)).andExpect(status().isNoContent());
             assertThat(inbox.closed.poll(5, TimeUnit.SECONDS)).isNotNull().extracting(CloseStatus::getCode).isEqualTo(1008);
         } finally { if (socket.isOpen()) socket.close(); }
-        mvc.perform(get("/api/me").header("Authorization", "Bearer " + raw)).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/me").header("Authorization", "Bearer " + session)).andExpect(status().isUnauthorized());
         assertThatThrownBy(() -> callback(raw, verifier)).isInstanceOf(ApiException.class);
     }
 
-    @Test void websocketClosesAtCentralTokenExpiryWithoutWaitingForPing() throws Exception {
-        String raw = token("central-expiring", "auth.liliplanet.net", "junseo-api", Instant.now().plusSeconds(5), true);
-        identities.provision(decoder.decode(raw));
+    @Test void websocketClosesAtSessionTokenExpiryWithoutWaitingForPing() throws Exception {
+        var user = identities.provision(decoder.decode(token("central-expiring")));
+        sessions.open(user, Instant.now(), com.junseo.common.security.Sessions.Kind.APP);
+        var sid = jdbc.queryForObject("select id from sessions where user_id = ?", java.util.UUID.class, user.getId());
+        // A token of that session that expires in 5 seconds
+        String raw = jwtService.issue(user.getId(), user.getTokenVersion(), sid, Instant.now(), Instant.now(), java.time.Duration.ofSeconds(5)).value();
         SocketInbox inbox = new SocketInbox();
         WebSocketSession socket = connect(raw, inbox);
         try {

@@ -161,6 +161,8 @@ export const api = {
       timeoutMs: 15_000,
     }),
   logout: () => request<void>('/api/auth/logout', { method: 'POST', timeoutMs: 10_000 }),
+  /** 같은 로그인(세션)을 새 만료로 연장한다. 앱을 쓰는 동안 하루에 한 번 → 위젯도 계속 로그인 상태 */
+  renew: () => request<{ accessToken: string; expiresAt: string }>('/api/auth/renew', { method: 'POST', timeoutMs: 10_000 }),
 
   me: () => request<Me>('/api/me'),
   /** 이메일 계정은 비밀번호, 리리플레닛 계정은 방금 다시 로그인한 토큰으로 본인을 확인한다 */

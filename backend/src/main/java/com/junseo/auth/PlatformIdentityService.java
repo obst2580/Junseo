@@ -9,6 +9,7 @@ import com.junseo.user.User;
 import com.junseo.user.UserRepository;
 import com.junseo.user.UserService;
 import java.time.Clock;
+import java.time.Instant;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -59,12 +60,12 @@ public class PlatformIdentityService {
                 .orElseThrow(() -> new ApiException(ErrorCode.REAUTH_NO_ACCOUNT));
     }
 
+    /**
+     * The Junseo user behind an API token. In both login modes this is Junseo's own session token (sub = user id):
+     * the session must still be open, the account still there and the password unchanged since.
+     */
     @Transactional(readOnly = true)
     public long require(Jwt token) {
-        if ("platform".equals(props.auth().mode())) {
-            return users.findByExternalIssuerAndExternalSubject(token.getClaimAsString("iss"), token.getSubject())
-                    .orElseThrow(() -> new ApiException(ErrorCode.UNAUTHORIZED)).getId();
-        }
         try {
             long id = Long.parseLong(token.getSubject());
             if (!sessions.isValid(id, token)) throw new ApiException(ErrorCode.UNAUTHORIZED);
@@ -72,5 +73,12 @@ public class PlatformIdentityService {
         } catch (NumberFormatException e) {
             throw new ApiException(ErrorCode.UNAUTHORIZED);
         }
+    }
+
+    /** When the person signed in at LiliPlanet: auth_time if the central token has it, otherwise when it was issued. */
+    public Instant authenticatedAt(Jwt central) {
+        Instant at = central.hasClaim("auth_time") ? central.getClaimAsInstant("auth_time") : central.getIssuedAt();
+        Instant now = clock.instant();
+        return at == null || at.isAfter(now) ? now : at;
     }
 }

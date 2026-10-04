@@ -4,6 +4,7 @@ import com.junseo.auth.AuthController.AuthResponse;
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.security.JwtService;
+import com.junseo.common.security.Sessions;
 import com.junseo.mail.Mailer;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
@@ -38,7 +39,7 @@ public class PasswordResetService {
     private final UserService userService;
     private final PasswordResetRepository resets;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    private final Sessions sessions;
     private final Mailer mailer;
     private final Clock clock;
 
@@ -47,14 +48,14 @@ public class PasswordResetService {
             UserService userService,
             PasswordResetRepository resets,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService,
+            Sessions sessions,
             Mailer mailer,
             Clock clock) {
         this.users = users;
         this.userService = userService;
         this.resets = resets;
         this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
+        this.sessions = sessions;
         this.mailer = mailer;
         this.clock = clock;
     }
@@ -101,7 +102,9 @@ public class PasswordResetService {
         }
         resets.delete(reset);
         user.changePassword(passwordEncoder.encode(newPassword));
-        JwtService.IssuedToken token = jwtService.issue(user.getId(), user.getTokenVersion());
+        // Every earlier login ends (the token version also changed); this device starts a new session
+        sessions.revokeAll(user.getId());
+        JwtService.IssuedToken token = sessions.open(user, now, Sessions.Kind.APP);
         return new AuthResponse(token.value(), token.expiresAt(), userService.toMe(user));
     }
 }

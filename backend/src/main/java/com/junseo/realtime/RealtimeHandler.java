@@ -2,7 +2,7 @@ package com.junseo.realtime;
 
 import java.util.Map;
 import com.junseo.auth.PlatformIdentityService;
-import com.junseo.auth.TokenRevocations;
+import com.junseo.common.security.Sessions;
 import com.junseo.common.ApiException;
 import java.time.Clock;
 import java.time.Duration;
@@ -33,24 +33,26 @@ public class RealtimeHandler extends TextWebSocketHandler {
 
     private static final String USER = "userId";
     private static final String SAFE = "safeSession";
+    /** The Junseo session this socket was opened with (logout closes it). */
+    static final String SESSION = "sessionId";
 
     private final JwtDecoder jwtDecoder;
     private final RealtimeHub hub;
     private final ObjectMapper json;
     private final PlatformIdentityService identities;
-    private final TokenRevocations revocations;
+    private final Sessions sessions;
     private final Clock clock;
     private final ScheduledExecutorService expiry = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread thread = new Thread(r, "websocket-expiry"); thread.setDaemon(true); return thread;
     });
 
     public RealtimeHandler(JwtDecoder jwtDecoder, RealtimeHub hub, ObjectMapper json, PlatformIdentityService identities,
-            TokenRevocations revocations, Clock clock) {
+            Sessions sessions, Clock clock) {
         this.jwtDecoder = jwtDecoder;
         this.hub = hub;
         this.json = json;
         this.identities = identities;
-        this.revocations = revocations;
+        this.sessions = sessions;
         this.clock = clock;
     }
 
@@ -86,7 +88,8 @@ public class RealtimeHandler extends TextWebSocketHandler {
                 return;
             }
             session.getAttributes().put(USER, id);
-            if (jwt.getId() != null) session.getAttributes().put("jti", jwt.getId());
+            java.util.UUID sid = Sessions.sessionId(jwt);
+            if (sid != null) session.getAttributes().put(SESSION, sid);
             cancelExpiry(session);
             if (jwt.getExpiresAt() != null) session.getAttributes().put("expiryTask", expiry.schedule(
                     () -> close(session, "token expired"), Math.max(0, Duration.between(clock.instant(), jwt.getExpiresAt()).toMillis()), TimeUnit.MILLISECONDS));
@@ -96,8 +99,8 @@ public class RealtimeHandler extends TextWebSocketHandler {
             return;
         }
         if ("ping".equals(type)) {
-            String jti = (String) session.getAttributes().get("jti");
-            if (jti != null && revocations.revoked(jti)) { close(session, "session revoked"); return; }
+            Object sid = session.getAttributes().get(SESSION);
+            if (sid instanceof java.util.UUID id && !sessions.isActive(id)) { close(session, "session revoked"); return; }
             ((WebSocketSession) session.getAttributes().get(SAFE)).sendMessage(new TextMessage("{\"type\":\"pong\"}"));
         }
     }

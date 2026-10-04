@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -47,7 +48,7 @@ public class PlatformLoginFlow {
     private final JwtDecoder decoder;
     private final Clock clock;
 
-    public PlatformLoginFlow(JunseoProperties props, JwtDecoder decoder, Clock clock) {
+    public PlatformLoginFlow(JunseoProperties props, @Qualifier("centralJwtDecoder") JwtDecoder decoder, Clock clock) {
         this.props = props;
         this.decoder = decoder;
         this.clock = clock;

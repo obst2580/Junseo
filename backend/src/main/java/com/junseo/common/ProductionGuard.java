@@ -15,6 +15,8 @@ public class ProductionGuard implements InitializingBean {
 
     @Override public void afterPropertiesSet() {
         if (env.matchesProfiles("dev", "test") || !"platform".equals(props.auth().mode())) fail("production authentication/profile");
+        String jwtSecret = props.jwt().secret();
+        if (jwtSecret == null || jwtSecret.startsWith("dev-only-") || jwtSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) fail("session signing secret");
         String mediaSecret = props.media().signingSecret();
         if (mediaSecret == null || mediaSecret.startsWith("dev-only-") || mediaSecret.getBytes(java.nio.charset.StandardCharsets.UTF_8).length < 32) fail("media signing secret");
         if (!"blob".equals(props.storage().provider())) fail("persistent Blob storage");

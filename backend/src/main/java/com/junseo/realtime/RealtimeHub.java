@@ -80,9 +80,10 @@ public class RealtimeHub {
         });
     }
 
-    public void closeToken(String jti) {
+    /** Logout: the sockets opened with this session's tokens. */
+    public void closeSession(java.util.UUID sid) {
         byUser.values().forEach(sessions -> sessions.forEach(session -> {
-            if (jti != null && jti.equals(session.getAttributes().get("jti"))) {
+            if (sid != null && sid.equals(session.getAttributes().get(RealtimeHandler.SESSION))) {
                 try { session.close(CloseStatus.POLICY_VIOLATION.withReason("session revoked")); }
                 catch (IOException ignored) { }
             }

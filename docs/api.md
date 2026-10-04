@@ -83,18 +83,31 @@
 | POST | `/api/auth/start` | `{ codeChallenge: S256, returnUri }` | `{ state, launchUrl }` |
 | GET | `/auth/launch?state=...` | 시스템 브라우저 | 302 중앙 로그인 + HttpOnly/Secure/SameSite=Lax 쿠키 |
 | GET | `/auth/callback?state=...&token=...` | 중앙 로그인 callback + 위 쿠키 | 302 허용된 반환 주소, `code`/`state`만 전달 |
-| POST | `/api/auth/exchange` | `{ code, codeVerifier, reauth? }` | `{ accessToken, expiresAt, user: Me, needsOnboarding }` |
-| POST | `/api/auth/logout` | Bearer token | 204, Junseo jti 폐기·동일 토큰 WS 종료 |
+| POST | `/api/auth/exchange` | `{ code, codeVerifier, reauth? }` | `{ accessToken, expiresAt, user: Me, needsOnboarding }` (accessToken 은 준서 세션 토큰) |
 
-- RS256 / issuer `auth.liliplanet.net` / audience `junseo-api`, 중앙 JWKS 검증. sub·jti·exp 필수.
+- 중앙(LiliPlanet) 토큰은 로그인할 때 한 번만 확인한다: RS256 / issuer `auth.liliplanet.net` / audience `junseo-api`, 중앙 JWKS 검증. sub·jti·exp 필수. API 에는 쓰지 않는다 (보내면 401).
 - 중앙 sub는 Junseo 사용자 ID가 아니다. `(issuer, sub)`로 내부 ID를 찾는다.
 - transaction 10분, code 60초·일회용·PKCE S256. 운영 return URI는 `junseo://auth`와 운영 `/login`만 허용.
 - 로그인 시작은 계정 없이 부를 수 있어서, 한 주소(요청의 remote address)가 대기 중인 로그인을 20개까지만 가질 수 있다 (넘으면 429). 표가 가득 차면(1만 개) 가장 오래된 대기 로그인을 지워 자리를 만든다 — 아무도 다른 사람의 로그인을 막을 수 없다.
 - `reauth: true`: 계정 삭제 전 본인 확인. 이미 있는 계정만 돌려주고 새 계정을 만들지 않는다 (없으면 409 `REAUTH_NO_ACCOUNT`). 앱은 돌아온 `user.id` 가 지금 계정과 같은지 확인한다.
 - 운영자가 내보낸 `(issuer, sub)` 는 다시 로그인해도 403 `ACCOUNT_BANNED`.
 - 최초 프로필은 `needsOnboarding: true`. `PATCH /api/me`로 이름을 저장하면 완료된다.
-- JWT 갱신·중앙 전역 로그아웃은 아직 미연동. 운영 자체 signup/login/password-reset endpoint는 비활성화되어 404다.
+- 중앙 전역 로그아웃은 미연동 (준서 로그아웃이 다른 LiliPlanet 제품을 로그아웃시키지 않는다). 운영 자체 signup/login/password-reset endpoint는 비활성화되어 404다.
 - iOS 공유 Keychain / Android Keystore / 웹 sessionStorage 사용. 토큰은 callback 앱 URL에 넣지 않는다.
+
+### 준서 세션 (두 로그인 방식 공통)
+
+중앙 토큰은 12시간쯤이면 끝나고 갱신 API 가 없어서, 그것을 그대로 쓰면 위젯 · 알림 확장 · 앱이 하루 두 번 로그아웃된다. 그래서 로그인 뒤에는 준서가 발급한 세션 토큰을 쓴다.
+
+| 메서드 | 경로 | 요청 | 응답 |
+|---|---|---|---|
+| POST | `/api/auth/renew` | Bearer 세션 토큰 | 200 `{ accessToken, expiresAt }` 같은 세션, 새 만료 |
+| POST | `/api/auth/logout` | Bearer 세션 토큰 | 204 이 세션의 모든 토큰 · WebSocket 끝. 이 세션을 만든 중앙 토큰도 다시 로그인에 쓸 수 없다 |
+
+- 토큰: HS256 (`JUNSEO_JWT_SECRET`), `sub` = 준서 사용자 ID, `sid` = 세션, `ver` = 비밀번호 세대, `auth_time` = 실제로 로그인한 시각 (연장해도 그대로), 유효 90일 (`JUNSEO_SESSION_TTL`).
+- 모든 요청에서 세션이 열려 있는지(`sessions` 테이블), 계정이 있는지, 비밀번호 세대가 같은지 본다. 로그아웃 · 계정 삭제 · 내보내기 · 비밀번호 변경은 즉시 끝난다.
+- 앱은 열릴 때 · 앞으로 나올 때 토큰이 하루 넘었으면 연장해 위젯 · 알림 확장이 읽는 곳에 저장한다. 연장해도 예전 토큰은 자기 만료까지 쓸 수 있다 (위젯이 잠깐 예전 것을 들고 있어도 된다). 90일 동안 앱을 한 번도 열지 않으면 다시 로그인한다.
+- 계정 삭제용 본인 확인(`reauth: true`)은 10분짜리 세션이고 연장할 수 없다.
 
 ### 로컬 개발: 이메일·비밀번호 인증
 
@@ -107,8 +120,8 @@
 | POST | `/api/auth/password-reset` | `{ email }` | 204 (가입된 이메일이면 6자리 코드를 메일로 보낸다) |
 | POST | `/api/auth/password-reset/confirm` | `{ email, code, newPassword(8~72자) }` | 200 `{ accessToken, expiresAt, user: Me }` |
 
-- 토큰: JWT HS256, `sub` = 사용자 ID, `ver` = 토큰 세대, 유효기간 30일. 위젯과 알림 확장도 같은 토큰을 쓴다 (MVP에서는 갱신 토큰 없음).
-- 비밀번호를 바꾸면 세대가 올라가서 그 전에 받은 토큰(다른 폰 · 위젯 포함)이 모두 401 이 된다. WebSocket 인증/재연결도 같은 세대 검사를 한다.
+- 토큰: 위의 준서 세션 토큰과 같다 (로그인 · 가입 · 재설정이 세션을 하나 연다). 위젯과 알림 확장도 같은 토큰을 쓴다.
+- 비밀번호를 바꾸면 모든 세션이 끝나고 세대도 올라가서 그 전에 받은 토큰(다른 폰 · 위젯 포함)이 모두 401 이 된다. WebSocket 인증/재연결도 같은 검사를 한다.
 - 재설정: 없는 이메일이어도 똑같이 204 (가입 여부를 알 수 없게). 코드는 15분 동안 유효하고, 1분 안에 다시 요청하면 새로 보내지 않는다. 5번 틀리면 코드가 무효가 되어 다시 받아야 한다. 메일은 SMTP(`JUNSEO_SMTP_*`)로 보내고, 설정이 없으면 서버 로그에만 남긴다.
 - 이메일은 소문자로 정규화한다.
 

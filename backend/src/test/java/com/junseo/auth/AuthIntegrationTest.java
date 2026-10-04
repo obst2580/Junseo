@@ -37,7 +37,7 @@ class AuthIntegrationTest extends IntegrationTest {
                 .andReturn());
         long id = longAt(signup, "$.user.id");
         Instant expiresAt = Instant.parse(JsonPath.read(signup, "$.expiresAt"));
-        assertThat(Duration.between(Instant.now(), expiresAt)).isBetween(Duration.ofDays(29), Duration.ofDays(30));
+        assertThat(Duration.between(Instant.now(), expiresAt)).isBetween(Duration.ofDays(89), Duration.ofDays(90));
 
         String token = JsonPath.read(signup, "$.accessToken");
         Map<?, ?> claims = json.readValue(Base64.getUrlDecoder().decode(token.split("\\.")[1]), Map.class);

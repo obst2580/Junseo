@@ -76,7 +76,7 @@ createdb junseo_test -O junseo  # 테스트용
 
 cd backend
 ./gradlew bootRun --args='--spring.profiles.active=dev'   # 테스트 데이터와 함께 시작
-./gradlew test                                            # 통합·단위 테스트 139개
+./gradlew test                                            # 통합·단위 테스트 143개
 ```
 
 `dev` 프로필은 처음 시작할 때 테스트 데이터를 넣습니다. `demo@junseo.app` / `password123!` (준서)와 친구 5명(`minji@`, `jiwoo@`, `seoyeon@`, `hajun@`, `doyun@junseo.app`, 비밀번호 같음), 사진·반응·댓글·대화와 단챗 「한강 크루」(준서·민지·지우·서연)가 들어 있습니다.
@@ -84,7 +84,8 @@ cd backend
 | 설정 | 환경 변수 | 설명 |
 |---|---|---|
 | `spring.datasource.*` | `JUNSEO_DB_URL` · `JUNSEO_DB_USER` · `JUNSEO_DB_PASSWORD` | |
-| `junseo.jwt.secret` | `JUNSEO_JWT_SECRET` | 32바이트 이상. 개발용 기본값이면 경고 로그 |
+| `junseo.jwt.secret` | `JUNSEO_JWT_SECRET` | 준서 세션 토큰 서명 키, 32바이트 이상. 운영(`prod`)은 필수 (없거나 개발용 값이면 시작하지 않음). 바꾸면 모두 한 번 다시 로그인 |
+| `junseo.jwt.ttl` | `JUNSEO_SESSION_TTL` | 세션 토큰 수명 (기본 90일). 앱이 하루에 한 번 연장한다 |
 | `junseo.media.signing-secret` | `JUNSEO_MEDIA_SECRET` | 사진 URL 서명용. JWT 와 다른 값 |
 | `junseo.storage.dir` | `JUNSEO_STORAGE_DIR` | 사진 저장 위치 (기본 `./data/media`) |
 | `junseo.apns.enabled` · `key-id` · `team-id` · `bundle-id` · `key-path` | `JUNSEO_APNS_*` | 꺼져 있으면 보낼 푸시를 로그로만 남긴다 |
@@ -144,7 +145,7 @@ App Store 는 사진 · 채팅처럼 사용자가 올리는 내용이 있는 앱
 ## 검증 상태
 
 - Android: `0.1.2` APK 배포, 로그인·업로드 회귀 13개 통과. 네이티브 위젯·FCM 설정과 서버 발송 구현. 실제 두 기기 수신 검증은 남음
-- 서버: 통합·단위 테스트 139개 통과 (실제 PostgreSQL)
+- 서버: 통합·단위 테스트 143개 통과 (실제 PostgreSQL)
 - 앱: TypeScript 타입 검사, ESLint 통과. 웹 미리보기에서 서버와 같이 띄워 화면 9개가 실제 데이터로 오류 없이 동작
 - 채팅: 웹 미리보기(배포용 빌드)에서 앱 전환 · 소리 없이 죽은 연결 · 응답 유실 · 응답 없음 · 300개 넘는 대화방을 재현해 확인. 키보드 위치와 「보고 있는 방 알림 숨기기」는 아이폰에서만 확인할 수 있어 아직
 - iOS: `expo prebuild` 로 Xcode 프로젝트 생성 확인 (위젯·알림 확장 타깃, App Group, 푸시 권한, 앱·위젯·알림 확장 모두 최소 iOS 17). GitHub Actions 의 Mac 에서 앱·위젯·알림 확장을 Xcode 로 빌드하고 시뮬레이터에서 앱을 켜 본다 (`.github/workflows/ios.yml`). **실기기 확인은 아직** — 점검표: `docs/widget-check.md` (새 사진이 위젯에 닿기까지 걸린 시간은 서버 로그 `Widget got new photo` 로 잰다)

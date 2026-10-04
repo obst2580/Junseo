@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 
 import { api, ApiError, configureApi, type AuthResponse, type Me } from './api';
 import { unregisterPush } from './push';
@@ -23,6 +24,25 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/**
+ * 로그인 유지: 서버의 준서 세션 토큰은 90일짜리이고, 앱을 쓰는 동안 하루에 한 번 새 만료로 바꾼다.
+ * 새 토큰은 위젯 · 알림 확장이 읽는 곳(iOS 공유 Keychain, Android Keystore)에 저장되므로 위젯도 로그인 상태를 유지한다.
+ * 앱을 90일 동안 한 번도 열지 않으면 그때는 다시 로그인해야 한다.
+ */
+const RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
+
+/** 토큰이 발급된 시각(ms). 읽지 못하면 null (그럴 때는 그냥 연장한다). */
+function issuedAt(token: string): number | null {
+  try {
+    const part = token.split('.')[1];
+    const base64 = part.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(part.length / 4) * 4, '=');
+    const iat = JSON.parse(globalThis.atob(base64)).iat;
+    return typeof iat === 'number' ? iat * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 /** 위젯 연결이 실패해도 (예: Android 위젯은 HTTPS 서버만 받는다) 로그인은 끝까지 간다. 위젯은 다음 실행 때 다시 연결한다. */
 function linkWidget(userId: number) {
   try {
@@ -39,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const finishRef = useRef<{ url: string; promise: Promise<AuthResponse> } | null>(null);
   // 로그아웃한 뒤의 로그인은 예전 리리플레닛 로그인을 이어 쓰지 않는다 (다른 계정으로 바꾸려는 경우)
   const freshRef = useRef(false);
+  const renewedAtRef = useRef(0);
 
   const clear = useCallback(async () => {
     tokenRef.current = null;
@@ -46,6 +67,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await tokenStore.set(null);
     widgetBridge.signOut();
   }, []);
+
+  // 하루에 한 번 세션 연장. 세션이 끝났으면(로그아웃 · 삭제 · 비밀번호 변경) 401 → onUnauthorized 가 로그아웃시킨다.
+  const renew = useCallback(async () => {
+    const token = tokenRef.current;
+    if (!token || Date.now() - renewedAtRef.current < RENEW_AFTER_MS) return;
+    const iat = issuedAt(token);
+    if (iat !== null && Date.now() - iat < RENEW_AFTER_MS) return;
+    renewedAtRef.current = Date.now();
+    try {
+      const renewed = await api.renew();
+      if (tokenRef.current !== token) return; // 그 사이 로그아웃했거나 다른 계정으로 로그인했다
+      await tokenStore.set(renewed.accessToken);
+      tokenRef.current = renewed.accessToken;
+    } catch {
+      // 네트워크 오류: 지금 토큰은 아직 오래 남았다. 다음에 앱이 앞으로 나올 때 다시 해 본다.
+      renewedAtRef.current = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void renew();
+    });
+    return () => sub.remove();
+  }, [renew]);
 
   useEffect(() => {
     configureApi({ getToken: () => tokenRef.current, onUnauthorized: () => void clear() });
@@ -58,13 +104,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const user = await api.me();
           setMe(user);
           linkWidget(user.id);
+          void renew();
         } catch {
           // 401 이면 onUnauthorized 가 정리한다. 네트워크 오류면 다음 실행에서 다시 시도한다.
         }
       }
       setReady(true);
     })();
-  }, [clear]);
+  }, [clear, renew]);
 
   const accept = useCallback(async (res: AuthResponse) => {
     await tokenStore.set(res.accessToken);

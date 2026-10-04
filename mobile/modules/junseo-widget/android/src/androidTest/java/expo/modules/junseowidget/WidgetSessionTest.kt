@@ -40,11 +40,32 @@ class WidgetSessionTest {
     WidgetSession.prefs(context).edit().putLong("userId", 1).putString("apiUrl", "https://example.test").commit()
     val previous = WidgetSession.snapshot(context)!!
     File(WidgetSession.directory(context), "feed-0.json").writeText("old account")
-    WidgetSession.setToken(context, jwt(7200))
+    val next = jwt(7200)
+    WidgetSession.setToken(context, next)
+    // JunseoWidgetModule.signIn with another userId
+    WidgetSession.clearAccountData(context)
     WidgetSession.prefs(context).edit().putLong("userId", 2).putString("apiUrl", "https://example.test").commit()
     assertFalse(WidgetSession.matches(context, previous))
     assertFalse(File(context.filesDir, "junseo-widget/feed-0.json").exists())
     assertEquals(2L, WidgetSession.snapshot(context)!!.userId)
+    assertEquals(next, WidgetSession.token(context))
+  }
+
+  @Test fun dailyRenewalKeepsWidgetSettingsAndPhotos() {
+    WidgetSession.setToken(context, jwt(3600))
+    WidgetSession.prefs(context).edit().putLong("userId", 1).putString("apiUrl", "https://example.test")
+      .putLong("friend_7", 42).putString("friends", "[{\"id\":42}]").commit()
+    val previous = WidgetSession.snapshot(context)!!
+    File(WidgetSession.directory(context), "feed-42.json").writeText("same account")
+    val renewed = jwt(7200)
+    WidgetSession.setToken(context, renewed)
+    assertTrue(File(context.filesDir, "junseo-widget/feed-42.json").exists())
+    assertEquals(42L, WidgetSession.prefs(context).getLong("friend_7", 0))
+    assertNotNull(WidgetSession.prefs(context).getString("friends", null))
+    assertEquals(renewed, WidgetSession.token(context))
+    // A worker that started with the old token does not write over the renewed state
+    assertFalse(WidgetSession.matches(context, previous))
+    assertEquals(1L, WidgetSession.snapshot(context)!!.userId)
   }
 
   @Test fun logoutAndUnreadableCredentialsFailClosed() {

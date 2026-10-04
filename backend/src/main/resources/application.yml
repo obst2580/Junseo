@@ -39,7 +39,9 @@ junseo:
   jwt:
     # Override in every non-local environment (>= 32 bytes).
     secret: ${JUNSEO_JWT_SECRET:dev-only-jwt-secret-change-me-0123456789}
-    ttl: 30d
+    # Session token lifetime. The app renews it once a day while it is used, so this is how long someone can go
+    # without opening the app before the widget asks them to sign in again.
+    ttl: ${JUNSEO_SESSION_TTL:90d}
   media:
     signing-secret: ${JUNSEO_MEDIA_SECRET:dev-only-media-secret-change-me-0123456789}
   storage:

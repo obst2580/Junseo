@@ -137,6 +137,8 @@ def main():
     runtime_password = vault_secret("db-runtime-password")
     migration_password = vault_secret("db-migration-password")
     vault_secret("media-signing-secret")
+    # Signs Junseo's own session tokens (LiliPlanet login is only checked once, at sign-in). Rotating it signs everyone out.
+    vault_secret("jwt-signing-secret")
     # X-Admin-Token for report handling and template uploads (read it from Key Vault when needed; never printed)
     vault_secret("admin-token")
     step("Creating/checking isolated Junseo database and least-privilege roles")
@@ -184,6 +186,7 @@ def main():
         "JUNSEO_DB_USER": "junseo_runtime", "JUNSEO_DB_PASSWORD": ref("db-runtime-password"),
         "JUNSEO_MIGRATION_USER": "junseo_migrator", "JUNSEO_MIGRATION_PASSWORD": ref("db-migration-password"),
         "JUNSEO_MEDIA_SECRET": ref("media-signing-secret"), "JUNSEO_PUBLIC_BASE_URL": "https://" + DOMAIN,
+        "JUNSEO_JWT_SECRET": ref("jwt-signing-secret"),
         "JUNSEO_BLOB_ENDPOINT": storage["primaryEndpoints"]["blob"].rstrip("/"),
         "JUNSEO_ADMIN_TOKEN": ref("admin-token"),
         "WEBSITE_SKIP_AUTOCONFIGURE_DATABASE": "true", "WEBSITES_CONTAINER_START_TIME_LIMIT": "600"

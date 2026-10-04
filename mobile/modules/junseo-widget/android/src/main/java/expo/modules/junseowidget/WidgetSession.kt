@@ -51,8 +51,10 @@ internal object WidgetSession {
     }
   }
 
-  private fun unreadable(e: Exception) = e is AEADBadTagException || e is KeyPermanentlyInvalidatedException ||
-    e is IllegalArgumentException || e is IndexOutOfBoundsException || e is org.json.JSONException
+  private fun unreadable(e: Exception) = e is AEADBadTagException || e is javax.crypto.BadPaddingException ||
+    e is javax.crypto.IllegalBlockSizeException || e is java.security.InvalidAlgorithmParameterException ||
+    e is KeyPermanentlyInvalidatedException || e is IllegalArgumentException || e is IndexOutOfBoundsException ||
+    e is org.json.JSONException
 
   @Synchronized fun setToken(context: Context, value: String?) {
     if (value == null) { clear(context); return }
@@ -61,8 +63,17 @@ internal object WidgetSession {
     cipher.init(Cipher.ENCRYPT_MODE, key())
     val encrypted = Base64.encodeToString(cipher.iv, Base64.NO_WRAP) + ":" +
       Base64.encodeToString(cipher.doFinal(value.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
-    clear(context)
+    // Only the credential changes: the app renews the session token every day, and that must not wipe each widget's
+    // friend choice, page, friends list or cached photos. A different account is cleared by sign-out (clear) or by
+    // signIn seeing another userId (clearAccountData). In-flight workers notice the new token via matches().
     check(prefs(context).edit().putString("credential", encrypted).commit()) { "Credential storage failed" }
+  }
+
+  /** Another account signed in: drop the previous account's widget settings and photos, keep the new credential. */
+  @Synchronized fun clearAccountData(context: Context) {
+    val credential = prefs(context).getString("credential", null)
+    clear(context)
+    if (credential != null) check(prefs(context).edit().putString("credential", credential).commit()) { "Credential storage failed" }
   }
 
   @Synchronized fun clear(context: Context) {

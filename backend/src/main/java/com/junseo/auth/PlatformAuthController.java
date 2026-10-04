@@ -1,7 +1,7 @@
 package com.junseo.auth;
 
 import com.junseo.common.JunseoProperties;
-import com.junseo.realtime.RealtimeHub;
+import com.junseo.common.security.Sessions;
 import com.junseo.user.Me;
 import com.junseo.user.User;
 import com.junseo.user.UserService;
@@ -17,7 +17,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,14 +30,13 @@ public class PlatformAuthController {
     private final PlatformLoginFlow flow;
     private final PlatformIdentityService identities;
     private final UserService profiles;
-    private final TokenRevocations revocations;
-    private final RealtimeHub hub;
+    private final Sessions sessions;
     private final JunseoProperties props;
 
     public PlatformAuthController(PlatformLoginFlow flow, PlatformIdentityService identities, UserService profiles,
-            TokenRevocations revocations, RealtimeHub hub, JunseoProperties props) {
+            Sessions sessions, JunseoProperties props) {
         this.flow = flow; this.identities = identities; this.profiles = profiles;
-        this.revocations = revocations; this.hub = hub; this.props = props;
+        this.sessions = sessions; this.props = props;
     }
 
     @GetMapping("/api/auth/config")
@@ -72,20 +70,19 @@ public class PlatformAuthController {
                 .header(HttpHeaders.CACHE_CONTROL, "no-store").header("Referrer-Policy", "no-referrer").build();
     }
 
+    /**
+     * The LiliPlanet token proves who this is, once. What the app keeps is a Junseo session token: it outlives the
+     * central token (about 12 hours, no refresh) and is renewed while the app is used, so the app, the widget and the
+     * notification extension stay signed in. A reauth login gets a short, non-renewable session (account deletion).
+     */
     @PostMapping("/api/auth/exchange")
     ResponseEntity<Session> exchange(@Valid @RequestBody ExchangeRequest request) {
-        Jwt jwt = flow.exchange(request.code(), request.codeVerifier());
-        User user = Boolean.TRUE.equals(request.reauth()) ? identities.existing(jwt) : identities.provision(jwt);
+        Jwt central = flow.exchange(request.code(), request.codeVerifier());
+        boolean reauth = Boolean.TRUE.equals(request.reauth());
+        User user = reauth ? identities.existing(central) : identities.provision(central);
+        var token = sessions.open(user, identities.authenticatedAt(central), reauth ? Sessions.Kind.REAUTH : Sessions.Kind.APP, central);
         return ResponseEntity.ok().header(HttpHeaders.CACHE_CONTROL, "no-store")
-                .body(new Session(jwt.getTokenValue(), jwt.getExpiresAt(), profiles.toMe(user), !user.isOnboarded()));
-    }
-
-    @PostMapping("/api/auth/logout")
-    ResponseEntity<Void> logout(@AuthenticationPrincipal Jwt jwt) {
-        identities.require(jwt);
-        revocations.revoke(jwt);
-        hub.closeToken(jwt.getId());
-        return ResponseEntity.noContent().build();
+                .body(new Session(token.value(), token.expiresAt(), profiles.toMe(user), !user.isOnboarded()));
     }
 
     private ResponseCookie cookie(String value, Duration duration) {

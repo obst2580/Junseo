@@ -20,12 +20,14 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
-function harness({ storage = new Map(), exchange = async () => session(), browser = async () => ({ type: 'success', url: callback }), saved = null, me = null } = {}) {
+function harness({ storage = new Map(), exchange = async () => session(), browser = async () => ({ type: 'success', url: callback }), saved = null, me = null,
+  renew = async () => ({ accessToken: 'renewed-session', expiresAt: '2099-01-01T00:00:00Z' }) } = {}) {
   const modules = new Map();
-  const calls = { exchanges: [], redirects: [], tokens: [], widgets: [], browsers: [], deletes: [], backs: 0 };
+  const calls = { exchanges: [], redirects: [], tokens: [], widgets: [], browsers: [], deletes: [], backs: 0, renews: 0 };
   let auth;
   const mocks = {
-    'react-native': { Platform: { OS: 'android' }, StyleSheet: { create: value => value }, ActivityIndicator: 'ActivityIndicator', Text: 'Text', View: 'View' },
+    'react-native': { Platform: { OS: 'android' }, StyleSheet: { create: value => value }, ActivityIndicator: 'ActivityIndicator', Text: 'Text', View: 'View',
+      AppState: { addEventListener: () => ({ remove() {} }) } },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
     'expo-crypto': {
       getRandomBytesAsync: async size => Uint8Array.from(crypto.randomBytes(size)),
@@ -47,6 +49,7 @@ function harness({ storage = new Map(), exchange = async () => session(), browse
       me: async () => me,
       logout: async () => {},
       deleteAccount: async (args) => { calls.deletes.push(args); },
+      renew: async () => { calls.renews += 1; return renew(); },
     } },
     './push': { unregisterPush: async () => {} },
     './tokenStore': { tokenStore: { get: async () => saved, set: async token => { calls.tokens.push(token); } } },
@@ -235,5 +238,36 @@ test('after signing out, the next login does not reuse the old LiliPlanet browse
   await act(async () => { await auth().signOut(); });
   await act(async () => { await auth().signIn(); });
   assert.equal(h.calls.browsers.at(-1)[2].preferEphemeralSession, true);
+  await act(async () => renderer.unmount());
+});
+
+/** A session token issued `hoursAgo` hours ago (only the payload's iat matters to the app). */
+const sessionToken = (hoursAgo) => {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  return `${encode({ alg: 'HS256' })}.${encode({ sub: '7', iat: Math.floor(Date.now() / 1000) - hoursAgo * 3600 })}.signature`;
+};
+
+test('a day-old session is renewed at launch and stored where the widget reads it', async () => {
+  const { h, renderer } = await signedIn({ saved: sessionToken(30) });
+  await act(async () => { await new Promise((resolve) => setImmediate(resolve)); });
+  assert.equal(h.calls.renews, 1);
+  assert.deepEqual([...h.calls.tokens], ['renewed-session']);
+  await act(async () => renderer.unmount());
+});
+
+test('a session renewed today is left alone', async () => {
+  const { h, renderer } = await signedIn({ saved: sessionToken(2) });
+  await act(async () => { await new Promise((resolve) => setImmediate(resolve)); });
+  assert.equal(h.calls.renews, 0);
+  assert.equal(h.calls.tokens.length, 0);
+  await act(async () => renderer.unmount());
+});
+
+test('a failed renewal (offline) keeps the current session', async () => {
+  const { h, auth, renderer } = await signedIn({ saved: sessionToken(30), renew: async () => { throw new Error('offline'); } });
+  await act(async () => { await new Promise((resolve) => setImmediate(resolve)); });
+  assert.equal(h.calls.renews, 1);
+  assert.equal(h.calls.tokens.length, 0);
+  assert.equal(auth().me.id, 7);
   await act(async () => renderer.unmount());
 });

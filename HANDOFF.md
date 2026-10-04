@@ -15,8 +15,9 @@
 | 사용자에게 전달한 APK | `0.1.2`, versionCode `3`, `com.junseo.app`, ARM64, Android 8 이상. 사진 업로드 수정 포함 |
 | Android 푸시 설정 | Firebase 프로젝트·발송 계정·Azure Key Vault 참조 설정 완료, FCM 활성화 |
 | iOS | 기존 Swift 위젯·알림 확장 유지, 공유 Keychain으로 토큰 저장 변경. APNs 운영 키·실기기 검증은 미완료 |
-| 운영 DB | **V1~V7 적용 완료**. 병합한 신고 기능 **V8**, 내보낸 사람 목록 **V9** 는 아직 운영에 적용하지 않음 (다음 배포 때 Flyway 가 적용) |
-| 현재 소스 | 서버 전체 테스트 **139개**, 모바일 회귀 테스트 **18개**, lint·타입 검사 통과 |
+| 운영 DB | **V1~V7 적용 완료**. 신고 **V8**, 내보낸 사람 목록 **V9**, 준서 세션 **V10** 은 아직 운영에 적용하지 않음 (다음 배포 때 Flyway 가 적용) |
+| 현재 소스 | 서버 전체 테스트 **143개**, 모바일 회귀 테스트 **21개**, lint·타입 검사 통과 |
+| **다음 배포 전 필수** | App Service 에 `JUNSEO_JWT_SECRET` (Key Vault `jwt-signing-secret` 참조). 없으면 서버가 시작하지 않는다. `bootstrap.py` 를 다시 실행하면 만들어 연결한다. 배포 후 기존 사용자는 한 번 다시 로그인한다 (앱이 들고 있던 중앙 토큰은 더 이상 API 에 쓰지 않음) |
 
 **Git의 최신 소스와 운영 배포본은 다르다.** 운영 JAR은 신고·차단 기능 병합 전 버전이며 SHA-256은 `24e0475de871a92917e625f0e6f0050089e7db732fd11085e1e3c0e8c7aecdc3`이다. [운영 배포 기록](docs/azure-release.json)의 소스 지문은 당시 배포본을 가리킨다. 병합 후 서버·앱을 이번 인계 요청만으로 재배포하지 않았다.
 
@@ -34,6 +35,7 @@
   - **내보내기 = 다시 못 들어옴**: 운영자 계정 삭제가 `(issuer, sub)` (로컬은 이메일) 를 `banned_identities`(V9) 에 기록. 다시 로그인하면 403 `ACCOUNT_BANNED`. `GET/DELETE /api/admin/bans`.
   - 로그인 시작 남용 방지 (주소당 대기 20개, 1만 개가 차면 가장 오래된 것부터 정리), FCM 죽은 토큰 정리 · 401 재시도 · 사람당 토큰 10개, 업로드 처리 대기 15초.
   - Android: 사진·동영상·음악 **읽기 권한 제거**(저장만 함), 위젯 새로고침이 쌓이지 않게, 일시적인 Keystore 오류로 로그아웃되지 않게. 앱: 로그아웃 뒤 로그인은 다른 계정을 고를 수 있게(iOS), 위젯 연결 오류가 로그인을 막지 않게, 예전 평문 토큰 사본을 앱 시작 때 삭제.
+  - **로그인 유지 (준서 세션)**: 중앙 토큰(약 12시간, 갱신 없음)을 그대로 쓰면 위젯 · 앱이 하루 두 번 로그아웃된다. 이제 로그인할 때 중앙 토큰을 한 번 확인하고 준서 세션 토큰(90일, `sessions` 테이블 V10)을 준다. 앱은 하루에 한 번 연장해 위젯 · 알림 확장이 읽는 곳에 저장한다 (Android 위젯은 연장 때 설정 · 사진을 지우지 않는다). 로그아웃 · 계정 삭제 · 내보내기 · 비밀번호 변경은 즉시 끝난다. 로그아웃한 세션의 중앙 토큰은 다시 로그인에 쓸 수 없다.
   - ops: `bootstrap.py` 가 DB 비밀번호를 평문 SQL 대신 서버 형식의 해시로 보낸다. 관리자 토큰을 Key Vault(`admin-token`)에 만들고 연결한다 (`JUNSEO_ADMIN_EMAIL` 은 환경 변수로 주면 설정). `register_auth.py` 는 공유 로그인 서버 재시작 전에 묻고, 플랫폼 저장소 경로는 `--platform-repo` 로 받는다.
 
 ## 2. 처음 시작할 때
@@ -150,7 +152,7 @@ Key Vault 참조 형식: `@Microsoft.KeyVault(SecretUri=https://junseo-kv-f14e91
 
 중앙 `(issuer, sub)`를 Junseo 내부 사용자 ID로 연결한다. 이메일이나 중앙 숫자 sub가 같다는 이유로 로컬 계정에 합치지 않는다. 앱 세션은 iOS 공유 Keychain, Android Keystore AES-GCM 저장소, 웹 탭 sessionStorage에 저장한다. 위젯의 App Group UserDefaults에 JWT를 복사하던 iOS 경로는 제거했다.
 
-`POST /api/auth/logout`는 Junseo `revoked_tokens`에 jti를 만료까지 기록하고 해당 WebSocket을 닫는다. **다른 LiliPlanet 서비스의 전역 로그아웃은 아니다.** 중앙 refresh/전역 폐기 API는 확인되지 않아 만료 후 재로그인한다. 계정 비활성화의 즉시 반영도 아직 별도 연동이 필요하다.
+로그인 뒤에는 중앙 토큰 대신 **준서 세션 토큰**(HS256, 90일, `sessions` 테이블)을 쓴다. 중앙 토큰은 약 12시간이고 갱신 API 가 없어서, 그대로 쓰면 위젯 · 앱이 하루 두 번 로그아웃되기 때문이다. 앱은 하루에 한 번 `POST /api/auth/renew` 로 연장해 공유 Keychain / Keystore 에 저장한다. `POST /api/auth/logout`은 그 세션의 모든 토큰과 WebSocket 을 끝내고, 세션을 만든 중앙 토큰의 jti 를 `revoked_tokens` 에 넣어 그 중앙 토큰으로 다시 로그인하지 못하게 한다. **다른 LiliPlanet 서비스의 전역 로그아웃은 아니다.** 중앙 계정 비활성화를 준서 세션에 즉시 반영하는 연동은 없다 (다음 로그인 때 반영).
 
 WebSocket `/ws`는 첫 프레임 `{"type":"auth","token":"..."}`으로 인증한다. URL 쿼리에 토큰을 붙이지 않는다. 인증 전 15초 timeout, 인증 후 JWT 만료 시 연결 종료, 플랫폼 jti 폐기 확인을 구현했다. 로컬 비밀번호 토큰은 `Sessions`의 `ver` 검사도 유지한다.
 
@@ -295,8 +297,8 @@ az account set --subscription f14e91e2-b819-4cd6-ac39-e4a3909c17b9
 
 | 확인 항목 | 증거 / 제한 |
 |---|---|
-| 병합 후 backend | 실제 로컬 PostgreSQL, 139/139 성공 (검토 수정 포함). `docs/handoff-verification.json` 은 병합 시점(126) 기록 |
-| 모바일 회귀 | 로그인 8 + 계정 삭제 본인 확인 5 + multipart 업로드 5 = 18 성공, lint/typecheck 성공 |
+| 병합 후 backend | 실제 로컬 PostgreSQL, 143/143 성공 (검토 수정 · 준서 세션 포함). `docs/handoff-verification.json` 은 병합 시점(126) 기록 |
+| 모바일 회귀 | 로그인 8 + 계정 삭제 본인 확인 5 + 세션 연장 3 + multipart 업로드 5 = 21 성공, lint/typecheck 성공 |
 | 기존 Android `0.1.2` | release 서명·같은 키 업데이트 설치·Firebase SDK 초기화·Azure API 설정·로그인 화면 확인 |
 | native 업로드 transport | 실제 SDK File multipart가 서버의 401 응답까지 도달. 인증된 사용자 사진 전송 성공을 의미하지 않음 |
 | Android Keystore | 이전 빌드 instrumentation 4개 성공. 이번 문서 작업에서 네이티브 전체 빌드를 반복하지 않음 |
@@ -310,7 +312,7 @@ az account set --subscription f14e91e2-b819-4cd6-ac39-e4a3909c17b9
 2. **안전 기능 배포**: 신고/차단 · 계정 삭제(리리플레닛 재로그인) · 내보내기는 코드 완료, V8 · V9 배포 후 사용 가능. 계정 삭제는 Junseo 앱 데이터만 지운다 (리리플레닛 계정 자체는 남는다고 앱에 안내함). 실기기에서 삭제 흐름 확인 필요: iOS 는 쿠키를 나누지 않는 창이라 비밀번호를 다시 넣고, Android(Custom Tabs)는 리리플레닛 로그인이 남아 있으면 바로 돌아올 수 있다. 중앙 토큰에 `auth_time` 이 없으면 `iat` 로 판단하므로, 중앙이 조용히 토큰을 재발급하는 기능을 넣으면 `auth_time` 을 꼭 넣어야 한다. 비밀번호 찾기는 LiliPlanet 에서 처리한다 (Junseo `password-reset` 은 local 모드 API).
 3. **운영 관리자·약관·메일**: `static/legal/`의 운영자/문의/시행일 등 placeholder를 채우고 운영 정책을 검토. 신고 담당자, 관리자 비밀, 처리 절차, SMTP를 설정. 원격 README의 삭제/재설정 완료 설명은 로컬 인증 기준이므로 플랫폼 운영 완료로 해석하지 않는다.
 4. **iOS 서명/APNs**: Apple 계정, `.p8`, provisioning, shared Keychain·위젯 실기기, TestFlight.
-5. **운영 보강**: 중앙 token refresh/계정 변경 연동, migration job 분리, DB/Blob 복구 연습, B1 부하·메모리·예산 측정, 사진 삭제 실패 재시도/URL 회수 정책. 다중 인스턴스 전환은 공유 로그인 저장소·실시간 전달 구현 후 진행.
+5. **운영 보강**: 중앙 계정 비활성화 → 준서 세션 종료 연동, migration job 분리, DB/Blob 복구 연습, B1 부하·메모리·예산 측정, 사진 삭제 실패 재시도/URL 회수 정책. 다중 인스턴스 전환은 공유 로그인 저장소·실시간 전달 구현 후 진행.
 6. **스토어 배포**: Play용 서명키/Play App Signing·배포 계정·AAB·실제 AdMob ID·개인정보 화면 등을 별도 준비. 현재 preview 키를 그대로 스토어 최종 키로 간주하지 않는다. SDK 의존성 audit와 포함 글꼴 라이선스 검토도 남음.
 
 개발자 계정에는 저장소 권한, 대상 Azure 앱/Key Vault에 필요한 운영 권한, Firebase 프로젝트 접근 권한, Apple/Play 계정 권한을 각 소유자가 전달해야 한다. 이 커밋은 접근 권한이나 private key를 자동 전달하지 않는다.

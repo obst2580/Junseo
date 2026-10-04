@@ -20,7 +20,8 @@ junseo:
     public-base-url: ${JUNSEO_PUBLIC_BASE_URL}
     return-uris: junseo://auth,${JUNSEO_PUBLIC_BASE_URL}/login
   jwt:
-    secret: ''
+    # Signs Junseo's session tokens (Key Vault reference, >= 32 bytes). Changing it signs everyone out once.
+    secret: ${JUNSEO_JWT_SECRET}
   media:
     signing-secret: ${JUNSEO_MEDIA_SECRET}
   storage:

@@ -21,7 +21,7 @@ class JunseoWidgetModule : Module() {
       require(URI(apiUrl).scheme == "https") { "Widget API requires HTTPS" }
       synchronized(WidgetSession) {
         val p = WidgetSession.prefs(context)
-        if (p.getLong("userId", userId) != userId) WidgetSession.clear(context)
+        if (p.getLong("userId", userId) != userId) WidgetSession.clearAccountData(context)
         check(p.edit().putString("apiUrl", apiUrl.trimEnd('/')).putLong("userId", userId).commit())
       }
       WidgetRefreshWorker.schedule(context)

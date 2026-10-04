@@ -10,9 +10,9 @@ import java.util.List;
 import javax.crypto.SecretKey;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -85,14 +85,18 @@ public class SecurityConfig {
         };
     }
 
+    /** Signs and checks Junseo's own session tokens in both login modes ({@link Sessions}). */
     @Bean
-    @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "local", matchIfMissing = true)
     SecretKey jwtSecretKey(JunseoProperties props) {
         return Secrets.hmacKey("junseo.jwt.secret", props.jwt().secret());
     }
 
+    /**
+     * Every API request and the realtime channel carry a Junseo session token. The LiliPlanet token is only read once,
+     * at login ({@code centralJwtDecoder} in {@link PlatformJwtConfig}), so it is not accepted here.
+     */
     @Bean
-    @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "local", matchIfMissing = true)
+    @Primary
     JwtDecoder jwtDecoder(SecretKey jwtSecretKey) {
         return NimbusJwtDecoder.withSecretKey(jwtSecretKey).macAlgorithm(MacAlgorithm.HS256).build();
     }

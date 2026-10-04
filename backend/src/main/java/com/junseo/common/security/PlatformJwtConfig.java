@@ -18,13 +18,17 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 @Configuration
 @ConditionalOnProperty(prefix = "junseo.auth", name = "mode", havingValue = "platform")
 public class PlatformJwtConfig {
+    /**
+     * The LiliPlanet token, read once at login (callback and code exchange). API requests use Junseo's own token.
+     * A token whose session was logged out cannot start another login.
+     */
     @Bean
-    JwtDecoder platformJwtDecoder(JunseoProperties props, TokenRevocations revocations) {
+    JwtDecoder centralJwtDecoder(JunseoProperties props, TokenRevocations revocations) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(props.auth().jwksUrl())
                 .jwsAlgorithm(SignatureAlgorithm.RS256).build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(props.auth().issuer()),
-                claims(props.auth().audience()), token -> revocations.revoked(token.getId()) ? invalid() : OAuth2TokenValidatorResult.success()));
+                JwtValidators.createDefaultWithIssuer(props.auth().issuer()), claims(props.auth().audience()),
+                token -> revocations.revoked(token.getId()) ? invalid() : OAuth2TokenValidatorResult.success()));
         return decoder;
     }
 

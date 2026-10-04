@@ -6,6 +6,7 @@ import com.junseo.auth.AuthController.SignupRequest;
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.security.JwtService;
+import com.junseo.common.security.Sessions;
 import com.junseo.safety.Bans;
 import com.junseo.user.User;
 import com.junseo.user.UserRepository;
@@ -28,7 +29,7 @@ public class AuthService {
     private final UserRepository users;
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService;
+    private final Sessions sessions;
     private final Bans bans;
     private final Clock clock;
 
@@ -36,13 +37,13 @@ public class AuthService {
             UserRepository users,
             UserService userService,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService,
+            Sessions sessions,
             Bans bans,
             Clock clock) {
         this.users = users;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
-        this.jwtService = jwtService;
+        this.sessions = sessions;
         this.bans = bans;
         this.clock = clock;
     }
@@ -72,7 +73,7 @@ public class AuthService {
         return respond(user);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         User user = users.findByEmail(request.email())
                 .filter(u -> passwordEncoder.matches(request.password(), u.getPasswordHash()))
@@ -81,7 +82,7 @@ public class AuthService {
     }
 
     private AuthResponse respond(User user) {
-        JwtService.IssuedToken token = jwtService.issue(user.getId(), user.getTokenVersion());
+        JwtService.IssuedToken token = sessions.open(user, clock.instant(), Sessions.Kind.APP);
         return new AuthResponse(token.value(), token.expiresAt(), userService.toMe(user));
     }
 }

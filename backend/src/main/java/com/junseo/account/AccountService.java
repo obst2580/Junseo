@@ -1,6 +1,6 @@
 package com.junseo.account;
 
-import com.junseo.auth.TokenRevocations;
+import com.junseo.common.security.Sessions;
 import com.junseo.common.ApiException;
 import com.junseo.common.ErrorCode;
 import com.junseo.common.Transactions;
@@ -33,7 +33,10 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class AccountService {
 
-    /** A LiliPlanet account has no password here: the app logs in again right before deleting, within this window. */
+    /**
+     * A LiliPlanet account has no password here: the app logs in again right before deleting, within this window.
+     * The token's auth_time is that login (a renewed session token keeps its original sign-in time, so it never counts).
+     */
     static final Duration REAUTH_WINDOW = Duration.ofMinutes(5);
     private static final Duration CLOCK_SKEW = Duration.ofMinutes(1);
 
@@ -46,7 +49,7 @@ public class AccountService {
     private final MediaStorage storage;
     private final PasswordEncoder passwordEncoder;
     private final ApplicationEventPublisher events;
-    private final TokenRevocations revocations;
+    private final Sessions sessions;
     private final RealtimeHub hub;
     private final Bans bans;
     private final Clock clock;
@@ -59,7 +62,7 @@ public class AccountService {
             MediaStorage storage,
             PasswordEncoder passwordEncoder,
             ApplicationEventPublisher events,
-            TokenRevocations revocations,
+            Sessions sessions,
             RealtimeHub hub,
             Bans bans,
             Clock clock) {
@@ -70,7 +73,7 @@ public class AccountService {
         this.storage = storage;
         this.passwordEncoder = passwordEncoder;
         this.events = events;
-        this.revocations = revocations;
+        this.sessions = sessions;
         this.hub = hub;
         this.bans = bans;
         this.clock = clock;
@@ -85,8 +88,6 @@ public class AccountService {
         User user = users.findById(userId).orElseThrow(ApiException::notFound);
         if (user.isPlatform()) {
             requireFreshLogin(token);
-            // The central token stays valid until it expires: end it here (and its sockets) like a logout
-            if (token.getId() != null && token.getExpiresAt() != null) revocations.revoke(token);
         } else if (password == null || user.getPasswordHash() == null || !passwordEncoder.matches(password, user.getPasswordHash())) {
             throw new ApiException(ErrorCode.WRONG_PASSWORD);
         }
@@ -101,9 +102,9 @@ public class AccountService {
         delete(user);
     }
 
-    /** auth_time (when the person actually signed in) if the central token has it, otherwise when it was issued. */
+    /** auth_time: when the person signed in for the session this token belongs to (the sessions themselves go with the account). */
     private void requireFreshLogin(Jwt token) {
-        Instant at = token.hasClaim("auth_time") ? token.getClaimAsInstant("auth_time") : token.getIssuedAt();
+        Instant at = token.hasClaim(Sessions.AUTH_TIME_CLAIM) ? token.getClaimAsInstant(Sessions.AUTH_TIME_CLAIM) : null;
         Instant now = clock.instant();
         if (at == null || at.isBefore(now.minus(REAUTH_WINDOW)) || at.isAfter(now.plus(CLOCK_SKEW))) {
             throw new ApiException(ErrorCode.REAUTH_REQUIRED);
