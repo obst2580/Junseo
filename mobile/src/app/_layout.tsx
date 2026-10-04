@@ -3,7 +3,7 @@ import { useFonts } from 'expo-font';
 import { DarkTheme, router, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
-import { ActivityIndicator, AppState, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, ToastAndroid, View } from 'react-native';
 
 import { ZoomProvider } from '@/components/PinchZoom';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -12,7 +12,7 @@ import { api } from '@/lib/api';
 import { resetChats } from '@/lib/chats';
 import { listenPush, registerPush } from '@/lib/push';
 import { realtime } from '@/lib/realtime';
-import { shouldOfferWidgetSetup } from '@/lib/homeWidget';
+import { installedWidgets, markWidgetSetupDone, shouldOfferWidgetSetup } from '@/lib/homeWidget';
 import { refreshTemplates } from '@/lib/templateCatalog';
 import { colors, glow, motion } from '@/lib/theme';
 import { widgetBridge } from '@/lib/widgetBridge';
@@ -76,18 +76,39 @@ function RootStack() {
   }, [signedIn]);
 
   // 가입 · 로그인하면 바로 위젯을 홈 화면에 놓게 한다 (아직 하나도 없으면). 화면 전환이 끝난 뒤에 띄운다.
+  // Android: 시스템 「홈 화면에 추가」 창을 바로 띄운다 → [추가] 한 번이면 놓이고, 크기는 위젯을 길게 눌러 조절한다.
+  //   창을 닫고(취소) 돌아오면 안내 화면으로 (다시 추가 · 나중에). 런처가 이 창을 지원하지 않아도 안내 화면.
+  // iOS: 앱이 위젯을 놓는 API 가 없어서(어느 앱도 못 한다) 놓는 순서를 안내하는 화면을 띄운다.
   const meId = me?.id;
   useEffect(() => {
     if (!signedIn || meId === undefined) return;
     let active = true;
+    let returned: { remove(): void } | null = null;
+    const openGuide = () => router.push({ pathname: '/widget-guide', params: { first: '1' } });
     const timer = setTimeout(() => {
       void shouldOfferWidgetSetup(meId).then((offer) => {
-        if (active && offer) router.push({ pathname: '/widget-guide', params: { first: '1' } });
+        if (!active || !offer) return;
+        if (Platform.OS !== 'android' || !widgetBridge.requestPin()) return openGuide();
+        returned = AppState.addEventListener('change', (state) => {
+          if (state !== 'active') return;
+          returned?.remove();
+          returned = null;
+          void installedWidgets().then((count) => {
+            if (!active) return;
+            if (count !== null && count > 0) {
+              void markWidgetSetupDone(meId);
+              ToastAndroid.show('홈 화면에 위젯을 놓았어요. 위젯을 길게 누르면 크기를 바꿀 수 있어요.', ToastAndroid.LONG);
+            } else {
+              openGuide();
+            }
+          });
+        });
       });
     }, 500);
     return () => {
       active = false;
       clearTimeout(timer);
+      returned?.remove();
     };
   }, [signedIn, meId]);
 

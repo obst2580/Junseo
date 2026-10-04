@@ -85,7 +85,9 @@ export default function WidgetGuideScreen() {
       </Text>
       <Text style={styles.lead}>
         {placed
-          ? '친구가 사진을 보내면 이제 홈 화면에 바로 떠요. 위젯을 길게 눌러 한 친구의 사진만 보이게 할 수도 있어요.'
+          ? Platform.OS === 'android'
+            ? '친구가 사진을 보내면 이제 홈 화면에 바로 떠요. 위젯을 길게 누르면 크기를 바꿀 수 있고, 톱니바퀴로 한 친구의 사진만 보이게 할 수도 있어요.'
+            : '친구가 사진을 보내면 이제 홈 화면에 바로 떠요. 위젯을 길게 눌러 한 친구의 사진만 보이게 할 수도 있어요.'
           : 'junseo는 앱을 열지 않아도 친구가 보낸 사진이 홈 화면 위젯에 떠요. 위젯을 놓아야 시작돼요.'}
       </Text>
       <View style={styles.previews}>
