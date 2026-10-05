@@ -39,6 +39,37 @@ final class IsoRender {
         fill();
     }
 
+    /** 건물 하나만 (주변 margin 칸은 잔디 땅). 건물 좌표 그대로: x = i - margin, y = 건물 y, z = j - margin */
+    IsoRender(Voxels v, int margin) {
+        this.terrain = null;
+        this.buildings = null;
+        this.x0 = -margin;
+        this.z0 = -margin;
+        this.w = v.w + 2 * margin;
+        this.d = v.d + 2 * margin;
+        this.ymin = Math.min(-3, v.y0 - 1);
+        this.hy = v.y0 + v.h - ymin + 1;
+        this.vol = new short[w * d * hy];
+        Block grass = Block.of("terrain_grass", 0x7CB25A);
+        for (int j = 0; j < d; j++) {
+            for (int i = 0; i < w; i++) {
+                for (int y = ymin; y <= -1; y++) {
+                    put(i, y, j, y == -1 ? grass : SOIL);
+                }
+            }
+        }
+        for (int y = v.y0; y < v.y0 + v.h; y++) {
+            for (int j = 0; j < v.d; j++) {
+                for (int i = 0; i < v.w; i++) {
+                    Block b = v.get(i, y, j);
+                    if (b != null) {
+                        put(i + margin, y, j + margin, b);
+                    }
+                }
+            }
+        }
+    }
+
     private int idx(int i, int y, int j) {
         return ((y - ymin) * d + j) * w + i;
     }
@@ -194,7 +225,7 @@ final class IsoRender {
     /** 위에서 본 그림: 가장 높은 블록 색, 높을수록 밝게 */
     BufferedImage top(int s) {
         BufferedImage img = new BufferedImage(w * s, d * s, BufferedImage.TYPE_INT_RGB);
-        int ground = terrain.groundY();
+        int ground = terrain == null ? -1 : terrain.groundY();
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < w; i++) {
                 int c = 0, h = ymin;
