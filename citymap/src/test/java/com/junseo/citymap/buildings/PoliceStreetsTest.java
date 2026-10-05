@@ -71,7 +71,16 @@ class PoliceStreetsTest {
                 }
             }
         }
-        return new WalkCheck(c).run(startI + 1, shift, v.d);
+        // 출발점: 앞 줄에서 몸이 지나갈 수 있는 칸 (입간판·탁자가 있는 칸은 건너뜀)
+        int si = startI;
+        for (int k = 0; k < v.w; k++) {
+            int i = (startI + k) % v.w;
+            if (WalkCheck.passable(v.get(i, 0, v.d - 1)) && WalkCheck.passable(v.get(i, 1, v.d - 1))) {
+                si = i;
+                break;
+            }
+        }
+        return new WalkCheck(c).run(si + 1, shift, v.d);
     }
 
     @Test
@@ -86,6 +95,36 @@ class PoliceStreetsTest {
                 assertTrue(n > 12, "거리 건물 " + v.w + "×" + v.d + ": 서는 높이 " + b.levels[k] + " 에 걸어서 못 가요 (" + n + "칸)");
             }
         }
+    }
+
+    @Test
+    void itaewonHotelHasStairsToEveryFloor() {
+        InteriorTest.assertAllFloorsReachable("이태원 호텔", YongsanPlan.hotel(26, 34, new Random(4)), Floors.levels(Floors.GROUND, Floors.OFFICE, 9));
+    }
+
+    /** 도시에 실제로 놓인 이태원·홍대 건물 전부: 길에서 걸어 들어가 지하부터 옥상까지 */
+    @Test
+    void placedStreetBuildingsAreWalkable() {
+        int checked = 0;
+        for (Placement p : TestCity.buildings().placements()) {
+            if (!p.kind.equals("restaurant") && !p.kind.equals("nightlife")) {
+                continue;
+            }
+            Voxels v = p.voxels();
+            int shift = -(v.y0 + 1);
+            int cx = v.w / 2, cj = (v.d - 2) / 2;
+            WalkCheck walk = walkFromStreet(v, shift, cx);
+            for (int L = -StreetBuilding.BASEMENT_H * 2; L <= v.y0 + v.h - 6; L += L < 0 ? StreetBuilding.BASEMENT_H : StreetBuilding.FLOOR_H) {
+                Block slab = v.get(v.w - 3, L - 1, v.d - 3);
+                if (L < v.y0 + 1 || slab == null || slab.isAir()) {
+                    continue;
+                }
+                int n = walk.reachedAt(L + shift);
+                assertTrue(n > 12, p + ": 서는 높이 " + L + " 에 걸어서 못 가요 (" + n + "칸)");
+            }
+            checked++;
+        }
+        assertTrue(checked >= 18, "검사한 거리 건물 " + checked);
     }
 
     @Test
