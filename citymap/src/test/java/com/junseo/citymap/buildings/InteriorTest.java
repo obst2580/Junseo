@@ -98,6 +98,30 @@ class InteriorTest {
         assertTrue(walk.reachedAt(10) > 100, "돔 맨 윗줄 " + walk.reachedAt(10));
     }
 
+    /** 도시에 실제로 놓인 사무 빌딩·아파트: 정문에서 계단으로 옥상(아파트는 모든 층)까지 */
+    @Test
+    void cityTowersAndApartmentsAreClimbable() {
+        int offices = 0, apartments = 0;
+        for (Placement p : TestCity.buildings().placements()) {
+            if (p.kind.equals("office") && offices < 12) {
+                offices++;
+                Voxels v = p.voxels();
+                int roof = v.y0 + v.h - 1 - 10;
+                WalkCheck walk = new WalkCheck(v).run();
+                assertTrue(walk.reachedAt(roof) > 10, p + " 옥상(" + roof + ")에 걸어서 못 가요");
+            } else if (p.kind.equals("apartment") && apartments < 8) {
+                apartments++;
+                Voxels v = p.voxels();
+                int roof = v.y0 + v.h - 1 - 6;
+                WalkCheck walk = new WalkCheck(v).run();
+                for (int y = 0; y < roof; y += 4) {
+                    assertTrue(walk.reachedAt(y) > 20, p + " " + (y / 4 + 1) + "층에 걸어서 못 가요");
+                }
+            }
+        }
+        assertTrue(offices > 0 && apartments > 0);
+    }
+
     @Test
     void renderSamples() throws IOException {
         Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
