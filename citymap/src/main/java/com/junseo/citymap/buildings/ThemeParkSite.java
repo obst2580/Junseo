@@ -91,8 +91,8 @@ final class ThemeParkSite {
                 if (inside(i, j)) {
                     // 고른 흙땅: 4칸 단위로 흙·거친 흙·자갈이 섞임, 출입문에서 가운데로 자갈 길
                     long h = (Math.floorDiv(i, 4) * 73856093L) ^ (Math.floorDiv(j, 4) * 19349663L);
-                    int k = (int) Math.floorMod(h, 7);
-                    b = k < 3 ? COARSE_DIRT : k < 5 ? DIRT : k < 6 ? Block.of("gravel", 0x837E7C) : PACKED_MUD;
+                    int k = (int) Math.floorMod(h, 11);
+                    b = k < 5 ? COARSE_DIRT : k < 9 ? DIRT : k < 10 ? PACKED_MUD : Block.of("gravel", 0x837E7C);
                     if (Math.abs(i - hi) <= 4 && j <= gateJ && j >= land.d / 2 - 10) {
                         b = Block.of("gravel", 0x837E7C);
                     }
@@ -243,7 +243,8 @@ final class ThemeParkSite {
             }
         }
         // 물 탱크와 제어함
-        v.fill(hi - 6, 0, j0, hi - 5, 1, j0 + 1, Block.of("light_blue_terracotta", 0x716C89));
+        v.fill(hi - 6, 0, j0, hi - 5, 1, j0 + 1, WHITE_CONCRETE);
+        v.set(hi - 6, 2, j0, CAULDRON);
         v.set(hi - 6, 0, j0 + 3, Block.of("blast_furnace[facing=east,lit=false]", 0x505050));
     }
 
@@ -277,7 +278,7 @@ final class ThemeParkSite {
                     }
                 }
             }
-            f.fill(0, y + 3, 0, len - 1, y + 3, dep - 1, k == 1 ? FRAME : CONTAINER);
+            f.fill(0, y + 3, 0, len - 1, y + 3, dep - 1, k == 1 ? LIGHT_GRAY_CONCRETE : CONTAINER);
             // 앞뒤 창 (알루미늄 창, 한 줄)
             for (int a = 2; a < len - 2; a += 3) {
                 f.set(a, y + 1, dep - 1, GLASS_PANE);
@@ -299,8 +300,7 @@ final class ThemeParkSite {
         for (int a = 3; a <= 9; a += 2) {
             Furniture.desk(f, a, 0, 2, "south");
         }
-        f.set(1, 1, 1, Block.of("white_concrete", 0xCFD5D6));
-        f.fill(1, 1, 1, 1, 2, 4, Block.of("light_blue_terracotta", 0x716C89)); // 벽에 붙인 공정표·도면
+        f.fill(1, 0, 1, 1, 1, 2, Furniture.BOOKSHELF); // 도면함
         Furniture.table(f, 13, 0, 3, 2, 1, "spruce");
         f.set(15, 1, 1, Furniture.TV);
         // 2층 소장실: 큰 책상과 소파, 휴게실: 식탁과 정수기
@@ -356,7 +356,7 @@ final class ThemeParkSite {
             if (!inside(a, j0) || !inside(a + 2, j0 + 3)) {
                 continue;
             }
-            Block shell = k == 0 ? Block.of("light_blue_terracotta", 0x716C89) : Block.of("cyan_terracotta", 0x565B5B);
+            Block shell = Block.of("cyan_terracotta", 0x565B5B);
             v.walls(a, 0, j0, a + 2, 2, j0 + 2, shell);
             v.fill(a, 3, j0, a + 2, 3, j0 + 2, WHITE_CONCRETE);
             v.set(a + 1, -1, j0 + 1, SMOOTH_STONE);
