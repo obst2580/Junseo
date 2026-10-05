@@ -14,6 +14,12 @@ if not exist paper.jar (
 
 if not exist plugins mkdir plugins
 
+rem WorldEdit (building tool): download once if missing
+if not exist "plugins\worldedit*.jar" (
+  echo Downloading WorldEdit for the first time...
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0get-worldedit.ps1"
+)
+
 if not exist eula.txt (
   echo You must agree to the Minecraft EULA to run a server:
   echo   https://aka.ms/MinecraftEULA

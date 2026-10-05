@@ -10,6 +10,8 @@ run/
 server/*
 !server/start.bat
 !server/start.sh
+!server/get-worldedit.ps1
+!server/get-worldedit.sh
 !server/README.md
 
 # IDE
