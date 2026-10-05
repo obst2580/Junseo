@@ -76,7 +76,7 @@ final class PocketPark {
             v.fill(gi + 2, 0, gj, gi + 2, 2, gj, StreetPlan.POST);
             v.set(gi + 1, 2, gj, IRON_BARS);
             v.set(gi + 1, -1, gj + 2, RUBBER);
-            v.set(gi + 1, 0, gj + 2, Block.of("polished_andesite_wall[east=none,north=none,south=none,up=true,waterlogged=false,west=none]", 0x848685));
+            v.set(gi + 1, 0, gj + 2, StreetPlan.POST);
         }
         // 가로등
         v.fill(1, 0, d - 2, 1, 3, d - 2, StreetPlan.POST);

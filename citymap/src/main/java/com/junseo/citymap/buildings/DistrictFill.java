@@ -40,8 +40,13 @@ final class DistrictFill {
                  int complexPct, int[] apt, int parkPct, int garageGap, boolean garageTower) {
     }
 
+    /** 집은 실거주 가능한 크기로: 골목 안 필지 너비 12 이상·깊이 14 이상, 길가 상가 너비 10 이상·깊이 12 이상 */
+    static final int HOUSE_MIN_W = 12, HOUSE_MIN_D = 14, SHOP_MIN_W = 10, SHOP_MIN_D = 12;
+
     private static BlockLayout.Spec spec(int front, int lotMin, int lotMax, boolean mainTower, int innerMin, int innerMax, int innerGap) {
         BlockLayout.Spec s = new BlockLayout.Spec();
+        s.innerDepthMin = Math.max(HOUSE_MIN_D, innerMin + 2);
+        s.innerDepthMax = s.innerDepthMin + 6;
         s.front = front;
         s.lotMin = lotMin;
         s.lotMax = lotMax;
@@ -58,31 +63,31 @@ final class DistrictFill {
 
     static final Map<String, Style> STYLES = Map.ofEntries(
             // 여의도: 대로변 초고층 업무 타워, 이면 오피스텔·근린생활, 아파트 단지(시범아파트)
-            Map.entry("yeouido", new Style(spec(18, 12, 18, true, 10, 14, 0), r(8, 12), r(6, 10), r(4, 6), r(25, 45), false, 40, r(12, 13), 15, 220, true)),
+            Map.entry("yeouido", new Style(spec(18, 12, 20, true, 12, 18, 0), r(8, 12), r(6, 10), r(4, 6), r(25, 45), false, 40, r(12, 13), 15, 220, true)),
             // 중구: 큰길 업무 빌딩, 명동·을지로 맞벽 상가가 골목 안까지 빽빽
-            Map.entry("junggu", new Style(spec(14, 8, 13, true, 7, 11, 0), r(6, 10), r(4, 7), r(2, 4), r(15, 28), false, 0, r(0, 0), 10, 200, true)),
+            Map.entry("junggu", new Style(spec(14, 10, 15, true, 10, 14, 0), r(6, 10), r(4, 7), r(2, 4), r(15, 28), false, 0, r(0, 0), 10, 200, true)),
             // 용산: 이태원 상가, 언덕 쪽 다가구, 큰길 주상복합
-            Map.entry("yongsan", new Style(spec(14, 9, 14, true, 8, 12, 1), r(4, 6), r(3, 5), r(2, 3), r(30, 40), true, 20, r(15, 25), 25, 220, false)),
+            Map.entry("yongsan", new Style(spec(15, 10, 16, true, 12, 18, 1), r(4, 6), r(3, 5), r(2, 3), r(30, 40), true, 20, r(15, 25), 25, 220, false)),
             // 강남: 테헤란로 유리 타워, 이면 근린생활 5~8층, 골목 안 빌라, 대단지
-            Map.entry("gangnam", new Style(spec(16, 12, 18, true, 10, 14, 1), r(8, 12), r(5, 8), r(4, 4), r(20, 40), true, 35, r(25, 35), 25, 220, true)),
+            Map.entry("gangnam", new Style(spec(16, 12, 20, true, 12, 18, 1), r(8, 12), r(5, 8), r(4, 4), r(20, 40), true, 35, r(25, 35), 25, 220, true)),
             // 송파: 잠실 대단지, 방이동 먹자골목
-            Map.entry("songpa", new Style(spec(15, 10, 16, true, 9, 13, 1), r(5, 8), r(3, 5), r(4, 4), r(10, 20), true, 60, r(25, 33), 30, 240, false)),
+            Map.entry("songpa", new Style(spec(15, 11, 18, true, 12, 18, 1), r(5, 8), r(3, 5), r(4, 4), r(10, 20), true, 60, r(25, 33), 30, 240, false)),
             // 마포: 공덕 아파트, 망원동 붉은 벽돌 다세대
-            Map.entry("mapo", new Style(spec(14, 9, 14, true, 8, 12, 1), r(5, 8), r(3, 5), r(2, 4), r(15, 22), true, 45, r(20, 25), 30, 240, false)),
+            Map.entry("mapo", new Style(spec(14, 10, 16, true, 12, 18, 1), r(5, 8), r(3, 5), r(2, 4), r(15, 22), true, 45, r(20, 25), 30, 240, false)),
             // 광진: 건대 먹자골목, 구의·자양 필로티 빌라
-            Map.entry("gwangjin", new Style(spec(13, 8, 13, false, 8, 12, 1), r(5, 8), r(3, 5), r(4, 4), r(0, 0), true, 15, r(15, 25), 25, 220, false)),
+            Map.entry("gwangjin", new Style(spec(14, 10, 15, false, 12, 18, 1), r(5, 8), r(3, 5), r(4, 4), r(0, 0), true, 15, r(15, 25), 25, 220, false)),
             // 홍대: 상가 4~6층, 연남동 2층 벽돌집·카페
-            Map.entry("hongdae", new Style(spec(13, 8, 13, false, 8, 12, 2), r(5, 7), r(4, 6), r(2, 3), r(0, 0), true, 0, r(0, 0), 25, 220, true)),
+            Map.entry("hongdae", new Style(spec(14, 10, 15, false, 12, 16, 2), r(5, 7), r(4, 6), r(2, 3), r(0, 0), true, 0, r(0, 0), 25, 220, true)),
             // 대학가: 녹두거리 상가, 원룸 필로티
-            Map.entry("university", new Style(spec(13, 8, 12, false, 8, 11, 1), r(4, 6), r(3, 5), r(4, 5), r(0, 0), true, 0, r(0, 0), 20, 220, false)),
+            Map.entry("university", new Style(spec(14, 10, 14, false, 12, 16, 1), r(4, 6), r(3, 5), r(4, 5), r(0, 0), true, 0, r(0, 0), 20, 220, false)),
             // 남산 아래: 낡은 2~3층 다가구
-            Map.entry("namsan", new Style(spec(12, 8, 12, false, 8, 11, 1), r(2, 3), r(2, 3), r(2, 3), r(0, 0), true, 0, r(0, 0), 30, 260, false)),
+            Map.entry("namsan", new Style(spec(14, 10, 14, false, 12, 16, 1), r(2, 3), r(2, 3), r(2, 3), r(0, 0), true, 0, r(0, 0), 30, 260, false)),
             // 북한산 아래: 평창동 큰 단독주택, 등산로 입구 식당
-            Map.entry("bukhansan", new Style(spec(14, 12, 18, false, 12, 18, 3), r(2, 2), r(2, 2), r(2, 2), r(0, 0), true, 0, r(0, 0), 30, 260, false)),
+            Map.entry("bukhansan", new Style(spec(16, 14, 20, false, 16, 22, 3), r(2, 2), r(2, 2), r(2, 2), r(0, 0), true, 0, r(0, 0), 30, 260, false)),
             // 대형시장 둘레: 시장 상가 골목, 뒤쪽 다세대
-            Map.entry("market", new Style(spec(13, 8, 12, false, 8, 12, 1), r(4, 6), r(3, 5), r(2, 4), r(0, 0), true, 0, r(0, 0), 20, 240, false)),
+            Map.entry("market", new Style(spec(14, 10, 14, false, 12, 16, 1), r(4, 6), r(3, 5), r(2, 4), r(0, 0), true, 0, r(0, 0), 20, 240, false)),
             // 구인천: 공장 사이 낡은 다세대·상가주택, 5층 주공아파트
-            Map.entry("guincheon", new Style(spec(13, 9, 14, false, 9, 13, 2), r(3, 5), r(2, 4), r(2, 4), r(0, 0), true, 10, r(5, 5), 25, 260, false)));
+            Map.entry("guincheon", new Style(spec(14, 10, 15, false, 12, 18, 2), r(3, 5), r(2, 4), r(2, 4), r(0, 0), true, 10, r(5, 5), 25, 260, false)));
 
     /** 채우는 구역 (청라는 분양 필지, 공항은 따로. 구인천·대형시장은 자기 계획 다음에 남은 땅만) */
     static final String[] DISTRICTS = {"yeouido", "junggu", "yongsan", "gangnam", "songpa", "mapo", "gwangjin", "hongdae",
@@ -166,7 +171,7 @@ final class DistrictFill {
                 if (block[4] < 80) {
                     continue;
                 }
-                for (LotPlanner.Lot lot : new LotPlanner(m, rnd, 9, 16, 1, 2).split(block)) {
+                for (LotPlanner.Lot lot : new LotPlanner(m, rnd, HOUSE_MIN_W, 18, 1, 2).split(block)) {
                     BlockLayout.Lot l = new BlockLayout.Lot(lot.x0(), lot.z0(), lot.x1(), lot.z1(), lot.front(), BlockLayout.Tier.INNER, false, false);
                     place(l, garageWanted(l.cx(), l.cz()) && fitsGarage(l) ? Use.GARAGE : Use.BUILD);
                 }
@@ -178,12 +183,21 @@ final class DistrictFill {
             }
             for (LotPlanner.Lot lot : new LotPlanner(m, rnd, 7, 24, 1, 1).split(block)) {
                 BlockLayout.Lot l = new BlockLayout.Lot(lot.x0(), lot.z0(), lot.x1(), lot.z1(), lot.front(), BlockLayout.Tier.INNER, false, false);
-                place(l, Use.PARK);
+                place(l, leftover(l));
             }
         }
     }
 
-    private enum Use { BUILD, PARK, GARAGE }
+    private enum Use { BUILD, PARK, GARAGE, LOT }
+
+    /** 건물이 안 들어가는 자투리: 넓으면 가끔 쌈지공원, 대개는 거주자 우선 주차장 (집 앞에서 차를 꺼냄) */
+    private Use leftover(BlockLayout.Lot l) {
+        boolean roomy = l.width() >= 10 && l.depth() >= 10;
+        if (roomy && rnd.nextInt(100) < st.parkPct) {
+            return Use.PARK;
+        }
+        return l.width() >= 8 && l.depth() >= 8 ? Use.LOT : Use.PARK;
+    }
 
     /** 도심 블록: 길가 맞벽 줄 + 골목 + 골목 안 필지 */
     private void streetBlock(int[] block) {
@@ -268,6 +282,9 @@ final class DistrictFill {
                         (bw, bd) -> Garage.lot(bw, bd, name, new Random(seed)));
             }
             garages.add(new double[]{l.cx(), l.cz()});
+        } else if (use == Use.LOT) {
+            p = Placement.rect("거주자 우선 주차장", "parking", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
+                    (bw, bd) -> ParkingLot.build(bw, bd, new Random(seed)));
         } else if (use == Use.PARK) {
             boolean play = w >= 11 && d >= 11 && rnd.nextBoolean();
             p = Placement.rect(play ? "어린이 놀이터" : "쌈지공원", "park", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
@@ -281,6 +298,15 @@ final class DistrictFill {
             BlockLayout.Tier tier = l.tier();
             int floors = between(tier == BlockLayout.Tier.MAIN ? st.main : tier == BlockLayout.Tier.STREET ? st.street : st.inner);
             boolean house = tier == BlockLayout.Tier.INNER && st.innerHouse;
+            if (house && (w < HOUSE_MIN_W || d < HOUSE_MIN_D) || !house && (w < SHOP_MIN_W || d < SHOP_MIN_D)) {
+                // 실거주 크기가 안 나오는 자투리: 작은 가게나 쌈지공원
+                if (w >= SHOP_MIN_W && d >= SHOP_MIN_D) {
+                    house = false;
+                } else {
+                    place(l, leftover(l));
+                    return;
+                }
+            }
             boolean party = l.partyWall();
             p = house
                     ? Placement.rect(houseName(), "house", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),

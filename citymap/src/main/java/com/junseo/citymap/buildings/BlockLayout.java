@@ -237,7 +237,7 @@ final class BlockLayout {
 
     private void addLot(boolean alongX, int a, int b, int x0, int z0, int x1, int z1, String front, Tier tier, boolean party, boolean tower) {
         int lx0 = alongX ? a : x0, lx1 = alongX ? b : x1, lz0 = alongX ? z0 : a, lz1 = alongX ? z1 : b;
-        int[] cut = trim(lx0, lz0, lx1, lz1, front, tower ? s.towerMin - 6 : Math.max(7, s.lotMin - 2), tower ? 20 : 9);
+        int[] cut = trim(lx0, lz0, lx1, lz1, front, tower ? s.towerMin - 6 : Math.max(DistrictFill.SHOP_MIN_W, s.lotMin - 2), tower ? 20 : DistrictFill.SHOP_MIN_D);
         if (cut != null) {
             lots.add(new Lot(cut[0], cut[1], cut[2], cut[3], front, tier, party, tower));
         }
@@ -282,7 +282,7 @@ final class BlockLayout {
                     wdt = (x1 - a + 1 - s.innerGap) / 2;
                 }
             }
-            int[] cut = trim(a, z0, a + wdt - 1, z1, front, s.innerMin - 1, 9);
+            int[] cut = trim(a, z0, a + wdt - 1, z1, front, Math.max(DistrictFill.SHOP_MIN_W, s.innerMin - 1), DistrictFill.SHOP_MIN_D);
             if (cut != null) {
                 lots.add(new Lot(cut[0], cut[1], cut[2], cut[3], front, Tier.INNER, s.innerGap == 0, false));
             }
