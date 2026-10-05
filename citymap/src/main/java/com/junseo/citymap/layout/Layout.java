@@ -33,7 +33,7 @@ public record Layout(
     public record TerrainSettings(int groundY, int waterY, double mountainEdgeFade, double roadClear, double roadFade) {
     }
 
-    public record District(String id, String name, int openPhase, List<double[]> polygon, Ellipse ellipse) {
+    public record District(String id, String name, List<double[]> polygon, Ellipse ellipse) {
     }
 
     public record Ellipse(double cx, double cz, double rx, double rz, double angle) {
@@ -73,7 +73,7 @@ public record Layout(
             JsonObject d = e.getAsJsonObject();
             Ellipse ellipse = d.has("ellipse") ? ellipse(d.getAsJsonObject("ellipse")) : null;
             districts.add(new District(d.get("id").getAsString(), d.get("name").getAsString(),
-                    d.get("open_phase").getAsInt(), d.has("polygon") ? points(d.getAsJsonArray("polygon")) : null, ellipse));
+                    d.has("polygon") ? points(d.getAsJsonArray("polygon")) : null, ellipse));
         }
 
         List<Water> water = new ArrayList<>();

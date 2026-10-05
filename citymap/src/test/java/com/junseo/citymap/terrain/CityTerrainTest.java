@@ -195,19 +195,6 @@ class CityTerrainTest {
     }
 
     @Test
-    void districtBorderIsMarked() {
-        double[] center = terrain.districtCenter("market");
-        assertNotNull(center);
-        // 대형시장 경계 상자 가운데에서 동쪽으로 걸어가며 경계선을 찾음
-        boolean found = false;
-        for (int dx = 0; dx < 600 && !found; dx++) {
-            Column c = at(center[0] + dx, center[1]);
-            found = c.surface == Surface.BORDER_1;
-        }
-        assertTrue(found, "1차 오픈 구역 경계선이 있어야 해요");
-    }
-
-    @Test
     void sameColumnIsAlwaysTheSame() {
         for (int i = 0; i < 200; i++) {
             int x = -2450 + i * 24, z = -1350 + i * 13;

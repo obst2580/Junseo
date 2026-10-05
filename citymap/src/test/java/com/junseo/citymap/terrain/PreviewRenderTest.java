@@ -98,9 +98,6 @@ class PreviewRenderTest {
             case LINE_WHITE -> rgb(245, 245, 245);
             case LINE_YELLOW -> rgb(240, 200, 40);
             case SIDEWALK -> rgb(175, 175, 175);
-            case BORDER_1 -> rgb(240, 140, 30);
-            case BORDER_2 -> rgb(110, 200, 40);
-            case BORDER_3 -> rgb(80, 160, 230);
             case PAD -> rgb(250, 240, 240);
             case RIVER_BED, SEA_BED -> rgb(200, 190, 150);
         };

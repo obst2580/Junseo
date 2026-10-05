@@ -25,7 +25,7 @@ public final class CityTerrain {
     /** 횡단보도 폭 (도로를 따라) */
     private static final double CROSSWALK = 5;
 
-    record DistrictShape(String id, String name, int phase, Polygon polygon) {
+    record DistrictShape(String id, String name, Polygon polygon) {
     }
 
     record RiverShape(String id, Polyline line, double half, int maxDepth) {
@@ -115,7 +115,7 @@ public final class CityTerrain {
             Polygon p = d.ellipse() != null
                     ? Polygon.ellipse(d.ellipse().cx(), d.ellipse().cz(), d.ellipse().rx(), d.ellipse().rz(), d.ellipse().angle(), 64)
                     : new Polygon(d.polygon());
-            districts.add(new DistrictShape(d.id(), d.name(), d.openPhase(), p));
+            districts.add(new DistrictShape(d.id(), d.name(), p));
         }
         Polygon seaPolygon = null;
         int seaMax = 24;
@@ -469,12 +469,6 @@ public final class CityTerrain {
                 c.surface = Surface.SAND;
             } else if (island != null && island.shoreDistance(px, pz) < 6) {
                 c.surface = Surface.SAND;
-            } else if (district != null && district.polygon().edgeDistance(px, pz) < 1.0) {
-                c.surface = switch (district.phase()) {
-                    case 1 -> Surface.BORDER_1;
-                    case 2 -> Surface.BORDER_2;
-                    default -> Surface.BORDER_3;
-                };
             }
         }
 

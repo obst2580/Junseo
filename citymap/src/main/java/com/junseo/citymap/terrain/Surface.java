@@ -11,10 +11,6 @@ public enum Surface {
     LINE_WHITE,
     LINE_YELLOW,
     SIDEWALK,
-    /** 구역 경계선 (오픈 차수별 색) */
-    BORDER_1,
-    BORDER_2,
-    BORDER_3,
     /** 거점 표시 바닥 */
     PAD,
     RIVER_BED,

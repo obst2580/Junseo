@@ -56,9 +56,7 @@ final class StreetPlan {
                     continue;
                 }
                 Column c = t.column(x, z);
-                boolean pavable = c.surface == Surface.GRASS || c.surface == Surface.BORDER_1 || c.surface == Surface.BORDER_2
-                        || c.surface == Surface.BORDER_3;
-                if (!pavable || c.mountainHeight > 0 || c.isWater()) {
+                if (c.surface != Surface.GRASS || c.mountainHeight > 0 || c.isWater()) {
                     continue;
                 }
                 int dist = m.roadDistance(x, z);

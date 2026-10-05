@@ -8,7 +8,7 @@ import math
 import sys
 from xml.sax.saxutils import escape
 
-PHASE_FILL = {1: "#f4c27a", 2: "#a9d4a3", 3: "#b7c9e8"}
+DISTRICT_FILL = "#f4d9a8"
 WATER = "#86c2e6"
 LAND = "#efeadb"
 FONT = "'WenQuanYi Zen Hei','Noto Sans KR','Malgun Gothic',sans-serif"
@@ -105,7 +105,7 @@ def render(layout):
     labels = []
     for d in layout["districts"]:
         p = ellipse_points(d["ellipse"]) if "ellipse" in d else d["polygon"]
-        o.append(f'<polygon points="{pts(p)}" fill="{PHASE_FILL[d["open_phase"]]}" stroke="#4a4a4a" stroke-width="14"/>')
+        o.append(f'<polygon points="{pts(p)}" fill="{DISTRICT_FILL}" stroke="#4a4a4a" stroke-width="14"/>')
         cx, _ = centroid(p)
         zs = [q[1] for q in p]
         # 구역 이름은 구역 위쪽에 둬서 시설 이름과 겹치지 않게 합니다
@@ -154,8 +154,7 @@ def render(layout):
     lx = bx1 + 250
     o.append(f'<text x="{bx0}" y="{bz0 - 230}" font-size="190" font-weight="bold" fill="#111">'
              f'준서 시티 도시 설계도 v{layout["version"]} — 압축 서울·인천 {real(bx1 - bx0) / 1000:g}×{real(bz1 - bz0) / 1000:g}km 범위 (1블록 = 1m)</text>')
-    rows = [("rect", PHASE_FILL[1], "1차 오픈 구역"), ("rect", PHASE_FILL[2], "2차 오픈 구역"),
-            ("rect", PHASE_FILL[3], "3차 오픈 구역"), ("rect", WATER, "한강·바다"),
+    rows = [("rect", DISTRICT_FILL, "구역"), ("rect", WATER, "한강·바다"),
             ("line", "#d6362f", "고속도로 (왕복 6차로)"), ("line", "#f0892a", "대로 (왕복 4차로)"),
             ("line", "#f5b06b", "구역 안 길 (대로와 같은 규격)"), ("dash", "#7b4bc4", "남산터널"),
             ("dot", "#c0162b", "주요 거점 (사람이 몰리는 곳)"), ("dot", "#1f5fa8", "그 밖의 시설")]

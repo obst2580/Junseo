@@ -159,7 +159,7 @@ final class MapGenCommand implements BasicCommand {
         }
         say(sender, NamedTextColor.GOLD, "구역");
         for (Layout.District d : terrain.layout().districts()) {
-            say(sender, NamedTextColor.YELLOW, " " + d.id() + " — " + d.name() + " (" + d.openPhase() + "차 오픈)");
+            say(sender, NamedTextColor.YELLOW, " " + d.id() + " — " + d.name());
         }
     }
 

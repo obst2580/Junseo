@@ -141,9 +141,6 @@ public final class CityChunkGenerator extends ChunkGenerator {
             case LINE_WHITE -> Material.WHITE_CONCRETE;
             case LINE_YELLOW -> Material.YELLOW_CONCRETE;
             case SIDEWALK -> Material.LIGHT_GRAY_CONCRETE;
-            case BORDER_1 -> Material.ORANGE_CONCRETE;
-            case BORDER_2 -> Material.LIME_CONCRETE;
-            case BORDER_3 -> Material.LIGHT_BLUE_CONCRETE;
             case PAD -> Material.QUARTZ_BLOCK;
             case RIVER_BED -> Material.GRAVEL;
             case SEA_BED -> Material.SAND;

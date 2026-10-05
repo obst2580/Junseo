@@ -117,9 +117,6 @@ final class IsoRender {
             case LINE_WHITE -> 0xF0F0F0;
             case LINE_YELLOW -> 0xF0C828;
             case SIDEWALK -> 0x9A9A96;
-            case BORDER_1 -> 0xE06101;
-            case BORDER_2 -> 0x5EA918;
-            case BORDER_3 -> 0x2389C7;
             case PAD -> 0xEBE5DE;
             case RIVER_BED, SEA_BED -> 0xC8BE96;
         };
