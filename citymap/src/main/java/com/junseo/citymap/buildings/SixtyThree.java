@@ -106,25 +106,32 @@ final class SixtyThree {
 
     // ------------------------------------------------------------------ 1층 은행 영업부
 
-    /** 1층 칸 좌표 기준값 (코어 둘레) */
+    /**
+     * 1층 영업부. 앞 홀·코어 앞 복도·오른쪽 창구 앞 통로가 손님 구역이고,
+     * 왼쪽(지하 금고 계단·지점장실), 코어 뒤(후선 사무실), 창구 뒤는 직원 구역입니다.
+     */
     private static void bankHall(Tower t, int level, int h) {
         Voxels v = t.v;
         Frame f = Frame.of(v);
         Random r = new Random(t.r.nextLong());
         int w = t.s.w, d = t.s.d, top = level + h - 2;
         int mid = w / 2;
-        int c0 = t.ci0, c1 = t.ci1, cj1 = t.cj1, cor = t.corridorJ;
+        int c0 = t.ci0, c1 = t.ci1, cor = t.corridorJ;
         int front0 = cor + 2;          // 앞 홀 시작 줄
-        // 바닥: 화강석 테두리 + 밝은 대리석
+        int left = c0 - 1;             // 코어 왼쪽 복도 바깥 줄 (직원 문)
+        Block wall = Interior.INNER_WALL;
+        Block pane = Block.of("glass_pane", 0xC8DCE4);
+        Block bulkhead = Block.of("white_concrete", 0xCFD5D6);
+        Block monitor = Block.of("iron_trapdoor[facing=east,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1);
+        // 바닥: 밝은 대리석에 줄눈
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < w; i++) {
-                if (t.inside(i, j, 0) && !t.edge(i, j, 0) && (i < c0 || i > c1 || j < t.cj0 || j > cj1)) {
+                if (interior(t, i, j)) {
                     v.set(i, level - 1, j, (i + j) % 7 == 0 ? POLISHED_DIORITE : Block.of("smooth_quartz", 0xECE6DF));
                 }
             }
         }
         // 정문 안 방풍실 (유리 상자)
-        Block pane = Block.of("glass_pane", 0xC8DCE4);
         for (int j = d - 4; j <= d - 2; j++) {
             v.fill(mid - 3, level, j, mid - 3, level + 2, j, pane);
             v.fill(mid + 3, level, j, mid + 3, level + 2, j, pane);
@@ -133,60 +140,50 @@ final class SixtyThree {
         v.fill(mid - 1, level, d - 4, mid + 1, level + 2, d - 4, AIR);
         v.fill(mid - 3, level + 3, d - 4, mid + 3, level + 3, d - 2, Block.of("smooth_quartz_slab[type=bottom,waterlogged=false]", 0xECE6DF));
 
-        // ---- 직원 구역 경계
-        Block wall = Interior.INNER_WALL;
-        int left = c0 - 1;            // 왼쪽 직원 구역 동쪽 경계 (코어 왼쪽 복도 바깥)
-        // 왼쪽: 자동화코너와 직원 구역 사이 벽 (front0 - 1 줄)
+        // ---- 직원 구역 경계: 자동화코너 뒤 벽, 코어 앞 복도 왼쪽 끝 직원 문
         for (int i = 0; i <= left; i++) {
             if (interior(t, i, front0 - 1)) {
                 v.fill(i, level, front0 - 1, i, top, front0 - 1, wall);
             }
         }
-        // 코어 앞 복도 왼쪽 끝: 직원 문
-        v.fill(left, level, cor, left, top, cor + 1, wall);
+        v.fill(left, level, cor, left, top, cor, wall);
         Interior.door(f, left, level, cor, "dark_oak", "east");
-        v.set(left + 1, level + 2, cor + 1, Blocks.wallSign("dark_oak", "east", "white", false, "", "직원 전용"));
-        if (v.get(left + 1, level + 2, cor + 1) == null) {
-            v.set(left + 1, level + 2, cor + 1, Blocks.wallSign("dark_oak", "east", "white", false, "", "직원 전용"));
-        }
+        v.set(left + 1, level + 2, cor, Blocks.wallSign("dark_oak", "east", "white", false, "", "직원 전용"));
 
-        // ---- 오른쪽: 창구 (서쪽을 봄), 창구 뒤 업무석
-        int counterI = c1 + 6;                 // 창구 줄
-        int cja = t.cj0 + 1, cjb = d - 4;       // 창구가 놓이는 j 범위
-        // 손님 통로 북쪽 끝 막기
+        // ---- 오른쪽 창구: 서쪽(손님 통로)을 보고, 창구마다 번호판·손님 의자·직원 의자·모니터
+        int counterI = c1 + 6;
+        int cja = t.cj0 + 1, cjb = d - 4;
         for (int i = c1 + 1; i < counterI; i++) {
-            v.fill(i, level, cja - 1, i, top, cja - 1, wall);
+            v.fill(i, level, cja - 1, i, top, cja - 1, wall);   // 손님 통로 북쪽 끝
         }
         int window = 1;
         for (int j = cja; j <= cjb; j++) {
             v.set(counterI, level, j, Furniture.COUNTER);
-            boolean edgeOfWindow = (j - cja) % 2 == 0;
-            v.set(counterI, level + 1, j, edgeOfWindow ? Block.of("white_stained_glass_pane", 0xF0F0F0) : AIR);
-            v.fill(counterI, level + 3, j, counterI, top, j, Block.of("white_concrete", 0xCFD5D6));
-            if (!edgeOfWindow) {
-                // 창구 번호판 (손님 쪽)
+            v.fill(counterI, level + 3, j, counterI, top, j, bulkhead);
+            if ((j - cja) % 2 == 0) {
+                v.set(counterI, level + 1, j, Block.of("white_stained_glass_pane", 0xF0F0F0)); // 창구 사이 칸막이
+                v.set(counterI, level + 2, j, Block.of("white_stained_glass_pane", 0xF0F0F0));
+            } else {
                 v.set(counterI - 1, level + 3, j, Blocks.wallSign("birch", "west", "black", true, "", window + "번 창구"));
-                Furniture.chair(f, counterI - 1, level, j, "west", "birch");   // 손님 의자
-                Furniture.chair(f, counterI + 1, level, j, "east", "dark_oak"); // 직원 의자
-                v.set(counterI, level + 1, j, Block.of("iron_trapdoor[facing=east,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
+                Furniture.chair(f, counterI - 1, level, j, "west", "birch");
+                Furniture.chair(f, counterI + 1, level, j, "east", "dark_oak");
+                v.set(counterI, level + 1, j, monitor);
                 window++;
             }
         }
-        v.set(counterI, level + 2, cja, Block.of("white_concrete", 0xCFD5D6));
-        // 창구 줄 남쪽 끝 벽 (직원 구역 닫기)
         for (int i = counterI; i < w; i++) {
             if (interior(t, i, cjb + 1)) {
-                v.fill(i, level, cjb + 1, i, top, cjb + 1, wall);
+                v.fill(i, level, cjb + 1, i, top, cjb + 1, wall);   // 창구 뒤 남쪽 끝
             }
         }
-        // 창구 뒤 업무석 (모니터 책상 줄)
-        for (int j = cja; j <= cjb; j += 3) {
-            if (interior(t, counterI + 3, j)) {
-                Furniture.desk(f, counterI + 3, level, j, "west");
+        for (int j = cja + 1; j <= cjb; j += 3) {
+            if (interior(t, counterI + 3, j) && interior(t, counterI + 4, j)) {
+                Furniture.desk(f, counterI + 3, level, j, "west");   // 창구 뒤 업무석
             }
         }
+        v.set(counterI - 1, level + 4, (cja + cjb) / 2, Blocks.wallSign("birch", "west", "blue", true, "준서은행", "영업부", "", "번호 순서대로"));
 
-        // ---- 앞 홀: 대기 의자, 번호표 발행기, 안내·보안 데스크
+        // ---- 앞 홀: 대기 의자 (창구를 봄), 번호표 발행기, 안내·보안 데스크
         for (int j = front0 + 1; j <= d - 3; j += 2) {
             for (int i = mid + 6; i <= counterI - 3; i++) {
                 if ((i - mid) % 6 != 0 && interior(t, i, j)) {
@@ -194,16 +191,9 @@ final class SixtyThree {
                 }
             }
         }
-        v.set(mid + 5, level, d - 3, Block.of("light_gray_concrete", 0x7D7D73));
-        v.set(mid + 5, level + 1, d - 3, Block.of("stone_button[face=floor,facing=south,powered=false]", 0x7E7E7E));
-        v.set(mid + 5, level + 1, d - 4, Blocks.wallSign("birch", "north", "black", false, "", "번호표", "뽑는 곳"));
-        v.set(mid + 5, level + 1, d - 4, null);
-        v.set(mid + 5, level, d - 4, Block.of("light_gray_concrete", 0x7D7D73));
-        v.set(mid + 5, level + 1, d - 4, Blocks.wallSign("birch", "west", "black", false, "", "번호표"));
-        v.set(mid + 4, level + 1, d - 4, Blocks.wallSign("birch", "west", "black", false, "", "번호표"));
-        v.set(mid + 5, level + 1, d - 4, null);
-        // 대기 안내 화면 (창구 위 벽 가운데)
-        // 안내·보안 데스크 (정문 왼쪽)
+        v.fill(mid + 5, level, d - 3, mid + 5, level + 1, d - 3, Block.of("light_gray_concrete", 0x7D7D73));
+        v.set(mid + 5, level + 2, d - 3, Block.of("stone_button[face=floor,facing=south,powered=false]", 0x7E7E7E));
+        v.set(mid + 4, level + 1, d - 3, Blocks.wallSign("birch", "west", "black", false, "", "번호표"));
         for (int i = mid - 9; i <= mid - 5; i++) {
             v.set(i, level, d - 6, Furniture.COUNTER);
         }
@@ -211,67 +201,54 @@ final class SixtyThree {
         Furniture.chair(f, mid - 6, level, d - 7, "north", "dark_oak");
         v.set(mid - 8, level + 1, d - 6, Block.of("iron_trapdoor[facing=north,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
         v.set(mid - 7, level + 3, d - 6, Blocks.hangingSign("dark_oak", 0, "white", true, "", "안내·보안"));
-        v.set(mid - 7, level + 4, d - 6, Block.of("iron_chain[axis=y,waterlogged=false]", 0x505050));
-        v.fill(mid - 7, level + 5, d - 6, mid - 7, top, d - 6, Block.of("iron_chain[axis=y,waterlogged=false]", 0x505050));
-        // 층별 안내판 (엘리베이터 사이 벽)
-        String[] dir = {"63빌딩 안내", "1층 준서은행 본점", "58·59층 식당", "60층 전망대"};
-        v.set(c0 + 12, level + 1, cor, Blocks.wallSign("dark_oak", "south", "white", true, dir));
+        v.fill(mid - 7, level + 4, d - 6, mid - 7, top, d - 6, Block.of("iron_chain[axis=y,waterlogged=false]", 0x505050));
+        // 층별 안내판 (코어 앞, 계단 옆 벽)
+        v.set(c0 + 6, level + 1, cor, Blocks.wallSign("dark_oak", "south", "white", true,
+                "63빌딩 안내", "1층 준서은행 본점", "58·59층 식당", "60층 전망대"));
 
-        // ---- 365 자동화코너 (앞 왼쪽): 유리 칸막이, ATM 줄, 바깥 문
-        int atmEnd = left;
-        for (int i = 0; i <= atmEnd; i++) {
+        // ---- 365 자동화코너 (앞 왼쪽): ATM 줄, 유리 칸막이 (바깥 문은 frontage 에서)
+        for (int i = 0; i <= left; i++) {
             if (interior(t, i, front0) && i % 2 == 0) {
                 atm(v, i, level, front0, "south");
             }
         }
         for (int j = front0; j <= d - 2; j++) {
             if (j < front0 + 1 || j > front0 + 3) {
-                v.fill(atmEnd + 1, level, j, atmEnd + 1, level + 2, j, pane);
+                v.fill(left + 1, level, j, left + 1, level + 2, j, pane);
             }
         }
-        v.fill(atmEnd + 1, level + 3, front0, atmEnd + 1, top, d - 2, Block.of("white_concrete", 0xCFD5D6));
-        v.set(atmEnd / 2 + 2, level + 2, front0, Blocks.wallSign("birch", "south", "blue", true, "", "365", "자동화코너"));
-        // 바깥에서 바로 들어오는 문 (밤에도 씀)
-        int atmDoor = atmEnd / 2 + 4;
-        v.set(atmDoor, level, d - 1, Blocks.door("iron", "south", false));
-        v.set(atmDoor, level + 1, d - 1, Blocks.door("iron", "south", true));
-        v.set(atmDoor, level, d - 1, AIR);
-        v.set(atmDoor, level + 1, d - 1, AIR);
+        v.fill(left + 1, level + 3, front0, left + 1, top, d - 2, bulkhead);
+        v.set(left / 2 + 2, level + 3, front0, Blocks.wallSign("birch", "south", "blue", true, "", "365", "자동화코너"));
 
-        // ---- 왼쪽 직원 구역: 지하 금고로 내려가는 계단, 지점장실
-        Frame stair = stairFrame(t);
-        Interior.stairCore(stair, new int[]{B1, level}, Interior.CORE_WALL, "polished_andesite", 0x848685);
-        // 계단 위 표지 (직원 구역 쪽)
-        int si = stair.i(0, -1) + 1, sj = stair.j(0, -1) + 1;
-        if (v.get(si, level + 2, sj) == null) {
-            v.set(si, level + 2, sj, Blocks.wallSign("dark_oak", "south", "white", false, "", "지하 1층", "금고"));
-        }
-        // 지점장실 (계단 북쪽)
-        int sb = stair.j(0, Interior.stairDepth(level - B1)) - 1;   // 계단실 북쪽 벽 바로 위 줄
-        int ma0 = 0, ma1 = left - 1;
-        while (!interior(t, ma0, sb - 1) && ma0 < ma1) {
-            ma0++;
-        }
-        if (sb - 2 >= 2) {
-            for (int i = ma0; i <= ma1; i++) {
-                v.fill(i, level, sb, i, top, sb, wall);
+        // ---- 왼쪽 직원 구역: 지하 금고로 내려가는 계단 (코어 왼쪽 복도로 열림), 지점장실
+        Frame st = stairFrame(t, v);
+        int sd = Interior.stairDepth(level - B1);
+        Interior.stairCore(st, new int[]{B1, level}, Interior.CORE_WALL, "polished_andesite", 0x848685);
+        st.fill(-1, level + 3, -1, 5, level + 3, sd, Interior.CORE_WALL);
+        v.set(left, level + 2, t.cj0 + 4, Blocks.wallSign("dark_oak", "east", "white", false, "지하 1층", "금고", "현금 수송"));
+        // 지점장실 (계단실 북쪽): 동쪽 벽에 문
+        int mi = left - 1, mj1 = t.cj0;
+        for (int j = 0; j <= mj1; j++) {
+            if (t.inside(mi, j, 0) && !t.edge(mi, j, 0)) {
+                v.fill(mi, level, j, mi, top, j, wall);
             }
-            Interior.door(f, ma1 - 1, level, sb, "dark_oak", "south");
-            v.set(ma1, level + 1, sb + 1, Blocks.wallSign("birch", "south", "black", false, "", "지점장실"));
-            int dj = Math.max(2, sb - 3);
-            for (int i = ma0 + 2; i <= ma0 + 4 && i < ma1; i++) {
-                v.set(i, level, dj, Furniture.DESK_TOP);
-            }
-            Furniture.chair(f, ma0 + 3, level, dj - 1, "north", "dark_oak");
-            v.set(ma0 + 2, level + 1, dj, Block.of("iron_trapdoor[facing=south,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
-            Furniture.plant(f, r, ma1 - 1, level, 2 + (sb - 2) / 2);
-            v.set((ma0 + ma1) / 2, top, (sb + 2) / 2, Interior.LIGHT);
         }
+        int dj = (mj1 + 1) / 2 + 1;
+        Interior.door(f, mi, level, dj, "dark_oak", "east");
+        v.set(mi + 1, level + 1, dj + 1, Blocks.wallSign("birch", "east", "black", false, "", "지점장실"));
+        for (int j = dj - 2; j <= dj; j++) {
+            v.set(mi - 4, level, j, Furniture.DESK_TOP);
+        }
+        Furniture.chair(f, mi - 5, level, dj - 1, "west", "dark_oak");
+        v.set(mi - 4, level + 1, dj - 1, Block.of("iron_trapdoor[facing=west,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
+        Furniture.sofa(f, r, mi - 3, level, mj1 - 1, 2, "north");
+        Furniture.plant(f, r, mi - 1, level, 2);
+        v.set(mi - 3, top, dj, Interior.LIGHT);
 
         // ---- 코어 뒤 후선 사무실
         Rooms.office(f, r, c0 - 2, 0, c1 + 2, t.cj0 - 3, level, h, (i, j) -> t.free(i, j, 0) && j < t.cj0 - 2);
 
-        // 큰 홀 등
+        // 큰 홀 등과 화분
         for (int j = 2; j < d - 1; j += 5) {
             for (int i = 2; i < w - 1; i += 6) {
                 if (t.free(i, j, 0) && v.get(i, top, j) == null) {
@@ -279,15 +256,16 @@ final class SixtyThree {
                 }
             }
         }
-        // 화분
         Furniture.plant(f, r, mid - 4, level, d - 2);
         Furniture.plant(f, r, mid + 4, level, d - 2);
     }
 
-    /** 1층·지하를 잇는 직원 계단 좌표계 (안쪽 a 0..4, b 0..깊이-1, 출입구가 남쪽) */
-    private static Frame stairFrame(Tower t) {
-        int oi = t.ci0 - 4, oj = t.corridorJ - 1;
-        return Frame.facing(t.v, oi, oj, "north");
+    /**
+     * 1층과 지하 1층을 잇는 직원 계단 좌표계: 코어 왼쪽 복도 바로 서쪽, 출입구(b = -1)가 동쪽(복도)을 봄.
+     * 안쪽 a 0..4 (남쪽으로), b 0..깊이-1 (서쪽으로).
+     */
+    private static Frame stairFrame(Tower t, Voxels v) {
+        return Frame.facing(v, t.ci0 - 3, t.cj0 + 2, "west");
     }
 
     /** ATM 한 대 (몸통, 화면·투입구, 위 덮개) */
@@ -297,11 +275,10 @@ final class SixtyThree {
         v.set(i, level + 2, j, Block.of("smooth_stone_slab[type=bottom,waterlogged=false]", 0x9E9E9E));
     }
 
-    /** 바깥 벽·코어가 아닌 바닥 칸 */
+    /** 1층에서 바깥 벽·코어가 아닌 바닥 칸 */
     private static boolean interior(Tower t, int i, int j) {
         return t.inside(i, j, 0) && !t.edge(i, j, 0) && !(i >= t.ci0 && i <= t.ci1 && j >= t.cj0 && j <= t.cj1);
     }
-
     // ------------------------------------------------------------------ 2층 상담실, 하늘 식당
 
     private static void consult(Tower t, int level, int h) {
@@ -318,7 +295,7 @@ final class SixtyThree {
             Rooms.meeting(f, a, b0, a + 6, b1 - 1, level, h);
         }
         Rooms.office(f, r, 0, 0, t.s.w - 1, t.cj0 - 2, level, h, (i, j) -> t.free(i, j, 1) && j < t.cj0 - 2);
-        t.v.set(t.ci0 + 12, level + 1, t.corridorJ, Blocks.wallSign("dark_oak", "south", "white", true, "", "준서은행", "자산관리 상담"));
+        t.v.set(t.ci0 + 6, level + 1, t.corridorJ, Blocks.wallSign("dark_oak", "south", "white", true, "", "준서은행", "자산관리 상담"));
     }
 
     private static void restaurant(Tower t, int k, int level, int h) {
@@ -326,7 +303,13 @@ final class SixtyThree {
         Frame f = Frame.of(v);
         Random r = new Random(t.r.nextLong());
         int[] b = t.bounds(k);
-        Interior.floor(f, b[0] + 1, b[1] + 1, b[2] - 1, b[3] - 1, level, Block.of("dark_oak_planks", 0x432B14));
+        for (int j = b[1]; j <= b[3]; j++) {
+            for (int i = b[0]; i <= b[2]; i++) {
+                if (t.inside(i, j, k) && !t.edge(i, j, k) && !(i >= t.ci0 && i <= t.ci1 && j >= t.cj0 && j <= t.cj1)) {
+                    v.set(i, level - 1, j, Block.of("dark_oak_planks", 0x432B14));
+                }
+            }
+        }
         // 창가 2인·4인 식탁
         for (int j = b[1] + 2; j <= b[3] - 2; j += 3) {
             for (int i = b[0] + 2; i <= b[2] - 3; i += 4) {
@@ -348,7 +331,7 @@ final class SixtyThree {
         }
         Interior.lights(f, b[0] + 1, b[1] + 1, b[2] - 1, b[3] - 1, level, h, 5, Block.of("lantern[hanging=true,waterlogged=false]", 0x6A5B49));
         if (k == 57) {
-            v.set(t.ci0 + 12, level + 1, t.corridorJ, Blocks.wallSign("dark_oak", "south", "yellow", true, "", "구름 위 식당", "58·59층"));
+            v.set(t.ci0 + 6, level + 1, t.corridorJ, Blocks.wallSign("dark_oak", "south", "yellow", true, "", "구름 위 식당", "58·59층"));
         }
         Furniture.plant(f, r, t.ci0 - 2, level, t.corridorJ + 2);
     }
@@ -369,8 +352,17 @@ final class SixtyThree {
             v.fill(i, 0, d - 1, i, 2, d - 1, AIR);
             v.set(i, 3, d - 1, GOLD_MULLION);
         }
-        // 정문 안내 글씨 (차양 아래 유리 안쪽)
-        v.set(mid, 3, d - 2, Blocks.wallSign("dark_oak", "south", "white", true, "", "63빌딩", "준서은행 본점"));
+        // 365 자동화코너 바깥 문 (밤에도 드나듦)
+        int atm = (t.ci0 - 1) / 2 + 4;
+        v.fill(atm, 0, d - 1, atm, 2, d - 1, AIR);
+        // 사다리꼴 평면 밖 상자 귀퉁이는 보도 포장
+        for (int j = 0; j < d; j++) {
+            for (int i = 0; i < w; i++) {
+                if (!t.inside(i, j, 0)) {
+                    v.set(i, -1, j, Block.of("light_gray_concrete", 0x7D7D73));
+                }
+            }
+        }
         // 2층 높이 띠: 화강석
         int y2 = t.levels[1] - 1;
         for (int j = 0; j < d; j++) {
@@ -384,147 +376,125 @@ final class SixtyThree {
 
     // ------------------------------------------------------------------ 지하 1층
 
+    /**
+     * 지하 1층: 계단에서 남북 복도 → 동서 복도. 남쪽에 금고(두꺼운 벽, 열린 원형 강철 문)와 현금 정리실,
+     * 북쪽에 대여금고실과 보안실.
+     */
     private static void basement(Tower t, Voxels v) {
         Frame f = Frame.of(v);
         Random r = new Random(t.r.nextLong());
-        int L = B1, top = -2;
-        Frame st = stairFrame(t);
-        // 계단실 바깥 상자: a -1..5, b -1..깊이
-        int depth = Interior.stairDepth(-B1);
-        int sx0 = Math.min(st.i(-1, -1), st.i(5, depth)), sx1 = Math.max(st.i(-1, -1), st.i(5, depth));
-        int sz0 = Math.min(st.j(-1, -1), st.j(5, depth)), sz1 = Math.max(st.j(-1, -1), st.j(5, depth));
-        // 지하층 상자: 계단실 서쪽 벽부터 동쪽으로, 계단실 북쪽 벽부터 남쪽 정면 4칸 앞까지
-        int x0 = sx0, x1 = t.ci1 - 4, z0 = sz0, z1 = t.s.d - 3;
-        // 둘레 벽과 바닥·천장
-        v.fill(x0, L - 1, z0, x1, L - 1, z1, Block.of("polished_andesite", 0x848685));
-        v.fill(x0 + 1, L, z0 + 1, x1 - 1, top, z1 - 1, AIR);
-        v.walls(x0, L, z0, x1, top, z1, Block.of("deepslate_tiles", 0x363637));
-        v.fill(x0, -1, z0, x1, -1, z1, v.get(x0 + 2, -1, z1 - 1) == null ? GRANITE : v.get(x0 + 2, -1, z1 - 1));
-        // 계단 (1층에서 그린 것을 다시: 지하 부분 벽이 지워졌을 수 있음)
-        Interior.stairCore(st, new int[]{B1, 0}, Interior.CORE_WALL, "polished_andesite", 0x848685);
-        // 복도: 계단 출입구 앞 동서로 2칸
-        int cz0 = sz1 + 1, cz1 = sz1 + 2;
-        // 남쪽 방들 (금고, 현금 정리실, 보안실): 복도 남쪽 벽 = cz1 + 1
-        int wallZ = cz1 + 1;
+        int L = B1, top = -2, hh = top - L + 2;
+        Frame st = stairFrame(t, v);
+        int sd = Interior.stairDepth(-B1);
+        int sx0 = st.i(0, sd), sx1 = st.i(0, -1), sz1 = st.j(5, 0);
+        int x0 = sx0, x1 = t.ci1 - 4, z0 = st.j(-1, 0) - 2, z1 = t.s.d - 3;
+        Block shell = Block.of("deepslate_tiles", 0x363637);
         Block inner = Block.of("light_gray_concrete", 0x7D7D73);
-        // 금고: 서쪽, 두꺼운 벽
-        int vx0 = x0 + 1, vx1 = Math.min(x1 - 1, x0 + 16);
-        v.fill(vx0, L, wallZ, vx1 + 1, top, wallZ, VAULT_WALL);
-        v.fill(vx1 + 1, L, wallZ, vx1 + 1, top, z1 - 1, VAULT_WALL);
-        v.fill(vx0, L, z1 - 1, vx1, top, z1 - 1, VAULT_WALL);
-        v.fill(vx0, L, wallZ, vx0, top, z1 - 1, VAULT_WALL);
-        Interior.floor(f, vx0 + 1, wallZ + 1, vx1, z1 - 2, L, Block.of("polished_deepslate", 0x484849));
-        // 금고 문: 원형 강철 문틀, 열린 둥근 문 (문틀 동쪽에 수직으로)
+        v.fill(x0, L - 1, z0, x1, L - 1, z1, POLISHED_ANDESITE);
+        v.walls(x0, L, z0, x1, top, z1, shell);
+        v.fill(x0 + 1, L, z0 + 1, x1 - 1, top, z1 - 1, AIR);
+        Interior.stairCore(st, new int[]{B1, 0}, Interior.CORE_WALL, "polished_andesite", 0x848685);
+        int ns1 = sx1 + 2;                     // 남북 복도 동쪽 줄
+        int cz0 = sz1 + 1, cz1 = sz1 + 3;      // 동서 복도
+        int wallZ = cz1 + 1;                   // 남쪽 방 북쪽 벽
+
+        // ---- 북쪽: 대여금고실, 보안실
+        int nw = ns1 + 1, nm = (nw + 1 + x1) / 2;
+        v.fill(nw, L, z0 + 1, nw, top, sz1, inner);
+        v.fill(nw, L, sz1, x1 - 1, top, sz1, inner);
+        v.fill(nm, L, z0 + 1, nm, top, sz1, inner);
+        Interior.door(f, nw + 4, L, sz1, "dark_oak", "south");
+        v.set(nw + 5, L + 1, sz1 + 1, Blocks.wallSign("birch", "south", "black", false, "", "대여금고"));
+        for (int i = nw + 1; i < nm; i++) {
+            for (int y = L; y <= L + 2; y++) {
+                v.set(i, y, z0 + 1, Block.of("iron_trapdoor[facing=south,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
+            }
+        }
+        for (int i = nw + 3; i < nm - 2; i += 4) {
+            v.set(i, L, (z0 + sz1) / 2 + 1, Furniture.WHITE_TOP);
+            v.set(i + 1, L, (z0 + sz1) / 2 + 1, Furniture.WHITE_TOP);
+        }
+        Interior.lights(f, nw + 1, z0 + 1, nm - 1, sz1 - 1, L, hh, 4, Interior.LIGHT);
+        Interior.door(f, nm + 3, L, sz1, "dark_oak", "south");
+        v.set(nm + 4, L + 1, sz1 + 1, Blocks.wallSign("birch", "south", "black", false, "", "보안실"));
+        for (int i = nm + 1; i < x1; i++) {
+            v.fill(i, L + 1, z0 + 1, i, L + 2, z0 + 1, Block.of("black_concrete", 0x080A0F));   // 감시 화면
+            v.set(i, L, z0 + 2, Furniture.DESK_TOP);
+        }
+        for (int i = nm + 2; i < x1 - 1; i += 2) {
+            Furniture.chair(f, i, L, z0 + 3, "south", "dark_oak");
+        }
+        Interior.lights(f, nm + 1, z0 + 1, x1 - 1, sz1 - 1, L, hh, 4, Interior.LIGHT);
+
+        // ---- 남쪽: 금고
+        int vx0 = x0 + 1, vx1 = Math.min(x1 - 12, x0 + 17);
+        v.fill(x0, L, wallZ, vx1 + 1, top, wallZ, VAULT_WALL);
+        v.fill(vx1 + 1, L, wallZ, vx1 + 1, top, z1, VAULT_WALL);
+        Interior.floor(f, vx0, wallZ + 1, vx1, z1 - 1, L, Block.of("polished_deepslate", 0x484849));
         int dc = (vx0 + vx1) / 2;
-        for (int y = L - 1; y <= top + 1; y++) {
+        // 원형 강철 문틀과 3칸 출입구
+        for (int y = L; y <= top; y++) {
             for (int i = dc - 3; i <= dc + 3; i++) {
-                double dx = i - dc, dy = y - (L + 1);
-                double rr = Math.hypot(dx, dy * 1.0);
-                if (rr <= 3.2 && rr > 1.9 && y >= L && y <= top) {
+                double rr = Math.hypot(i - dc, y - (L + 1));
+                if (rr <= 3.2 && rr > 1.6) {
                     v.set(i, y, wallZ, STEEL);
                 }
             }
         }
         v.fill(dc - 1, L, wallZ, dc + 1, L + 2, wallZ, AIR);
-        // 문짝 (두께 1, 지름 5): 문틀 동쪽 끝에 붙어 복도 쪽으로 열림
-        int hinge = dc + 2;
+        // 활짝 열려 벽에 붙은 둥근 문짝 (두께 1)
         for (int y = L; y <= top; y++) {
-            for (int jj = wallZ - 4; jj <= wallZ - 1; jj++) {
-                double dz = jj - (wallZ - 2.5), dy = y - (L + 1.5);
-                if (dz * dz + dy * dy <= 2.6 * 2.6) {
-                    v.set(hinge, y, jj, STEEL);
+            for (int i = dc + 3; i <= dc + 8; i++) {
+                double dx = i - (dc + 5.5), dy = y - (L + 1.5);
+                if (dx * dx + dy * dy <= 2.6 * 2.6) {
+                    v.set(i, y, wallZ - 1, STEEL);
                 }
             }
         }
-        v.set(hinge, L + 1, wallZ - 3, Block.of("iron_bars", 0x888888)); // 손잡이 바퀴
-        v.set(dc - 2, L + 2, wallZ - 1, Blocks.wallSign("dark_oak", "north", "white", false, "", "금고", "관계자 외 출입금지"));
-        // 금고 안: 현금 철망 칸(선반), 금괴, 현금 수레
-        int in0 = vx0 + 1, in1 = vx1, jb0 = wallZ + 1, jb1 = z1 - 2;
-        for (int i = in0; i <= in1; i++) {
-            if (Math.abs(i - dc) <= 1) {
-                continue;
-            }
-            // 뒷벽 선반: 두 단, 현금 다발 (만원 초록, 오만원 노랑)
-            v.set(i, L, jb1, Block.of("smooth_stone_slab[type=top,waterlogged=false]", 0x9E9E9E));
-            v.set(i, L + 1, jb1, Block.of(i % 2 == 0 ? "lime_carpet" : "yellow_carpet", 0x70B919));
-            v.set(i, L + 1, jb1, Block.of("smooth_stone_slab[type=top,waterlogged=false]", 0x9E9E9E));
-            v.set(i, L + 2, jb1, Block.of(i % 3 == 0 ? "yellow_carpet" : "lime_carpet", 0xF8C527));
-            // 철망 칸 앞
-            v.set(i, L, jb1 - 1, Block.of("lime_carpet", 0x70B919));
-            v.set(i, L + 1, jb1 - 1, IRON_BARS);
-            v.set(i, L + 2, jb1 - 1, IRON_BARS);
-            v.set(i, L, jb1 - 1, IRON_BARS);
+        v.set(dc - 2, L + 1, wallZ - 1, Blocks.wallSign("dark_oak", "north", "white", false, "", "금고", "관계자 외 출입금지"));
+        // 금고 안: 뒷벽 현금 선반 두 단 + 철망 칸, 금괴, 현금 수송 가방
+        int jb0 = wallZ + 1, jb1 = z1 - 1;
+        Block shelf = Block.of("smooth_stone_slab[type=top,waterlogged=false]", 0x9E9E9E);
+        for (int i = vx0; i <= vx1; i++) {
+            Block cash1 = Block.of(i % 2 == 0 ? "lime_carpet" : "yellow_carpet", i % 2 == 0 ? 0x70B919 : 0xF8C527);
+            Block cash2 = Block.of(i % 3 == 0 ? "yellow_carpet" : "lime_carpet", i % 3 == 0 ? 0xF8C527 : 0x70B919);
+            v.set(i, L, jb1, shelf);
+            v.set(i, L + 1, jb1, cash1);
+            v.set(i, L + 2, jb1, shelf);
+            v.set(i, L + 3, jb1, cash2);
+            v.fill(i, L, jb1 - 1, i, L + 2, jb1 - 1, IRON_BARS);
         }
-        // 철망 칸 문 (열린 철 다락문)
-        v.set(in0 + 1, L, jb1 - 1, Block.of("iron_trapdoor[facing=north,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
-        v.set(in0 + 1, L + 1, jb1 - 1, Block.of("iron_trapdoor[facing=north,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
-        // 금괴 받침
-        for (int i = in0; i <= in0 + 2; i++) {
-            v.set(i, L, jb0 + 1, Block.of("spruce_slab[type=bottom,waterlogged=false]", 0x725430));
+        for (int i = vx0 + 2; i <= vx1; i += 6) {
+            v.fill(i, L, jb1 - 1, i, L + 1, jb1 - 1, Block.of("iron_trapdoor[facing=north,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
         }
-        v.set(in0, L + 1, jb0 + 1, null);
-        v.set(in0, L, jb0 + 1, GOLD_BLOCK);
-        v.set(in0 + 1, L, jb0 + 1, GOLD_BLOCK);
-        // 현금 수레 (수송 가방)
-        v.set(in1 - 1, L, jb0 + 1, Block.of("black_wool", 0x141519));
-        v.set(in1, L, jb0 + 1, Block.of("black_wool", 0x141519));
-        v.set(in1 - 1, L + 1, jb0 + 1, Block.of("iron_trapdoor[facing=north,half=bottom,open=false,powered=false,waterlogged=false]", 0xC2C1C1));
-        Interior.lights(f, in0, jb0, in1, jb1, L, top - L + 2, 4, Interior.LIGHT);
+        v.fill(vx0, L, jb0, vx0 + 1, L, jb0 + 1, GOLD_BLOCK);   // 금괴 더미
+        v.set(vx0, L + 1, jb0, GOLD_BLOCK);
+        v.fill(vx1 - 1, L, jb0, vx1, L, jb0, Block.of("black_wool", 0x141519));   // 현금 수송 가방
+        v.set(vx1, L + 1, jb0, Block.of("black_wool", 0x141519));
+        Interior.lights(f, vx0, jb0, vx1, jb1 - 2, L, hh, 4, Interior.LIGHT);
 
-        // 현금 정리실과 보안실 (금고 동쪽)
-        int rx0 = vx1 + 2, mx = (rx0 + x1) / 2;
+        // ---- 남쪽: 현금 정리실
+        int rx0 = vx1 + 2;
         v.fill(rx0, L, wallZ, x1 - 1, top, wallZ, inner);
-        v.fill(mx, L, wallZ, mx, top, z1 - 1, inner);
-        Interior.door(f, rx0 + 2, L, wallZ, "iron", "north");
-        f.set(rx0 + 2, L, wallZ, AIR);
-        f.set(rx0 + 2, L + 1, wallZ, AIR);
-        Interior.door(f, rx0 + 2, L, wallZ, "dark_oak", "north");
-        Interior.door(f, mx + 2, L, wallZ, "dark_oak", "north");
-        v.set(rx0 + 3, L + 1, wallZ - 1, Blocks.wallSign("birch", "north", "black", false, "", "현금 정리실"));
-        v.set(mx + 3, L + 1, wallZ - 1, Blocks.wallSign("birch", "north", "black", false, "", "보안실"));
-        // 현금 정리실: 탁자와 계수기
-        for (int i = rx0 + 1; i < mx - 1; i += 3) {
+        Interior.door(f, rx0 + 3, L, wallZ, "dark_oak", "north");
+        v.set(rx0 + 4, L + 1, wallZ - 1, Blocks.wallSign("birch", "north", "black", false, "", "현금 정리실"));
+        for (int i = rx0 + 1; i + 1 < x1 - 1; i += 4) {
             v.set(i, L, wallZ + 3, Furniture.WHITE_TOP);
             v.set(i + 1, L, wallZ + 3, Furniture.WHITE_TOP);
-            v.set(i, L + 1, wallZ + 3, Block.of("light_gray_carpet", 0x8E8E86));
+            v.set(i, L + 1, wallZ + 3, Block.of("light_gray_carpet", 0x8E8E86));   // 지폐 계수기
             Furniture.chair(f, i, L, wallZ + 2, "north", "dark_oak");
+            Furniture.chair(f, i + 1, L, wallZ + 2, "north", "dark_oak");
         }
-        Interior.lights(f, rx0, wallZ + 1, mx - 1, z1 - 2, L, top - L + 2, 3, Interior.LIGHT);
-        // 보안실: 감시 화면 벽과 의자
-        for (int i = mx + 1; i < x1; i++) {
-            v.set(i, L + 1, z1 - 1, Block.of("black_concrete", 0x080A0F));
-            v.set(i, L + 2, z1 - 1, Block.of("black_concrete", 0x080A0F));
-            v.set(i, L, z1 - 2, Furniture.DESK_TOP);
-        }
-        for (int i = mx + 2; i < x1 - 1; i += 2) {
-            Furniture.chair(f, i, L, z1 - 3, "north", "dark_oak");
-        }
-        Interior.lights(f, mx, wallZ + 1, x1 - 1, z1 - 2, L, top - L + 2, 3, Interior.LIGHT);
-
-        // 북쪽: 대여금고실 (계단실 동쪽, 복도 북쪽)
-        int nx0 = sx1 + 1, nz1 = cz0 - 1;
-        v.fill(nx0, L, nz1, x1 - 1, top, nz1, inner);
-        Interior.door(f, nx0 + 3, L, nz1, "dark_oak", "south");
-        v.set(nx0 + 4, L + 1, nz1 + 1, Blocks.wallSign("birch", "south", "black", false, "", "대여금고"));
-        // 벽마다 작은 금고 문 (철 다락문)
-        for (int i = nx0; i < x1; i++) {
-            for (int y = L; y <= L + 2; y++) {
-                v.set(i, y, z0 + 1, Block.of("iron_trapdoor[facing=south,half=bottom,open=true,powered=false,waterlogged=false]", 0xC2C1C1));
-            }
-        }
-        for (int i = nx0 + 3; i < x1 - 3; i += 6) {
-            v.set(i, L, (z0 + nz1) / 2, Furniture.WHITE_TOP);
-            v.set(i + 1, L, (z0 + nz1) / 2, Furniture.WHITE_TOP);
-        }
-        Interior.lights(f, nx0, z0 + 1, x1 - 1, nz1 - 1, L, top - L + 2, 4, Interior.LIGHT);
+        Interior.lights(f, rx0, wallZ + 1, x1 - 1, z1 - 1, L, hh, 4, Interior.LIGHT);
         // 복도 등
         for (int i = x0 + 3; i < x1; i += 4) {
-            v.set(i, top, cz0, Interior.LIGHT);
+            v.set(i, top, cz0 + 1, Interior.LIGHT);
         }
-        v.set(x1 - 2, L, cz1, Block.of("black_wool", 0x141519)); // 현금 수송 가방
+        for (int j = z0 + 2; j < cz0; j += 4) {
+            v.set(ns1, top, j, Interior.LIGHT);
+        }
         Furniture.plant(f, r, x1 - 1, L, cz0);
     }
-
     // ------------------------------------------------------------------ 꼭대기
 
     private static void top(Tower t, Voxels v) {
