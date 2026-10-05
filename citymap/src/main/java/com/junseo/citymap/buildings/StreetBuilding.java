@@ -119,6 +119,7 @@ final class StreetBuilding {
             b.upper(k);
         }
         b.roof();
+        b.verticalSign();
         b.v.connect();
         return b;
     }
@@ -434,6 +435,9 @@ final class StreetBuilding {
             }
         }
         furnish(shop, sa, 1, sb, jf - 1, L, FLOOR_H);
+        if (shop.use() == Use.RESTAURANT || shop.use() == Use.CAFE || shop.use() == Use.BAR) {
+            standSign(shop, doorI + 2 <= sb ? doorI + 2 : doorI - 1);
+        }
     }
 
     private Object[] board(Shop shop) {
@@ -509,12 +513,51 @@ final class StreetBuilding {
             }
         }
         furnish(shop, 1, 1, w - 2, jf - 1, L, FLOOR_H);
-        // 돌출 간판 (2·3층 모서리)
+        // 반대쪽 모서리 돌출 간판 (2·3층)
         if (k <= 2) {
             int i = s.coreLeft ? w - 1 : 0;
             v.set(i, L + 1, jf + 1, Blocks.wallHangingSign((String) board[1], s.coreLeft ? "west" : "east", (String) board[2], true,
                     (k + 1) + "F", shop.name(), shop.sub()));
         }
+    }
+
+    /**
+     * 계단 입구 위 세로 간판 (층마다 가게 이름): 벽에서 한 칸 튀어나온 간판 기둥, 양옆에 층마다 표지판.
+     * 지하 가게는 맨 아래에 「B1」.
+     */
+    private void verticalSign() {
+        int top = roofLevel() - 1;
+        if (floors < 2) {
+            return;
+        }
+        int ci = s.coreLeft ? 1 : w - 2;
+        Object[] board = BOARDS[Math.floorMod(s.skin * 3 + floors, BOARDS.length)];
+        v.fill(ci, 4, d - 1, ci, top, d - 1, (Block) board[0]);
+        v.set(ci, top + 1, d - 1, SMOOTH_STONE_SLAB);
+        for (int k = 1; k < floors; k++) {
+            Shop shop = s.upper[k - 1];
+            for (int side : new int[]{-1, 1}) {
+                v.set(ci + side, 4 * k + 1, d - 1, Blocks.wallSign((String) board[1], side < 0 ? "west" : "east", (String) board[2], true,
+                        (k + 1) + "F", shop.name(), shop.sub()));
+            }
+        }
+        if (nb > 0) {
+            Shop b1 = s.basement[nb - 1];
+            for (int side : new int[]{-1, 1}) {
+                v.set(ci + side, 4, d - 1,
+                        Blocks.wallSign((String) board[1], side < 0 ? "west" : "east", (String) board[2], true, "B1", b1.name(), b1.sub()));
+            }
+        }
+    }
+
+    /** 1층 가게 앞 입간판 (식당·바·카페) */
+    private void standSign(Shop shop, int i) {
+        if (v.get(i, 0, d - 1) != null) {
+            return;
+        }
+        String wood = shop.use() == Use.CAFE ? "birch" : "dark_oak";
+        v.set(i, 0, d - 1, Block.of(wood + "_sign[rotation=0,waterlogged=false]", 0x725430)
+                .withText(wood.equals("birch") ? "black" : "white", false, shop.sub(), shop.name(), shop.use() == Use.BAR ? "OPEN" : "MENU"));
     }
 
     // ------------------------------------------------------------------ 가게 안
