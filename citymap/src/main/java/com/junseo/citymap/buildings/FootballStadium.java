@@ -593,45 +593,75 @@ final class FootballStadium {
                 }
             }
         }
-        // 긴 변 콘코스 뒤쪽(바깥벽 안): 매점과 화장실
-        int fk = 0;
-        for (int side = -1; side <= 1; side += 2) {
-            double zEdge = cz + side * bz;
-            int jw = (int) Math.floor(zEdge - side * 1.5); // 바깥벽 바로 안쪽 칸
-            double span = ax - ar - 4;
-            for (int slot = -2; slot <= 2; slot++) {
-                int ci = (int) Math.floor(cx + slot * span / 2.6);
-                boolean restroom = slot == -1 || slot == 1;
-                // 이 자리에 계단·게이트가 있으면 건너뜀
-                if (blocked(ci - 5, ci + 5, jw, side)) {
+        // 바깥벽 따라 매점과 화장실
+        amenities();
+    }
+
+    /**
+     * 콘코스 바깥벽을 따라 남녀 화장실(네 곳)과 매점: 벽 바로 안쪽 칸마다 피치 쪽을 보게 놓아 보고,
+     * 바닥이 비어 있고 앞에 지나갈 칸이 남는 자리에만 (서로 14칸 넘게 띄움).
+     */
+    private void amenities() {
+        List<int[]> placed = new ArrayList<>();
+        int fk = 0, rest = 0;
+        for (int j = 0; j < land.d; j++) {
+            for (int i = 0; i < land.w; i++) {
+                double tt = t(i, j), uu = u(i, j);
+                if (uu < 1 || uu >= 2 || tt < UPPER_FRONT + 1) {
                     continue;
                 }
-                Frame f = Frame.facing(v, ci + (side > 0 ? 4 : -4), jw, side > 0 ? "north" : "south");
-                if (restroom) {
+                boolean far = true;
+                for (int[] p : placed) {
+                    far &= Math.abs(p[0] - i) + Math.abs(p[1] - j) > 16;
+                }
+                if (!far) {
+                    continue;
+                }
+                Frame f = Frame.facing(v, i, j, opposite(outward(i, j)));
+                if (rest < 4 && clearArea(f, -5, 5, 6)) {
                     StadiumParts.restrooms(f);
-                } else {
+                    rest++;
+                    placed.add(new int[]{i, j});
+                } else if (clearArea(f, -1, 9, 5)) {
                     StadiumParts.foodStand(f, StadiumParts.FOOD[fk++ % StadiumParts.FOOD.length]);
+                    placed.add(new int[]{i, j});
                 }
             }
         }
     }
 
-    /** 바깥벽 안쪽 콘코스 칸들에 이미 계단 길·게이트가 있는지 */
-    private boolean blocked(int i0, int i1, int jw, int side) {
-        for (int i = i0; i <= i1; i++) {
-            for (int k = 0; k <= 6; k++) {
-                int j = jw - side * k;
-                Block b = v.get(i, 0, j);
-                if (b != null && !b.isAir()) {
-                    return true;
+    /** 틀 f 에서 a0..a1, b 0..deep-1 이 빈 콘코스 바닥이고 b = deep 줄은 지나갈 수 있는지 (뒤 벽에 게이트 없음) */
+    private boolean clearArea(Frame f, int a0, int a1, int deep) {
+        for (int a = a0; a <= a1; a++) {
+            for (int b = -1; b <= deep; b++) {
+                int i = f.i(a, b), j = f.j(a, b);
+                if (i < 0 || j < 0 || i >= land.w || j >= land.d) {
+                    return false;
                 }
-                Block w = v.get(i, 1, jw + side);
-                if (w == null || w.isAir()) {
-                    return true; // 게이트
+                double uu = u(i, j), tt = t(i, j);
+                if (b == -1) {
+                    if (uu >= 1 || gate(i, j)) {
+                        return false;
+                    }
+                    continue;
+                }
+                boolean passage = b == deep;
+                if (uu < 1 || tt < (passage ? UPPER_FRONT - 1 : UPPER_FRONT + 1)) {
+                    return false;
+                }
+                Block floor = v.get(i, -1, j);
+                if (floor == null || floor.isAir()) {
+                    return false;
+                }
+                for (int y = 0; y <= (passage ? 1 : 3); y++) {
+                    Block bl = v.get(i, y, j);
+                    if (bl != null && !bl.isAir()) {
+                        return false;
+                    }
                 }
             }
         }
-        return false;
+        return true;
     }
 
     // ------------------------------------------------------------------ 지붕·돛대
