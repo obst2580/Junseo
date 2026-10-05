@@ -17,6 +17,7 @@ import net.kyori.adventure.key.Key;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,11 +66,25 @@ public final class UiService implements Listener {
 
     public void close(Player player) {
         active.remove(player.getUniqueId());
-        player.closeDialog();
+        closeScreen(player);
     }
 
     public void forget(UUID uuid) {
         active.remove(uuid);
+    }
+
+    /**
+     * 화면 닫기. 버튼을 누르면 클라이언트는 「서버를 기다리는 중」 화면으로 바뀌는데,
+     * 대화창 닫기 신호(closeDialog)는 대화창일 때만 먹히고 이 기다리는 화면은 못 닫습니다(5초 뒤에야 풀림).
+     * 그래서 어떤 화면이든 닫는 인벤토리 닫기 신호를 같이 보냅니다.
+     */
+    private static void closeScreen(Player player) {
+        player.closeDialog();
+        // 버튼 동작이 상자 메뉴 같은 진짜 인벤토리 화면을 열었으면 그건 닫지 않음 (그 화면이 기다리는 화면을 대신함)
+        InventoryType open = player.getOpenInventory().getType();
+        if (open == InventoryType.CRAFTING || open == InventoryType.CREATIVE) {
+            player.closeInventory();
+        }
     }
 
     /** 지금 띄워 둔 화면이 몇 ms 전에 열렸는지. 화면이 없으면 -1. */
@@ -134,7 +149,7 @@ public final class UiService implements Listener {
             Active current = active.get(player.getUniqueId());
             if (parts.length != 3 || current == null || !parts[1].equals(String.valueOf(current.token()))) {
                 active.remove(player.getUniqueId());
-                player.closeDialog(); // 예전 화면의 버튼
+                closeScreen(player); // 예전 화면의 버튼
                 return;
             }
             Screen.Button button;
@@ -145,12 +160,12 @@ public final class UiService implements Listener {
                 try {
                     index = Integer.parseInt(parts[2]);
                 } catch (NumberFormatException e) {
-                    player.closeDialog();
+                    closeScreen(player);
                     return;
                 }
                 if (index < 0 || index >= current.screen().buttons.size()) {
                     active.remove(player.getUniqueId());
-                    player.closeDialog();
+                    closeScreen(player);
                     return;
                 }
                 button = current.screen().buttons.get(index);
@@ -168,7 +183,7 @@ public final class UiService implements Listener {
         BiConsumer<Player, String> handler = staticActions.get(prefix);
         long before = tokens.get();
         if (handler == null) {
-            player.closeDialog();
+            closeScreen(player);
             return;
         }
         run(player, before, () -> handler.accept(player, rest));
@@ -185,7 +200,7 @@ public final class UiService implements Listener {
         Active now = active.get(player.getUniqueId());
         if (now == null || now.token() <= tokenBefore) {
             active.remove(player.getUniqueId());
-            player.closeDialog();
+            closeScreen(player);
         }
     }
 }
