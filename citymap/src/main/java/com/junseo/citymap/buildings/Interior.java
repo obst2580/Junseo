@@ -44,49 +44,57 @@ final class Interior {
      * @param levels 서는 높이들 (오름차순, 맨 끝은 옥상)
      */
     static void stairCore(Frame f, int[] levels, Block wall, String stairMaterial, int stairRgb) {
-        int n = levels.length;
+        stairCore(f, levels, wall, stairMaterial, stairRgb, 2);
+    }
+
+    /**
+     * 줄 너비 lane 인 꺾인 계단 (좁은 빌라 계단실은 1). 안쪽 너비는 2 × lane + 1:
+     * a = 0..lane-1 오르는 줄, a = lane 가운데 벽, 그 뒤가 반대로 오르는 줄.
+     */
+    static void stairCore(Frame f, int[] levels, Block wall, String stairMaterial, int stairRgb, int lane) {
+        int n = levels.length, width = 2 * lane + 1;
         int depth = stairDepth(levels);
         // 꺾이는 참은 모든 층이 같은 자리(b = top+1..top+2)에: 층고가 달라도 위층 참이 아래 계단 머리 위로 내려오지 않게
         int top = depth - 3;
         int yTop = levels[n - 1] + 2;
         if (wall != null) {
-            f.walls(-1, levels[0] - 1, -1, STAIR_WIDTH, yTop, depth, wall);
+            f.walls(-1, levels[0] - 1, -1, width, yTop, depth, wall);
         }
-        f.fill(0, levels[0], 0, STAIR_WIDTH - 1, yTop, depth - 1, AIR);
+        f.fill(0, levels[0], 0, width - 1, yTop, depth - 1, AIR);
         Block up = Blocks.stairs(stairMaterial, "south", stairRgb);
         Block down = Blocks.stairs(stairMaterial, "north", stairRgb);
         int arrival = 0;
         for (int k = 0; k < n; k++) {
             int level = levels[k];
-            f.fill(0, level - 1, 0, STAIR_WIDTH - 1, level - 1, 0, LANDING);
+            f.fill(0, level - 1, 0, width - 1, level - 1, 0, LANDING);
             // 내려오는 줄 끝에서 계단참까지 평평한 길
-            f.fill(3, level - 1, 0, 4, level - 1, arrival, LANDING);
+            f.fill(lane + 1, level - 1, 0, width - 1, level - 1, arrival, LANDING);
             if (wall != null) {
-                f.fill(0, level, -1, 1, level + 2, -1, AIR);
+                f.fill(0, level, -1, lane - 1, level + 2, -1, AIR);
             }
             if (k == n - 1) {
                 break;
             }
             int rise = levels[k + 1] - level, half = (rise + 1) / 2;
             for (int s = 1; s <= half; s++) {
-                f.fill(0, level + s - 1, s, 1, level + s - 1, s, up);
+                f.fill(0, level + s - 1, s, lane - 1, level + s - 1, s, up);
             }
             // 오르는 줄 끝에서 꺾이는 참까지 평평한 길
             if (half + 1 <= top) {
-                f.fill(0, level + half - 1, half + 1, 1, level + half - 1, top, LANDING);
+                f.fill(0, level + half - 1, half + 1, lane - 1, level + half - 1, top, LANDING);
             }
-            f.fill(0, level + half - 1, top + 1, STAIR_WIDTH - 1, level + half - 1, top + 2, LANDING);
+            f.fill(0, level + half - 1, top + 1, width - 1, level + half - 1, top + 2, LANDING);
             for (int t = 1; t <= rise - half; t++) {
                 int b = top + 1 - t;
-                f.fill(3, level + half + t - 1, b, 4, level + half + t - 1, b, down);
+                f.fill(lane + 1, level + half + t - 1, b, width - 1, level + half + t - 1, b, down);
             }
-            f.fill(2, level, 1, 2, levels[k + 1] - 1, top, wall != null ? wall : CORE_WALL);
+            f.fill(lane, level, 1, lane, levels[k + 1] - 1, top, wall != null ? wall : CORE_WALL);
             arrival = top - (rise - half);
         }
         // 계단참 벽등 (층마다 하나)
         if (wall != null) {
             for (int k = 0; k < n; k++) {
-                f.set(STAIR_WIDTH, levels[k] + 2, 0, LIGHT);
+                f.set(width, levels[k] + 2, 0, LIGHT);
             }
         }
     }

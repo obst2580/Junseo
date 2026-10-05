@@ -49,6 +49,27 @@ class InteriorTest {
     }
 
     @Test
+    void villasAndShopsHaveStairsToEveryFloor() {
+        for (int seed = 0; seed < 60; seed++) {
+            for (ShopHouse.Style style : ShopHouse.Style.values()) {
+                int w = 10 + seed % 9, d = 10 + (seed * 7) % 9;
+                Voxels v = ShopHouse.build(w, d, new Random(seed), style);
+                int floors = 0;
+                for (int y = 3; y < v.y0 + v.h; y += 4) {
+                    if (v.get(1, y, 1) != null || v.get(w / 2, y, d / 2) != null) {
+                        floors++;
+                    }
+                }
+                WalkCheck walk = new WalkCheck(v).run();
+                for (int k = 0; k <= 2; k++) {
+                    int n = walk.reachedAt(4 * k);
+                    assertTrue(n > 6, style + " " + w + "×" + d + " #" + seed + ": " + k + "층에 걸어서 못 가요 (" + n + "칸)");
+                }
+            }
+        }
+    }
+
+    @Test
     void renderSamples() throws IOException {
         Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
         File dir = new File("build/preview");
@@ -65,5 +86,14 @@ class InteriorTest {
         Tower ta = Tower.build(a, new Random(3));
         ImageIO.write(new IsoRender(ta.v, 4).iso(8, ta.levels[2] + 2), "png", new File(dir, "int-home-cut.png"));
         ImageIO.write(new IsoRender(t.v, 4).iso(8, t.levels[0] + 3), "png", new File(dir, "int-lobby-cut.png"));
+        for (ShopHouse.Style style : ShopHouse.Style.values()) {
+            for (int seed = 1; seed <= 2; seed++) {
+                Voxels sv = ShopHouse.build(14 + seed * 2, 15, new Random(seed * 11L), style);
+                String n = style.name().toLowerCase();
+                ImageIO.write(new IsoRender(sv, 3).iso(14, Integer.MAX_VALUE), "png", new File(dir, "int-" + n + seed + ".png"));
+                ImageIO.write(new IsoRender(sv, 3).iso(14, 6), "png", new File(dir, "int-" + n + seed + "-2f.png"));
+                ImageIO.write(new IsoRender(sv, 3).iso(14, 2), "png", new File(dir, "int-" + n + seed + "-1f.png"));
+            }
+        }
     }
 }

@@ -21,9 +21,11 @@ import static com.junseo.citymap.buildings.Blocks.*;
  */
 final class StreetPlan {
     /** 포장하는 구역 (빽빽한 동네) */
-    private static final String[] PAVED = {"guincheon", "market"};
+    private static final String[] PAVED = {"guincheon", "market", "yeouido", "junggu", "yongsan", "gangnam", "songpa", "mapo",
+            "gwangjin", "hongdae", "university"};
     /** 거리 시설을 놓는 구역 */
-    private static final String[] FURNISHED = {"guincheon", "market", "cheongna", "airport"};
+    private static final String[] FURNISHED = {"guincheon", "market", "cheongna", "airport", "yeouido", "junggu", "yongsan",
+            "gangnam", "songpa", "mapo", "gwangjin", "hongdae", "university", "namsan", "bukhansan"};
     /** 차도 가장자리에서 인도 쪽으로 이만큼 (연석 쪽 칸) */
     private static final double CURB = 1.0;
 
@@ -81,19 +83,15 @@ final class StreetPlan {
     static List<Placement> hubCovers(CityTerrain t) {
         List<Placement> out = new ArrayList<>();
         for (Layout.Hub h : t.layout().hubs()) {
-            boolean built = false;
-            for (String id : FURNISHED) {
-                Polygon p = Plans.district(t, id);
-                built |= p != null && p.contains(h.x(), h.z());
-            }
-            if (!built) {
-                continue;
-            }
             int x = (int) Math.floor(h.x()), z = (int) Math.floor(h.z());
+            Column c = t.column(x, z);
+            int ground = c.mountainHeight - 1; // 산 위 거점은 산 높이에
+            int pillar = Math.max(3, c.hubPillar + 1);
             out.add(Placement.rect("거점 표시 걷기", "hubcover", x - 2, z - 2, x + 2, z + 2, "south", (w, d) -> {
-                Voxels v = new Voxels(w, d, -1, 9);
-                v.fill(0, -1, 0, w - 1, -1, d - 1, LIGHT_GRAY_CONCRETE);
-                v.fill(0, 0, 0, w - 1, 9, d - 1, AIR);
+                Voxels v = new Voxels(w, d, ground, ground + 1 + pillar);
+                v.fill(0, ground, 0, w - 1, ground, d - 1, LIGHT_GRAY_CONCRETE);
+                v.fill(0, ground + 1, 0, w - 1, ground + 3, d - 1, AIR);
+                v.fill(w / 2, ground + 1, d / 2, w / 2, ground + pillar, d / 2, AIR); // 거점 기둥
                 return v;
             }));
         }

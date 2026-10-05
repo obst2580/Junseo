@@ -55,6 +55,8 @@ class BuildingPreviewTest {
             new Eye("eye-market-street", -150, 2.6, 560, 180, -2, 75),
             new Eye("eye-airport-arrival", -1424, 2.6, 562, 140, -8, 80),
             new Eye("eye-cheongna-dome", -818, 2.6, 410, 0, -12, 80),
+            new Eye("eye-fill-gangnam", 700, 2.6, 500, 180, 4, 80),
+            new Eye("eye-fill-songpa", 1100, 2.6, 480, 180, 4, 80),
     };
 
     @Test
@@ -96,5 +98,10 @@ class BuildingPreviewTest {
             new View("bld-airport-terminal", -1560, 430, -1340, 590, 50, 4, false, 0),
             new View("bld-airport-inside", -1560, 430, -1340, 590, 50, 4, false, 6),
             new View("bld-airport-statues", -1320, 360, -1120, 560, 70, 3, false, 0),
+            new View("fill-gangnam-top", 400, 260, 1140, 830, 60, 1, true, 0),
+            new View("fill-gangnam-iso", 560, 420, 760, 620, 140, 2, false, 0),
+            new View("fill-songpa-iso", 1000, 380, 1200, 590, 100, 2, false, 0),
+            new View("fill-yeouido-iso", -200, 40, 40, 260, 160, 2, false, 0),
+            new View("fill-hongdae-iso", -300, -460, -140, -300, 60, 3, false, 0),
     };
 }

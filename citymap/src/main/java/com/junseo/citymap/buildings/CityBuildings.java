@@ -9,7 +9,7 @@ import java.util.List;
 
 /**
  * 도시의 건물 목록과, 생성기가 칸마다 건물 블록을 얻어 가는 곳.
- * 설계도(layout.json)와 구역별 계획(공항·청라·구인천·대형시장)으로 정해지므로 같은 설계도면 늘 같은 도시가 나옵니다.
+ * 설계도(layout.json)와 구역별 계획(랜드마크 + 동네 채우기)으로 정해지므로 같은 설계도면 늘 같은 도시가 나옵니다.
  * 한 번 만들면 바뀌지 않아서 여러 스레드에서 같이 써도 됩니다 (건물 블록 상자는 처음 쓸 때 만듦).
  */
 public final class CityBuildings {
@@ -63,6 +63,10 @@ public final class CityBuildings {
         all.addAll(CheongnaPlan.plan(terrain));
         all.addAll(GuincheonPlan.plan(terrain));
         all.addAll(MarketPlan.plan(terrain));
+        // 랜드마크를 먼저 짓고, 남은 동네 땅을 일반 건물로 채움
+        for (String id : DistrictFill.DISTRICTS) {
+            all.addAll(DistrictFill.fill(terrain, id, all));
+        }
         all.addAll(StreetPlan.furniture(terrain));
         all.addAll(StreetPlan.hubCovers(terrain)); // 거점 기둥 걷기는 맨 나중 (위에 무엇도 남지 않게)
         return new CityBuildings(terrain, all);
