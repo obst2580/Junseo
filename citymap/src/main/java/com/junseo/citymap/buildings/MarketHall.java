@@ -14,6 +14,7 @@ import static com.junseo.citymap.buildings.Blocks.*;
  *       통로 양옆은 반찬·떡집·건어물·청과·수산·주방·방앗간 가게(가게마다 간판 띠와 매단 이름 표지판),
  *       남서쪽은 수산시장</li>
  *   <li>2층: 홀을 둘러싼 난간 복도와 원단·한복·이불 가게. 둘레 복도 네 귀퉁이에 계단</li>
+ *   <li>3층: 상인회 사무실과 창고 (둘레 복도 북쪽 계단으로 올라감). 층마다 북서쪽에 화장실</li>
  * </ul>
  * 건물 기준 정면은 남쪽(j 큰 쪽). 상자 둘레 2칸은 간판·차양이 튀어나오는 자리입니다.
  */
@@ -24,10 +25,10 @@ final class MarketHall {
     /** 둘레 복도 폭 */
     private static final int HALL = 4;
     private static final int INNER = RING + HALL;
-    /** 층 바닥 높이 */
-    private static final int F2 = 6, F3 = 12, ROOF = 18;
-    /** 홀 벽 꼭대기와 지붕 용마루 */
-    private static final int WALL_TOP = 25, RIDGE = 30;
+    /** 층 바닥 높이 (1층 층고 5, 2·3층 4 — Floors 기준) */
+    private static final int F2 = 4, F3 = 8, ROOF = 12;
+    /** 홀 벽 꼭대기 */
+    private static final int WALL_TOP = 19;
     /** 큰 통로 반폭 (가운데 칸 ± 4 → 9칸) */
     private static final int HALF_MAIN = 4;
     private static final Block TILE = WHITE_TERRACOTTA;
@@ -77,7 +78,9 @@ final class MarketHall {
         m.structure();
         m.floor1();
         m.floor2();
+        m.floor3();
         m.stairs();
+        m.restrooms();
         m.nave();
         m.facade();
         m.v.connect();
@@ -502,26 +505,128 @@ final class MarketHall {
 
     // ------------------------------------------------------------------ 계단
 
-    /** 둘레 복도 남쪽·북쪽에 계단 네 개 (1층 → 2층) */
+    /** 둘레 복도 남쪽·북쪽에 계단 네 개 (1층 → 2층), 북쪽 서편에 하나 더 (2층 → 3층) */
     private void stairs() {
         for (boolean southSide : new boolean[]{true, false}) {
             for (boolean westEnd : new boolean[]{true, false}) {
-                int row = southSide ? b1 - RING : b0 + RING; // 둘레 복도 바깥쪽 줄
-                int row2 = southSide ? row - 1 : row + 1;
-                int start = westEnd ? a0 + INNER + 1 : a1 - INNER - 1;
-                int step = westEnd ? 1 : -1;
-                String facing = westEnd ? "east" : "west";
-                for (int k = 0; k <= F2; k++) {
-                    int i = start + k * step;
-                    for (int j : new int[]{row, row2}) {
-                        v.fill(i, 0, j, i, k - 1, j, SMOOTH_STONE);
-                        v.set(i, k, j, Blocks.stairs("oak", facing, 0xA2834F));
-                        for (int y = k + 1; y <= Math.min(F2, k + 3); y++) {
-                            v.set(i, y, j, AIR);
-                        }
-                    }
+                run(southSide, westEnd, 0, F2, westEnd ? a0 + INNER + 1 : a1 - INNER - 1);
+            }
+        }
+        run(false, true, F2 + 1, F3, a0 + INNER + 9);
+    }
+
+    /** 곧은 계단 한 줄 (2칸 너비): 서는 높이 from 에서 바닥 top 까지, 위층 바닥은 머리 위만큼 뚫음 */
+    private void run(boolean southSide, boolean westEnd, int from, int top, int start) {
+        int row = southSide ? b1 - RING : b0 + RING; // 둘레 복도 바깥쪽 줄
+        int row2 = southSide ? row - 1 : row + 1;
+        int step = westEnd ? 1 : -1;
+        String facing = westEnd ? "east" : "west";
+        for (int k = 0; k <= top - from; k++) {
+            int i = start + k * step, y = from + k;
+            for (int j : new int[]{row, row2}) {
+                if (y > from) {
+                    v.fill(i, from, j, i, y - 1, j, SMOOTH_STONE);
+                }
+                v.set(i, y, j, Blocks.stairs("oak", facing, 0xA2834F));
+                for (int yy = y + 1; yy <= Math.min(top, y + 3); yy++) {
+                    v.set(i, yy, j, AIR);
                 }
             }
+        }
+    }
+
+    // ------------------------------------------------------------------ 3층·화장실
+
+    /** 3층: 바깥 둘레 방은 사무실(북쪽)·창고, 안쪽 블록은 창고 선반, 복도 등 */
+    private void floor3() {
+        int y0 = F3 + 1;
+        Random r = new Random(seed ^ 0x3F);
+        for (int j = b0; j <= b1; j++) {
+            for (int i = a0; i <= a1; i++) {
+                int dd = depth(i, j);
+                if (dd < 1 || nave(i, j) || naveWall(i, j)) {
+                    continue;
+                }
+                boolean north = j - b0 == dd;
+                if (dd < RING) {
+                    int along = (dd == j - b0 || dd == b1 - j) ? i : j;
+                    int unit = Math.floorMod(along, 7);
+                    if (dd == RING - 1) {
+                        // 복도 쪽 벽, 방마다 문
+                        v.fill(i, y0, j, i, ROOF - 1, j, TILE);
+                        if (unit == 3) {
+                            v.set(i, y0, j, AIR);
+                            v.set(i, y0 + 1, j, AIR);
+                        }
+                    } else if (unit == 0) {
+                        v.fill(i, y0, j, i, ROOF - 1, j, TILE); // 방 칸막이
+                    } else if (north && dd == 2 && (unit == 2 || unit == 4)) {
+                        Furniture.desk(Frame.of(v), i, y0, j, "south"); // 상인회 사무실
+                    } else if (!north && dd == 1) {
+                        v.set(i, y0, j, r.nextBoolean() ? BARREL : Furniture.BOOKSHELF);
+                        v.set(i, y0 + 1, j, BARREL);
+                    }
+                    if (dd == 3 && unit == 3) {
+                        v.set(i, ROOF - 1, j, Interior.LIGHT);
+                    }
+                    continue;
+                }
+                if (ringHall(i, j) || side(i, j)) {
+                    if ((i + j) % 6 == 0) {
+                        v.set(i, ROOF - 1, j, Interior.LIGHT);
+                    }
+                    continue;
+                }
+                // 안쪽 창고: 두 줄 선반, 사이는 통로
+                if (Math.floorMod(i, 3) == 0 && Math.floorMod(j, 6) != 0) {
+                    v.set(i, y0, j, BARREL);
+                    v.set(i, y0 + 1, j, r.nextInt(3) == 0 ? Block.of("hay_block[axis=y]", 0xA68B0C) : BARREL);
+                } else if (Math.floorMod(i + 1, 6) == 0 && Math.floorMod(j, 6) == 3) {
+                    v.set(i, ROOF - 1, j, Interior.LIGHT);
+                }
+            }
+        }
+        v.set(a0 + INNER + 3, y0 + 1, b0 + RING, Blocks.wallSign("birch", "south", "black", false, "", "상인회 사무실"));
+    }
+
+    /** 홀 둘레 벽 칸 (3층부터 위) */
+    private boolean naveWall(int i, int j) {
+        boolean edgeNS = Math.abs(i - ci) == HALF_MAIN + 1 && !mainEW(j) && depth(i, j) >= INNER - 1;
+        boolean edgeEW = Math.abs(j - cj) == HALF_MAIN + 1 && !mainNS(i) && depth(i, j) >= INNER - 1;
+        boolean end = depth(i, j) == INNER - 1 && (mainNS(i) || mainEW(j));
+        return edgeNS || edgeEW || end;
+    }
+
+    /** 층마다 북쪽 둘레 방 하나를 공중화장실로 (같은 자리에 쌓음) */
+    private void restrooms() {
+        int i0 = a0 + INNER + 3, i1 = i0 + 6, j0 = b0 + 1, j1 = b0 + RING - 2;
+        int[] levels = {0, F2 + 1, F3 + 1};
+        int[] tops = {F2 - 1, F3 - 1, ROOF - 1};
+        Block wall = Block.of("white_terracotta", 0xD1B2A1);
+        for (int n = 0; n < 3; n++) {
+            int y0 = levels[n], top = tops[n];
+            v.fill(i0, y0, j0, i1, top, j1, AIR);
+            v.fill(i0 - 1, y0, j0, i0 - 1, top, j1 + 1, wall);
+            v.fill(i1 + 1, y0, j0, i1 + 1, top, j1 + 1, wall);
+            v.fill(i0, y0, j1 + 1, i1, top, j1 + 1, wall);
+            v.fill(i0, y0 - 1, j0, i1, y0 - 1, j1, Block.of("light_gray_terracotta", 0x876A61));
+            // 문 (복도 쪽) 과 이름표
+            v.set(i0 + 3, y0, j1 + 1, Blocks.door("pale_oak", "north", false));
+            v.set(i0 + 3, y0 + 1, j1 + 1, Blocks.door("pale_oak", "north", true));
+            v.set(i0 + 4, y0 + 1, j1 + 2, Blocks.wallSign("birch", "south", "black", false, "", "화장실"));
+            // 변기 칸 둘 (바깥벽 쪽), 세면대
+            for (int k = 0; k < 2; k++) {
+                int a = i0 + k * 3;
+                v.set(a, y0, j0, Block.of("quartz_stairs[facing=north,half=bottom,shape=straight,waterlogged=false]", 0xEBE5DE));
+                v.fill(a + 2, y0, j0, a + 2, y0 + 1, j0 + 1, WHITE_CONCRETE);
+                v.set(a, y0, j0 + 2, WHITE_CONCRETE);
+                v.set(a, y0 + 1, j0 + 2, WHITE_CONCRETE);
+                v.set(a + 1, y0, j0 + 2, Blocks.door("birch", "north", false));
+                v.set(a + 1, y0 + 1, j0 + 2, Blocks.door("birch", "north", true));
+            }
+            v.set(i1, y0, j1 - 1, CAULDRON);
+            v.set(i1, y0, j1, CAULDRON);
+            v.set(i0 + 3, top, j0 + 3, Interior.LIGHT);
         }
     }
 

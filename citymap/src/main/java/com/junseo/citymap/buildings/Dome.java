@@ -10,7 +10,8 @@ import static com.junseo.citymap.buildings.Blocks.*;
  * 청라돔: 타원형 돔 야구장.
  * <ul>
  *   <li>바깥: 흰 세로 핀과 유리로 된 벽, 빨간 띠, 흰 돔 지붕(격자 무늬, 가운데 유리 천창, 빛 띠), 네 방향 출입구와 차양</li>
- *   <li>안: 바깥벽 안쪽 둥근 복도(콘코스), 빨간 관중석(가운데 흰 구역), 통로(보미토리), 4칸 낮춘 야구장
+ *   <li>안: 바깥벽 안쪽 둥근 복도(콘코스)와 관중석 밑 매점·화장실, 계단식 빨간 관중석(가운데 흰 구역, 통로는 계단),
+ *       통로(보미토리), 4칸 낮춘 야구장
  *       (내야 흙, 다이아몬드, 투수 마운드, 파울선, 외야 펜스), 북쪽 전광판, 지붕 조명</li>
  * </ul>
  * 홈 플레이트는 정문(남쪽, 건물 기준) 쪽에 있습니다.
@@ -53,6 +54,7 @@ final class Dome {
         dome.shell();
         dome.field();
         dome.extras();
+        dome.concourse();
         dome.v.connect();
         return dome.v;
     }
@@ -204,7 +206,12 @@ final class Dome {
         boolean isAisle = aisle > 8.0;
         // 홈 뒤(남쪽) 가운데는 흰 좌석
         boolean premium = phi > 60 && phi < 120;
-        Block seatBlock = isAisle ? SMOOTH_STONE : premium ? WHITE_CONCRETE : RED_CONCRETE;
+        // 좌석과 통로 계단은 바깥(위쪽 줄)으로 올라가는 계단 블록: 등받이가 바깥쪽
+        double out = Math.toRadians(phi);
+        String facing = Math.abs(Math.cos(out)) >= Math.abs(Math.sin(out))
+                ? (Math.cos(out) > 0 ? "east" : "west") : (Math.sin(out) > 0 ? "south" : "north");
+        Block seatBlock = isAisle ? Blocks.stairs("polished_andesite", facing, 0x848685)
+                : premium ? Blocks.stairs("quartz", facing, 0xEBE5DE) : Blocks.stairs("mangrove", facing, 0x763631);
         v.set(i, s, j, seatBlock);
         if (s >= 4) {
             v.set(i, s - 1, j, LIGHT_GRAY_CONCRETE); // 관중석 아래면 (복도 천장)
@@ -227,7 +234,7 @@ final class Dome {
                 v.fill(i, 0, j, i, 2, j, AIR);
                 v.set(i, -1, j, SMOOTH_STONE);
                 if (s >= 3) {
-                    v.set(i, 3, j, seatBlock);
+                    v.set(i, 3, j, LIGHT_GRAY_CONCRETE);
                 }
             }
         }
@@ -293,6 +300,62 @@ final class Dome {
     }
 
     // ------------------------------------------------------------------ 전광판·조명·차양
+
+    /** 관중석 밑 콘코스: 매점 여섯 곳, 화장실 두 곳 (보미토리·출입구 사이) */
+    private void concourse() {
+        String[][] stands = {{"매점", "음료"}, {"치킨", "맥주"}, {"매점", "간식"}, {"분식", "떡볶이"}, {"매점", "음료"}, {"기념품", "유니폼"}};
+        double[] standAngles = {30, 60, 120, 210, 240, 300};
+        for (int k = 0; k < standAngles.length; k++) {
+            double ang = Math.toRadians(standAngles[k]);
+            double rr = rimRadius(ang) - 7.5;
+            int ci = (int) Math.floor(cx + rr * Math.cos(ang)), cj = (int) Math.floor(cz + rr * Math.sin(ang));
+            Frame f = Frame.facing(v, ci, cj, outward(ang));
+            // 계산대 (바깥쪽을 봄), 뒤 주방, 위 간판
+            f.fill(-2, 0, 0, 2, 0, 0, Furniture.COUNTER);
+            f.set(-1, 0, -1, SMOKER);
+            f.set(1, 0, -1, CAULDRON);
+            f.set(0, 0, -1, Furniture.FRIDGE);
+            f.set(0, 1, -1, Furniture.FRIDGE);
+            f.set(0, 2, 1, Blocks.hangingSign("dark_oak", 0, "white", true, "", stands[k][0], stands[k][1]));
+            for (int y = 3; y <= 6 && f.empty(0, y, 1); y++) {
+                f.set(0, y, 1, Block.of("iron_chain[axis=y,waterlogged=false]", 0x8F8F8F));
+            }
+        }
+        for (double deg : new double[]{150, 330}) {
+            double ang = Math.toRadians(deg);
+            double rr = rimRadius(ang) - 9;
+            int ci = (int) Math.floor(cx + rr * Math.cos(ang)), cj = (int) Math.floor(cz + rr * Math.sin(ang));
+            // 기준 +b 가 바깥(콘코스) 쪽: 문이 콘코스를 보고, 관중석 밑 낮은 곳까지 (천장 높이 3)
+            Frame g = Frame.facing(v, ci, cj, outward(ang)).sub(-7, 0, "south");
+            g.fill(-1, 0, -1, 15, 2, 5, AIR);
+            Interior.restroom(g, 0, 0, 6, 4, 0, 4, "남자 화장실", 3);
+            Interior.restroom(g, 8, 0, 14, 4, 0, 4, "여자 화장실", 11);
+            g.set(6, 0, 3, CAULDRON);
+            g.set(14, 0, 3, CAULDRON);
+            g.fill(-1, 3, -1, 15, 3, 5, LIGHT_GRAY_CONCRETE);
+        }
+        // 매표소 (정문 밖 양옆)
+        for (int side : new int[]{-1, 1}) {
+            double ang = Math.toRadians(90);
+            double rr = rimRadius(ang) + 0.5;
+            int ci = (int) Math.floor(cx + side * 9), cj = (int) Math.floor(cz + rr * Math.sin(ang));
+            v.fill(ci - 1, 0, cj, ci + 1, 2, cj, WHITE_CONCRETE);
+            v.set(ci, 1, cj, GLASS_PANE);
+            v.fill(ci - 1, 3, cj, ci + 1, 3, cj, RED_CONCRETE);
+            v.set(ci, 2, cj + 1, Blocks.wallSign("dark_oak", "south", "white", true, "", "매표소"));
+        }
+    }
+
+    /** 각도 ang 방향 바깥벽까지 거리 */
+    private double rimRadius(double ang) {
+        return 1 / Math.sqrt(Math.cos(ang) * Math.cos(ang) / (A * A) + Math.sin(ang) * Math.sin(ang) / (B * B));
+    }
+
+    /** 각도 ang 의 바깥 방향 (네 방향 중 가까운 쪽) */
+    private static String outward(double ang) {
+        return Math.abs(Math.cos(ang)) >= Math.abs(Math.sin(ang))
+                ? (Math.cos(ang) > 0 ? "east" : "west") : (Math.sin(ang) > 0 ? "south" : "north");
+    }
 
     private void extras() {
         // 북쪽 전광판 (경기장을 바라봄)

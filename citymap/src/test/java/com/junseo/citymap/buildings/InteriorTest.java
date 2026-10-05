@@ -69,6 +69,35 @@ class InteriorTest {
         }
     }
 
+    /** 공항 터미널: 육지 쪽 출입문으로 들어가 계단으로 탑승층(서는 높이 5)까지 */
+    @Test
+    void terminalGateLevelIsReachable() {
+        Placement terminal = TestCity.buildings().placements().stream().filter(p -> p.kind.equals("terminal")).findFirst().orElseThrow();
+        WalkCheck walk = new WalkCheck(terminal.voxels()).run();
+        assertTrue(walk.reachedAt(0) > 2000, "터미널 1층 " + walk.reachedAt(0));
+        assertTrue(walk.reachedAt(5) > 500, "터미널 탑승층 " + walk.reachedAt(5));
+    }
+
+    /** 대형시장: 1층(0) → 2층(5) → 3층(9) 계단으로 */
+    @Test
+    void marketFloorsAreReachable() {
+        Placement market = TestCity.buildings().placements().stream().filter(p -> p.kind.equals("market")).findFirst().orElseThrow();
+        WalkCheck walk = new WalkCheck(market.voxels()).run();
+        assertTrue(walk.reachedAt(0) > 1000, "시장 1층 " + walk.reachedAt(0));
+        assertTrue(walk.reachedAt(5) > 500, "시장 2층 " + walk.reachedAt(5));
+        assertTrue(walk.reachedAt(9) > 500, "시장 3층 " + walk.reachedAt(9));
+    }
+
+    /** 청라돔: 출입구 → 콘코스 → 보미토리 → 계단 통로로 맨 윗줄(서는 높이 10)까지 */
+    @Test
+    void domeStandsAreReachable() {
+        Placement dome = TestCity.buildings().placements().stream().filter(p -> p.kind.equals("dome")).findFirst().orElseThrow();
+        WalkCheck walk = new WalkCheck(dome.voxels()).run();
+        assertTrue(walk.reachedAt(0) > 1000, "돔 콘코스 " + walk.reachedAt(0));
+        assertTrue(walk.reachedAt(4) > 200, "돔 아래쪽 관중석 " + walk.reachedAt(4));
+        assertTrue(walk.reachedAt(10) > 100, "돔 맨 윗줄 " + walk.reachedAt(10));
+    }
+
     @Test
     void renderSamples() throws IOException {
         Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
