@@ -2423,6 +2423,24 @@
    ]
   },
   {
+   "id": "snu_gate",
+   "name": "서울대학교 정문",
+   "district": "university",
+   "pos": [
+    306,
+    537
+   ]
+  },
+  {
+   "id": "casino",
+   "name": "카지노 호텔",
+   "district": "gwangjin",
+   "pos": [
+    1279,
+    -141
+   ]
+  },
+  {
    "id": "itaewon",
    "name": "이태원 거리",
    "district": "yongsan",

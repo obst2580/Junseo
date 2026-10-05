@@ -60,6 +60,10 @@ class BuildingsTest {
         assertEquals(1, n.getOrDefault("hotel", 0), "이태원 호텔");
         assertTrue(n.getOrDefault("restaurant", 0) >= 8, "이태원 거리 건물");
         assertTrue(n.getOrDefault("nightlife", 0) >= 10, "홍대 클럽 거리 건물");
+        assertEquals(1, n.getOrDefault("hospital", 0), "대학병원");
+        assertTrue(n.getOrDefault("campus", 0) >= 8, "서울대학교 정문·건물·기숙사");
+        assertEquals(1, n.getOrDefault("casino", 0), "카지노 호텔");
+        assertTrue(n.getOrDefault("park", 0) >= 3, "대공원 정문·화장실·매점");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */
