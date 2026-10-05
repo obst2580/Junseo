@@ -7,6 +7,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** config.yml 값을 읽어 둔 것. /시티관리 reload 때 새로 만듭니다. */
@@ -14,6 +15,19 @@ public final class Settings {
 
     public record RobberySettings(int durationSeconds, long minReward, long maxReward, int cooldownMinutes, double radius,
                                   int minPolice) {
+    }
+
+    /** 리소스팩(미니맵·지도 그림) 나눠 주기 */
+    public record PackSettings(boolean enabled, int port, String bind, String publicHost, String url, boolean required,
+                               String prompt) {
+    }
+
+    /** 화면 아래 미니맵 */
+    public record RadarSettings(String side, double walkScale, double driveScale, int updateMs, List<String> worlds) {
+        /** 이 월드에서 미니맵을 보여 주는지 (목록이 비어 있으면 모든 월드) */
+        public boolean shows(String world) {
+            return worlds.isEmpty() || worlds.contains(world);
+        }
     }
 
     public record DatabaseSettings(String type, String host, int port, String database, String user, String password,
@@ -47,6 +61,9 @@ public final class Settings {
     public final int deliveryFastBonusPercent;
 
     public final double minerSellBonus;
+
+    public final PackSettings resourcePack;
+    public final RadarSettings radar;
 
     private final Map<Job, Long> salaries = new EnumMap<>(Job.class);
     private final Map<String, Long> prices = new HashMap<>();
@@ -89,6 +106,21 @@ public final class Settings {
         minerSellBonus = c.getDouble("miner-sell-bonus", 1.5);
         readLongs(c.getConfigurationSection("prices"), prices);
         readLongs(c.getConfigurationSection("sell-prices"), sellPrices);
+
+        resourcePack = new PackSettings(
+                c.getBoolean("resource-pack.enabled", true),
+                c.getInt("resource-pack.port", 8163),
+                c.getString("resource-pack.bind", ""),
+                c.getString("resource-pack.public-host", ""),
+                c.getString("resource-pack.url", ""),
+                c.getBoolean("resource-pack.required", false),
+                c.getString("resource-pack.prompt", "준서 시티 미니맵·지도 그림이에요. 받아야 미니맵이 보여요."));
+        radar = new RadarSettings(
+                c.getString("minimap.side", "left"),
+                Math.max(1, c.getDouble("minimap.walk-scale", 6)),
+                Math.max(1, c.getDouble("minimap.drive-scale", 10)),
+                Math.max(50, c.getInt("minimap.update-ms", 150)),
+                List.copyOf(c.getStringList("minimap.worlds")));
     }
 
     private static RobberySettings robbery(FileConfiguration c, String path, int duration, long min, long max,

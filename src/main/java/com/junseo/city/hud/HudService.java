@@ -81,7 +81,7 @@ public final class HudService {
             lines.add(Text.mm(mission));
         }
         lines.add(Text.mm("<dark_gray>─────────────── "));
-        lines.add(Text.mm("<yellow>G</yellow> <gray>스마트폰"));
+        lines.add(Text.mm("<yellow>G</yellow> <gray>스마트폰  <yellow>F</yellow> <gray>지도"));
         return lines;
     }
 }

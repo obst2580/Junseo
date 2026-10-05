@@ -433,6 +433,7 @@ public final class PhoneService implements Listener {
     private void map(Player player) {
         Screen s = app("<dark_aqua><bold>지도").columns(2);
         Location me = player.getLocation();
+        s.button("<gold>큰 지도 보기 <gray>(F키)", "도시 전체 지도를 엽니다", () -> plugin.map().openMap(player));
         if (plugin.gps().active(player)) {
             s.button("<red>길 안내 끄기", () -> {
                 plugin.gps().stop(player);

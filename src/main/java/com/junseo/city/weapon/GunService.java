@@ -97,7 +97,7 @@ public final class GunService implements Listener {
     @EventHandler
     public void onHeld(PlayerItemHeldEvent event) {
         if (reloading.remove(event.getPlayer().getUniqueId()) != null) {
-            event.getPlayer().sendActionBar(Text.mm("<gray>장전 취소"));
+            plugin.actionBar().message(event.getPlayer(), Text.mm("<gray>장전 취소"));
         }
     }
 
@@ -107,11 +107,11 @@ public final class GunService implements Listener {
             return;
         }
         if (data.isJailed()) {
-            player.sendActionBar(Text.mm("<red>감옥에서는 총을 쏠 수 없어요"));
+            plugin.actionBar().message(player, Text.mm("<red>감옥에서는 총을 쏠 수 없어요"));
             return;
         }
         if (type.policeOnly() && data.job() != Job.POLICE) {
-            player.sendActionBar(Text.mm("<red>" + type.displayName() + "은(는) 경찰만 쓸 수 있어요"));
+            plugin.actionBar().message(player, Text.mm("<red>" + type.displayName() + "은(는) 경찰만 쓸 수 있어요"));
             return;
         }
         UUID uuid = player.getUniqueId();
@@ -129,7 +129,7 @@ public final class GunService implements Listener {
                 startReload(player, hand, type);
             } else {
                 player.playSound(player.getLocation(), Sound.BLOCK_DISPENSER_FAIL, 1f, 1.5f);
-                player.sendActionBar(Text.mm("<red>총알이 없어요! 총포상에서 살 수 있어요"));
+                plugin.actionBar().message(player, Text.mm("<red>총알이 없어요! 총포상에서 살 수 있어요"));
             }
             return;
         }
@@ -191,7 +191,7 @@ public final class GunService implements Listener {
             world.spawnParticle(Particle.ELECTRIC_SPARK, target.getLocation().add(0, 1, 0), 30, 0.3, 0.6, 0.3, 0.1);
             world.playSound(target.getLocation(), Sound.BLOCK_REDSTONE_TORCH_BURNOUT, 1f, 1.5f);
             if (target instanceof Player victim) {
-                victim.sendActionBar(Text.mm("<yellow>테이저에 맞았어요! 3초 동안 못 움직여요"));
+                plugin.actionBar().message(victim, Text.mm("<yellow>테이저에 맞았어요! 3초 동안 못 움직여요"));
             }
             return;
         }
@@ -199,7 +199,7 @@ public final class GunService implements Listener {
         boolean headshot = target.getHeight() > 1.0 && hitPos.getY() >= target.getEyeLocation().getY() - 0.25;
         if (headshot) {
             damage *= 1.5;
-            shooter.sendActionBar(Text.mm("<red><bold>헤드샷!"));
+            plugin.actionBar().message(shooter, Text.mm("<red><bold>헤드샷!"));
         }
         target.setNoDamageTicks(0);
         target.damage(damage, shooter);
@@ -244,14 +244,14 @@ public final class GunService implements Listener {
         }
         int current = rounds(gunId, hand, type);
         if (current >= type.magazine()) {
-            player.sendActionBar(Text.mm("<gray>탄창이 가득 찼어요"));
+            plugin.actionBar().message(player, Text.mm("<gray>탄창이 가득 찼어요"));
             return;
         }
         if (type.usesAmmo() && countAmmo(player) == 0) {
-            player.sendActionBar(Text.mm("<red>총알이 없어요! 총포상에서 살 수 있어요"));
+            plugin.actionBar().message(player, Text.mm("<red>총알이 없어요! 총포상에서 살 수 있어요"));
             return;
         }
-        player.sendActionBar(Text.mm("<yellow>장전 중..."));
+        plugin.actionBar().message(player, Text.mm("<yellow>장전 중..."));
         player.playSound(player.getLocation(), Sound.ITEM_CROSSBOW_LOADING_START, 1f, 1f);
         long seq;
         synchronized (this) {
@@ -285,7 +285,7 @@ public final class GunService implements Listener {
 
     private void showAmmo(Player player, GunType type, int rounds) {
         String spare = type.usesAmmo() ? "  <dark_gray>|</dark_gray>  <gray>총알 <white>" + countAmmo(player) : "";
-        player.sendActionBar(Text.mm("<gold>" + type.displayName() + " <white>" + rounds + "</white><gray>/" + type.magazine() + spare));
+        plugin.actionBar().message(player, Text.mm("<gold>" + type.displayName() + " <white>" + rounds + "</white><gray>/" + type.magazine() + spare));
     }
 
     private static int countAmmo(Player player) {

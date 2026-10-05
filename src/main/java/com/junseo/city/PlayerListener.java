@@ -75,7 +75,8 @@ public final class PlayerListener implements Listener {
         plugin.guns().onQuit(player);
         plugin.jail().forget(uuid);
         plugin.gps().forget(uuid);
-        plugin.minimap().forget(uuid);
+        plugin.map().forget(uuid);
+        plugin.pack().forget(uuid);
         plugin.hud().forget(uuid);
         plugin.ui().forget(uuid);
         plugin.dispatch().forget(uuid);
@@ -146,7 +147,7 @@ public final class PlayerListener implements Listener {
         player.setHealth(Math.min(maxHealth, player.getHealth() + 6));
         hand.setAmount(hand.getAmount() - 1);
         player.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_LEATHER, 1f, 1.2f);
-        player.sendActionBar(Text.mm("<red>붕대를 감았어요 +3칸"));
+        plugin.actionBar().message(player, Text.mm("<red>붕대를 감았어요 +3칸"));
     }
 
     /** 총·수갑·폰·신분증 같은 시티 아이템을 재료로 조합하지 못하게. */

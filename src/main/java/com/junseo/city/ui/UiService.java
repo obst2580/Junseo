@@ -91,8 +91,8 @@ public final class UiService implements Listener {
                         : DialogAction.customClick(Key.key(NAMESPACE, "s/" + token + "/exit"), null))
                 .build();
         List<DialogBody> body = new ArrayList<>();
-        for (String line : screen.body) {
-            body.add(DialogBody.plainMessage(Text.mm(line), 300));
+        for (Screen.Body part : screen.body) {
+            body.add(DialogBody.plainMessage(part.text(), part.width()));
         }
         List<DialogInput> inputs = new ArrayList<>();
         for (Screen.TextInput in : screen.inputs) {
@@ -109,7 +109,7 @@ public final class UiService implements Listener {
             return Dialog.create(f -> f.empty().base(base).type(DialogType.notice(exit)));
         }
         return Dialog.create(f -> f.empty().base(base)
-                .type(DialogType.multiAction(buttons).columns(screen.columns).exitAction(exit).build()));
+                .type(DialogType.multiAction(buttons).columns(screen.columns).exitAction(screen.showExit ? exit : null).build()));
     }
 
     @EventHandler

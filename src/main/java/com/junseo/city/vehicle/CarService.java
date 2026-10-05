@@ -274,7 +274,7 @@ public final class CarService implements Listener {
                 String help = now - car.enteredTick < 100
                         ? "  <dark_gray>|</dark_gray>  <gray>W/S 가속·후진  A/D 핸들  Space 브레이크  Ctrl " + (type == CarType.POLICE ? "사이렌" : "경적") + "  Shift 내리기"
                         : "";
-                driver.sendActionBar(Text.mm("<white><bold>" + CarPhysics.kmh(speed) + "</bold> km/h" + help));
+                plugin.actionBar().status(driver, Text.mm("<white><bold>" + CarPhysics.kmh(speed) + "</bold> km/h" + help));
             }
         } else {
             speed = CarPhysics.nextSpeed(speed, false, false, true, type.maxSpeed(), type.acceleration());

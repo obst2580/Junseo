@@ -1,5 +1,6 @@
 package com.junseo.city.phone;
 
+import com.junseo.city.hud.ActionBarHud;
 import com.junseo.city.logic.Compass;
 import com.junseo.city.util.Text;
 import net.kyori.adventure.bossbar.BossBar;
@@ -19,6 +20,11 @@ public final class GpsService {
     }
 
     private final Map<UUID, Route> routes = new ConcurrentHashMap<>();
+    private final ActionBarHud actionBar;
+
+    public GpsService(ActionBarHud actionBar) {
+        this.actionBar = actionBar;
+    }
 
     public void start(Player player, Location target, String label) {
         stop(player);
@@ -32,7 +38,7 @@ public final class GpsService {
         return routes.containsKey(player.getUniqueId());
     }
 
-    /** 길 안내 목적지 (없으면 null). 미니맵에 표시합니다 */
+    /** 길 안내 목적지 (없으면 null). 미니맵·큰 지도에 표시합니다 */
     public Location target(Player player) {
         Route route = routes.get(player.getUniqueId());
         return route == null ? null : route.target();
@@ -65,7 +71,7 @@ public final class GpsService {
         double distance = Math.sqrt(dx * dx + dz * dz);
         if (distance <= ARRIVE) {
             stop(player);
-            player.sendActionBar(Text.mm("<green>도착했어요: " + Text.esc(route.label())));
+            actionBar.message(player, Text.mm("<green>도착했어요: " + Text.esc(route.label())));
             player.playSound(loc, Sound.BLOCK_NOTE_BLOCK_CHIME, 1f, 1.6f);
             return;
         }

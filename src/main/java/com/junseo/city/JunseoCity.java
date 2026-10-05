@@ -8,13 +8,15 @@ import com.junseo.city.data.CharacterRepository;
 import com.junseo.city.data.CharacterService;
 import com.junseo.city.data.Database;
 import com.junseo.city.economy.Economy;
+import com.junseo.city.hud.ActionBarHud;
 import com.junseo.city.hud.HudService;
 import com.junseo.city.job.DeliveryService;
 import com.junseo.city.job.JobService;
 import com.junseo.city.logic.CharacterData;
-import com.junseo.city.map.MinimapService;
+import com.junseo.city.map.MapService;
 import com.junseo.city.menu.MenuListener;
 import com.junseo.city.npc.NpcService;
+import com.junseo.city.pack.ResourcePackService;
 import com.junseo.city.phone.DispatchService;
 import com.junseo.city.phone.GpsService;
 import com.junseo.city.phone.InteractionService;
@@ -64,7 +66,9 @@ public final class JunseoCity extends JavaPlugin {
     private CarService cars;
     private PhoneService phone;
     private CreationService creation;
-    private MinimapService minimap;
+    private ActionBarHud actionBar;
+    private ResourcePackService pack;
+    private MapService map;
     private PlayerListener playerListener;
     private ScheduledTask paydayTask;
     private final Map<UUID, ScheduledTask> tickers = new ConcurrentHashMap<>();
@@ -83,9 +87,10 @@ public final class JunseoCity extends JavaPlugin {
         ui = new UiService(this);
         economy = new Economy(this);
         hud = new HudService(this);
+        actionBar = new ActionBarHud();
         npcs = new NpcService(this);
         jobs = new JobService(this);
-        gps = new GpsService();
+        gps = new GpsService(actionBar);
         dispatch = new DispatchService(this);
         delivery = new DeliveryService(this);
         jail = new JailService(this);
@@ -94,12 +99,14 @@ public final class JunseoCity extends JavaPlugin {
         cars = new CarService(this);
         phone = new PhoneService(this);
         creation = new CreationService(this);
-        minimap = new MinimapService(this);
+        pack = new ResourcePackService(this);
+        map = new MapService(this, actionBar);
         playerListener = new PlayerListener(this);
 
         register(new MenuListener(), characters, ui, economy, npcs, robbery, guns, cars, phone,
-                new InteractionService(this), creation, playerListener, minimap);
-        minimap.start();
+                new InteractionService(this), creation, playerListener, pack, map);
+        pack.start();
+        map.start();
 
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
                 event.registrar().register("cityadmin", "시티 관리자 명령어", List.of("시티관리"), new AdminCommand(this)));
@@ -126,6 +133,9 @@ public final class JunseoCity extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (pack != null) {
+            pack.stop();
+        }
         if (guns != null) {
             guns.writeBackAll();
         }
@@ -152,7 +162,8 @@ public final class JunseoCity extends JavaPlugin {
         player.playerListName(Text.mm("<white>" + Text.esc(data.name())));
         hud.show(player);
         jail.onJoin(player);
-        minimap.ensure(player);
+        map.startHud(player);
+        pack.greet(player);
         int[] count = {0};
         ScheduledTask task = Sched.entityRepeat(player, 10, 10, t -> {
             delivery.tick(player);
@@ -267,8 +278,17 @@ public final class JunseoCity extends JavaPlugin {
         return phone;
     }
 
-    public MinimapService minimap() {
-        return minimap;
+    /** 화면 아래 한 줄 (미니맵 + 알림). player.sendActionBar 대신 이것을 씁니다 */
+    public ActionBarHud actionBar() {
+        return actionBar;
+    }
+
+    public ResourcePackService pack() {
+        return pack;
+    }
+
+    public MapService map() {
+        return map;
     }
 
     public CreationService creation() {
