@@ -75,6 +75,16 @@ class BuildingPreviewTest {
             new Eye("eye-lm-platform", 349, 1.7, -455, 180, -2, 80),
             new Eye("eye-lm-myeongdong", 788, 1.7, -318, 180, -4, 80),
             new Eye("eye-lm-jewelry", 797, 1.7, -325, -90, -6, 85),
+            new Eye("eye-worldcup-plaza", -530, 2.6, -285, 20, -8, 80),
+            new Eye("eye-worldcup-stands", -549, 15.6, -266, 0, 22, 85),
+            new Eye("eye-worldcup-concourse", -560, 1.7, -259, -90, 0, 80),
+            new Eye("eye-worldcup-pitch", -549, -5.3, -215, 180, -8, 85),
+            new Eye("eye-ballpark-home", 1404, 1.7, 436, -135, 4, 85),
+            new Eye("eye-ballpark-field", 1421, -5.3, 419, 45, -8, 85),
+            new Eye("eye-ballpark-gate", 1393, 2.6, 452, -140, -10, 80),
+            new Eye("eye-tower-mall", 1176, 1.7, 262, -90, 0, 80),
+            new Eye("eye-themepark-gate", 1310, 2.6, 258, -20, -4, 80),
+            new Eye("eye-tower-office", 1175, 26.7, 276, -45, 10, 85),
     };
 
     @Test
@@ -146,5 +156,12 @@ class BuildingPreviewTest {
             new View("lm-junggu-station", 262, -515, 372, -310, 50, 3, false, 0),
             new View("lm-junggu-station-plat", 300, -500, 372, -420, 30, 6, false, 0),
             new View("lm-junggu-myeongdong", 755, -400, 862, -310, 50, 4, false, 0),
+            new View("bld-songpa-themepark", 1262, 245, 1364, 344, 15, 4, false, 0),
+            new View("bld-songpa-tower", 1135, 245, 1241, 344, 320, 2, false, 0),
+            new View("bld-songpa-ballpark", 1385, 365, 1490, 456, 45, 4, false, 0),
+            new View("bld-songpa-ballpark-inside", 1385, 365, 1490, 456, 45, 4, false, 3),
+            new View("bld-mapo-worldcup", -610, -290, -490, -155, 50, 3, false, 0),
+            new View("bld-mapo-worldcup-inside", -610, -290, -490, -155, 50, 3, false, 3),
+            new View("bld-songpa-top", 950, 85, 1630, 599, 320, 1, true, 0),
     };
 }
