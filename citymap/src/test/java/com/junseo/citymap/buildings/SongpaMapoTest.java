@@ -228,6 +228,12 @@ class SongpaMapoTest {
             }
             ImageIO.write(new IsoRender(v, 2).iso(scale, Integer.MAX_VALUE), "png", new File(dir, "lm-" + kind + ".png"));
             ImageIO.write(new IsoRender(v, 2).top(crop != null ? scale : 6), "png", new File(dir, "lm-" + kind + "-top.png"));
+            if (kind.equals("skyscraper") && crop == null) {
+                // 멀리서 본 원근 그림 (정면, 중간 높이에서): 전체 모습
+                IsoRender ir = new IsoRender(v, 2);
+                ImageIO.write(ir.perspective(v.w / 2.0, 150, v.d + 150, 180, 0, 100, 720, 1100), "png", new File(dir, "lm-skyscraper-far.png"));
+                ImageIO.write(ir.perspective(v.w / 2.0 + 30, 2.6, v.d - 6, 160, -35, 85, 1280, 720), "png", new File(dir, "lm-skyscraper-plaza.png"));
+            }
             for (String cut : cuts.split(",")) {
                 if (!cut.isBlank()) {
                     int y = Integer.parseInt(cut.trim());

@@ -26,7 +26,7 @@ final class SupertallTower {
     static final int[] PODIUM = Floors.levels(Floors.GROUND, Floors.OFFICE, 4);
     private static final int CROWN = 31;
     private static final Block GLASS_SKIN = Block.of("glass", 0xC8DCE4);
-    private static final Block MULLION = Block.of("light_gray_concrete", 0x7D7D73);
+    private static final Block MULLION = Block.of("polished_diorite", 0xC0C0C1);
     private static final Block BAND = Block.of("white_stained_glass", 0xF0F0F0);
     private static final Block STONE = Block.of("smooth_sandstone", 0xDFD6AA);
     private static final Block FIN = Block.of("white_concrete", 0xCFD5D6);
@@ -163,8 +163,18 @@ final class SupertallTower {
                         for (int y = y0; y <= y1; y++) {
                             v.set(i, y, j, null);
                         }
+                        // 바닥 마감(방 바닥)이 바닥판 밖으로 나간 것: 아래층 천장도 아니면 비움
+                        if (k == 0 || !inPlan(i, j, k - 1)) {
+                            v.set(i, y0 - 1, j, null);
+                        }
                     }
                 }
+            }
+        }
+        for (int k = 0; k < FLOORS; k++) {
+            Tower.Use u = use(k);
+            if (u == Tower.Use.HOME || u == Tower.Use.HOTEL) {
+                lounges(k);
             }
         }
         // 정문 위 이름 (차양 위)
@@ -187,6 +197,37 @@ final class SupertallTower {
             return Tower.Use.HOTEL;
         }
         return Tower.Use.CUSTOM;
+    }
+
+    /** 집·호텔 층: 코어 양옆 복도 끝 넓은 곳에 소파·탁자·화분 (엘리베이터 홀 라운지) */
+    private void lounges(int k) {
+        Tower t = tower;
+        int level = t.levels[k];
+        int[] b = t.bounds(k);
+        Frame f = Frame.of(v);
+        int jm = (t.cj0 + t.corridorJ) / 2;
+        for (int side = 0; side < 2; side++) {
+            int i0 = side == 0 ? b[0] + 3 : t.ci1 + 4;
+            int i1 = side == 0 ? t.ci0 - 4 : b[2] - 3;
+            if (i1 - i0 < 4) {
+                continue;
+            }
+            boolean clear = true;
+            for (int i = i0; i <= i0 + 3 && clear; i++) {
+                for (int j = jm - 2; j <= jm + 2 && clear; j++) {
+                    clear = t.inside(i, j, k) && !t.edge(i, j, k) && v.get(i, level, j) == null;
+                }
+            }
+            if (!clear) {
+                continue;
+            }
+            Furniture.sofa(f, r, i0, level, jm - 2, 3, "south");
+            Furniture.sofa(f, r, i0, level, jm + 2, 3, "north");
+            v.fill(i0, level, jm, i0 + 2, level, jm, Block.of("dark_oak_slab[type=bottom,waterlogged=false]", 0x432B14));
+            Furniture.plant(f, r, i0 + 3, level, jm - 2);
+            Furniture.plant(f, r, i0 + 3, level, jm + 2);
+            v.set(i0 + 1, level + t.height(k) - 2, jm, Interior.LIGHT);
+        }
     }
 
     /** 층 이름 (안내 표지판용, 1층부터) */
@@ -364,18 +405,28 @@ final class SupertallTower {
                 v.set(i, -1, j, path ? POLISHED_DIORITE : Math.floorMod(h, 7) == 0 ? SMOOTH_STONE : POLISHED_ANDESITE);
             }
         }
-        // 광장 둘레 나무와 가로등, 거점 둘레는 비움
-        for (int i = pi0 + 2; i <= pi1 - 2; i += 8) {
-            for (int j = pj1 + 6; j < land.d - 3; j += 9) {
-                if (Math.abs(i - tc) < 7 || (Math.abs(i - hubI) < 7 && Math.abs(j - hubJ) < 7) || !land.inner(i, j, 4)) {
+        // 광장 가장자리(길 쪽)를 따라 가로수와 가로등, 가운데는 트인 광장 (거점 둘레는 비움)
+        for (int i = pi0 + 2; i <= pi1 - 2; i += 7) {
+            for (int j : new int[]{land.d - 6}) {
+                if ((Math.abs(i - hubI) < 6 && Math.abs(j - hubJ) < 6) || !land.inner(i, j, 3) || Math.abs(i - tc) < 6) {
                     continue;
                 }
                 MarketPlan.tree(v, i, j);
-                v.set(i - 2, 0, j, SPRUCE_SLAB);
-                v.set(i + 2, 0, j, SPRUCE_SLAB);
-                if (land.inner(i + 4, j, 2) && !(Math.abs(i + 4 - hubI) < 4 && Math.abs(j - hubJ) < 4)) {
-                    MarketPlan.lampPost(v, i + 4, j);
+            }
+        }
+        for (int j = pj1 + 8; j < land.d - 8; j += 7) {
+            for (int i : new int[]{pi0 + 3, pi1 - 3}) {
+                if (land.inner(i, j, 3) && !(Math.abs(i - hubI) < 6 && Math.abs(j - hubJ) < 6)) {
+                    MarketPlan.tree(v, i, j);
                 }
+            }
+        }
+        for (int i = pi0 + 8; i <= pi1 - 8; i += 12) {
+            int j = pj1 + 6;
+            if (land.inner(i, j, 2) && Math.abs(i - tc) > 5 && !(Math.abs(i - hubI) < 4 && Math.abs(j - hubJ) < 4)) {
+                MarketPlan.lampPost(v, i, j);
+                v.set(i + 2, 0, j, SPRUCE_SLAB);
+                v.set(i - 2, 0, j, SPRUCE_SLAB);
             }
         }
         // 이름 돌판 (낮은 돌벽에 표지판)
@@ -762,19 +813,19 @@ final class SupertallTower {
                     if ((Math.abs(px) < gap && Math.abs(pz) > half - 2) || (Math.abs(pz) < gap && Math.abs(px) > half - 2)) {
                         continue;
                     }
-                    double ang = Math.atan2(pz, px);
-                    double p = ang / (2 * Math.PI) * 4 * wc;
-                    boolean diag = Math.floorMod((int) Math.round(p + (y - base) * 0.9), 6) == 0
-                            || Math.floorMod((int) Math.round(p - (y - base) * 0.9), 6) == 0;
-                    boolean ring = (y - base) % 7 == 0;
-                    boolean corner = Math.abs(Math.abs(px) - Math.abs(pz)) < 0.8 && Math.abs(px) > half - rc - 1;
-                    if (diag || ring || corner) {
+                    // 세로 살(면을 따라 3칸마다, 모서리는 꽉), 가로 고리(4칸마다), 아래쪽은 유리, 위는 트임
+                    boolean onX = Math.abs(pz) > Math.abs(px);
+                    double along = onX ? px : pz;
+                    boolean corner = Math.abs(Math.abs(px) - Math.abs(pz)) < 1.6;
+                    boolean fin = Math.floorMod((int) Math.round(along), 3) == 0;
+                    boolean ring = (y - base) % 4 == 0;
+                    if (corner || fin || ring) {
                         v.set(i, y, j, LATTICE);
-                    } else if (t < 0.25) {
+                    } else if (t < 0.45) {
                         v.set(i, y, j, CROWN_GLASS);
                     }
-                    if (diag && ring && (y - base) % 14 == 0 && y > base) {
-                        v.set(i, y, j, SEA_LANTERN);
+                    if (corner && ring && t > 0.1) {
+                        v.set(i, y, j, SEA_LANTERN); // 밤에 빛나는 왕관
                     }
                 }
             }
