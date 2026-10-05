@@ -344,16 +344,36 @@ final class CityHall {
                 }
             }
         }
-        // 수직 정원: 코어 앞 복도 건너편이 아닌, 코어 양옆 벽 (높이 전체)
-        for (int i = t.ci0 - 3; i >= t.ci0 - 14; i--) {
+        // 수직 정원: 시민 로비 뒷벽 전체를 덮는 초록 벽 (높이 전체)
+        int[] bb = t.bounds(0);
+        int gj = bb[1] + 1;
+        for (int i = bb[0] + 1; i <= bb[2] - 1; i++) {
             for (int y = level; y <= top; y++) {
-                if (t.inside(i, t.cj0, 0)) {
-                    v.set(i, y, t.cj0, (i + y) % 3 == 0 ? Block.of("flowering_azalea_leaves[persistent=true]", 0x63753A)
-                            : (i + y) % 3 == 1 ? Block.of("moss_block", 0x596E2D) : OAK_LEAVES);
+                if (t.inside(i, gj, 0) && !t.edge(i, gj, 0)) {
+                    int g = Math.floorMod(i * 7 + y * 3, 5);
+                    v.set(i, y, gj, g == 0 ? Block.of("flowering_azalea_leaves[persistent=true]", 0x63753A)
+                            : g <= 2 ? Block.of("moss_block", 0x596E2D) : OAK_LEAVES);
                 }
             }
         }
-        v.set(t.ci0 - 8, level + 1, t.cj0 + 1, Blocks.wallSign("birch", "south", "green", false, "", "수직 정원"));
+        v.set(mid, level + 1, gj + 1, Blocks.wallSign("birch", "south", "green", false, "", "수직 정원"));
+        // 로비 뒤쪽: 시민 쉼터 (소파 둘레 탁자), 전시판, 화분
+        for (int j = gj + 6; j <= t.cj0 - 6; j += 11) {
+            for (int i = bb[0] + 6; i <= bb[2] - 8; i += 14) {
+                if (t.free(i, j, 0) && t.free(i + 3, j + 3, 0)) {
+                    Furniture.sofa(f, r, i, level, j, 3, "south");
+                    v.set(i + 1, level, j + 2, Block.of("oak_slab[type=top,waterlogged=false]", 0xA2834F));
+                    Furniture.sofa(f, r, i, level, j + 4, 3, "north");
+                    Furniture.plant(f, r, i + 4, level, j + 2);
+                }
+            }
+        }
+        for (int i = bb[0] + 9; i <= bb[2] - 9; i += 9) {
+            int j = t.cj0 - 3;
+            if (t.free(i, j, 0) && t.free(i + 3, j, 0)) {
+                v.fill(i, level, j, i + 3, level + 2, j, WHITE_CONCRETE);   // 전시판
+            }
+        }
         // 안내 데스크 (정문 안)
         int jf = frontAt(t, mid, 0);
         for (int i = mid - 3; i <= mid + 3; i++) {
@@ -407,7 +427,6 @@ final class CityHall {
         }
         Furniture.plant(f, r, mid - 5, level, jf - 2);
         Furniture.plant(f, r, mid + 5, level, jf - 2);
-        Rooms.office(f, r, 0, 0, w - 1, t.cj0 - 3, level, h, (i, j) -> t.free(i, j, 0) && j < t.cj0 - 2);
     }
 
     /** 9층 시의회 회의장: 의장석과 발언대, 반원으로 놓인 의원석, 방청석 */
