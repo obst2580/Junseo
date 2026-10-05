@@ -26,3 +26,6 @@ Thumbs.db
 
 # Python
 __pycache__/
+
+# 작업용 워크트리 (에이전트)
+.claude/worktrees/
