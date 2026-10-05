@@ -57,6 +57,12 @@ class BuildingPreviewTest {
             new Eye("eye-cheongna-dome", -818, 2.6, 410, 0, -12, 80),
             new Eye("eye-fill-gangnam", 700, 2.6, 500, 180, 4, 80),
             new Eye("eye-fill-songpa", 1100, 2.6, 480, 180, 4, 80),
+            new Eye("eye-univ-gate", 306, 2.6, 506, 0, -8, 75),
+            new Eye("eye-univ-acropolis", 314, 1.7, 572, 20, -6, 80),
+            new Eye("eye-univ-hospital", 182, 2.6, 522, -15, -10, 80),
+            new Eye("eye-gwangjin-park-gate", 1262, 2.6, -196, -100, -4, 80),
+            new Eye("eye-gwangjin-fountain", 1316, 1.7, -196, 160, -4, 80),
+            new Eye("eye-gwangjin-casino", 1314, 2.6, -149, 15, -14, 80),
     };
 
     @Test
@@ -103,5 +109,12 @@ class BuildingPreviewTest {
             new View("fill-songpa-iso", 1000, 380, 1200, 590, 100, 2, false, 0),
             new View("fill-yeouido-iso", -200, 40, 40, 260, 160, 2, false, 0),
             new View("fill-hongdae-iso", -300, -460, -140, -300, 60, 3, false, 0),
+            new View("lm-univ-top", -40, 355, 420, 700, 80, 1, true, 0),
+            new View("lm-univ-campus-iso", 232, 512, 418, 678, 50, 3, false, 0),
+            new View("lm-univ-dorm-iso", 232, 392, 342, 498, 40, 4, false, 0),
+            new View("lm-univ-hospital-iso", 104, 508, 222, 616, 90, 3, false, 0),
+            new View("lm-gwangjin-top", 1030, -366, 1490, -40, 90, 1, true, 0),
+            new View("lm-gwangjin-park-iso", 1262, -268, 1374, -170, 30, 4, false, 0),
+            new View("lm-gwangjin-casino-iso", 1262, -150, 1374, -78, 90, 3, false, 0),
     };
 }
