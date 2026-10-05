@@ -31,7 +31,12 @@ public final class MapIcons {
     public static final int SKYSCRAPER = 20;
     public static final int BAG = 21;
     public static final int PRISON = 22;
-    private static final int FIXED = 23;
+    public static final int GARAGE = 23;
+    public static final int CASINO = 24;
+    public static final int CAMPUS = 25;
+    public static final int FOOD = 26;
+    public static final int TRUCK = 27;
+    private static final int FIXED = 28;
     /** 16방향 화살표 (0 = 화면 위, 시계 방향으로 22.5°씩) */
     private static final int ARROW_BASE = FIXED;
     public static final int COUNT = FIXED + 16;
@@ -91,6 +96,10 @@ public final class MapIcons {
             case "skyscraper" -> SKYSCRAPER;
             case "mall" -> BAG;
             case "prison" -> PRISON;
+            case "casino" -> CASINO;
+            case "snu_gate" -> CAMPUS;
+            case "itaewon" -> FOOD;
+            case "sanitation" -> TRUCK;
             default -> -1; // blackmarket, hideout 등 범죄 장소는 지도에 없음
         };
     }
@@ -140,6 +149,11 @@ public final class MapIcons {
         badge(SKYSCRAPER, 0xFF455A64, "..w..", ".www.", ".w.w.", ".www.", ".www.");
         badge(BAG, 0xFFF39C12, ".www.", ".w.w.", "wwwww", "wwwww", "wwwww");
         badge(PRISON, 0xFF424242, "wwwww", "w.w.w", "w.w.w", "w.w.w", "wwwww");
+        badge(GARAGE, 0xFF1565C0, "www..", "w..w.", "www..", "w....", "w....");
+        badge(CASINO, 0xFFB71C1C, "wwwww", "w.www", "wwwww", "www.w", "wwwww");
+        badge(CAMPUS, 0xFF1A237E, "..w..", ".www.", "wwwww", ".www.", ".w...");
+        badge(FOOD, 0xFFEF6C00, "w.w.w", "www.w", ".w..w", ".w..w", ".w..w");
+        badge(TRUCK, 0xFF558B2F, "www..", "wwwww", "wwwww", "wwwww", ".w.w.");
         for (int d = 0; d < 16; d++) {
             PIXELS[ARROW_BASE + d] = arrowPixels(d * 22.5);
         }

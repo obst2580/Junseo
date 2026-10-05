@@ -112,6 +112,17 @@ public final class MapService implements Listener {
             CityBuildings b = CityBuildings.plan(terrain);
             RadarRaster fine = RadarRaster.build(terrain, b, 2);
             buildings = b;
+            // 공영 차고(공영주차장·주차타워·렌터카): 차를 꺼내는 곳이라 지도에 P 로
+            List<RadarHud.Marker> gm = new ArrayList<>(markers);
+            List<BigMap.Place> gp = new ArrayList<>(places);
+            for (com.junseo.citymap.buildings.Placement g : b.garages()) {
+                double[] bb = g.bounds();
+                double gx = (bb[0] + bb[2]) / 2, gz = (bb[1] + bb[3]) / 2;
+                gm.add(new RadarHud.Marker(gx, gz, MapIcons.GARAGE));
+                gp.add(new BigMap.Place("garage-" + gp.size(), BigMap.shortName(g.name), MapIcons.GARAGE, gx, gz));
+            }
+            markers = List.copyOf(gm);
+            places = List.copyOf(gp);
             walk = fine.pooled(2).closeBuildingGaps();
             mid = fine.pooled(4).closeBuildingGaps();
             plugin.getLogger().info("지도 그림 준비 완료 (건물 " + b.placements().size() + "채, "
