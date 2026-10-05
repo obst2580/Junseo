@@ -8,6 +8,7 @@ import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
 import org.bukkit.generator.ChunkGenerator;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -40,13 +41,19 @@ public final class MapGenPlugin extends JavaPlugin {
     public void onEnable() {
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
                 event.registrar().register("mapgen", "도시 바탕 생성기", List.of("맵생성"), new MapGenCommand(this)));
-        // 전에 만들어 둔 city 월드가 있으면 서버가 다 켜진 뒤 다시 불러옵니다
-        if (getConfig().getBoolean("city-created", false)) {
-            Bukkit.getScheduler().runTask(this, () -> {
+        Bukkit.getScheduler().runTask(this, () -> {
+            // 전에 만들어 둔 city 월드가 있으면 서버가 다 켜진 뒤 다시 불러옵니다
+            if (getConfig().getBoolean("city-created", false)) {
                 World world = openCityWorld();
                 getLogger().info("도시 월드를 불러왔어요: " + world.getName());
-            });
-        }
+            }
+            // bukkit.yml 로 기본 월드를 도시로 만든 경우에도 처음 한 번 설정
+            for (World world : Bukkit.getWorlds()) {
+                if (world.getGenerator() instanceof CityChunkGenerator) {
+                    prepare(world, false);
+                }
+            }
+        });
         getLogger().info("도시 설계도 v" + terrain.layout().version() + " 불러옴 (구역 "
                 + terrain.layout().districts().size() + "곳, 거점 " + terrain.layout().hubs().size() + "곳)");
     }
@@ -64,14 +71,18 @@ public final class MapGenPlugin extends JavaPlugin {
         return terrain;
     }
 
-    /** city 월드를 만들거나 (이미 있으면) 불러옵니다. 메인 스레드에서 불러야 합니다. */
+    /**
+     * 도시 월드. 기본 월드가 이미 도시 생성기를 쓰면 그 월드를, 아니면 city 월드를 만들거나 불러옵니다.
+     * 메인 스레드에서 불러야 합니다.
+     */
     World openCityWorld() {
-        World world = Bukkit.getWorld(CITY_WORLD);
-        if (world != null) {
-            return world;
+        for (World w : Bukkit.getWorlds()) {
+            if (w.getGenerator() instanceof CityChunkGenerator) {
+                return w;
+            }
         }
         boolean firstTime = !getConfig().getBoolean("city-created", false);
-        world = new WorldCreator(CITY_WORLD)
+        World world = new WorldCreator(CITY_WORLD)
                 .generator(new CityChunkGenerator(terrain()))
                 .generateStructures(false)
                 .createWorld();
@@ -79,17 +90,32 @@ public final class MapGenPlugin extends JavaPlugin {
             throw new IllegalStateException("도시 월드를 만들지 못했어요");
         }
         if (firstTime) {
-            // 건축하기 편하게: 늘 낮, 맑음, 몹 없음
-            world.setGameRule(GameRules.SPAWN_MOBS, false);
-            world.setGameRule(GameRules.ADVANCE_TIME, false);
-            world.setGameRule(GameRules.ADVANCE_WEATHER, false);
-            world.setTime(6000);
-            world.getWorldBorder().setCenter(0, 0);
-            world.getWorldBorder().setSize(borderSize());
+            prepare(world, true);
             getConfig().set("city-created", true);
             saveConfig();
         }
         return world;
+    }
+
+    /**
+     * 도시 월드 처음 설정 (한 번만): 몬스터 없음, 월드 경계.
+     * buildWorld 면 건축하기 편하게 늘 낮·맑음으로 고정합니다.
+     */
+    void prepare(World world, boolean buildWorld) {
+        NamespacedKey key = new NamespacedKey(this, "prepared");
+        if (world.getPersistentDataContainer().has(key)) {
+            return;
+        }
+        world.setGameRule(GameRules.SPAWN_MOBS, false);
+        if (buildWorld) {
+            world.setGameRule(GameRules.ADVANCE_TIME, false);
+            world.setGameRule(GameRules.ADVANCE_WEATHER, false);
+            world.setTime(6000);
+        }
+        world.getWorldBorder().setCenter(0, 0);
+        world.getWorldBorder().setSize(borderSize());
+        world.getPersistentDataContainer().set(key, PersistentDataType.BYTE, (byte) 1);
+        getLogger().info("도시 월드 설정 완료: " + world.getName() + " (몬스터 없음, 월드 경계 " + (int) borderSize() + ")");
     }
 
     /** 월드 경계(정사각형) 한 변. 설계도의 긴 쪽에 맞춥니다. 설계도 바깥은 바다로 만들어집니다 */

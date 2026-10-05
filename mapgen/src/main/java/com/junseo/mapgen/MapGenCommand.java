@@ -49,7 +49,7 @@ final class MapGenCommand implements BasicCommand {
 
     private void help(CommandSender sender) {
         say(sender, NamedTextColor.GOLD, "준서 시티 도시 바탕 생성기");
-        say(sender, NamedTextColor.YELLOW, "/mapgen create  도시 월드 만들기 (처음 한 번), 공항으로 이동");
+        say(sender, NamedTextColor.YELLOW, "/mapgen create  도시 월드 만들기 (처음 한 번), 공항으로 이동. 기본 월드가 이미 도시면 공항으로 이동만");
         say(sender, NamedTextColor.YELLOW, "/mapgen tp <거점|구역>  그곳으로 이동 (예: plaza, yeouido)");
         say(sender, NamedTextColor.YELLOW, "/mapgen where  지금 있는 구역");
         say(sender, NamedTextColor.YELLOW, "/mapgen list  거점·구역 목록");
