@@ -101,15 +101,6 @@ final class DistrictFill {
             "university", "namsan", "bukhansan", "market", "guincheon"};
 
     private static final String[] COMPLEX = {"한빛", "푸른숲", "청솔", "은하수", "무지개", "한마음", "새마을", "솔빛", "다솜", "햇살"};
-    private static final Block[][] GLASS = {
-            {Block.of("light_blue_stained_glass", 0x6699D8), Block.of("light_gray_concrete", 0x7D7D73), Block.of("gray_concrete", 0x36393D)},
-            {Block.of("cyan_stained_glass", 0x4C7F99), Block.of("light_gray_concrete", 0x7D7D73), Block.of("light_gray_concrete", 0x7D7D73)},
-            {Block.of("gray_stained_glass", 0x4C4C4C), Block.of("black_concrete", 0x080A0F), Block.of("gray_concrete", 0x36393D)},
-            {Block.of("black_stained_glass", 0x191919), Block.of("polished_deepslate", 0x484849), Block.of("polished_deepslate", 0x484849)},
-            {Block.of("glass", 0xC8DCE4), Block.of("smooth_stone", 0x9E9E9E), Block.of("white_concrete", 0xCFD5D6)},
-            {Block.of("light_blue_stained_glass", 0x6699D8), Block.of("white_concrete", 0xCFD5D6), Block.of("white_concrete", 0xCFD5D6)},
-            {Block.of("blue_stained_glass", 0x334CB2), Block.of("polished_andesite", 0x848685), Block.of("polished_andesite", 0x848685)},
-    };
 
     private final CityTerrain t;
     private final String id;
@@ -305,10 +296,11 @@ final class DistrictFill {
             boolean play = w >= 11 && d >= 11 && rnd.nextBoolean();
             p = Placement.rect(play ? "어린이 놀이터" : "쌈지공원", "park", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
                     (bw, bd) -> PocketPark.build(bw, bd, new Random(seed)));
-        } else if (l.tower()) {
+        } else if (l.tower() && w >= 24 && d >= 24) {
             int floors = between(st.tower);
             boolean podium = w >= 30 && d >= 28;
-            p = Placement.rect(officeName(), "office", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
+            String name = Office.name(id, floors, new Random(seed)); // build 도 같은 씨앗으로 이름을 먼저 뽑음 → 간판과 같은 이름
+            p = Placement.rect(name, Office.kind(id, floors), l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
                     (bw, bd) -> office(id, bw, bd, floors, podium, new Random(seed)));
         } else {
             BlockLayout.Tier tier = l.tier();
@@ -327,7 +319,7 @@ final class DistrictFill {
             p = house
                     ? Placement.rect(houseName(), "house", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
                     (bw, bd) -> house(id, bw, bd, floors, new Random(seed)))
-                    : Placement.rect(shopName(tier), "shop", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
+                    : Placement.rect(StreetShop.name(id, new Random(seed ^ 0x5EED)), "shop", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
                     (bw, bd) -> shop(id, party, bw, bd, floors, new Random(seed)));
         }
         out.add(p);
@@ -364,52 +356,22 @@ final class DistrictFill {
 
     // ------------------------------------------------------------------ 건물 (구역별 건축은 각 건물 클래스가 맡음)
 
+    /** 구역마다 다른 상가 건물 ({@link StreetShop}). 층수는 길 위계로 정한 값 (1~10) */
     static Voxels shop(String district, boolean partyWall, int w, int d, int floors, Random r) {
-        return ShopHouse.build(w, d, r, floors >= 4 ? ShopHouse.Style.COMMERCIAL : ShopHouse.Style.MIXED);
+        return StreetShop.build(district, partyWall, w, d, Math.max(1, Math.min(10, floors)), r);
     }
 
     static Voxels house(String district, int w, int d, int floors, Random r) {
         return ShopHouse.build(w, d, r, ShopHouse.Style.VILLA);
     }
 
-    /** 사무 빌딩 (앞 공개공지 3칸, 둘레 2칸 띄움). podium 이면 아래 4층은 땅을 더 채움 */
+    /** 구역마다 다른 업무·주상복합 빌딩 ({@link Office}): 8층 이상은 1층·포디움·쓰는 옥상만 실내 */
     static Voxels office(String district, int w, int d, int floors, boolean podium, Random r) {
-        Block[] skin = GLASS[r.nextInt(GLASS.length)];
-        boolean setback = floors >= 18 && r.nextBoolean();
-        Tower.Spec s = new Tower.Spec(w, d, floors);
-        int top = floors - 3;
-        s.shape = (i, j, k) -> {
-            int in = podium && k < 4 ? 1 : setback && k >= top ? 5 : podium ? 4 : 2;
-            return i >= in && i < w - in && j >= in && j < d - Math.max(in, 3);
-        };
-        s.glass = skin[0];
-        s.mullion = skin[1];
-        s.spandrel = skin[2];
-        s.lobbyH = floors >= 15 ? Floors.HALL : Floors.GROUND;
-        s.elevators = w >= 44 ? 2 : 1;
-        s.restrooms = w >= 40 ? 2 : 1;
-        s.helipad = floors >= 20;
-        s.name = KoreanNames.prefix(r) + (r.nextBoolean() ? "빌딩" : "타워");
-        Tower tw = Tower.build(s, r);
-        tw.v.fill(0, -1, 0, w - 1, -1, d - 1, LIGHT_GRAY_CONCRETE);
-        for (int i = 1; i < w - 1; i += 6) {
-            if (tw.v.get(i, 0, d - 1) == null) {
-                MarketPlan.lampPost(tw.v, i, d - 1);
-            }
-        }
-        return tw.v;
-    }
-
-    private String officeName() {
-        return KoreanNames.prefix(rnd) + (rnd.nextBoolean() ? "빌딩" : "타워");
+        return Office.build(district, Math.max(24, w), Math.max(24, d), Math.max(6, Math.min(60, floors)), podium, r);
     }
 
     private String houseName() {
         return "다세대 주택";
-    }
-
-    private String shopName(BlockLayout.Tier tier) {
-        return tier == BlockLayout.Tier.INNER ? "골목 상가" : "상가 건물";
     }
 
     /** 골목 바닥: 시멘트 포장, 가운데 배수 줄 */

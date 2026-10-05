@@ -104,11 +104,19 @@ class InteriorTest {
         int offices = 0, apartments = 0;
         for (Placement p : TestCity.buildings().placements()) {
             if (p.kind.equals("office") && offices < 12) {
+                // 왕관·옥탑 높이가 건물마다 달라서, 로비에 들어가 계단으로 꼭대기 근처까지 오르는지 봄 (층마다는 OfficeParkingTest)
                 offices++;
                 Voxels v = p.voxels();
-                int roof = v.y0 + v.h - 1 - 10;
+                int top = v.y0 + v.h - 1;
                 WalkCheck walk = new WalkCheck(v).run();
-                assertTrue(walk.reachedAt(roof) > 10, p + " 옥상(" + roof + ")에 걸어서 못 가요");
+                assertTrue(walk.reachedAt(0) > 10, p + " 로비에 못 들어가요");
+                int highest = 0;
+                for (int y = top; y > 0 && highest == 0; y--) {
+                    if (walk.reachedAt(y) > 6) {
+                        highest = y;
+                    }
+                }
+                assertTrue(highest >= top - 30, p + " 꼭대기까지 못 올라가요 (" + highest + " / " + top + ")");
             } else if (p.kind.equals("apartment") && apartments < 8) {
                 // 동마다 층 높이가 달라서(필로티·로비) 1층과 꼭대기 근처(옥상·계단실 지붕)에 닿는지만 봄. 층마다는 ApartmentComplexTest
                 apartments++;
