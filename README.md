@@ -173,8 +173,8 @@ src/main/resources/datapack/   G키·ESC 메뉴에 스마트폰을 연결하는 
   - `./gradlew test -DmapPreview=true` → `build/preview/`에 미니맵·큰 지도 미리보기 그림이 생깁니다.
 - **CI:** GitHub에 올리면 Actions가 빌드하고 jar를 Artifacts로 올립니다.
 - **도시 설계도 계산:** `citymap/` 공용 모듈입니다. 설계도 `map/layout.json`을 계산하고, 생성기와 미니맵이 함께 씁니다.
-- **도시 바탕 생성기:** `mapgen/` 모듈(`JunseoMapGen-*.jar`)입니다.
-  - 설계도 `map/layout.json`으로 땅·한강·바다·산·도로·다리·터널이 깔린 빈 도시 월드를 만듭니다.
+- **도시 바탕 생성기:** `mapgen/` 모듈(`JunseoMapGen-*.jar`)입니다. 땅·도로와 함께 공항·청라·구인천·대형시장 건물을 짓습니다.
+  - 설계도 `map/layout.json`으로 땅·한강·바다·산·도로·다리·터널을 깔고 건물을 지은 도시 월드를 만듭니다.
   - 건축 서버용입니다. 사용법은 [`mapgen/README.md`](mapgen/README.md)를 보세요.
 
 ---

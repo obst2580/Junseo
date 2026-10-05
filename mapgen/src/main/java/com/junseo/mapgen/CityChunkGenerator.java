@@ -1,30 +1,43 @@
 package com.junseo.mapgen;
 
+import com.junseo.citymap.buildings.Block;
+import com.junseo.citymap.buildings.CityBuildings;
 import com.junseo.citymap.layout.Layout;
 import com.junseo.citymap.terrain.CityTerrain;
 import com.junseo.citymap.terrain.Column;
 import com.junseo.citymap.terrain.Surface;
 import org.bukkit.HeightMap;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.BlockPopulator;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.generator.WorldInfo;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Logger;
 
 /**
- * 도시 설계도대로 땅·한강·바다·산·도로·다리·터널을 까는 월드 생성기.
+ * 도시 설계도대로 땅·한강·바다·산·도로·다리·터널을 깔고, 그 위에 건물(공항·청라돔·구인천·대형시장)을 짓는 월드 생성기.
  * 바닐라 지형·동굴·구조물·몹은 만들지 않습니다.
  */
 public final class CityChunkGenerator extends ChunkGenerator {
     private final CityTerrain terrain;
+    private final CityBuildings buildings;
+    private final Logger log;
+    /** 블록 데이터 문자열 → 실제 블록 (처음 볼 때 한 번만 만듦) */
+    private final Map<String, BlockData> blockData = new ConcurrentHashMap<>();
 
-    public CityChunkGenerator(CityTerrain terrain) {
+    public CityChunkGenerator(CityTerrain terrain, CityBuildings buildings, Logger log) {
         this.terrain = terrain;
+        this.buildings = buildings;
+        this.log = log;
     }
 
     @Override
@@ -34,9 +47,27 @@ public final class CityChunkGenerator extends ChunkGenerator {
         for (int lx = 0; lx < 16; lx++) {
             for (int lz = 0; lz < 16; lz++) {
                 int x = (chunkX << 4) + lx, z = (chunkZ << 4) + lz;
-                place(data, lx, lz, x, z, terrain.column(x, z), minY, maxY);
+                Column c = terrain.column(x, z);
+                place(data, lx, lz, x, z, c, minY, maxY);
+                final int fx = lx, fz = lz;
+                buildings.column(x, z, c, (y, b) -> {
+                    if (y > minY && y < maxY) {
+                        data.setBlock(fx, y, fz, blockData(b));
+                    }
+                });
             }
         }
+    }
+
+    private BlockData blockData(Block b) {
+        return blockData.computeIfAbsent(b.data(), key -> {
+            try {
+                return Bukkit.createBlockData(key);
+            } catch (IllegalArgumentException e) {
+                log.warning("모르는 블록이라 돌로 바꿔 놓아요: " + key);
+                return Material.STONE.createBlockData();
+            }
+        });
     }
 
     private void place(ChunkData d, int lx, int lz, int x, int z, Column c, int minY, int maxY) {

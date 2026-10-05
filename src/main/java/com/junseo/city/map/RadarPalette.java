@@ -16,6 +16,7 @@ public final class RadarPalette {
         COLORS[RadarRaster.MOUNTAIN_HIGH] = new Color(104, 118, 92);
         COLORS[RadarRaster.ROAD_EDGE] = new Color(150, 150, 150);
         COLORS[RadarRaster.ROAD] = new Color(214, 214, 214);
+        COLORS[RadarRaster.BUILDING] = new Color(120, 126, 136);
     }
 
     private RadarPalette() {

@@ -83,8 +83,11 @@ public final class MapGlyphs {
         }
     }
 
-    /** 미니맵(액션바)용: 64줄. 자주 보내므로 3바이트 글자(BMP 사용자 영역)만 씁니다. */
-    public static final RunSet HUD = new RunSet(0xE000, 64, new int[]{1, 2, 3, 4, 6, 8, 12, 16, 32, 64});
+    /**
+     * 미니맵(액션바)용: 64줄. 자주 보내므로 3바이트 글자(BMP 사용자 영역)만 씁니다.
+     * 64줄 × 칸 종류 10 × 길이 9 = 5760글자 → U+E000~U+F67F (띄우기 글자 U+F700 앞에서 끝나야 함)
+     */
+    public static final RunSet HUD = new RunSet(0xE000, 64, new int[]{1, 2, 3, 4, 8, 12, 16, 32, 64});
 
     /** 큰 지도(대화창)용: 144줄 */
     public static final RunSet BIG = new RunSet(0xF0000, 144, new int[]{1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 128, 256});

@@ -8,6 +8,8 @@ import com.junseo.city.ui.Screen;
 import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
+import com.junseo.citymap.buildings.CityBuildings;
+import com.junseo.citymap.buildings.Placement;
 import com.junseo.citymap.layout.Layout;
 import com.junseo.citymap.layout.LayoutFile;
 import com.junseo.citymap.terrain.CityTerrain;
@@ -73,6 +75,7 @@ public final class MapService implements Listener {
     private final Map<UUID, Open> open = new ConcurrentHashMap<>();
     private final Map<UUID, ScheduledTask> tickers = new ConcurrentHashMap<>();
     private volatile CityTerrain terrain;
+    private volatile CityBuildings buildings;
     private volatile RadarRaster walk;
     private volatile RadarRaster mid;
     private volatile List<RadarHud.Marker> markers = List.of();
@@ -106,10 +109,13 @@ public final class MapService implements Listener {
         places = List.copyOf(p);
         Bukkit.getAsyncScheduler().runNow(plugin, task -> {
             long started = System.currentTimeMillis();
-            RadarRaster fine = RadarRaster.build(terrain, 2);
-            walk = fine.pooled(2);
-            mid = fine.pooled(4);
-            plugin.getLogger().info("지도 그림 준비 완료 (" + (System.currentTimeMillis() - started) + "ms)");
+            CityBuildings b = CityBuildings.plan(terrain);
+            RadarRaster fine = RadarRaster.build(terrain, b, 2);
+            buildings = b;
+            walk = fine.pooled(2).closeBuildingGaps();
+            mid = fine.pooled(4).closeBuildingGaps();
+            plugin.getLogger().info("지도 그림 준비 완료 (건물 " + b.placements().size() + "채, "
+                    + (System.currentTimeMillis() - started) + "ms)");
         });
     }
 
@@ -312,7 +318,13 @@ public final class MapService implements Listener {
 
     private String areaName(double x, double z) {
         String district = terrain.districtName((int) Math.floor(x), (int) Math.floor(z));
+        CityBuildings b = buildings;
+        Placement building = b == null ? null : b.at(x, z);
         if (district != null) {
+            // 이름 있는 큰 건물이면 함께 (다세대·상가처럼 흔한 건물은 빼고)
+            if (building != null && !building.kind.equals("house") && !building.kind.equals("shop")) {
+                return district + " · " + building.name;
+            }
             return district;
         }
         byte kind = mid.at(x, z);

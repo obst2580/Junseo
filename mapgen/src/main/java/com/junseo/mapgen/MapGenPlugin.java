@@ -1,5 +1,6 @@
 package com.junseo.mapgen;
 
+import com.junseo.citymap.buildings.CityBuildings;
 import com.junseo.citymap.layout.LayoutFile;
 import com.junseo.citymap.terrain.CityTerrain;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -32,6 +33,7 @@ public final class MapGenPlugin extends JavaPlugin {
     static final NamespacedKey CITY_WORLD = NamespacedKey.minecraft("city");
 
     private CityTerrain terrain;
+    private CityBuildings buildings;
 
     @Override
     public void onLoad() {
@@ -56,13 +58,18 @@ public final class MapGenPlugin extends JavaPlugin {
             }
         });
         getLogger().info("도시 설계도 v" + terrain.layout().version() + " 불러옴 (구역 "
-                + terrain.layout().districts().size() + "곳, 거점 " + terrain.layout().hubs().size() + "곳)");
+                + terrain.layout().districts().size() + "곳, 거점 " + terrain.layout().hubs().size() + "곳, 건물 "
+                + buildings().placements().size() + "채)");
     }
 
     /** bukkit.yml 에서 generator: JunseoMapGen 으로 지정했을 때 쓰입니다 */
     @Override
     public ChunkGenerator getDefaultWorldGenerator(String worldName, String id) {
-        return new CityChunkGenerator(terrain());
+        return generator();
+    }
+
+    CityChunkGenerator generator() {
+        return new CityChunkGenerator(terrain(), buildings(), getLogger());
     }
 
     CityTerrain terrain() {
@@ -70,6 +77,19 @@ public final class MapGenPlugin extends JavaPlugin {
             terrain = loadTerrain();
         }
         return terrain;
+    }
+
+    /**
+     * 건물 배치 (처음 부를 때 1~2초 계산). config 의 buildings: false 면 건물 없이 땅·도로만 만듭니다.
+     */
+    synchronized CityBuildings buildings() {
+        if (buildings == null) {
+            long started = System.currentTimeMillis();
+            buildings = getConfig().getBoolean("buildings", true)
+                    ? CityBuildings.plan(terrain()) : CityBuildings.none(terrain());
+            getLogger().info("건물 배치 " + buildings.placements().size() + "채 (" + (System.currentTimeMillis() - started) + "ms)");
+        }
+        return buildings;
     }
 
     /**
@@ -84,7 +104,7 @@ public final class MapGenPlugin extends JavaPlugin {
         }
         boolean firstTime = !getConfig().getBoolean("city-created", false);
         World world = new WorldCreator(CITY_WORLD)
-                .generator(new CityChunkGenerator(terrain()))
+                .generator(generator())
                 .generateStructures(false)
                 .createWorld();
         if (world == null) {

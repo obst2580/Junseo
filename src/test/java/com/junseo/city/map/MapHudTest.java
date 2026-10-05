@@ -8,6 +8,7 @@ import com.junseo.city.hud.HudLayout;
 import com.junseo.city.hud.TextWidth;
 import com.junseo.city.pack.PackBuilder;
 import com.junseo.citymap.layout.Layout;
+import com.junseo.citymap.buildings.CityBuildings;
 import com.junseo.citymap.terrain.CityTerrain;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -50,9 +51,9 @@ class MapHudTest {
         try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
             terrain = CityTerrain.load(reader);
         }
-        RadarRaster fine = RadarRaster.build(terrain, 2);
-        walk = fine.pooled(2);
-        mid = fine.pooled(4);
+        RadarRaster fine = RadarRaster.build(terrain, CityBuildings.plan(terrain), 2);
+        walk = fine.pooled(2).closeBuildingGaps();
+        mid = fine.pooled(4).closeBuildingGaps();
         coarse = fine.pooled(8);
         pack = PackBuilder.build();
         for (Layout.Hub h : terrain.layout().hubs()) {
@@ -174,6 +175,25 @@ class MapHudTest {
         }
         System.out.println("미니맵 한 장 평균 " + bytes / n + " 바이트, 최대 " + maxBytes);
         assertTrue(bytes / n < 6000, "평균 " + bytes / n);
+        assertTrue(maxBytes < 30000, "최대 " + maxBytes);
+    }
+
+    /** 건물이 빽빽한 구인천·대형시장에서도 미니맵 한 장이 너무 커지지 않음 */
+    @Test
+    void radarStaysSmallOverDenseBuildings() {
+        Random rnd = new Random(11);
+        long bytes = 0, maxBytes = 0;
+        int n = 40;
+        for (int i = 0; i < n; i++) {
+            double x = -700 + rnd.nextDouble() * 600, z = 0 + rnd.nextDouble() * 650;
+            boolean driving = i % 2 == 1;
+            String radar = RadarHud.build(driving ? mid : walk, x, z, rnd.nextFloat() * 360, driving ? 10 : 6, markers, null);
+            long b = modifiedUtf8(radar);
+            bytes += b;
+            maxBytes = Math.max(maxBytes, b);
+        }
+        System.out.println("건물 많은 곳 미니맵 한 장 평균 " + bytes / n + " 바이트, 최대 " + maxBytes);
+        assertTrue(bytes / n < 12000, "평균 " + bytes / n);
         assertTrue(maxBytes < 30000, "최대 " + maxBytes);
     }
 

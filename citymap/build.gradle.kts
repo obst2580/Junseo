@@ -40,6 +40,7 @@ tasks {
         useJUnitPlatform()
         // ./gradlew :citymap:test -DmapPreview=true  →  citymap/build/preview/ 에 지도 미리보기 PNG
         systemProperty("mapPreview", System.getProperty("mapPreview") ?: "false")
+        systemProperty("previewOnly", System.getProperty("previewOnly") ?: "")
         systemProperty("layoutFile", rootProject.file("map/layout.json").absolutePath)
         maxHeapSize = "1g"
     }
