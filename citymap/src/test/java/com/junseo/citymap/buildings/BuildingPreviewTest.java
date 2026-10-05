@@ -129,6 +129,7 @@ class BuildingPreviewTest {
             new View("bld-airport-iso", -1720, 360, -1260, 640, 80, 2, false, 0),
             new View("bld-airport-terminal", -1560, 430, -1340, 590, 50, 4, false, 0),
             new View("bld-airport-inside", -1560, 430, -1340, 590, 50, 4, false, 6),
+            new View("bld-cheongna-lots", -930, 170, -690, 420, 40, 2, false, 0),
             new View("bld-airport-south", -1680, 540, -1340, 770, 70, 2, false, 0),
             new View("bld-airport-statues", -1320, 360, -1120, 560, 70, 3, false, 0),
             new View("fill-gangnam-top", 400, 260, 1140, 830, 60, 1, true, 0),
