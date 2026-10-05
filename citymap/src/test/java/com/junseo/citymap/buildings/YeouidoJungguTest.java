@@ -48,6 +48,14 @@ class YeouidoJungguTest {
         assertTrue(n > 150, "63빌딩 지하 1층(금고)에 걸어서 못 가요 (" + n + "칸)");
     }
 
+    @Test
+    void broadcastBuildingsHaveStairsToEveryFloor() {
+        Voxels t = Broadcast.tower(Broadcast.TOWER_W, Broadcast.TOWER_D, new Random(7));
+        assertLevels("방송국 본관", new WalkCheck(t).run(), Floors.levels(Floors.HALL, Floors.OFFICE, Broadcast.TOWER_FLOORS), 20);
+        Voxels s = Broadcast.studio(Broadcast.STUDIO_W, Broadcast.STUDIO_D, new Random(8));
+        assertLevels("방송국 스튜디오동", new WalkCheck(s).run(), Broadcast.STUDIO_LEVELS, 20);
+    }
+
     /** 하늘색 여백을 잘라 낸 그림 */
     static java.awt.image.BufferedImage crop(java.awt.image.BufferedImage img) {
         int sky = 0xBFD9EE, x0 = img.getWidth(), y0 = img.getHeight(), x1 = 0, y1 = 0;
@@ -88,6 +96,15 @@ class YeouidoJungguTest {
             int[] lv = SixtyThree.levels();
             save(new IsoRender(v, 4).iso(8, lv[57] + 2), dir, "lm-63-58f");
             save(new IsoRender(v, 4).iso(8, lv[59] + 2), dir, "lm-63-60f");
+        }
+        if (only.isEmpty() || only.contains("lm-bc")) {
+            Voxels s = Broadcast.studio(Broadcast.STUDIO_W, Broadcast.STUDIO_D, new Random(8));
+            save(new IsoRender(s, 3).iso(8, Integer.MAX_VALUE), dir, "lm-bc-studio");
+            save(new IsoRender(s, 3).iso(8, 12), dir, "lm-bc-studio-cut");
+            save(new IsoRender(s, 3).iso(8, 8), dir, "lm-bc-studio-2f");
+            Voxels t = Broadcast.tower(Broadcast.TOWER_W, Broadcast.TOWER_D, new Random(7));
+            save(new IsoRender(t, 3).iso(4, Integer.MAX_VALUE), dir, "lm-bc-tower");
+            save(new IsoRender(t, 3).iso(8, 12), dir, "lm-bc-newsroom");
         }
     }
 }

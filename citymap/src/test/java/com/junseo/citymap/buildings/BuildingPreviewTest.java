@@ -57,6 +57,9 @@ class BuildingPreviewTest {
             new Eye("eye-cheongna-dome", -818, 2.6, 410, 0, -12, 80),
             new Eye("eye-fill-gangnam", 700, 2.6, 500, 180, 4, 80),
             new Eye("eye-fill-songpa", 1100, 2.6, 480, 180, 4, 80),
+            new Eye("eye-lm-plaza", -237, 1.7, 104, 180, 2, 80),
+            new Eye("eye-lm-63", -40, 1.7, 60, 135, -14, 85),
+            new Eye("eye-lm-broadcast", 118, 1.7, 112, -110, -8, 85),
     };
 
     @Test
@@ -104,6 +107,11 @@ class BuildingPreviewTest {
             new View("fill-yeouido-iso", -200, 40, 40, 260, 160, 2, false, 0),
             new View("fill-hongdae-iso", -300, -460, -140, -300, 60, 3, false, 0),
             new View("lm-yeouido-top", -380, -60, 250, 310, 60, 2, true, 0),
+            new View("lm-yeouido-plaza", -355, -35, -160, 125, 30, 3, false, 0),
+            new View("lm-yeouido-63", -140, 35, -40, 130, 260, 2, false, 0),
+            new View("lm-yeouido-63base", -140, 35, -40, 130, 20, 5, false, 0),
+            new View("lm-yeouido-broadcast", 108, 85, 200, 200, 110, 3, false, 0),
+            new View("lm-yeouido-studio", 135, 150, 190, 200, 25, 6, false, 12),
             new View("lm-junggu-top", 170, -580, 1050, -130, 60, 1, true, 0),
     };
 }
