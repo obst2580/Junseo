@@ -29,6 +29,12 @@ final class SongpaPlan {
             site(t, park, MAX_SIDE, (land, hub) -> ThemeParkSite.build(land, hub[0], hub[1], new Random(seed)),
                     "테마파크 건설 예정 부지", "site", out);
         }
+        Layout.Hub sky = Plans.hub(t, "skyscraper");
+        if (sky != null) {
+            long seed = rnd.nextLong();
+            site(t, DISTRICT, sky, MAX_SIDE, (land, hub) -> SupertallTower.build(land, hub[0], hub[1], new Random(seed)),
+                    "준서월드타워", "skyscraper", (land, hub) -> SupertallTower.footprint(land, hub[0], hub[1]), out);
+        }
         Layout.Hub ball = Plans.hub(t, "ballpark");
         if (ball != null) {
             long seed = rnd.nextLong();

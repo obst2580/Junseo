@@ -172,6 +172,26 @@ class SongpaMapoTest {
     }
 
     @Test
+    void supertallEveryFloorWalkable() {
+        Placement p = find("skyscraper");
+        assertNotNull(p, "준서월드타워");
+        Voxels v = p.voxels();
+        int[] h = hub("songpa", "skyscraper", SongpaPlan.MAX_SIDE);
+        WalkCheck walk = new WalkCheck(v).run(h[0] + 1, 0, h[1] + 1);
+        int[] levels = Floors.levels(Floors.GROUND, Floors.OFFICE, SupertallTower.FLOORS);
+        StringBuilder sb = new StringBuilder();
+        for (int k = 0; k < levels.length; k++) {
+            sb.append(k + 1).append("F:").append(walk.reachedAt(levels[k])).append(' ');
+        }
+        System.out.println("준서월드타워 층별 걸어서 간 칸: " + sb);
+        for (int k = 0; k < levels.length; k++) {
+            int n = walk.reachedAt(levels[k]);
+            assertTrue(n > 20, "준서월드타워 " + (k + 1) + "층(서는 높이 " + levels[k] + ")에 걸어서 못 가요 (" + n + "칸)");
+        }
+        assertTrue(v.y0 + v.h - 1 <= 317, "높이 한도");
+    }
+
+    @Test
     void renderPreviews() throws IOException {
         Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
         // -DpreviewOnly=lm-site:3,7 → 테마파크 부지만, 높이 3·7 에서 자른 그림도
