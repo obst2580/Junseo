@@ -147,25 +147,25 @@ final class Dome {
         }
     }
 
-    /** 지붕 무늬: 흰 패널, 회색 대각선 격자, 가운데 유리 천창, 빛 띠 */
+    /** 지붕 무늬: 흰 패널에 회색 방사형 살과 동심원 띠, 가운데 유리 천창, 살이 만나는 곳에 조명 */
     private Block roofPattern(double i, double j) {
         double e = norm(i, j);
         double phi = Math.atan2((j - cz) / B, (i - cx) / A);
         double turns = phi / (2 * Math.PI);
+        boolean radial = Math.abs(((turns * 24) % 1 + 1) % 1 - 0.5) > 0.465;
         if (e < 0.26) {
-            // 천창: 유리, 금색 방사형 살
-            return Math.abs(((turns * 16) % 1 + 1) % 1 - 0.5) > 0.42 ? WHITE_CONCRETE : GLASS;
+            // 천창: 유리, 흰 방사형 살
+            return Math.abs(((turns * 16) % 1 + 1) % 1 - 0.5) > 0.44 ? WHITE_CONCRETE : GLASS;
         }
-        if (Math.abs(e - 0.62) < 0.025) {
-            return LIGHT_BLUE_GLASS; // 빛 띠
+        boolean ring = false;
+        for (double r : new double[]{0.4, 0.55, 0.7, 0.85}) {
+            ring |= Math.abs(e - r) < 0.011;
         }
-        double g1 = ((turns * 28 + e * 7) % 1 + 1) % 1, g2 = ((turns * 28 - e * 7) % 1 + 1) % 1;
-        if (g1 < 0.09 || g2 < 0.09) {
+        if (radial && ring && (Math.abs(e - 0.55) < 0.011 || Math.abs(e - 0.85) < 0.011)) {
+            return SEA_LANTERN; // 안에서 보면 경기장 조명
+        }
+        if (radial || ring) {
             return LIGHT_GRAY_CONCRETE;
-        }
-        // 조명 고리 (안에서 보면 경기장 조명)
-        if (Math.abs(e - 0.45) < 0.02 || Math.abs(e - 0.8) < 0.015) {
-            return SEA_LANTERN;
         }
         return WHITE_CONCRETE;
     }
@@ -305,7 +305,7 @@ final class Dome {
             }
             v.set(i, 9, bj - 1, GRAY_CONCRETE);
         }
-        PixelFont.draw(v, "DOME", bi0 + 2, 19, bj + 1, 1, 0, YELLOW_CONCRETE);
+        HangulFont.draw(v, 12, "청라", bi0 + 1, 20, bj + 1, 1, 0, YELLOW_CONCRETE); // 전광판 글씨 (LED)
         for (int i = bi0 + 2; i < bi0 + bw - 2; i += 2) {
             v.set(i, 11, bj + 1, (i / 2) % 3 == 0 ? RED_CONCRETE : SEA_LANTERN);
         }

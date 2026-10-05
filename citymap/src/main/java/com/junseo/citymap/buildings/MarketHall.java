@@ -7,15 +7,15 @@ import static com.junseo.citymap.buildings.Blocks.*;
 /**
  * 대형시장 본관: 광장시장처럼 큰 건물 하나 안에 시장이 들어 있습니다.
  * <ul>
- *   <li>바깥: 베이지 타일 3층 건물. 1층 둘레는 길 쪽 가게(유리 가게 앞, 간판), 2·3층은 창문 줄과 창문 글씨,
- *       모서리 세로 간판, 큰 문 네 곳 위 한글 간판(남문·북문·먹자골목), 옥상에 「대형시장」 대형 간판</li>
+ *   <li>바깥: 베이지 타일 3층 건물. 1층 둘레는 길 쪽 가게(유리, 간판 띠와 표지판 글씨), 2·3층은 창문 줄,
+ *       큰 문 네 곳에 차양과 남색 간판(「전통시장」「대형시장 ○문」), 모서리 돌출 간판</li>
  *   <li>안: 십자로 난 큰 통로는 3층 높이로 뚫린 홀이고 철골 유리 지붕을 얹었습니다. 긴 통로(동서)는 먹자골목:
- *       가운데에 빈대떡·김밥·육회 좌판이 줄지어 있고 양옆에 긴 나무 의자, 좌판 위 등과 이름판,
- *       그 위에 한글 간판이 매달려 있습니다. 통로 양옆은 반찬·떡집·건어물·채소·수산·그릇·참기름 가게,
+ *       가운데에 빈대떡·김밥·육회 좌판이 줄지어 있고 양옆에 긴 나무 의자, 좌판마다 등과 매단 이름 표지판.
+ *       통로 양옆은 반찬·떡집·건어물·청과·수산·주방·방앗간 가게(가게마다 간판 띠와 매단 이름 표지판),
  *       남서쪽은 수산시장</li>
  *   <li>2층: 홀을 둘러싼 난간 복도와 원단·한복·이불 가게. 둘레 복도 네 귀퉁이에 계단</li>
  * </ul>
- * 건물 기준 정면은 남쪽(j 큰 쪽). 상자 둘레 2칸은 간판이 튀어나오는 자리입니다.
+ * 건물 기준 정면은 남쪽(j 큰 쪽). 상자 둘레 2칸은 간판·차양이 튀어나오는 자리입니다.
  */
 final class MarketHall {
     private static final int MARGIN = 2;
@@ -223,6 +223,7 @@ final class MarketHall {
         if (i < ci && j > cj && sr.nextInt(10) < 8) {
             kind = 4; // 남서쪽 수산시장
         }
+        Object[] board = ShopHouse.BOARDS[sr.nextInt(ShopHouse.BOARDS.length)];
         if (slot == 0) {
             v.fill(i, 0, j, i, F2 - 1, j, m == 0 ? LIGHT_GRAY_CONCRETE : TILE); // 가게 사이 벽
             return;
@@ -230,11 +231,10 @@ final class MarketHall {
         switch (m) {
             case 0 -> {
                 v.set(i, 0, j, goods(kind, sr, 0));
-                // 셔터 통 + 간판 (두 줄)
-                v.set(i, F2 - 1, j, LIGHT_GRAY_CONCRETE);
-                if (slot == 1) {
-                    int di = DIRS[dir][0] == 0 ? 1 : 0, dj = 1 - di;
-                    SignText.line(v, i, F2 - 2, j, 3, di, dj, SignText.combo(sr), sr);
+                v.set(i, F2 - 1, j, LIGHT_GRAY_CONCRETE); // 셔터 통
+                v.set(i, F2 - 2, j, (Block) board[0]); // 간판 띠
+                if (slot == 2) {
+                    v.set(i, F2 - 3, j, Blocks.hangingSign((String) board[1], rotation(dir), (String) board[2], true, stallName(kind, sr)));
                 }
             }
             case 1 -> {
@@ -252,6 +252,34 @@ final class MarketHall {
                 v.set(i, 1, j, kind == 2 || kind == 6 ? BARREL : TILE);
             }
         }
+    }
+
+    /** 매다는 표지판이 가게 앞(dir 쪽)을 보게 하는 rotation */
+    private static int rotation(int dir) {
+        return switch (dir) {
+            case 0 -> 0;
+            case 1 -> 8;
+            case 2 -> 12;
+            default -> 4;
+        };
+    }
+
+    private static final String[] NICK = {"순희네", "영자네", "부산", "전주", "할매", "원조", "충청", "제주", "광장", "대박",
+            "엄마손", "이모네", "삼촌네", "옛날", "종로", "서울", "강원", "목포"};
+
+    /** 1층 가게 이름 */
+    private static String stallName(int kind, Random r) {
+        String nick = NICK[r.nextInt(NICK.length)];
+        return nick + " " + switch (kind) {
+            case 0 -> "반찬";
+            case 1 -> "떡집";
+            case 2 -> "건어물";
+            case 3 -> "청과";
+            case 4 -> "수산";
+            case 5 -> "주방";
+            case 6 -> "방앗간";
+            default -> "분식";
+        };
     }
 
     /** 가게 물건. kind: 0 반찬, 1 떡집, 2 건어물, 3 채소·과일, 4 수산, 5 그릇·잡화, 6 참기름·곡물, 7 분식 */
@@ -319,11 +347,18 @@ final class MarketHall {
                     v.set(i, 3, j, LANTERN_HANGING);
                 }
             }
-            Block[] combo = sr.nextBoolean() ? new Block[]{YELLOW_CONCRETE, RED_CONCRETE} : new Block[]{RED_CONCRETE, WHITE_CONCRETE};
-            for (int side : new int[]{-1, 1}) {
-                int i = ew ? s : c + side, j = ew ? c + side : s;
-                SignText.line(v, i, 6, j, 7, ew ? 1 : 0, ew ? 0 : 1, combo, sr);
-            }
+            // 좌판 이름 (가로대 가운데에 매단 표지판)
+            String title = switch (menu) {
+                case 'c' -> "빈대떡";
+                case 'k' -> "마약김밥";
+                case 'r' -> "육회";
+                case 't' -> "떡볶이";
+                case 's' -> "순대";
+                default -> "칼국수";
+            };
+            int mid = s + 3;
+            v.set(ew ? mid : c, 3, ew ? c : mid, Blocks.hangingSign("spruce", ew ? 4 : 0, "white", true,
+                    NICK[sr.nextInt(NICK.length)], title));
         }
     }
 
@@ -418,9 +453,10 @@ final class MarketHall {
         switch (m) {
             case 0 -> {
                 v.set(i, y0, j, wool(kind == 1 ? HANBOK[sr.nextInt(HANBOK.length)] : FABRIC[sr.nextInt(FABRIC.length)]));
-                if (slot == 1) {
-                    int di = DIRS[dir][0] == 0 ? 1 : 0, dj = 1 - di;
-                    SignText.line(v, i, F3 - 1, j, 3, di, dj, SignText.combo(sr), sr);
+                if (slot == 2) {
+                    String name = NICK[sr.nextInt(NICK.length)] + " " + (kind == 0 ? "원단" : kind == 1 ? "한복" : "이불");
+                    v.set(i, F3 - 2, j, Blocks.hangingSign("birch", rotation(dir), "black", false, name));
+                    v.set(i, F3 - 1, j, WHITE_CONCRETE);
                 }
             }
             case 1 -> {
@@ -556,79 +592,13 @@ final class MarketHall {
                 }
             }
         }
-        // 가운데 교차점: 청사초롱 샹들리에
+        // 가운데 교차점: 사슬에 매단 등 네 개
         int top = (int) Math.floor(h[ci][cj]);
-        for (int y = top - 1; y >= top - 8; y--) {
-            v.set(ci, y, cj, CHAIN);
-        }
-        int ring = top - 9;
-        for (int k = 0; k < 8; k++) {
-            double ang = Math.toRadians(k * 45);
-            int li = (int) Math.floor(ci + 0.5 + 2.6 * Math.cos(ang)), lj = (int) Math.floor(cj + 0.5 + 2.6 * Math.sin(ang));
-            v.set(li, ring, lj, RED_WOOL);
-            v.set(li, ring - 1, lj, SHROOMLIGHT);
-            v.set(li, ring - 2, lj, BLUE_WOOL);
-        }
-        v.set(ci, ring, cj, GOLD_BLOCK);
-        v.set(ci, ring - 1, cj, SEA_LANTERN);
-
-        // 먹자골목(동서 홀) 위에 매달린 한글 간판, 남북 홀에는 현수막
-        hangingSigns();
-        banners();
-    }
-
-    /** 동서 홀 가운데 위에 매달린 양면 한글 간판 (12칸 글씨) */
-    private void hangingSigns() {
-        String[] words = {"육회", "김밥", "순대", "빈대떡"};
-        int west = a0 + INNER, east = a1 - INNER;
-        int[][] halves = {{west, ci - HALF_MAIN - 2}, {ci + HALF_MAIN + 2, east}};
-        int n = 0;
-        for (int[] half : halves) {
-            int len = half[1] - half[0];
-            String word = null;
-            for (String wd : words) {
-                if (HangulFont.width(12, wd) + 2 <= len + 2 && (word == null || wd.length() > word.length())) {
-                    word = wd;
-                }
+        for (int[] o : new int[][]{{-2, -2}, {2, -2}, {-2, 2}, {2, 2}}) {
+            for (int y = top - 1; y >= top - 6; y--) {
+                v.set(ci + o[0], y, cj + o[1], CHAIN);
             }
-            if (word == null) {
-                continue;
-            }
-            if (word.length() == 2) {
-                word = words[n % 3];
-            }
-            n++;
-            int bw = HangulFont.width(12, word) + 2;
-            int i0 = (half[0] + half[1]) / 2 - bw / 2;
-            int yTop = WALL_TOP - 2, yBot = yTop - 13;
-            for (int i = i0; i < i0 + bw; i++) {
-                for (int y = yBot; y <= yTop; y++) {
-                    boolean edge = i == i0 || i == i0 + bw - 1 || y == yBot || y == yTop;
-                    v.set(i, y, cj, edge ? RED_CONCRETE : YELLOW_CONCRETE);
-                }
-            }
-            // 남쪽 면은 서→동, 북쪽 면은 동→서로 읽힘
-            HangulFont.draw(v, 12, word, i0 + 1, yTop - 1, cj + 1, 1, 0, RED_CONCRETE);
-            HangulFont.draw(v, 12, word, i0 + bw - 2, yTop - 1, cj - 1, -1, 0, RED_CONCRETE);
-            for (int i : new int[]{i0 + 2, i0 + bw - 3}) {
-                for (int y = yTop + 1; y <= RIDGE; y++) {
-                    if (v.get(i, y, cj) == null) {
-                        v.set(i, y, cj, CHAIN);
-                    }
-                }
-            }
-        }
-    }
-
-    /** 남북 홀을 가로지르는 현수막 (흰 바탕 빨간 글씨 무늬) */
-    private void banners() {
-        Random r = new Random(seed ^ 0xBA22E2L);
-        for (int j = b0 + INNER + 3; j < b1 - INNER - 2; j += 10) {
-            if (Math.abs(j - cj) <= HALF_MAIN + 2) {
-                continue;
-            }
-            SignText.line(v, ci - HALF_MAIN, 15, j, HALF_MAIN * 2 + 1, 1, 0,
-                    r.nextBoolean() ? new Block[]{WHITE_WOOL, RED_WOOL} : new Block[]{YELLOW_WOOL, BLUE_WOOL}, r);
+            v.set(ci + o[0], top - 7, cj + o[1], LANTERN_HANGING);
         }
     }
 
@@ -670,11 +640,10 @@ final class MarketHall {
                 v.set(i, ROOF + 1, j, BAND); // 난간
             }
         }
-        // 1층 가게 간판 (7칸마다, 바깥으로 1칸)
+        // 1층 둘레 가게 간판: 7칸마다 2줄 간판 띠와 표지판 글씨
         for (int side = 0; side < 4; side++) {
             int len = side < 2 ? a1 - a0 : b1 - b0;
-            for (int t = 1; t + 6 <= len; t += 7) {
-                int[] p = facadePoint(side, t);
+            for (int t = 1; t + 5 <= len; t += 7) {
                 boolean blocked = false;
                 for (int k = -1; k <= 6; k++) {
                     int[] q = facadePoint(side, t + k);
@@ -683,28 +652,56 @@ final class MarketHall {
                 if (blocked) {
                     continue;
                 }
-                SignText.line(v, p[0] + p[4], 4, p[1] + p[5], 6, p[2], p[3], SignText.combo(r), r);
-                // 2층 창문 글씨 (일부)
-                if (r.nextInt(3) == 0) {
-                    SignText.line(v, p[0], F2 + 4, p[1], 6, p[2], p[3], new Block[]{GLASS, r.nextBoolean() ? RED_CONCRETE : BLUE_CONCRETE}, r);
+                Object[] board = ShopHouse.BOARDS[r.nextInt(ShopHouse.BOARDS.length)];
+                for (int k = 0; k < 6; k++) {
+                    int[] q = facadePoint(side, t + k);
+                    v.set(q[0], 3, q[1], (Block) board[0]);
+                    v.set(q[0], 4, q[1], (Block) board[0]);
+                }
+                int[] c = facadePoint(side, t + 3);
+                String[] name = outerShop(r);
+                v.set(c[0] + c[4], 4, c[1] + c[5], Blocks.wallSign((String) board[1], FACING[side], (String) board[2], true, name[0], name[1]));
+            }
+        }
+        // 큰 문: 차양, 남색 간판 판과 표지판 셋 (전통시장 · 대형시장 · ○문)
+        String[] gates = {"남문", "북문", "동문", "서문"};
+        for (int side = 0; side < 4; side++) {
+            int[] p = side < 2 ? new int[]{ci, side == 0 ? b1 : b0} : new int[]{side == 2 ? a1 : a0, cj};
+            int[] fp = facadePoint(side, 0);
+            int di = fp[2], dj = fp[3], oi = fp[4], oj = fp[5];
+            for (int k = -HALF_MAIN - 2; k <= HALF_MAIN + 2; k++) {
+                int i = p[0] + di * k, j = p[1] + dj * k;
+                for (int y = F2 + 1; y <= F2 + 3; y++) {
+                    v.set(i, y, j, BLUE_CONCRETE);
+                }
+                for (int o = 1; o <= 2; o++) {
+                    v.set(i + oi * o, F2, j + oj * o, TOP_SLAB); // 차양
                 }
             }
+            v.set(p[0] + oi, F2 + 2, p[1] + oj, Blocks.wallSign("dark_oak", FACING[side], "white", true, "", "대형시장", gates[side]));
+            v.set(p[0] - di * 4 + oi, F2 + 2, p[1] - dj * 4 + oj, Blocks.wallSign("dark_oak", FACING[side], "white", true, "", "전통시장"));
+            v.set(p[0] + di * 4 + oi, F2 + 2, p[1] + dj * 4 + oj, Blocks.wallSign("dark_oak", FACING[side], "yellow", true, "", "SINCE 1958"));
         }
-        // 모서리 세로 간판
+        // 모서리 돌출 간판 (2층)
         for (int side = 0; side < 4; side++) {
             int len = side < 2 ? a1 - a0 : b1 - b0;
-            for (int t : new int[]{3, len - 5}) {
-                int[] p = facadePoint(side, t);
-                SignText.vertical(v, p[0] + p[4], ROOF - 2, p[1] + p[5], 11, p[2], p[3], SignText.combo(r), r);
-            }
+            int[] p = facadePoint(side, 1);
+            String facing = side < 2 ? "east" : "south";
+            v.set(p[0] + p[4], F2 + 3, p[1] + p[5], Blocks.wallHangingSign("dark_oak", facing, "white", true, "대형시장", gates[side]));
+            int[] q = facadePoint(side, len - 1);
+            v.set(q[0] + q[4], F2 + 3, q[1] + q[5], Blocks.wallHangingSign("dark_oak", facing, "white", true, "대형시장", gates[side]));
         }
-        // 큰 문 위 한글 간판: 남문·북문, 동·서는 「먹자골목」 (건물 이름은 옥상 간판)
-        Block blue = BLUE_CONCRETE, white = WHITE_CONCRETE;
-        HangulFont.board(v, 12, "남문", ci, ROOF, b1, 1, 0, 0, 1, blue, white, white);
-        HangulFont.board(v, 12, "북문", ci, ROOF, b0, -1, 0, 0, -1, blue, white, white);
-        HangulFont.board(v, 12, "먹자골목", a1, ROOF, cj, 0, -1, 1, 0, RED_CONCRETE, YELLOW_CONCRETE, YELLOW_CONCRETE);
-        HangulFont.board(v, 12, "먹자골목", a0, ROOF, cj, 0, 1, -1, 0, RED_CONCRETE, YELLOW_CONCRETE, YELLOW_CONCRETE);
-        rooftopSign();
+    }
+
+    private static final String[] FACING = {"south", "north", "east", "west"};
+    private static final Block TOP_SLAB = Block.of("smooth_stone_slab[type=top,waterlogged=false]", 0x9E9E9E);
+
+    /** 시장 바깥 가게 {이름, 업종} */
+    private static String[] outerShop(Random r) {
+        String[][] kinds = {{"한복", "맞춤 한복"}, {"이불", "혼수 이불"}, {"주단", "비단·원단"}, {"그릇", "주방용품"},
+                {"건어물", "멸치·김"}, {"인삼", "홍삼"}, {"떡집", "떡·한과"}, {"약재", "한약재"}, {"양품", "의류"}, {"수선", "옷 수선"}};
+        String[] k = kinds[r.nextInt(kinds.length)];
+        return new String[]{NICK[r.nextInt(NICK.length)] + " " + k[0], k[1]};
     }
 
     /**
@@ -718,28 +715,5 @@ final class MarketHall {
             case 2 -> new int[]{a1, b1 - t, 0, -1, 1, 0};
             default -> new int[]{a0, b0 + t, 0, 1, -1, 0};
         };
-    }
-
-    /** 옥상 정면 쪽에 철골로 세운 큰 간판 「대형시장」 (16칸 글씨, 흰 바탕 빨간 글씨, 아래 조명) */
-    private void rooftopSign() {
-        String text = "대형시장";
-        int bw = HangulFont.width(16, text) + 6, bh = 16 + 4;
-        int i0 = ci - bw / 2, j = b1 - 3;
-        int y0 = ROOF + 3, y1 = y0 + bh - 1;
-        if (i0 < a0 + 2) {
-            return;
-        }
-        for (int i = i0; i < i0 + bw; i++) {
-            for (int y = y0; y <= y1; y++) {
-                boolean edge = i == i0 || i == i0 + bw - 1 || y == y0 || y == y1;
-                v.set(i, y, j, edge ? (y == y0 && i % 3 == 0 ? SEA_LANTERN : RED_CONCRETE) : WHITE_CONCRETE);
-                v.set(i, y, j - 1, LIGHT_GRAY_CONCRETE); // 뒷판
-            }
-            if ((i - i0) % 8 == 0 || i == i0 + bw - 1) {
-                v.fill(i, ROOF + 1, j - 1, i, y0 - 1, j - 1, IRON_BARS); // 철골 다리
-                v.fill(i, ROOF + 1, j - 3, i, y1 - 4, j - 3, IRON_BARS);
-            }
-        }
-        HangulFont.draw(v, 16, text, i0 + 3, y1 - 2, j + 1, 1, 0, RED_CONCRETE);
     }
 }

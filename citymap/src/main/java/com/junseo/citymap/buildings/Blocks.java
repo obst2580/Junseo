@@ -154,6 +154,34 @@ public final class Blocks {
                 + ",hinge=left,open=false,powered=false]", wood.equals("iron") ? 0xC2C1C1 : 0x8C6E3E);
     }
 
+    private static final java.util.Map<String, Integer> WOOD_RGB = java.util.Map.of(
+            "oak", 0xA2834F, "spruce", 0x725430, "birch", 0xC0AF79, "dark_oak", 0x432B14, "acacia", 0xA8592F,
+            "cherry", 0xE2B3AD, "mangrove", 0x763631, "bamboo", 0xC2AF52, "crimson", 0x653147, "warped", 0x2B6963);
+
+    /**
+     * 벽 표지판 (글씨 있음). 판은 facing 쪽을 보고, 그 반대쪽 블록에 붙습니다.
+     * color 는 글자색 (black, white, yellow …), glow 면 밤에도 빛나는 글씨.
+     */
+    public static Block wallSign(String wood, String facing, String color, boolean glow, String... lines) {
+        return Block.of(wood + "_wall_sign[facing=" + facing + ",waterlogged=false]", WOOD_RGB.get(wood))
+                .withText(color, glow, lines);
+    }
+
+    /** 천장에 매다는 표지판. rotation 0 = 남쪽, 4 = 서쪽, 8 = 북쪽, 12 = 동쪽을 봄 (양면에 글씨) */
+    public static Block hangingSign(String wood, int rotation, String color, boolean glow, String... lines) {
+        return Block.of(wood + "_hanging_sign[attached=false,rotation=" + rotation + ",waterlogged=false]", WOOD_RGB.get(wood))
+                .withText(color, glow, lines);
+    }
+
+    /**
+     * 벽에서 튀어나온 매다는 표지판 (돌출 간판). 판은 facing 쪽과 그 반대쪽을 보고,
+     * facing 을 시계·반시계로 돌린 쪽의 벽에 붙습니다 (남쪽 벽 앞이면 facing=east 또는 west).
+     */
+    public static Block wallHangingSign(String wood, String facing, String color, boolean glow, String... lines) {
+        return Block.of(wood + "_wall_hanging_sign[facing=" + facing + ",waterlogged=false]", WOOD_RGB.get(wood))
+                .withText(color, glow, lines);
+    }
+
     public static Block stairs(String material, String facing, int rgb) {
         return Block.of(material + "_stairs[facing=" + facing + ",half=bottom,shape=straight,waterlogged=false]", rgb);
     }

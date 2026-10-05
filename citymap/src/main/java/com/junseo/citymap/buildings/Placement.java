@@ -33,7 +33,11 @@ public final class Placement {
     private final Polygon footprint;
     private volatile SoftReference<Built> cache = new SoftReference<>(null);
 
-    private record Built(Voxels voxels, Block[] palette) {
+    private record Built(Voxels voxels, Block[] palette, List<int[]> signs) {
+    }
+
+    /** 표지판 자리 (월드 좌표)와 블록 (글씨 포함) */
+    public record SignSpot(int x, int y, int z, Block block) {
     }
 
     private Placement(String name, String kind, double ox, double oz, double angleDeg, int w, int d,
@@ -151,10 +155,25 @@ public final class Placement {
                 if (b == null) {
                     Voxels v = builder.get();
                     Block[] pal = new Block[v.palette().size() + 1];
+                    boolean anyText = false;
                     for (int k = 0; k < v.palette().size(); k++) {
                         pal[k + 1] = v.palette().get(k).rotate(quarter);
+                        anyText |= pal[k + 1].text() != null;
                     }
-                    b = new Built(v, pal);
+                    List<int[]> signs = new ArrayList<>();
+                    if (anyText && exact) {
+                        for (int y = v.y0; y < v.y0 + v.h; y++) {
+                            for (int j = 0; j < v.d; j++) {
+                                for (int i = 0; i < v.w; i++) {
+                                    int c = v.raw(i, y, j);
+                                    if (c != 0 && pal[c].text() != null) {
+                                        signs.add(new int[]{i, y, j, c});
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    b = new Built(v, pal, signs);
                     cache = new SoftReference<>(b);
                 }
             }
@@ -165,6 +184,20 @@ public final class Placement {
     /** 이 건물의 블록 상자 (미리보기·검사용) */
     public Voxels voxels() {
         return built().voxels;
+    }
+
+    /**
+     * 글씨가 있는 표지판들 (월드 좌표). 생성기는 블록만 놓고, 글씨는 청크를 처음 불러올 때 이걸로 씁니다.
+     * 비스듬히 놓인 건물에는 표지판을 두지 않습니다.
+     */
+    public List<SignSpot> signs(int baseY) {
+        Built b = built();
+        List<SignSpot> out = new ArrayList<>(b.signs.size());
+        for (int[] s : b.signs) {
+            double[] w = toWorld(s[0] + 0.5, s[2] + 0.5);
+            out.add(new SignSpot((int) Math.floor(w[0]), baseY + s[1], (int) Math.floor(w[1]), b.palette[s[3]]));
+        }
+        return out;
     }
 
     /** 놓인 방향에 맞게 돌린 블록 */

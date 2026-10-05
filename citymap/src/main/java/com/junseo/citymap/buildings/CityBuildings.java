@@ -15,6 +15,8 @@ import java.util.List;
 public final class CityBuildings {
     /** 도로·물 위로는 이 높이(땅 위 칸 수)부터만 놓음: 길 위를 가로지르는 문·지붕은 되고 길을 막지는 않게 */
     static final int ROAD_CLEARANCE = 6;
+    /** 거리 시설이 차도 위로 뻗을 때 이 높이(땅 위 칸 수)부터 */
+    static final int STREET_CLEARANCE = 4;
     /** 거점 표시 기둥 위로는 이 높이부터만 */
     static final int HUB_CLEARANCE = 9;
     private static final int CELL = 64;
@@ -56,10 +58,13 @@ public final class CityBuildings {
     /** 설계도로 도시 전체 건물 배치를 정합니다 (구역 땅을 훑느라 1~2초 걸림) */
     public static CityBuildings plan(CityTerrain terrain) {
         List<Placement> all = new ArrayList<>();
+        all.addAll(StreetPlan.paving(terrain)); // 포장이 먼저, 건물이 그 위를 덮음
         all.addAll(AirportPlan.plan(terrain));
         all.addAll(CheongnaPlan.plan(terrain));
         all.addAll(GuincheonPlan.plan(terrain));
         all.addAll(MarketPlan.plan(terrain));
+        all.addAll(StreetPlan.furniture(terrain));
+        all.addAll(StreetPlan.hubCovers(terrain)); // 거점 기둥 걷기는 맨 나중 (위에 무엇도 남지 않게)
         return new CityBuildings(terrain, all);
     }
 
@@ -90,30 +95,71 @@ public final class CityBuildings {
             return;
         }
         int base = terrain.groundY() + 1;
+        boolean road = c.isRoad() || c.isWater() || c.deck || c.tunnel;
+        boolean pad = c.surface == Surface.PAD || c.hubPillar > 0;
         int minY = Integer.MIN_VALUE;
-        if (c.isRoad() || c.isWater() || c.deck || c.tunnel) {
+        if (road) {
             minY = base + ROAD_CLEARANCE;
-        } else if (c.surface == Surface.PAD || c.hubPillar > 0) {
+        } else if (pad) {
             minY = base + HUB_CLEARANCE;
         }
+        // 거리 시설: 인도 위에는 바닥부터(나무 구덩이), 차도 위로는 4칸 위부터(나뭇가지·가로등 팔)
+        int streetMinY = pad ? base + HUB_CLEARANCE
+                : c.surface == Surface.SIDEWALK && !c.deck ? base - 1
+                : road ? base + STREET_CLEARANCE : Integer.MIN_VALUE;
         for (int k : here) {
             Placement p = placements.get(k);
             double[] b = p.boundsRef();
             if (x + 1 > b[0] && x < b[2] && z + 1 > b[1] && z < b[3]) {
-                p.column(x, z, base, minY, sink);
+                int floor = switch (p.kind) {
+                    case "street" -> streetMinY;
+                    case "hubcover" -> Integer.MIN_VALUE;
+                    default -> minY;
+                };
+                p.column(x, z, base, floor, sink);
             }
         }
     }
 
-    /** 칸 (x, z) 를 덮는 건물 (없으면 null). 미니맵용 */
+    /** 청크 (cx, cz) 안의 글씨 있는 표지판들 (청크를 처음 불러올 때 글씨를 쓰는 데 씀) */
+    public List<Placement.SignSpot> signs(int cx, int cz) {
+        List<Placement.SignSpot> out = new ArrayList<>();
+        int x0 = cx << 4, z0 = cz << 4;
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (int[] corner : new int[][]{{x0, z0}, {x0 + 15, z0}, {x0, z0 + 15}, {x0 + 15, z0 + 15}}) {
+            for (int k : cell(corner[0] + 0.5, corner[1] + 0.5)) {
+                if (!seen.add(k)) {
+                    continue;
+                }
+                Placement p = placements.get(k);
+                double[] b = p.boundsRef();
+                if (b[2] < x0 || b[0] > x0 + 16 || b[3] < z0 || b[1] > z0 + 16) {
+                    continue;
+                }
+                for (Placement.SignSpot s : p.signs(terrain.groundY() + 1)) {
+                    if (s.x() >> 4 == cx && s.z() >> 4 == cz) {
+                        out.add(s);
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** 칸 (x, z) 를 덮는 건물 (없으면 null). 포장·거리 시설은 건물로 치지 않음. 미니맵용 */
     public Placement at(double x, double z) {
         for (int k : cell(x, z)) {
             Placement p = placements.get(k);
-            if (p.covers(x, z)) {
+            if (!isGround(p) && p.covers(x, z)) {
                 return p;
             }
         }
         return null;
+    }
+
+    /** 땅에 깔린 것 (포장, 거리 시설, 거점 표시 걷기) */
+    public static boolean isGround(Placement p) {
+        return p.kind.equals("pave") || p.kind.equals("street") || p.kind.equals("hubcover");
     }
 
     public CityTerrain terrain() {

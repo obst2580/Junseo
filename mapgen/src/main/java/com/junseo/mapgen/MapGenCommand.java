@@ -21,6 +21,7 @@ import java.util.Locale;
  * /mapgen tp &lt;거점|구역&gt;   그곳으로 이동
  * /mapgen where             지금 있는 구역과 가까운 거점
  * /mapgen list              거점·구역 목록
+ * /mapgen signs [반지름]    주변 건물 표지판 글씨 다시 쓰기
  */
 final class MapGenCommand implements BasicCommand {
     private final MapGenPlugin plugin;
@@ -43,6 +44,7 @@ final class MapGenCommand implements BasicCommand {
             case "tp" -> teleport(sender, args.length > 1 ? args[1] : null);
             case "where" -> where(sender);
             case "list" -> list(sender);
+            case "signs" -> signs(sender, args.length > 1 ? args[1] : null);
             default -> help(sender);
         }
     }
@@ -53,6 +55,35 @@ final class MapGenCommand implements BasicCommand {
         say(sender, NamedTextColor.YELLOW, "/mapgen tp <거점|구역>  그곳으로 이동 (예: plaza, yeouido)");
         say(sender, NamedTextColor.YELLOW, "/mapgen where  지금 있는 구역");
         say(sender, NamedTextColor.YELLOW, "/mapgen list  거점·구역 목록");
+        say(sender, NamedTextColor.YELLOW, "/mapgen signs [반지름]  주변 건물 표지판 글씨 다시 쓰기 (글씨가 빈 표지판이 보일 때)");
+    }
+
+    private void signs(CommandSender sender, String radiusArg) {
+        if (!(sender instanceof Player player)) {
+            say(sender, NamedTextColor.RED, "게임 안에서 써 주세요.");
+            return;
+        }
+        int radius;
+        try {
+            radius = radiusArg == null ? 4 : Math.max(0, Math.min(16, Integer.parseInt(radiusArg)));
+        } catch (NumberFormatException e) {
+            say(sender, NamedTextColor.RED, "반지름은 청크 수(0~16)로 적어 주세요.");
+            return;
+        }
+        World world = player.getWorld();
+        if (!(world.getGenerator() instanceof CityChunkGenerator)) {
+            say(sender, NamedTextColor.RED, "도시 월드에서 써 주세요.");
+            return;
+        }
+        int cx = player.getLocation().getBlockX() >> 4, cz = player.getLocation().getBlockZ() >> 4, n = 0;
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                if (world.isChunkLoaded(cx + dx, cz + dz)) {
+                    n += plugin.signWriter().write(world.getChunkAt(cx + dx, cz + dz));
+                }
+            }
+        }
+        say(sender, NamedTextColor.GREEN, "표지판 " + n + "개에 글씨를 썼어요.");
     }
 
     private void create(CommandSender sender) {
@@ -135,7 +166,7 @@ final class MapGenCommand implements BasicCommand {
     @Override
     public Collection<String> suggest(CommandSourceStack source, String[] args) {
         if (args.length <= 1) {
-            return filter(List.of("create", "tp", "where", "list"), args.length == 0 ? "" : args[0]);
+            return filter(List.of("create", "tp", "where", "list", "signs"), args.length == 0 ? "" : args[0]);
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("tp")) {
             List<String> all = new ArrayList<>();

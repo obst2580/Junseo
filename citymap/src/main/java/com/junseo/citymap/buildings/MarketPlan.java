@@ -41,7 +41,8 @@ final class MarketPlan {
                     if (rnd.nextInt(100) < 7 && lot.width() >= 12 && lot.depth() >= 12) {
                         out.add(Plans.lot("시장 주차장", "parking", lot, (w, d) -> ParkingLot.build(w, d, new Random(seed))));
                     } else {
-                        out.add(Plans.lot("상가 건물", "shop", lot, (w, d) -> ShopHouse.build(w, d, new Random(seed), ShopHouse.Style.COMMERCIAL)));
+                        ShopHouse.Style style = rnd.nextInt(10) < 6 ? ShopHouse.Style.COMMERCIAL : ShopHouse.Style.MIXED;
+                        out.add(Plans.lot("상가 건물", "shop", lot, (w, d) -> ShopHouse.build(w, d, new Random(seed), style)));
                     }
                 }
                 GuincheonPlan.claimAll(m, out);
@@ -88,16 +89,14 @@ final class MarketPlan {
                 (w, d) -> plaza(w, d, new Random(pseed), ground)));
     }
 
-    /** 시장 앞 광장: 포장, 정문 앞 길, 가장자리 나무·가로등·의자 (노점은 두지 않음, 시장은 건물 안) */
+    /** 시장 앞 광장: 밝은 보도 포장, 정문 앞 길, 가장자리 가로수·보행등·의자 (노점은 두지 않음, 시장은 건물 안) */
     static Voxels plaza(int w, int d, Random r, Ground ground) {
-        Voxels v = new Voxels(w, d, -1, 6);
+        Voxels v = new Voxels(w, d, -1, 9);
         int mid = w / 2;
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < w; i++) {
                 boolean path = Math.abs(i + 0.5 - mid) < 6;
-                Block floor = path ? (j % 3 == 0 ? POLISHED_GRANITE : SMOOTH_STONE)
-                        : ((i / 2 + j / 2) % 2 == 0 ? POLISHED_ANDESITE : SMOOTH_STONE);
-                v.set(i, -1, j, floor);
+                v.set(i, -1, j, path ? POLISHED_ANDESITE : j % 8 == 0 ? SMOOTH_STONE : LIGHT_GRAY_CONCRETE);
             }
         }
         for (int i = 4; i < w - 4; i += 10) {
@@ -111,19 +110,25 @@ final class MarketPlan {
                 v.set(i + 2, 0, j, SPRUCE_SLAB);
             }
             if (ground.clear(i + 5, j, 1)) {
-                v.fill(i + 5, 0, j, i + 5, 3, j, SPRUCE_FENCE);
-                v.set(i + 5, 4, j, LANTERN);
+                lampPost(v, i + 5, j);
             }
         }
         v.connect();
         return v;
     }
 
+    /** 가로수: 나무 구덩이, 가는 줄기, 둥근 잎 (5×5 안에) */
     static void tree(Voxels v, int i, int j) {
-        v.set(i, -1, j, GRASS);
+        v.set(i, -1, j, COARSE_DIRT);
         v.fill(i, 0, j, i, 3, j, OAK_LOG);
-        v.ellipsoid(i + 0.5, 5, j + 0.5, 2.4, 1.8, 2.4, OAK_LEAVES);
+        v.ellipsoid(i + 0.5, 5.2, j + 0.5, 2.3, 2.0, 2.3, OAK_LEAVES);
         v.set(i, 4, j, OAK_LOG);
+    }
+
+    /** 보행등: 회색 기둥 위 등 */
+    static void lampPost(Voxels v, int i, int j) {
+        v.fill(i, 0, j, i, 3, j, StreetPlan.POST);
+        v.set(i, 4, j, LANTERN);
     }
 
     private MarketPlan() {

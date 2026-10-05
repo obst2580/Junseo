@@ -68,7 +68,7 @@ final class AirportPlan {
         double halfRunway = 22.5;
         double b0 = halfRunway - 2;                 // 상자 시작 v
         double a0 = uc - HALF_LENGTH - 12;           // 상자 시작 u
-        int w = (int) Math.ceil(2 * HALF_LENGTH + 24), d = (int) Math.ceil(vFront + 12 - b0);
+        int w = (int) Math.ceil(2 * HALF_LENGTH + 24), d = (int) Math.ceil(vFront + 32 - b0); // 출국장 앞 보도는 도로까지
         double ca = uc - a0, cb = vFront + R_IN - b0;
         double[] origin = f.world(a0, b0);
         List<double[]> fp = new ArrayList<>();

@@ -70,10 +70,18 @@ class BuildingsTest {
         return ys;
     }
 
+    /** 길·인도 위에 일부러 놓는 것 (거리 시설, 포장, 거점 표시 걷기) */
+    static boolean streetLayer(Placement p) {
+        return p.kind.equals("street") || p.kind.equals("pave") || p.kind.equals("hubcover");
+    }
+
     @Test
     void buildingsDoNotBlockRoadsOrWater() {
         List<String> bad = new ArrayList<>();
         for (Placement p : buildings.placements()) {
+            if (streetLayer(p)) {
+                continue;
+            }
             double[] b = p.bounds();
             int hits = 0;
             for (int z = (int) Math.floor(b[1]); z <= (int) Math.ceil(b[3]); z++) {
@@ -112,7 +120,7 @@ class BuildingsTest {
                             ys.add(y - terrain.groundY() - 1);
                         }
                     });
-                    if (ys.stream().anyMatch(y -> y >= -1 && y < 3)) {
+                    if (ys.stream().anyMatch(y -> y >= 0 && y < 3)) {
                         bad.add(h.id() + " (" + x + ", " + z + ")");
                     }
                 }
@@ -128,6 +136,9 @@ class BuildingsTest {
         List<Placement> all = buildings.placements();
         for (int k = 0; k < all.size(); k++) {
             Placement p = all.get(k);
+            if (streetLayer(p)) {
+                continue;
+            }
             double[] b = p.bounds();
             for (int z = (int) Math.floor(b[1]); z <= (int) Math.ceil(b[3]); z++) {
                 for (int x = (int) Math.floor(b[0]); x <= (int) Math.ceil(b[2]); x++) {
@@ -143,6 +154,72 @@ class BuildingsTest {
             }
         }
         assertTrue(bad.isEmpty(), "겹친 건물 " + bad.size() + "쌍: " + bad.stream().limit(10).toList());
+    }
+
+    /** 가로수·가로등·전봇대·정류장은 인도에만 서고, 차도 위로는 높은 곳(나뭇가지·가로등 팔)만 지나감 */
+    @Test
+    void streetFurnitureStaysOnSidewalks() {
+        List<String> bad = new ArrayList<>();
+        int items = 0;
+        int base = terrain.groundY() + 1;
+        for (Placement p : buildings.placements()) {
+            if (!p.kind.equals("street")) {
+                continue;
+            }
+            items++;
+            double[] b = p.bounds();
+            for (int z = (int) Math.floor(b[1]); z <= (int) Math.ceil(b[3]); z++) {
+                for (int x = (int) Math.floor(b[0]); x <= (int) Math.ceil(b[2]); x++) {
+                    Column c = terrain.column(x, z);
+                    boolean carriage = (c.isRoad() && c.surface != com.junseo.citymap.terrain.Surface.SIDEWALK) || c.deck || c.isWater();
+                    if (!carriage) {
+                        continue;
+                    }
+                    List<Integer> low = new ArrayList<>();
+                    buildings.column(x, z, c, (y, blk) -> {
+                        if (!blk.isAir() && y - base < CityBuildings.STREET_CLEARANCE) {
+                            low.add(y);
+                        }
+                    });
+                    if (!low.isEmpty()) {
+                        bad.add(p + " (" + x + ", " + z + ")");
+                    }
+                }
+            }
+        }
+        assertTrue(items > 300, "거리 시설 " + items);
+        assertTrue(bad.isEmpty(), "차도 위에 낮게 놓인 거리 시설: " + bad.stream().limit(10).toList());
+    }
+
+    /** 표지판 글씨가 한 줄에 들어가는지 (한 줄 폭 90픽셀: 한글 약 9, 영문·숫자 약 6) */
+    @Test
+    void signTextFitsOnSigns() {
+        List<String> bad = new ArrayList<>();
+        int signs = 0;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Placement p : buildings.placements()) {
+            if (!seen.add(p.kind + p.name) && !p.kind.equals("house") && !p.kind.equals("shop")) {
+                continue;
+            }
+            for (Placement.SignSpot s : p.signs(terrain.groundY() + 1)) {
+                signs++;
+                String[] lines = s.block().textLines();
+                if (lines.length > 4) {
+                    bad.add(p.name + ": " + lines.length + "줄");
+                }
+                for (String line : lines) {
+                    int px = 0;
+                    for (char ch : line.toCharArray()) {
+                        px += ch >= 0xAC00 && ch <= 0xD7A3 ? 9 : 6;
+                    }
+                    if (px > 90) {
+                        bad.add(p.name + ": " + line);
+                    }
+                }
+            }
+        }
+        assertTrue(signs > 300, "표지판 " + signs);
+        assertTrue(bad.isEmpty(), "표지판에 안 들어가는 글씨: " + bad);
     }
 
     @Test

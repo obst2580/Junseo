@@ -56,7 +56,7 @@ final class CheongnaPlan {
         for (int j = 0; j < d; j++) {
             for (int i = 0; i < w; i++) {
                 boolean path = Math.abs(i + 0.5 - mid) < 5;
-                v.set(i, -1, j, path ? (j % 3 == 0 ? RED_CONCRETE : SMOOTH_STONE) : ((i + j) % 2 == 0 ? POLISHED_ANDESITE : SMOOTH_STONE));
+                v.set(i, -1, j, path ? POLISHED_ANDESITE : j % 8 == 0 ? SMOOTH_STONE : LIGHT_GRAY_CONCRETE);
             }
         }
         for (int i = 4; i < w - 4; i += 9) {
@@ -69,8 +69,7 @@ final class CheongnaPlan {
                 MarketPlan.tree(v, i, j);
             }
             if (ground.clear(i + 4, j, 1)) {
-                v.fill(i + 4, 0, j, i + 4, 3, j, SPRUCE_FENCE);
-                v.set(i + 4, 4, j, LANTERN);
+                MarketPlan.lampPost(v, i + 4, j);
             }
         }
         v.connect();

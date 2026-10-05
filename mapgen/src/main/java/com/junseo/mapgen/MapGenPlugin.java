@@ -34,6 +34,7 @@ public final class MapGenPlugin extends JavaPlugin {
 
     private CityTerrain terrain;
     private CityBuildings buildings;
+    private SignWriter signs;
 
     @Override
     public void onLoad() {
@@ -42,6 +43,8 @@ public final class MapGenPlugin extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        signs = new SignWriter(this::buildings);
+        getServer().getPluginManager().registerEvents(signs, this);
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
                 event.registrar().register("mapgen", "도시 바탕 생성기", List.of("맵생성"), new MapGenCommand(this)));
         Bukkit.getScheduler().runTask(this, () -> {
@@ -70,6 +73,10 @@ public final class MapGenPlugin extends JavaPlugin {
 
     CityChunkGenerator generator() {
         return new CityChunkGenerator(terrain(), buildings(), getLogger());
+    }
+
+    SignWriter signWriter() {
+        return signs;
     }
 
     CityTerrain terrain() {

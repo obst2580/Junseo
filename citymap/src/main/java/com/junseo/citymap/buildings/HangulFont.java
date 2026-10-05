@@ -71,8 +71,8 @@ final class HangulFont {
     }
 
     /**
-     * 세로 면에 글씨를 씁니다. 첫 글자 왼쪽 위가 (i, yTop, j), (di, dj) 방향으로 나아갑니다
-     * ({@link PixelFont#draw} 와 같은 방향 약속).
+     * 세로 면에 글씨를 씁니다. 첫 글자 왼쪽 위가 (i, yTop, j), (di, dj) 방향으로 나아갑니다.
+     * 남쪽을 보는 면이면 (1, 0), 북쪽이면 (-1, 0), 동쪽이면 (0, -1), 서쪽이면 (0, 1).
      */
     static void draw(Voxels v, int size, String text, int i, int yTop, int j, int di, int dj, Block fg) {
         int at = 0;

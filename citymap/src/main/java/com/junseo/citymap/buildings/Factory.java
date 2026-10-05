@@ -72,6 +72,14 @@ final class Factory {
         int pd = si0 + 3;
         v.set(pd, 0, sj1, door("iron", "south", false));
         v.set(pd, 1, sj1, door("iron", "south", true));
+        // 회사 간판: 정면 벽 위쪽에 판, 가운데 표지판 글씨
+        int mid = (si0 + si1) / 2;
+        Block boardBlock = abandoned ? LIGHT_GRAY_CONCRETE : r.nextBoolean() ? BLUE_CONCRETE : WHITE_CONCRETE;
+        v.fill(mid - 5, wallH - 1, sj1, mid + 5, wallH, sj1, boardBlock);
+        if (!abandoned) {
+            v.set(mid, wallH, sj1 + 1, Blocks.wallSign(boardBlock == BLUE_CONCRETE ? "dark_oak" : "birch", "south",
+                    boardBlock == BLUE_CONCRETE ? "white" : "blue", false, "", KoreanNames.factory(r)));
+        }
 
         // 지붕
         if (saw) {

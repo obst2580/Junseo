@@ -43,6 +43,42 @@ class BuildingPreviewTest {
     record View(String name, int x0, int z0, int x1, int z1, int height, int scale, boolean top, int cut) {
     }
 
+    /** 눈높이 그림: 눈 위치, 방향(마인크래프트 yaw: 0 남, 90 서, 180 북, -90 동), 아래로 pitch */
+    record Eye(String name, double x, double y, double z, double yaw, double pitch, double fov) {
+    }
+
+    static final Eye[] EYES = {
+            new Eye("eye-guincheon-street", -548, 2.6, 300, 180, -2, 75),
+            new Eye("eye-guincheon-alley", -620, 2.6, 175, -90, 0, 75),
+            new Eye("eye-market-front", -238, 2.6, 492, 180, -6, 80),
+            new Eye("eye-market-inside", -250, 1.7, 432, -90, -3, 80),
+            new Eye("eye-market-street", -150, 2.6, 560, 180, -2, 75),
+            new Eye("eye-airport-arrival", -1424, 2.6, 562, 140, -8, 80),
+            new Eye("eye-cheongna-dome", -818, 2.6, 410, 0, -12, 80),
+    };
+
+    @Test
+    void renderEyeLevel() throws IOException {
+        Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
+        CityTerrain terrain = TestCity.terrain();
+        CityBuildings b = TestCity.buildings();
+        File dir = new File("build/preview");
+        dir.mkdirs();
+        String only = System.getProperty("previewOnly", "");
+        int g = terrain.groundY();
+        for (Eye e : EYES) {
+            if (!only.isEmpty() && !e.name.contains(only)) {
+                continue;
+            }
+            long s = System.currentTimeMillis();
+            int r = 170;
+            IsoRender ir = new IsoRender(terrain, b, (int) e.x - r, (int) e.z - r, (int) e.x + r, (int) e.z + r, g - 8, g + 70);
+            BufferedImage img = ir.perspective(e.x, g + 1 + e.y, e.z, e.yaw, e.pitch, e.fov, 1280, 720);
+            ImageIO.write(img, "png", new File(dir, e.name + ".png"));
+            System.out.println(e.name + " " + (System.currentTimeMillis() - s) + "ms");
+        }
+    }
+
     static final View[] VIEWS = {
             new View("bld-guincheon-top", -880, -30, -400, 700, 40, 1, true, 0),
             new View("bld-guincheon-iso", -700, 230, -440, 470, 45, 2, false, 0),

@@ -71,7 +71,9 @@ final class GuincheonPlan {
         if (roll < 8 && lot.width() >= 12 && lot.depth() >= 12) {
             return Plans.lot("주차장", "parking", lot, (w, d) -> ParkingLot.build(w, d, new Random(seed)));
         }
-        return Plans.lot("다세대 주택", "house", lot, (w, d) -> ShopHouse.build(w, d, new Random(seed), ShopHouse.Style.CHEAP));
+        ShopHouse.Style style = roll < 65 ? ShopHouse.Style.VILLA : ShopHouse.Style.MIXED;
+        return Plans.lot(style == ShopHouse.Style.VILLA ? "다세대 주택" : "상가주택", "house", lot,
+                (w, d) -> ShopHouse.build(w, d, new Random(seed), style));
     }
 
     /** 놓은 건물 자리를 지도에서 지움 (둘레 1칸 골목 포함) */

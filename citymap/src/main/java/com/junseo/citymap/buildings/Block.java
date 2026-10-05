@@ -3,11 +3,35 @@ package com.junseo.citymap.buildings;
 /**
  * 블록 하나: 마인크래프트 블록 데이터 문자열(예: "minecraft:oak_door[facing=south,half=lower]")과
  * 미리보기 그림에 쓸 색. 실제 블록으로 바꾸는 일은 생성기(mapgen)가 합니다.
+ * 표지판이면 text 에 글씨가 들어 있습니다 ("글자색|g(빛나는 글씨면)|첫 줄\n둘째 줄 ...", 최대 4줄).
  */
-public record Block(String data, int rgb) {
+public record Block(String data, int rgb, String text) {
+
+    public Block(String data, int rgb) {
+        this(data, rgb, null);
+    }
 
     public static Block of(String name, int rgb) {
         return new Block(name.contains(":") ? name : "minecraft:" + name, rgb);
+    }
+
+    /** 이 블록에 표지판 글씨를 붙인 것 */
+    public Block withText(String color, boolean glow, String... lines) {
+        return new Block(data, rgb, color + "|" + (glow ? "g" : "") + "|" + String.join("\n", lines));
+    }
+
+    /** 표지판 글자색 (없으면 null) */
+    public String textColor() {
+        return text == null ? null : text.substring(0, text.indexOf('|'));
+    }
+
+    public boolean textGlows() {
+        return text != null && text.split("\\|", 3)[1].contains("g");
+    }
+
+    /** 표지판 글씨 줄들 (없으면 빈 배열) */
+    public String[] textLines() {
+        return text == null ? new String[0] : text.split("\\|", 3)[2].split("\n", -1);
     }
 
     /** 속성을 뺀 블록 id (예: "minecraft:oak_door") */
@@ -22,7 +46,7 @@ public record Block(String data, int rgb) {
 
     /** 같은 블록에 속성을 붙인 것. 예: Blocks.OAK_DOOR.with("facing=south,half=lower") */
     public Block with(String properties) {
-        return new Block(id() + "[" + properties + "]", rgb);
+        return new Block(id() + "[" + properties + "]", rgb, text);
     }
 
     /** 속성 값 (없으면 null) */
@@ -73,7 +97,7 @@ public record Block(String data, int rgb) {
             }
             out.append(key).append('=').append(value);
         }
-        return new Block(out.append(']').toString(), rgb);
+        return new Block(out.append(']').toString(), rgb, text);
     }
 
     private static int dirIndex(String s) {

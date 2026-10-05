@@ -98,6 +98,10 @@ final class Terminal {
                 boolean canopy = rr >= rIn - 7 && rr < rIn && aps <= halfAngle - 0.004;
                 boolean eave = rr >= rOut && rr < rOut + 3 && aps <= halfAngle;
                 if (!inHall && !canopy && !eave) {
+                    // 차양 밖 출국장 앞 보도 (도로까지)
+                    if (rr >= rIn - 30 && rr < rIn && aps <= halfAngle + 0.02) {
+                        v.set(i, -1, j, LIGHT_GRAY_CONCRETE);
+                    }
                     continue;
                 }
                 int top = (int) Math.floor(roof[i][j]);
@@ -109,7 +113,7 @@ final class Terminal {
                     if (rr >= rIn - 5 && rr < rIn - 4 && Math.floorMod((int) Math.floor(ps * rr), 16) == 0) {
                         v.fill(i, 0, j, i, y - 1, j, WHITE_CONCRETE);
                     }
-                    v.set(i, -1, j, (Math.floorMod((int) Math.floor(ps * rr), 4) == 0) ? POLISHED_ANDESITE : SMOOTH_STONE);
+                    v.set(i, -1, j, SMOOTH_STONE);
                     continue;
                 }
                 if (eave) {
