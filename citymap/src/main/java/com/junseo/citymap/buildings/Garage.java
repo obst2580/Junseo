@@ -50,6 +50,49 @@ final class Garage {
     }
 
     /**
+     * 렌터카 차고지: 주차장 뒤쪽 귀퉁이에 단층 렌터카 사무실 (유리 정면, 대여·반납 카운터, 대기 의자).
+     * 사무실은 주차 통로 끝(뒤)에 두어 통로가 정면 길로 트여 있게 합니다.
+     */
+    static Voxels rental(int w, int d, String brand, Random r) {
+        Voxels v = ParkingLot.build(w, d, r);
+        int i0 = w - 14, i1 = w - 2, j0 = 1, j1 = 8;
+        v.carSpots().removeIf(s -> s[0] >= i0 - 2 && s[2] <= j1 + 2);
+        v.fill(i0, -1, j0, i1, -1, j1, POLISHED_ANDESITE);
+        v.walls(i0, 0, j0, i1, 3, j1, WHITE_CONCRETE);
+        v.fill(i0, 4, j0, i1, 4, j1, SMOOTH_STONE);
+        v.fill(i0 + 1, 0, j0 + 1, i1 - 1, 3, j1 - 1, AIR);
+        // 정면(남쪽) 유리, 가운데 문
+        v.fill(i0 + 1, 0, j1, i1 - 1, 2, j1, GLASS_PANE);
+        int dx = (i0 + i1) / 2;
+        v.set(dx, 0, j1, Block.of("iron_door[facing=north,half=lower,hinge=left,open=false,powered=false]", 0xC0C0C0));
+        v.set(dx, 1, j1, Block.of("iron_door[facing=north,half=upper,hinge=left,open=false,powered=false]", 0xC0C0C0));
+        v.fill(dx - 1, 0, j1, dx - 1, 1, j1, AIR);
+        v.fill(dx + 1, 0, j1, dx + 1, 1, j1, AIR);
+        // 카운터 (뒤쪽), 의자 (앞쪽), 조명
+        v.fill(i0 + 2, 0, j0 + 2, i1 - 2, 0, j0 + 2, Block.of("smooth_quartz", 0xEBE5DE));
+        for (int i = i0 + 3; i < i1 - 2; i += 3) {
+            v.set(i, 0, j0 + 1, Block.of("spruce_stairs[facing=south,half=bottom,shape=straight,waterlogged=false]", 0x725431));
+        }
+        for (int i = i0 + 2; i < i1 - 1; i += 2) {
+            if (Math.abs(i - dx) > 1) {
+                v.set(i, 0, j1 - 2, Block.of("gray_wool", 0x3E4447));
+            }
+        }
+        for (int i = i0 + 3; i < i1; i += 4) {
+            v.set(i, 3, (j0 + j1) / 2, Interior.LIGHT);
+        }
+        // 간판 (지붕 위 띠, 정면 표지판)
+        v.fill(i0, 4, j1, i1, 4, j1, BLUE);
+        v.set(dx - 2, 3, j1 + 1, wallSign("spruce", "south", "white", true, brand, "대여·반납"));
+        v.set(dx + 2, 3, j1 + 1, wallSign("spruce", "south", "white", true, "공항 렌터카", "24시간"));
+        // 진입로 표지 기둥
+        v.fill(1, 0, d - 2, 1, 4, d - 2, StreetPlan.POST);
+        v.set(1, 5, d - 2, BLUE);
+        v.set(1, 4, d - 1, wallSign("spruce", "south", "white", true, brand, "렌터카 차고지"));
+        return v;
+    }
+
+    /**
      * 기계식 주차타워 (TOWER_W × TOWER_D, 정면 = 입출고실).
      *
      * @param levels 차를 쌓는 단 수 (한 단 3칸)
