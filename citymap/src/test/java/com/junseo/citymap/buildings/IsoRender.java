@@ -138,7 +138,7 @@ final class IsoRender {
         }
     }
 
-    private static int surfaceColor(Column c) {
+    static int surfaceColor(Column c) {
         return switch (c.surface) {
             case GRASS -> c.mountainHeight > 0 ? 0x5F8C46 : 0x7CB25A;
             case ROCK -> 0x8C8C8C;

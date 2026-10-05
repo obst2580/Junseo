@@ -155,4 +155,58 @@ class DensityReportTest {
         System.out.println(sb);
         java.nio.file.Files.writeString(new File(dir, "density.txt").toPath(), sb);
     }
+
+    /** 도시 전체 위에서 본 그림: 칸마다 가장 높은 블록 색, 높이 그늘(남동쪽으로 그림자) */
+    @Test
+    void cityMap() throws Exception {
+        Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"));
+        CityTerrain t = TestCity.terrain();
+        CityBuildings b = TestCity.buildings();
+        double[] min = t.layout().borderMin(), max = t.layout().borderMax();
+        int X0 = (int) min[0], Z0 = (int) min[1], W = (int) (max[0] - min[0]), H = (int) (max[1] - min[1]);
+        int[] top = new int[W * H], rgb = new int[W * H];
+        for (int j = 0; j < H; j++) {
+            for (int i = 0; i < W; i++) {
+                int x = X0 + i, z = Z0 + j;
+                Column c = t.column(x, z);
+                int[] best = {c.isWater() ? c.waterTop : c.groundY, c.isWater() ? 0x3A6EA5 : IsoRender.surfaceColor(c)};
+                b.column(x, z, c, (y, block) -> {
+                    if (y >= best[0] && !block.isAir() && block.rgb() >= 0) {
+                        best[0] = y;
+                        best[1] = block.rgb();
+                    }
+                });
+                top[j * W + i] = best[0];
+                rgb[j * W + i] = best[1];
+            }
+        }
+        BufferedImage img = new BufferedImage(W, H, BufferedImage.TYPE_INT_RGB);
+        for (int j = 0; j < H; j++) {
+            for (int i = 0; i < W; i++) {
+                int h = top[j * W + i];
+                // 북서쪽에서 해가 비춤: 북서쪽 이웃보다 낮으면 그늘
+                int shade = 0;
+                for (int k = 1; k <= 24 && i - k >= 0 && j - k >= 0; k++) {
+                    if (top[(j - k) * W + (i - k)] - h > k) {
+                        shade = 1;
+                        break;
+                    }
+                }
+                double lit = shade == 1 ? 0.62 : 1.0;
+                int c = rgb[j * W + i];
+                int rr = (int) (((c >> 16) & 255) * lit), gg = (int) (((c >> 8) & 255) * lit), bb = (int) ((c & 255) * lit);
+                img.setRGB(i, j, (rr << 16) | (gg << 8) | bb);
+            }
+        }
+        File dir = new File("build/preview");
+        dir.mkdirs();
+        ImageIO.write(img, "png", new File(dir, "city-map.png"));
+        int[][] crops = {{-450, -560, 650, 200}, {350, -600, 1550, 200}, {350, 120, 1700, 900}, {-1700, -100, -100, 1000}};
+        String[] names = {"city-map-west", "city-map-north", "city-map-east", "city-map-airport"};
+        for (int q = 0; q < crops.length; q++) {
+            int[] cr = crops[q];
+            int x0 = Math.max(0, cr[0] - X0), z0 = Math.max(0, cr[1] - Z0), x1 = Math.min(W, cr[2] - X0), z1 = Math.min(H, cr[3] - Z0);
+            ImageIO.write(img.getSubimage(x0, z0, x1 - x0, z1 - z0), "png", new File(dir, names[q] + ".png"));
+        }
+    }
 }
