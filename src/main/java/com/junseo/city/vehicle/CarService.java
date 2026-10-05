@@ -66,6 +66,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class CarService implements Listener {
     /** 운전석 높이를 낮추려고 갑옷 거치대를 이만큼 줄입니다. */
     private static final double BASE_SCALE = 0.25;
+    /** 갑옷 거치대 원래 키. 크기 속성은 다음 틱에야 몸 크기에 반영돼서 getHeight() 를 바로 믿을 수 없음 */
+    private static final double ARMOR_STAND_HEIGHT = 1.975;
     private static final double DRIVER_CAMERA_DISTANCE = 6.0;
 
     /** 3D 모델 차를 실제 크기의 몇 배로 그릴지 (마인크래프트 사람 키에 맞춰 조금 키움) */
@@ -140,7 +142,8 @@ public final class CarService implements Listener {
             setAttribute(stand.getAttribute(Attribute.STEP_HEIGHT), 1.05);
             tag(stand);
         });
-        float attachY = (float) base.getHeight();
+        // 부품이 타는 자리(받침 머리 위) 높이. 다음 틱에 실제 위치를 재서 다르면 고침 (calibrate)
+        float attachY = (float) (ARMOR_STAND_HEIGHT * BASE_SCALE);
         List<Display> displays = new ArrayList<>();
         List<ItemDisplay> wheels = new ArrayList<>();
         String plate = plateNumber(keyId);
@@ -188,6 +191,8 @@ public final class CarService implements Listener {
         });
         base.addPassenger(hitbox);
         Car car = new Car(type, owner, keyId, base, hitbox, displays, wheels, plate, yaw);
+        car.attachY = attachY;
+        Sched.entityLater(base, 3, () -> calibrate(car));
         byKey.put(keyId, car);
         byEntity.put(base.getUniqueId(), car);
         byEntity.put(hitbox.getUniqueId(), car);
@@ -202,6 +207,30 @@ public final class CarService implements Listener {
         });
         world.playSound(loc, Sound.BLOCK_PISTON_EXTEND, 1f, 0.6f);
         return car;
+    }
+
+    /**
+     * 부품이 실제로 탄 높이를 재서, 처음에 잡은 값과 다르면 모든 부품을 그만큼 올리거나 내림
+     * (차가 땅에 묻히거나 뜨지 않게). 서버가 계산한 탑승 위치는 클라이언트와 같습니다.
+     */
+    private void calibrate(Car car) {
+        if (car.removed || car.parts.isEmpty() || !car.base.isValid()) {
+            return;
+        }
+        double measured = car.parts.get(0).getLocation().getY() - car.base.getLocation().getY();
+        float delta = (float) measured - car.attachY;
+        if (Math.abs(delta) < 0.01 || measured < -0.5 || measured > 3) {
+            return;
+        }
+        plugin.getLogger().info(String.format("차 부품 높이 보정: %.3f → %.3f", car.attachY, measured));
+        car.attachY = (float) measured;
+        for (Display d : car.parts) {
+            Transformation t = d.getTransformation();
+            Vector3f tr = new Vector3f(t.getTranslation()).sub(0, delta, 0);
+            d.setInterpolationDelay(0);
+            d.setInterpolationDuration(0);
+            d.setTransformation(new Transformation(tr, t.getLeftRotation(), t.getScale(), t.getRightRotation()));
+        }
     }
 
     /** 3D 모델 한 조각 (아이템 표시 엔티티) */
@@ -436,7 +465,7 @@ public final class CarService implements Listener {
         }
         car.spin = (car.spin + speed / (d.wheelRadius() * MODEL_SCALE)) % (Math.PI * 2);
         car.steer = steer;
-        float attachY = (float) car.base.getHeight();
+        float attachY = car.attachY;
         for (int i = 0; i < car.wheels.size(); i++) {
             ItemDisplay w = car.wheels.get(i);
             w.setInterpolationDelay(0);

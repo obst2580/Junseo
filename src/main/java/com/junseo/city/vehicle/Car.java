@@ -40,6 +40,8 @@ public final class Car {
     /** 바퀴 굴림 각 (라디안), 앞바퀴 꺾임 (도) */
     double spin;
     float steer;
+    /** 부품이 타는 자리의 높이 (받침 발밑 기준) */
+    float attachY;
     ScheduledTask task;
     /** 다른 스레드(폰 차고 앱 등)에서 읽는 위치. 차 스레드가 매 틱 갱신합니다. */
     volatile Location lastKnown;
