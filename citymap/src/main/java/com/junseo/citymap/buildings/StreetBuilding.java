@@ -473,10 +473,16 @@ final class StreetBuilding {
     private void upper(int k) {
         int L = FLOOR_H * k;
         Shop shop = s.upper[k - 1];
-        // 앞 큰 창 (4칸 칸살에 3칸 창)
+        // 앞 창: 벽돌·타일 건물은 2칸 네모 창, 나머지는 4칸 칸살에 3칸 큰 창
+        boolean brick = wall.equals(BRICKS) || wall.equals(DEEPSLATE_BRICKS) || wall.id().endsWith("mud_bricks") || wall.id().equals("minecraft:terracotta");
         for (int i = 1; i < w - 1; i++) {
-            boolean pier = (i - 1) % 4 == 3;
-            if (!pier) {
+            if (brick) {
+                int bay = (i - 1) % 3;
+                if (bay != 2) {
+                    v.set(i, L + 1, jf, GLASS_PANE);
+                    v.set(i, L + 2, jf, GLASS_PANE);
+                }
+            } else if ((i - 1) % 4 != 3) {
                 v.set(i, L + 1, jf, GLASS_PANE);
                 v.set(i, L + 2, jf, GLASS_PANE);
             }

@@ -58,7 +58,7 @@ class BuildingPreviewTest {
             new Eye("eye-fill-gangnam", 700, 2.6, 500, 180, 4, 80),
             new Eye("eye-fill-songpa", 1100, 2.6, 480, 180, 4, 80),
             new Eye("eye-police-yongsan", 473, 2.6, -96, 0, -6, 80),
-            new Eye("eye-police-gangnam", 728, 2.6, 575, -90, -6, 80),
+            new Eye("eye-police-gangnam", 716, 2.6, 580, -90, -8, 85),
             new Eye("eye-itaewon", 384, 2.6, -102, 180, 0, 75),
             new Eye("eye-hongdae-club", -85, 2.6, -316, 180, 0, 75),
             new Eye("eye-hongdae-busking", -88, 2.6, -335, -90, 2, 80),

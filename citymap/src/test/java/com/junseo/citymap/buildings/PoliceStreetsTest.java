@@ -100,6 +100,16 @@ class PoliceStreetsTest {
         if (only.isEmpty() || "police-gangnam".contains(only) || only.contains("police-gangnam")) {
             police("police-gangnam", gangnam(), dir);
         }
+        if (only.isEmpty() || only.contains("police-detail")) {
+            Voxels v = yongsan();
+            int[][] spots = {{12, 13, 32, 29, 6}, {20, 24, 68, 46, 2}, {5, 24, 45, 39, 24}, {34, 26, 82, 39, 18}, {56, 13, 82, 29, 1}};
+            String[] names = {"cells", "lobby", "hall", "chief", "situation"};
+            for (int k = 0; k < spots.length; k++) {
+                int[] q = spots[k];
+                ImageIO.write(new IsoRender(crop(v, q[0], q[1], q[2], q[3], q[4]), 1).iso(18, q[4]), "png",
+                        new File(dir, "police-detail-" + names[k] + ".png"));
+            }
+        }
         if (only.isEmpty() || only.contains("street")) {
             int n = 0;
             for (StreetBuilding b : streetSamples()) {
