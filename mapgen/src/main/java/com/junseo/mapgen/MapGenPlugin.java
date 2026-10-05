@@ -1,6 +1,6 @@
 package com.junseo.mapgen;
 
-import com.junseo.mapgen.terrain.CityTerrain;
+import com.junseo.citymap.terrain.CityTerrain;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.Bukkit;
 import org.bukkit.GameRules;
@@ -28,8 +28,6 @@ import java.util.List;
  */
 public final class MapGenPlugin extends JavaPlugin {
     static final NamespacedKey CITY_WORLD = NamespacedKey.minecraft("city");
-    /** 월드 경계 (정사각형). 설계도 바깥은 바다로 만들어집니다 */
-    static final double BORDER_SIZE = 10_000;
 
     private CityTerrain terrain;
 
@@ -87,11 +85,23 @@ public final class MapGenPlugin extends JavaPlugin {
             world.setGameRule(GameRules.ADVANCE_WEATHER, false);
             world.setTime(6000);
             world.getWorldBorder().setCenter(0, 0);
-            world.getWorldBorder().setSize(BORDER_SIZE);
+            world.getWorldBorder().setSize(borderSize());
             getConfig().set("city-created", true);
             saveConfig();
         }
         return world;
+    }
+
+    /** 월드 경계(정사각형) 한 변. 설계도의 긴 쪽에 맞춥니다. 설계도 바깥은 바다로 만들어집니다 */
+    double borderSize() {
+        double[] min = terrain().layout().borderMin(), max = terrain().layout().borderMax();
+        return Math.max(max[0] - min[0], max[1] - min[1]);
+    }
+
+    /** Chunky 로 미리 생성할 때 쓰는 반지름 "X Z" */
+    String chunkyRadius() {
+        double[] min = terrain().layout().borderMin(), max = terrain().layout().borderMax();
+        return Math.round((max[0] - min[0]) / 2) + " " + Math.round((max[1] - min[1]) / 2);
     }
 
     /** plugins/JunseoMapGen/layout.json 을 읽습니다. 없으면 플러그인 안의 설계도를 꺼내 둡니다. */

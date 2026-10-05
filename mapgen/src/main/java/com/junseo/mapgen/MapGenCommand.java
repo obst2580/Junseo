@@ -1,7 +1,7 @@
 package com.junseo.mapgen;
 
-import com.junseo.mapgen.layout.Layout;
-import com.junseo.mapgen.terrain.CityTerrain;
+import com.junseo.citymap.layout.Layout;
+import com.junseo.citymap.terrain.CityTerrain;
 import io.papermc.paper.command.brigadier.BasicCommand;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import net.kyori.adventure.text.Component;
@@ -60,7 +60,7 @@ final class MapGenCommand implements BasicCommand {
         World world = plugin.openCityWorld();
         say(sender, NamedTextColor.GREEN, "도시 월드 준비 완료: " + world.getName());
         say(sender, NamedTextColor.GRAY, "미리 생성: /chunky world " + world.getName()
-                + " → /chunky shape rectangle → /chunky center 0 0 → /chunky radius 5000 2800 → /chunky start");
+                + " → /chunky shape rectangle → /chunky center 0 0 → /chunky radius " + plugin.chunkyRadius() + " → /chunky start");
         if (sender instanceof Player player) {
             player.teleportAsync(CityChunkGenerator.spawn(world, plugin.terrain()));
         }

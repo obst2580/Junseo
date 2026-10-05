@@ -1,4 +1,4 @@
-package com.junseo.mapgen.terrain;
+package com.junseo.citymap.terrain;
 
 import java.util.Random;
 

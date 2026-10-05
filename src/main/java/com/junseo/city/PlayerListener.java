@@ -75,6 +75,7 @@ public final class PlayerListener implements Listener {
         plugin.guns().onQuit(player);
         plugin.jail().forget(uuid);
         plugin.gps().forget(uuid);
+        plugin.minimap().forget(uuid);
         plugin.hud().forget(uuid);
         plugin.ui().forget(uuid);
         plugin.dispatch().forget(uuid);

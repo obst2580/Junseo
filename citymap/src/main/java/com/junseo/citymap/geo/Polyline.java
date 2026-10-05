@@ -1,4 +1,4 @@
-package com.junseo.mapgen.geo;
+package com.junseo.citymap.geo;
 
 import java.util.List;
 

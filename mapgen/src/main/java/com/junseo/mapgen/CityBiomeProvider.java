@@ -1,6 +1,6 @@
 package com.junseo.mapgen;
 
-import com.junseo.mapgen.terrain.CityTerrain;
+import com.junseo.citymap.terrain.CityTerrain;
 import org.bukkit.block.Biome;
 import org.bukkit.generator.BiomeProvider;
 import org.bukkit.generator.WorldInfo;

@@ -1,6 +1,6 @@
-package com.junseo.mapgen.terrain;
+package com.junseo.citymap.terrain;
 
-import com.junseo.mapgen.layout.Layout;
+import com.junseo.citymap.layout.Layout;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -39,6 +39,18 @@ class CityTerrainTest {
         return terrain.column((int) Math.floor(x), (int) Math.floor(z));
     }
 
+    /** 한강 북서쪽(도시 밖, 다리 없는 곳) 한가운데 */
+    static double[] riverMiddle() {
+        Layout.Water han = terrain.layout().water().stream().filter(w -> w.id().equals("hangang")).findFirst().orElseThrow();
+        double[] a = han.line().get(1), b = han.line().get(2);
+        return new double[]{(a[0] + b[0]) / 2, (a[1] + b[1]) / 2};
+    }
+
+    /** 남서쪽 바다 (월드 경계 모서리 안쪽) */
+    static double[] seaPoint() {
+        return new double[]{terrain.layout().borderMin()[0] + 100, terrain.layout().borderMax()[1] - 100};
+    }
+
     @Test
     void spawnIsMarkedLandAtGroundLevel() {
         Layout.Hub spawn = hub("spawn");
@@ -55,17 +67,18 @@ class CityTerrainTest {
 
     @Test
     void hanRiverIsDeepWater() {
-        // 여의도 북쪽 한강 한가운데 (마포대교에서 떨어진 곳)
-        Column c = at(-1400, -320);
+        double[] mid = riverMiddle();
+        Column c = at(mid[0], mid[1]);
         assertTrue(c.isWater(), "한강이어야 해요");
         assertEquals(-1, c.waterTop);
-        assertTrue(c.groundY <= -9, "가운데는 깊어야 해요: " + c.groundY);
+        assertTrue(c.groundY <= -8, "가운데는 깊어야 해요: " + c.groundY);
         assertEquals(Column.Biome.RIVER, c.biome);
     }
 
     @Test
     void yeouidoIsAnIslandDistrict() {
-        Column c = at(-186, 348);
+        double[] center = terrain.districtCenter("yeouido");
+        Column c = at(center[0], center[1]);
         assertFalse(c.isWater());
         assertEquals("yeouido", c.district);
         assertEquals(0, c.groundY);
@@ -83,18 +96,20 @@ class CityTerrainTest {
 
     @Test
     void seaAndOutsideBorderAreOcean() {
-        Column sea = at(-4800, 2600);
+        double[] s = seaPoint();
+        Column sea = at(s[0], s[1]);
         assertTrue(sea.isWater());
         assertEquals(Column.Biome.OCEAN, sea.biome);
-        Column outside = at(0, 4000);
+        double outsideZ = terrain.layout().borderMax()[1] + 600;
+        Column outside = at(0, outsideZ);
         assertTrue(outside.isWater());
         assertEquals(Column.Biome.OCEAN, outside.biome);
-        assertFalse(terrain.insideBorder(0, 4000));
+        assertFalse(terrain.insideBorder(0, outsideZ));
     }
 
     @Test
     void prisonIslandIsLandInTheSea() {
-        Layout.Island island = terrain.layout().islands().get(0);
+        Layout.Island island = terrain.layout().islands().stream().filter(i -> i.id().equals("prison")).findFirst().orElseThrow();
         Column center = at(island.cx() + 10, island.cz() + 10);
         assertFalse(center.isWater(), "섬 가운데는 땅이어야 해요");
         assertEquals(1, terrain.standY((int) island.cx() + 10, (int) island.cz() + 10));
@@ -103,10 +118,26 @@ class CityTerrainTest {
     }
 
     @Test
+    void airportIsAnIslandReachedByBridges() {
+        Layout.Hub spawn = hub("spawn");
+        assertFalse(at(spawn.x() + 10, spawn.z() + 10).isWater(), "공항은 땅이어야 해요");
+        // 공항과 청라 사이 해협 (다리에서 떨어진 곳)
+        Column strait = at(-1500, 1000);
+        assertTrue(strait.isWater(), "공항과 청라 사이는 바다여야 해요");
+        assertFalse(strait.deck);
+        for (String id : new String[]{"HB3", "HB4"}) {
+            Layout.Road bridge = terrain.layout().bridges().stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
+            double[] a = bridge.line().get(0), b = bridge.line().get(1);
+            Column mid = at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+            assertTrue(mid.isWater() && mid.deck, id + " 다리 가운데는 물 위의 상판이어야 해요");
+        }
+    }
+
+    @Test
     void namsanRisesNearTheTower() {
         Layout.Hub tower = hub("tower");
-        Column c = at(tower.x() + 20, tower.z() + 20);
-        assertTrue(c.mountainHeight > 150, "남산은 높아야 해요: " + c.mountainHeight);
+        Column c = at(tower.x() + 10, tower.z() + 10);
+        assertTrue(c.mountainHeight > 120, "남산은 높아야 해요: " + c.mountainHeight);
         assertTrue(c.mountainHeight <= 300);
         assertTrue(c.groundY == c.mountainHeight);
     }
@@ -138,7 +169,8 @@ class CityTerrainTest {
         Layout.Hub quarry = hub("quarry");
         Column c = at(quarry.x() + 5, quarry.z() + 5);
         assertEquals(Surface.ROCK, c.surface);
-        assertTrue(Math.abs(c.mountainHeight - 40) <= 3, "채석장 높이: " + c.mountainHeight);
+        double flat = terrain.layout().mountains().stream().flatMap(m -> m.flats().stream()).findFirst().orElseThrow().height();
+        assertTrue(Math.abs(c.mountainHeight - flat) <= 3, "채석장 높이: " + c.mountainHeight);
     }
 
     @Test
@@ -147,7 +179,7 @@ class CityTerrainTest {
         assertNotNull(center);
         // 대형시장 경계 상자 가운데에서 동쪽으로 걸어가며 경계선을 찾음
         boolean found = false;
-        for (int dx = 0; dx < 800 && !found; dx++) {
+        for (int dx = 0; dx < 600 && !found; dx++) {
             Column c = at(center[0] + dx, center[1]);
             found = c.surface == Surface.BORDER_1;
         }
@@ -157,7 +189,7 @@ class CityTerrainTest {
     @Test
     void sameColumnIsAlwaysTheSame() {
         for (int i = 0; i < 200; i++) {
-            int x = -4900 + i * 49, z = -2700 + i * 27;
+            int x = -2450 + i * 24, z = -1350 + i * 13;
             Column a = terrain.column(x, z), b = terrain.column(x, z);
             assertEquals(a.groundY, b.groundY);
             assertEquals(a.surface, b.surface);
@@ -167,10 +199,11 @@ class CityTerrainTest {
 
     @Test
     void biomeMatchesColumnForWaterAndMountains() {
-        assertEquals(Column.Biome.RIVER, terrain.biomeAt(-1400, -320));
-        assertEquals(Column.Biome.OCEAN, terrain.biomeAt(-4800, 2600));
+        double[] mid = riverMiddle(), sea = seaPoint(), yeouido = terrain.districtCenter("yeouido");
+        assertEquals(Column.Biome.RIVER, terrain.biomeAt((int) mid[0], (int) mid[1]));
+        assertEquals(Column.Biome.OCEAN, terrain.biomeAt((int) sea[0], (int) sea[1]));
         Layout.Hub tower = hub("tower");
         assertEquals(Column.Biome.FOREST, terrain.biomeAt((int) tower.x(), (int) tower.z()));
-        assertEquals(Column.Biome.PLAINS, terrain.biomeAt(-186, 348));
+        assertEquals(Column.Biome.PLAINS, terrain.biomeAt((int) yeouido[0], (int) yeouido[1]));
     }
 }

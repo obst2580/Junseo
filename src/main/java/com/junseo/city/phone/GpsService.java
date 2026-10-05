@@ -32,6 +32,12 @@ public final class GpsService {
         return routes.containsKey(player.getUniqueId());
     }
 
+    /** 길 안내 목적지 (없으면 null). 미니맵에 표시합니다 */
+    public Location target(Player player) {
+        Route route = routes.get(player.getUniqueId());
+        return route == null ? null : route.target();
+    }
+
     public void stop(Player player) {
         Route route = routes.remove(player.getUniqueId());
         if (route != null) {

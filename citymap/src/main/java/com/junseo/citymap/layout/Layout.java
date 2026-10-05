@@ -1,4 +1,4 @@
-package com.junseo.mapgen.layout;
+package com.junseo.citymap.layout;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -16,8 +16,7 @@ public record Layout(
         int version,
         double[] borderMin,
         double[] borderMax,
-        int groundY,
-        int waterY,
+        TerrainSettings terrain,
         List<District> districts,
         List<Water> water,
         List<Island> islands,
@@ -26,17 +25,26 @@ public record Layout(
         List<Hub> hubs,
         List<Mountain> mountains) {
 
+    /**
+     * 지형 설정.
+     * mountainEdgeFade: 산 구역 테두리에서 산이 제 높이가 될 때까지 들어가는 거리.
+     * roadClear / roadFade: 도로 가장자리에서 이 거리까지는 산을 깎고, 이 거리부터는 그대로.
+     */
+    public record TerrainSettings(int groundY, int waterY, double mountainEdgeFade, double roadClear, double roadFade) {
+    }
+
     public record District(String id, String name, int openPhase, List<double[]> polygon, Ellipse ellipse) {
     }
 
     public record Ellipse(double cx, double cz, double rx, double rz, double angle) {
     }
 
-    /** kind 가 river 면 line + width, sea 면 polygon */
-    public record Water(String id, String name, String kind, double width, List<double[]> line, List<double[]> polygon) {
+    /** kind 가 river 면 line + width, sea 면 polygon. depth 는 가장 깊은 곳의 깊이 (0 이면 기본값) */
+    public record Water(String id, String name, String kind, double width, int depth, List<double[]> line, List<double[]> polygon) {
     }
 
-    public record Island(String id, String name, double cx, double cz, double radius) {
+    /** 섬. 원(중심 + 반지름) 또는 타원 */
+    public record Island(String id, String name, double cx, double cz, double radius, Ellipse ellipse) {
     }
 
     /** kind: highway, arterial, tunnel, runway. 다리는 bridge(일반) / bridge-highway */
@@ -63,13 +71,7 @@ public record Layout(
         List<District> districts = new ArrayList<>();
         for (JsonElement e : o.getAsJsonArray("districts")) {
             JsonObject d = e.getAsJsonObject();
-            Ellipse ellipse = null;
-            if (d.has("ellipse")) {
-                JsonObject el = d.getAsJsonObject("ellipse");
-                double[] c = point(el.getAsJsonArray("center"));
-                ellipse = new Ellipse(c[0], c[1], el.get("rx").getAsDouble(), el.get("rz").getAsDouble(),
-                        el.has("angle") ? el.get("angle").getAsDouble() : 0);
-            }
+            Ellipse ellipse = d.has("ellipse") ? ellipse(d.getAsJsonObject("ellipse")) : null;
             districts.add(new District(d.get("id").getAsString(), d.get("name").getAsString(),
                     d.get("open_phase").getAsInt(), d.has("polygon") ? points(d.getAsJsonArray("polygon")) : null, ellipse));
         }
@@ -79,6 +81,7 @@ public record Layout(
             JsonObject w = e.getAsJsonObject();
             water.add(new Water(w.get("id").getAsString(), w.get("name").getAsString(), w.get("kind").getAsString(),
                     w.has("width") ? w.get("width").getAsDouble() : 0,
+                    w.has("depth") ? w.get("depth").getAsInt() : 0,
                     w.has("line") ? points(w.getAsJsonArray("line")) : null,
                     w.has("polygon") ? points(w.getAsJsonArray("polygon")) : null));
         }
@@ -87,9 +90,15 @@ public record Layout(
         if (o.has("islands")) {
             for (JsonElement e : o.getAsJsonArray("islands")) {
                 JsonObject i = e.getAsJsonObject();
-                double[] c = point(i.getAsJsonArray("center"));
-                islands.add(new Island(i.get("id").getAsString(), i.get("name").getAsString(), c[0], c[1],
-                        i.get("radius").getAsDouble()));
+                if (i.has("ellipse")) {
+                    Ellipse el = ellipse(i.getAsJsonObject("ellipse"));
+                    islands.add(new Island(i.get("id").getAsString(), i.get("name").getAsString(), el.cx(), el.cz(),
+                            Math.max(el.rx(), el.rz()), el));
+                } else {
+                    double[] c = point(i.getAsJsonArray("center"));
+                    islands.add(new Island(i.get("id").getAsString(), i.get("name").getAsString(), c[0], c[1],
+                            i.get("radius").getAsDouble(), null));
+                }
             }
         }
 
@@ -140,10 +149,20 @@ public record Layout(
             }
         }
 
-        return new Layout(o.get("version").getAsInt(), point(border.getAsJsonArray("min")), point(border.getAsJsonArray("max")),
+        TerrainSettings settings = new TerrainSettings(
                 terrain.has("ground_y") ? terrain.get("ground_y").getAsInt() : 0,
                 terrain.has("water_y") ? terrain.get("water_y").getAsInt() : -1,
-                districts, water, islands, roads, bridges, hubs, mountains);
+                terrain.has("mountain_edge_fade") ? terrain.get("mountain_edge_fade").getAsDouble() : 220,
+                terrain.has("road_clear") ? terrain.get("road_clear").getAsDouble() : 30,
+                terrain.has("road_fade") ? terrain.get("road_fade").getAsDouble() : 150);
+        return new Layout(o.get("version").getAsInt(), point(border.getAsJsonArray("min")), point(border.getAsJsonArray("max")),
+                settings, districts, water, islands, roads, bridges, hubs, mountains);
+    }
+
+    private static Ellipse ellipse(JsonObject el) {
+        double[] c = point(el.getAsJsonArray("center"));
+        return new Ellipse(c[0], c[1], el.get("rx").getAsDouble(), el.get("rz").getAsDouble(),
+                el.has("angle") ? el.get("angle").getAsDouble() : 0);
     }
 
     private static double[] point(JsonArray a) {

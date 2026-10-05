@@ -1,8 +1,8 @@
-package com.junseo.mapgen.terrain;
+package com.junseo.citymap.terrain;
 
-import com.junseo.mapgen.geo.Polygon;
-import com.junseo.mapgen.geo.Polyline;
-import com.junseo.mapgen.layout.Layout;
+import com.junseo.citymap.geo.Polygon;
+import com.junseo.citymap.geo.Polyline;
+import com.junseo.citymap.layout.Layout;
 
 import java.io.Reader;
 import java.util.ArrayList;
@@ -17,12 +17,6 @@ import java.util.function.IntConsumer;
 public final class CityTerrain {
     /** 공간 색인 칸 크기 (블록) */
     private static final int CELL = 64;
-    /** 도로에서 이 거리(가장자리 기준)까지는 산을 깎아 평평하게 */
-    private static final double ROAD_CLEAR = 30;
-    /** 도로에서 이 거리부터는 산 높이를 그대로 */
-    private static final double ROAD_FADE = 150;
-    /** 산 구역 테두리에서 이 거리만큼 안쪽으로 들어가야 산이 제 높이가 됨 */
-    private static final double MOUNTAIN_EDGE_FADE = 220;
     /** 이 높이보다 산이 높아야 터널에 천장이 생김 */
     private static final int TUNNEL_COVER = 10;
     private static final int MAX_MOUNTAIN = 300;
@@ -41,6 +35,26 @@ public final class CityTerrain {
     record MountainShape(Layout.Mountain mountain, Polygon polygon) {
     }
 
+    /** 섬: 원이면 polygon 이 null */
+    record IslandShape(Layout.Island island, Polygon polygon) {
+        boolean contains(double x, double z) {
+            return polygon != null ? polygon.contains(x, z)
+                    : Math.hypot(x - island.cx(), z - island.cz()) <= island.radius();
+        }
+
+        /** 섬 안에서 해안선까지 거리 */
+        double shoreDistance(double x, double z) {
+            return polygon != null ? polygon.edgeDistance(x, z)
+                    : island.radius() - Math.hypot(x - island.cx(), z - island.cz());
+        }
+
+        double[] bounds() {
+            return polygon != null ? polygon.bounds()
+                    : new double[]{island.cx() - island.radius(), island.cz() - island.radius(),
+                    island.cx() + island.radius(), island.cz() + island.radius()};
+        }
+    }
+
     /** 공간 색인 한 칸. 이 칸 근처에 있는 것들만 모아 둡니다. segs 는 (번호, 선분) 쌍을 펼친 배열 */
     private static final class Cell {
         int[] river = new int[0];
@@ -57,11 +71,19 @@ public final class CityTerrain {
     private final Layout layout;
     private final int groundY;
     private final int waterY;
+    /** 도로에서 이 거리(가장자리 기준)까지는 산을 깎아 평평하게 */
+    private final double roadClear;
+    /** 도로에서 이 거리부터는 산 높이를 그대로 */
+    private final double roadFade;
+    /** 산 구역 테두리에서 이 거리만큼 안쪽으로 들어가야 산이 제 높이가 됨 */
+    private final double mountainEdgeFade;
+    /** 바다의 가장 깊은 곳 */
+    private final int seaDepth;
     private final double bx0, bz0, bx1, bz1;
     private final List<DistrictShape> districts = new ArrayList<>();
     private final List<RiverShape> rivers = new ArrayList<>();
     private final Polygon sea;
-    private final List<Layout.Island> islands;
+    private final List<IslandShape> islands = new ArrayList<>();
     private final List<RoadShape> roads = new ArrayList<>();
     private final List<RoadShape> bridges = new ArrayList<>();
     private final List<MountainShape> mountains = new ArrayList<>();
@@ -76,8 +98,11 @@ public final class CityTerrain {
 
     public CityTerrain(Layout layout) {
         this.layout = layout;
-        this.groundY = layout.groundY();
-        this.waterY = layout.waterY();
+        this.groundY = layout.terrain().groundY();
+        this.waterY = layout.terrain().waterY();
+        this.roadClear = layout.terrain().roadClear();
+        this.roadFade = layout.terrain().roadFade();
+        this.mountainEdgeFade = layout.terrain().mountainEdgeFade();
         bx0 = layout.borderMin()[0];
         bz0 = layout.borderMin()[1];
         bx1 = layout.borderMax()[0];
@@ -90,16 +115,24 @@ public final class CityTerrain {
             districts.add(new DistrictShape(d.id(), d.name(), d.openPhase(), p));
         }
         Polygon seaPolygon = null;
+        int seaMax = 24;
         for (Layout.Water w : layout.water()) {
             if ("sea".equals(w.kind())) {
                 seaPolygon = new Polygon(w.polygon());
+                if (w.depth() > 0) {
+                    seaMax = w.depth();
+                }
             } else {
-                rivers.add(new RiverShape(w.id(), new Polyline(w.line()), w.width() / 2,
-                        w.width() >= 200 ? 12 : 5));
+                int depth = w.depth() > 0 ? w.depth() : (w.width() >= 200 ? 12 : 5);
+                rivers.add(new RiverShape(w.id(), new Polyline(w.line()), w.width() / 2, depth));
             }
         }
         sea = seaPolygon;
-        islands = layout.islands();
+        seaDepth = seaMax;
+        for (Layout.Island is : layout.islands()) {
+            Layout.Ellipse e = is.ellipse();
+            islands.add(new IslandShape(is, e == null ? null : Polygon.ellipse(e.cx(), e.cz(), e.rx(), e.rz(), e.angle(), 64)));
+        }
         for (Layout.Road r : layout.roads()) {
             roads.add(new RoadShape(r.id(), r.kind(), new Polyline(r.line()), halfWidth(r.kind())));
         }
@@ -159,14 +192,14 @@ public final class CityTerrain {
             RoadShape r = roads.get(f);
             addSegments(road, f, r.line(), r.half() + 1);
             if (!"tunnel".equals(r.kind())) {
-                addSegments(roadMask, f, r.line(), r.half() + ROAD_FADE + 4);
+                addSegments(roadMask, f, r.line(), r.half() + roadFade + 4);
             }
         }
         for (int f = 0; f < bridges.size(); f++) {
             RoadShape r = bridges.get(f);
             addSegments(bridge, f, r.line(), r.half() + 1);
             // 다리도 산을 깎는 도로로 칩니다 (번호는 도로 뒤에 이어 붙임)
-            addSegments(roadMask, roads.size() + f, r.line(), r.half() + ROAD_FADE + 4);
+            addSegments(roadMask, roads.size() + f, r.line(), r.half() + roadFade + 4);
         }
         for (int i = 0; i < districts.size(); i++) {
             addBox(dist, i, districts.get(i).polygon().bounds(), 2);
@@ -175,8 +208,7 @@ public final class CityTerrain {
             addBox(mount, i, mountains.get(i).polygon().bounds(), 2);
         }
         for (int i = 0; i < islands.size(); i++) {
-            Layout.Island is = islands.get(i);
-            addBox(isl, i, new double[]{is.cx() - is.radius(), is.cz() - is.radius(), is.cx() + is.radius(), is.cz() + is.radius()}, 8);
+            addBox(isl, i, islands.get(i).bounds(), 8);
         }
         for (int i = 0; i < hubs.size(); i++) {
             Layout.Hub h = hubs.get(i);
@@ -333,14 +365,11 @@ public final class CityTerrain {
         double[] tmp = new double[2];
 
         // 섬
-        Layout.Island island = null;
-        double islandDist = 0;
+        IslandShape island = null;
         for (int i : cell.islands) {
-            Layout.Island is = islands.get(i);
-            double d = Math.hypot(px - is.cx(), pz - is.cz());
-            if (d <= is.radius()) {
+            IslandShape is = islands.get(i);
+            if (is.contains(px, pz)) {
                 island = is;
-                islandDist = d;
             }
         }
 
@@ -434,7 +463,7 @@ public final class CityTerrain {
                 c.surface = Surface.EMBANKMENT;
             } else if (cell.sea && coast < 8 && island == null) {
                 c.surface = Surface.SAND;
-            } else if (island != null && islandDist > island.radius() - 6) {
+            } else if (island != null && island.shoreDistance(px, pz) < 6) {
                 c.surface = Surface.SAND;
             } else if (district != null && district.polygon().edgeDistance(px, pz) < 1.0) {
                 c.surface = switch (district.phase()) {
@@ -469,7 +498,7 @@ public final class CityTerrain {
         c.waterTop = waterY;
         int depth = 0;
         if (inSea) {
-            depth = (int) Math.round(2 + 22 * smooth(0, 120, coast));
+            depth = (int) Math.round(2 + (seaDepth - 2) * smooth(0, 100, coast));
             c.bed = Surface.SEA_BED;
             c.biome = Column.Biome.OCEAN;
         }
@@ -642,7 +671,7 @@ public final class CityTerrain {
         }
         double variation = 1 + 0.22 * noise.fbm(px / 380, pz / 380, 3);
         double detail = 7 * noise.fbm(px / 70 + 100, pz / 70 + 100, 3);
-        double h = (base * variation + detail * Math.min(1, base / 30)) * smooth(0, MOUNTAIN_EDGE_FADE, inside);
+        double h = (base * variation + detail * Math.min(1, base / 30)) * smooth(0, mountainEdgeFade, inside);
         return Math.max(0, Math.min(MAX_MOUNTAIN, h));
     }
 
@@ -667,7 +696,7 @@ public final class CityTerrain {
             r.line().distanceToSegment(cell.roadMask[k + 1], px, pz, tmp);
             edge = Math.min(edge, tmp[0] - r.half());
         }
-        return edge == Double.MAX_VALUE ? 1 : smooth(ROAD_CLEAR, ROAD_FADE, edge);
+        return edge == Double.MAX_VALUE ? 1 : smooth(roadClear, roadFade, edge);
     }
 
     /** 터널 위를 덮는 산 높이 (도로로 깎지 않은 높이) */
@@ -705,8 +734,7 @@ public final class CityTerrain {
         Cell cell = cellAt(px, pz);
         boolean island = false;
         for (int i : cell.islands) {
-            Layout.Island is = islands.get(i);
-            if (Math.hypot(px - is.cx(), pz - is.cz()) <= is.radius()) {
+            if (islands.get(i).contains(px, pz)) {
                 island = true;
             }
         }

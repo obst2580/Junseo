@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "com.junseo"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -14,12 +14,8 @@ repositories {
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:${property("paperApiVersion")}")
-
-    // 지형 계산은 서버 없이 테스트합니다 (layout.json 읽기에 Gson 사용)
-    testImplementation("com.google.code.gson:gson:2.14.0")
-    testImplementation(platform("org.junit:junit-bom:6.1.3"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // 설계도 계산 (jar 안에 함께 넣음)
+    implementation(project(":citymap"))
 }
 
 java {
@@ -39,19 +35,13 @@ tasks {
         filesMatching("plugin.yml") {
             expand(props)
         }
-        // 설계도 데이터를 플러그인 안에 넣습니다
-        from(rootProject.file("map/layout.json"))
     }
 
     jar {
         archiveFileName.set("JunseoMapGen-${project.version}.jar")
-    }
-
-    test {
-        useJUnitPlatform()
-        // ./gradlew :mapgen:test -DmapPreview=true  →  mapgen/build/preview/ 에 지도 미리보기 PNG
-        systemProperty("mapPreview", System.getProperty("mapPreview") ?: "false")
-        systemProperty("layoutFile", rootProject.file("map/layout.json").absolutePath)
-        maxHeapSize = "1g"
+        // citymap 모듈(과 설계도 layout.json)을 jar 안에 합칩니다
+        dependsOn(configurations.runtimeClasspath)
+        from({ configurations.runtimeClasspath.get().filter { it.name.endsWith(".jar") }.map { zipTree(it) } })
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     }
 }

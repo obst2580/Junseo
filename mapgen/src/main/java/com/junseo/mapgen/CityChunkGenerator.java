@@ -1,9 +1,9 @@
 package com.junseo.mapgen;
 
-import com.junseo.mapgen.layout.Layout;
-import com.junseo.mapgen.terrain.CityTerrain;
-import com.junseo.mapgen.terrain.Column;
-import com.junseo.mapgen.terrain.Surface;
+import com.junseo.citymap.layout.Layout;
+import com.junseo.citymap.terrain.CityTerrain;
+import com.junseo.citymap.terrain.Column;
+import com.junseo.citymap.terrain.Surface;
 import org.bukkit.HeightMap;
 import org.bukkit.Location;
 import org.bukkit.Material;

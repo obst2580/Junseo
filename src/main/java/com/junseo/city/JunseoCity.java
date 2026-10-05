@@ -12,6 +12,7 @@ import com.junseo.city.hud.HudService;
 import com.junseo.city.job.DeliveryService;
 import com.junseo.city.job.JobService;
 import com.junseo.city.logic.CharacterData;
+import com.junseo.city.map.MinimapService;
 import com.junseo.city.menu.MenuListener;
 import com.junseo.city.npc.NpcService;
 import com.junseo.city.phone.DispatchService;
@@ -63,6 +64,7 @@ public final class JunseoCity extends JavaPlugin {
     private CarService cars;
     private PhoneService phone;
     private CreationService creation;
+    private MinimapService minimap;
     private PlayerListener playerListener;
     private ScheduledTask paydayTask;
     private final Map<UUID, ScheduledTask> tickers = new ConcurrentHashMap<>();
@@ -92,10 +94,12 @@ public final class JunseoCity extends JavaPlugin {
         cars = new CarService(this);
         phone = new PhoneService(this);
         creation = new CreationService(this);
+        minimap = new MinimapService(this);
         playerListener = new PlayerListener(this);
 
         register(new MenuListener(), characters, ui, economy, npcs, robbery, guns, cars, phone,
-                new InteractionService(this), creation, playerListener);
+                new InteractionService(this), creation, playerListener, minimap);
+        minimap.start();
 
         getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
                 event.registrar().register("cityadmin", "시티 관리자 명령어", List.of("시티관리"), new AdminCommand(this)));
@@ -148,6 +152,7 @@ public final class JunseoCity extends JavaPlugin {
         player.playerListName(Text.mm("<white>" + Text.esc(data.name())));
         hud.show(player);
         jail.onJoin(player);
+        minimap.ensure(player);
         int[] count = {0};
         ScheduledTask task = Sched.entityRepeat(player, 10, 10, t -> {
             delivery.tick(player);
@@ -260,6 +265,10 @@ public final class JunseoCity extends JavaPlugin {
 
     public PhoneService phone() {
         return phone;
+    }
+
+    public MinimapService minimap() {
+        return minimap;
     }
 
     public CreationService creation() {

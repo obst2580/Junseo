@@ -33,8 +33,44 @@ def centroid(points):
     return sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points)
 
 
+def scaled(layout, k):
+    """그림 크기를 일정하게 맞추려고 좌표만 k 배 한 사본 (글자·선 굵기는 그대로)"""
+    import copy
+    L = copy.deepcopy(layout)
+    sp = lambda p: [p[0] * k, p[1] * k]
+    L["world_border"] = {"min": sp(L["world_border"]["min"]), "max": sp(L["world_border"]["max"])}
+    for d in L["districts"]:
+        if "ellipse" in d:
+            e = d["ellipse"]
+            e["center"], e["rx"], e["rz"] = sp(e["center"]), e["rx"] * k, e["rz"] * k
+        else:
+            d["polygon"] = [sp(p) for p in d["polygon"]]
+    for w in L["water"]:
+        for key in ("line", "polygon"):
+            if key in w:
+                w[key] = [sp(p) for p in w[key]]
+        if "width" in w:
+            w["width"] = w["width"] * k
+    for isl in L.get("islands", []):
+        if "ellipse" in isl:
+            e = isl["ellipse"]
+            e["center"], e["rx"], e["rz"] = sp(e["center"]), e["rx"] * k, e["rz"] * k
+        else:
+            isl["center"], isl["radius"] = sp(isl["center"]), isl["radius"] * k
+    for r in L["roads"] + L["bridges"]:
+        r["line"] = [sp(p) for p in r["line"]]
+    for h in L["hubs"]:
+        h["pos"] = sp(h["pos"])
+    return L
+
+
 def render(layout):
+    # 그림은 언제나 가로 10000 단위로 그립니다 (도시가 작아도 글자 크기가 같게)
+    width = layout["world_border"]["max"][0] - layout["world_border"]["min"][0]
+    k = 10000 / width
+    layout = scaled(layout, k)
     (bx0, bz0), (bx1, bz1) = layout["world_border"]["min"], layout["world_border"]["max"]
+    bx0, bz0, bx1, bz1 = round(bx0), round(bz0), round(bx1), round(bz1)
     legend_w = 2300
     vx, vz, vw, vh = bx0 - 150, bz0 - 450, (bx1 - bx0) + 300 + legend_w, (bz1 - bz0) + 600
     o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vx} {vz} {vw} {vh}" '
@@ -45,12 +81,25 @@ def render(layout):
          '<g clip-path="url(#border)">']
 
     # 격자 (1km)
-    for x in range(bx0 - bx0 % 1000, bx1 + 1, 1000):
+    step = round(1000 * k / 2) if k >= 2 else 1000   # 격자 한 칸 = 실제 500m (작은 도시) 또는 1km
+    real = lambda v: round(v / k)
+    for x in range(bx0 - bx0 % step, bx1 + 1, step):
         o.append(f'<line x1="{x}" y1="{bz0}" x2="{x}" y2="{bz1}" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>')
-        o.append(f'<text x="{x}" y="{bz0 - 40}" font-size="90" text-anchor="middle" fill="#777">X {x}</text>')
-    for z in range(bz0 - bz0 % 1000, bz1 + 1, 1000):
+        o.append(f'<text x="{x}" y="{bz0 - 40}" font-size="90" text-anchor="middle" fill="#777">X {real(x)}</text>')
+    for z in range(bz0 - bz0 % step, bz1 + 1, step):
         o.append(f'<line x1="{bx0}" y1="{z}" x2="{bx1}" y2="{z}" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>')
-        o.append(f'<text x="{bx0 - 30}" y="{z + 30}" font-size="90" text-anchor="end" fill="#777">Z {z}</text>')
+        o.append(f'<text x="{bx0 - 30}" y="{z + 30}" font-size="90" text-anchor="end" fill="#777">Z {real(z)}</text>')
+
+    # 바다 → 섬 (구역보다 먼저: 섬 위의 공항 구역이 보이게)
+    for w in layout["water"]:
+        if w["kind"] == "sea":
+            o.append(f'<polygon points="{pts(w["polygon"])}" fill="{WATER}"/>')
+    for isl in layout.get("islands", []):
+        if "ellipse" in isl:
+            o.append(f'<polygon points="{pts(ellipse_points(isl["ellipse"]))}" fill="{LAND}" stroke="#8a8a8a" stroke-width="8"/>')
+        else:
+            cx, cz = isl["center"]
+            o.append(f'<circle cx="{cx}" cy="{cz}" r="{isl["radius"]}" fill="#d9d2bd" stroke="#4a4a4a" stroke-width="14"/>')
 
     # 구역
     labels = []
@@ -74,17 +123,10 @@ def render(layout):
         elif r["kind"] == "tunnel":
             o.append(f'<polyline points="{line}" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>')
 
-    # 물
+    # 한강·샛강 (구역 위에 그려서 강이 구역을 가르게)
     for w in layout["water"]:
-        if w["kind"] == "sea":
-            o.append(f'<polygon points="{pts(w["polygon"])}" fill="{WATER}"/>')
-        else:
+        if w["kind"] != "sea":
             o.append(f'<polyline points="{pts(w["line"])}" fill="none" stroke="{WATER}" stroke-width="{w["width"]}" stroke-linejoin="round" stroke-linecap="round"/>')
-
-    # 섬
-    for isl in layout.get("islands", []):
-        cx, cz = isl["center"]
-        o.append(f'<circle cx="{cx}" cy="{cz}" r="{isl["radius"]}" fill="#d9d2bd" stroke="#4a4a4a" stroke-width="14"/>')
 
     # 다리 (물 위)
     for br in layout["bridges"]:
@@ -111,7 +153,7 @@ def render(layout):
     # 제목과 범례
     lx = bx1 + 250
     o.append(f'<text x="{bx0}" y="{bz0 - 230}" font-size="190" font-weight="bold" fill="#111">'
-             f'준서 시티 도시 설계도 v{layout["version"]} — 압축 서울·인천 (1블록 = 1m)</text>')
+             f'준서 시티 도시 설계도 v{layout["version"]} — 압축 서울·인천 {real(bx1 - bx0) / 1000:g}×{real(bz1 - bz0) / 1000:g}km 범위 (1블록 = 1m)</text>')
     rows = [("rect", PHASE_FILL[1], "1차 오픈 구역"), ("rect", PHASE_FILL[2], "2차 오픈 구역"),
             ("rect", PHASE_FILL[3], "3차 오픈 구역"), ("rect", WATER, "한강·바다"),
             ("line", "#d6362f", "고속도로 (기존 도로 본뜸)"), ("line", "#f0892a", "대로 (신규)"),
@@ -131,10 +173,11 @@ def render(layout):
             o.append(f'<circle cx="{lx + 100}" cy="{y - 35}" r="50" fill="{color}"/>')
         o.append(f'<text x="{lx + 260}" y="{y}" font-size="95">{escape(label)}</text>')
     y += 300
-    o.append(f'<line x1="{lx}" y1="{y}" x2="{lx + 1000}" y2="{y}" stroke="#111" stroke-width="30"/>')
-    o.append(f'<text x="{lx + 500}" y="{y + 130}" font-size="95" text-anchor="middle">1km (1,000블록)</text>')
+    bar = round(500 * k) if k >= 2 else 1000
+    o.append(f'<line x1="{lx}" y1="{y}" x2="{lx + bar}" y2="{y}" stroke="#111" stroke-width="30"/>')
+    o.append(f'<text x="{lx + bar / 2}" y="{y + 130}" font-size="95" text-anchor="middle">{real(bar)}m ({real(bar):,}블록)</text>')
     o.append(f'<text x="{lx}" y="{y + 330}" font-size="85" fill="#555">북쪽이 위 (Z−), 동쪽이 오른쪽 (X+)</text>')
-    o.append(f'<text x="{lx}" y="{y + 450}" font-size="85" fill="#555">월드 경계 {bx1 - bx0}×{bz1 - bz0}</text>')
+    o.append(f'<text x="{lx}" y="{y + 450}" font-size="85" fill="#555">설계도 범위 {real(bx1 - bx0)}×{real(bz1 - bz0)}</text>')
     o.append('</svg>')
     return "\n".join(o)
 

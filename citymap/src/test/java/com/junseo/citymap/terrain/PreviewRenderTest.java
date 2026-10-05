@@ -1,4 +1,4 @@
-package com.junseo.mapgen.terrain;
+package com.junseo.citymap.terrain;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -10,7 +10,7 @@ import java.io.IOException;
 
 /**
  * 생성기가 만들 지형을 위에서 내려다본 그림으로 저장합니다. 서버 없이 결과를 확인하는 용도입니다.
- * 실행: ./gradlew :mapgen:test -DmapPreview=true  →  mapgen/build/preview/
+ * 실행: ./gradlew :citymap:test -DmapPreview=true  →  citymap/build/preview/
  */
 class PreviewRenderTest {
 
@@ -22,15 +22,17 @@ class PreviewRenderTest {
         dir.mkdirs();
 
         long start = System.nanoTime();
-        // 전체: 1px = 5블록
-        ImageIO.write(render(terrain, -5000, -2800, 2000, 1120, 5), "png", new File(dir, "map-preview.png"));
+        // 전체: 1px = 2블록
+        double[] min = terrain.layout().borderMin(), max = terrain.layout().borderMax();
+        int w = (int) ((max[0] - min[0]) / 2), h = (int) ((max[1] - min[1]) / 2);
+        ImageIO.write(render(terrain, (int) min[0], (int) min[1], w, h, 2), "png", new File(dir, "map-preview.png"));
         long elapsed = (System.nanoTime() - start) / 1_000_000;
-        System.out.println("전체 미리보기 " + elapsed + "ms (" + (2000 * 1120) + "칸)");
+        System.out.println("전체 미리보기 " + elapsed + "ms (" + (w * h) + "칸)");
 
         // 확대: 1px = 1블록
-        ImageIO.write(render(terrain, -1300, -350, 1400, 900, 1), "png", new File(dir, "yeouido-1to1.png"));
-        ImageIO.write(render(terrain, 1550, -800, 1000, 1300, 1), "png", new File(dir, "namsan-tunnel-1to1.png"));
-        ImageIO.write(render(terrain, -4400, 1000, 1500, 1000, 1), "png", new File(dir, "airport-1to1.png"));
+        ImageIO.write(render(terrain, -650, -175, 700, 450, 1), "png", new File(dir, "yeouido-1to1.png"));
+        ImageIO.write(render(terrain, 775, -400, 500, 650, 1), "png", new File(dir, "namsan-tunnel-1to1.png"));
+        ImageIO.write(render(terrain, -2200, 500, 750, 500, 1), "png", new File(dir, "airport-1to1.png"));
     }
 
     static BufferedImage render(CityTerrain terrain, int x0, int z0, int w, int h, int scale) {

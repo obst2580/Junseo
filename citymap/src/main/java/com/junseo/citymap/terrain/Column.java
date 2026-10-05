@@ -1,4 +1,4 @@
-package com.junseo.mapgen.terrain;
+package com.junseo.citymap.terrain;
 
 /**
  * 지도 한 칸(1×1 블록 세로줄)의 계산 결과.
