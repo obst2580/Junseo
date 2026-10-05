@@ -501,6 +501,7 @@ final class SupertallTower {
         shops();
         atriumStairs();
         foodCourt();
+        benches();
         entrances();
         roofGarden();
     }
@@ -707,6 +708,32 @@ final class SupertallTower {
                     if (pod(i, j) && !atrium(i, j) && v.get(i, y, j) == null) {
                         v.set(i, y, j, Interior.LIGHT);
                     }
+                }
+            }
+        }
+    }
+
+    /** 1~3층 양옆 날개 복도 가운데: 긴 의자와 화분 (10칸마다) */
+    private void benches() {
+        Frame f = Frame.of(v);
+        int half = width(0) / 2;
+        for (int k = 0; k + 2 < PODIUM.length; k++) {
+            int level = PODIUM[k];
+            for (int side = 0; side < 2; side++) {
+                int i = side == 0 ? (pi0 + 8 + tc - half) / 2 + 1 : (pi1 - 8 + tc + half) / 2;
+                for (int j = pj0 + 18; j + 3 <= pj1 - 4; j += 10) {
+                    boolean free = true;
+                    for (int dj = -1; dj <= 3 && free; dj++) {
+                        free = pod(i, j + dj) && v.get(i, level, j + dj) == null && v.get(i, level - 1, j + dj) != null;
+                    }
+                    if (!free) {
+                        continue;
+                    }
+                    for (int dj = 0; dj < 2; dj++) {
+                        v.set(i, level, j + dj, Block.of("spruce_stairs", 0x725430).with("facing=" + (side == 0 ? "west" : "east")
+                                + ",half=bottom,shape=straight,waterlogged=false"));
+                    }
+                    Furniture.plant(f, r, i, level, j + 2);
                 }
             }
         }
