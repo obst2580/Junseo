@@ -89,6 +89,13 @@ final class DistrictFill {
             // 구인천: 공장 사이 낡은 다세대·상가주택, 5층 주공아파트
             Map.entry("guincheon", new Style(spec(14, 10, 15, false, 12, 18, 2), r(3, 5), r(2, 4), r(2, 4), r(0, 0), true, 10, r(5, 5), 25, 260, false)));
 
+    /** 구역마다 학교 수 (아파트·주택이 많은 동네일수록) */
+    static final Map<String, Integer> SCHOOLS = Map.ofEntries(
+            Map.entry("yeouido", 1), Map.entry("junggu", 1), Map.entry("yongsan", 1), Map.entry("gangnam", 2),
+            Map.entry("songpa", 2), Map.entry("mapo", 2), Map.entry("gwangjin", 1), Map.entry("hongdae", 1),
+            Map.entry("university", 1), Map.entry("guincheon", 1));
+    private static final String[] LEVELS = {"초등학교", "중학교", "고등학교"};
+
     /** 채우는 구역 (청라는 분양 필지, 공항은 따로. 구인천·대형시장은 자기 계획 다음에 남은 땅만) */
     static final String[] DISTRICTS = {"yeouido", "junggu", "yongsan", "gangnam", "songpa", "mapo", "gwangjin", "hongdae",
             "university", "namsan", "bukhansan", "market", "guincheon"};
@@ -112,7 +119,6 @@ final class DistrictFill {
     private final MainRoads roads;
     private final List<Placement> out = new ArrayList<>();
     private final List<double[]> garages = new ArrayList<>();
-    private final int[] dong = {101};
     private int garageNo = 1;
 
     private DistrictFill(CityTerrain t, String id, Style st, BuildMask m, List<Placement> existing) {
@@ -145,6 +151,7 @@ final class DistrictFill {
 
     private void run() {
         String complex = COMPLEX[rnd.nextInt(COMPLEX.length)];
+        int schoolsLeft = SCHOOLS.getOrDefault(id, 0), schoolNo = rnd.nextInt(LEVELS.length);
         for (int[] block : m.blocks()) {
             if (block[4] < 150) {
                 continue;
@@ -154,6 +161,15 @@ final class DistrictFill {
             boolean regular = ratio >= 0.55 && bw >= 26 && bd >= 26;
             if (!regular) {
                 continue;
+            }
+            if (schoolsLeft > 0 && bw >= School.MIN_W && bd >= School.MIN_D && rnd.nextInt(100) < 40) {
+                String level = LEVELS[schoolNo++ % LEVELS.length];
+                List<Placement> school = School.plan(m, block, id, level, KoreanNames.prefix(rnd) + level, rnd);
+                if (!school.isEmpty()) {
+                    out.addAll(school);
+                    schoolsLeft--;
+                    continue;
+                }
             }
             if (rnd.nextInt(100) < st.complexPct && bw >= 45 && bd >= 40) {
                 int before = out.size();
@@ -410,35 +426,9 @@ final class DistrictFill {
 
     // ------------------------------------------------------------------ 아파트 단지
 
-    /** 아파트 단지: 남향 동을 줄지어 세우고, 동 사이는 주차장 */
+    /** 아파트 단지 (구역마다 타워형·판상형·시범아파트, 문주·관리동·상가·놀이터·주차장): {@link ApartmentComplex} */
     private void apartments(int[] block, String complex) {
-        int depth = Apartment.depth(), gap = 12;
-        for (int z = block[1]; z + depth - 1 <= block[3]; z += depth + gap) {
-            int x = block[0];
-            while (x + 30 <= block[2]) {
-                int units = Math.min(6, Apartment.unitsFor(block[2] - x + 1));
-                int w = Apartment.CORE + units * Apartment.UNIT + 1;
-                int x1 = x + w - 1, z1 = z + depth - 1;
-                if (x1 <= block[2] && m.rectFree(x, z, x1, z1)) {
-                    int floors = between(st.apt);
-                    int no = dong[0]++;
-                    long seed = rnd.nextLong();
-                    out.add(Placement.rect(complex + "아파트 " + no + "동", "apartment", x, z, x1, z1, "south",
-                            (bw, bd) -> Apartment.build(bw, bd, units, floors, no, complex + "아파트", new Random(seed))));
-                    m.claim(x - 1, z - 1, x1 + 1, z1 + 1);
-                    // 동 앞 주차장 (다음 줄과 사이)
-                    int pz0 = z1 + 2, pz1 = z1 + gap - 1;
-                    if (pz1 - pz0 >= 8 && m.rectFree(x, pz0, x1, pz1)) {
-                        long ps = rnd.nextLong();
-                        out.add(Placement.rect("아파트 주차장", "parking", x, pz0, x1, pz1, "south", (pw, pd) -> ParkingLot.build(pw, pd, new Random(ps))));
-                        m.claim(x - 1, pz0 - 1, x1 + 1, pz1 + 1);
-                    }
-                    x = x1 + 8;
-                } else {
-                    x += 4;
-                }
-            }
-        }
+        out.addAll(ApartmentComplex.plan(m, block, id, complex, rnd));
     }
 
     private DistrictFill() {

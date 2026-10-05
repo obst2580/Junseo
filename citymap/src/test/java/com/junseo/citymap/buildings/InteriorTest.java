@@ -110,13 +110,19 @@ class InteriorTest {
                 WalkCheck walk = new WalkCheck(v).run();
                 assertTrue(walk.reachedAt(roof) > 10, p + " 옥상(" + roof + ")에 걸어서 못 가요");
             } else if (p.kind.equals("apartment") && apartments < 8) {
+                // 동마다 층 높이가 달라서(필로티·로비) 1층과 꼭대기 근처(옥상·계단실 지붕)에 닿는지만 봄. 층마다는 ApartmentComplexTest
                 apartments++;
                 Voxels v = p.voxels();
-                int roof = v.y0 + v.h - 1 - 6;
+                int top = v.y0 + v.h - 1;
                 WalkCheck walk = new WalkCheck(v).run();
-                for (int y = 0; y < roof; y += 4) {
-                    assertTrue(walk.reachedAt(y) > 20, p + " " + (y / 4 + 1) + "층에 걸어서 못 가요");
+                assertTrue(walk.reachedAt(0) > 20, p + " 1층에 못 들어가요");
+                int highest = 0;
+                for (int y = top; y > 0 && highest == 0; y--) {
+                    if (walk.reachedAt(y) > 10) {
+                        highest = y;
+                    }
                 }
+                assertTrue(highest >= top - 18, p + " 꼭대기까지 못 올라가요 (" + highest + " / " + top + ")");
             }
         }
         assertTrue(offices > 0 && apartments > 0);
