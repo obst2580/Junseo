@@ -75,6 +75,12 @@ class BuildingsTest {
         assertEquals(1, n.getOrDefault("jewelry", 0), "명동 보석상");
         assertEquals(1, n.getOrDefault("cafe", 0), "명동 카페");
         assertTrue(n.getOrDefault("retail", 0) >= 8, "명동 상가");
+        long hill = buildings.placements().stream().filter(p -> p.name.endsWith(" 골목·계단길") || p.name.endsWith(" 골목·석축")).count();
+        assertTrue(hill >= 6, "비탈 마을 (해방촌·후암동·보광동·평창동) " + hill);
+        assertTrue(buildings.placements().stream().anyMatch(p -> p.name.equals("북한산 광장")), "북한산 등산로 입구");
+        long hangang = buildings.placements().stream().filter(p -> p.name.startsWith("한강공원")).count();
+        assertTrue(hangang >= 40, "한강공원 토막·편의점·화장실·주차장 " + hangang);
+        assertTrue(n.getOrDefault("garage", 0) >= 2, "등산로 공영주차장 + 한강공원 주차장");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */
