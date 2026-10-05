@@ -27,6 +27,12 @@ if not exist eula.txt (
   call :checkEula
 )
 
+rem First run: view distance 16 chunks (far city view), simulation 8 (lighter CPU)
+if not exist server.properties (
+  >server.properties echo view-distance=16
+  >>server.properties echo simulation-distance=8
+)
+
 java -Xms2G -Xmx4G -jar paper.jar --nogui
 pause
 exit /b 0

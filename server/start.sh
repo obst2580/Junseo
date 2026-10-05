@@ -29,4 +29,9 @@ if [ ! -f eula.txt ]; then
   fi
 fi
 
+# 처음 켤 때: 보이는 거리 16청크 (도시가 멀리 보임), 계산 거리 8 (CPU 가볍게)
+if [ ! -f server.properties ]; then
+    printf 'view-distance=16\nsimulation-distance=8\n' > server.properties
+fi
+
 exec java -Xms2G -Xmx4G -jar paper.jar --nogui
