@@ -151,6 +151,39 @@ final class Site {
         v.set(i, h + 1, j, Block.of("polished_blackstone_button[face=floor,facing=north,powered=false]", 0x353038));
     }
 
+    /** 바닥 마감 (y 칸을 바꿈), keep 상자 {i0, j0, i1, j1} 안은 건드리지 않음 (계단실 등) */
+    static void floor(Voxels v, int i0, int j0, int i1, int j1, int y, Block b, int[]... keep) {
+        for (int j = j0; j <= j1; j++) {
+            for (int i = i0; i <= i1; i++) {
+                if (!kept(keep, i, j)) {
+                    v.set(i, y, j, b);
+                }
+            }
+        }
+    }
+
+    /** 천장 등 (y 칸, spacing 간격), 빈 칸에만, keep 상자 안은 피함 */
+    static void lights(Voxels v, int i0, int j0, int i1, int j1, int y, int spacing, int[]... keep) {
+        int off = Math.max(1, spacing / 2);
+        for (int j = j0 + off; j <= j1 - 1; j += spacing) {
+            for (int i = i0 + off; i <= i1 - 1; i += spacing) {
+                Block b = v.get(i, y, j);
+                if ((b == null || b.isAir()) && !kept(keep, i, j)) {
+                    v.set(i, y, j, Interior.LIGHT);
+                }
+            }
+        }
+    }
+
+    private static boolean kept(int[][] keep, int i, int j) {
+        for (int[] k : keep) {
+            if (i >= k[0] && i <= k[2] && j >= k[1] && j <= k[3]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 주차 칸 (흰 선만, 차는 없음): (i, j) 부터 i 방향으로 n 칸, 깊이 5 (j 방향) */
     static void stalls(Voxels v, int i, int j, int n, int depth) {
         for (int k = 0; k <= n; k++) {
