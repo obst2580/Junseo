@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import static com.junseo.citymap.buildings.Blocks.*;
+
 /**
  * 공항 섬. 처음 들어온 사람이 압도되도록 크게 짓습니다.
  * <ul>
@@ -111,7 +113,7 @@ final class AirportPlan {
         approach(t, "H3", false, rnd, out);
 
         // ---- 공항로 고리 안: 지구본 광장과 주차장
-        loop(t, rnd, out);
+        loop(t, f, out);
         return out;
     }
 
@@ -199,8 +201,11 @@ final class AirportPlan {
         return new double[]{a[0], a[1], 1, 0};
     }
 
-    /** 공항로(AP) 고리 안: 가운데 지구본 광장, 나머지는 주차장 */
-    private static void loop(CityTerrain t, Random rnd, List<Placement> out) {
+    /**
+     * 공항로 고리 안: 가운데 지구본 조형물과 둘레 광장, 나머지는 터미널 정면과 나란한 줄로 깐 큰 주차장
+     * (차 모형 없이 주차선만). 지구본에서 터미널 쪽으로 보행로가 곧게 나 있습니다.
+     */
+    private static void loop(CityTerrain t, Frame f, List<Placement> out) {
         Layout.Road ap = Plans.road(t, "AP");
         if (ap == null) {
             return;
@@ -216,24 +221,87 @@ final class AirportPlan {
             sz += (a[1] + b[1]) * cr;
         }
         double cx = sx / (3 * sa), cz = sz / (3 * sa);
-        BuildMask m = BuildMask.of(t, new Polygon(pts.subList(0, pts.size() - 1)), 2);
+        Polygon ring = new Polygon(pts.subList(0, pts.size() - 1));
+        BuildMask m = BuildMask.of(t, ring, 2);
         int half = Landmarks.GLOBE / 2;
         int gx0 = (int) Math.floor(cx) - half, gz0 = (int) Math.floor(cz) - half;
         out.add(Placement.rect("지구본 조형물", "statue", gx0, gz0, gx0 + Landmarks.GLOBE - 1, gz0 + Landmarks.GLOBE - 1, "south",
                 (w, d) -> Landmarks.globe()));
-        m.claim(gx0 - 6, gz0 - 6, gx0 + Landmarks.GLOBE + 5, gz0 + Landmarks.GLOBE + 5);
-        for (int pass = 0; pass < 2; pass++) {
-            for (int[] block : m.blocks()) {
-                if (block[4] < 200) {
+        // 주차장 상자: 고리를 터미널 축(u, v)으로 감쌈
+        double umin = Double.MAX_VALUE, umax = -Double.MAX_VALUE, vmin = Double.MAX_VALUE, vmax = -Double.MAX_VALUE;
+        for (double[] q : pts) {
+            umin = Math.min(umin, f.u(q[0], q[1]));
+            umax = Math.max(umax, f.u(q[0], q[1]));
+            vmin = Math.min(vmin, f.v(q[0], q[1]));
+            vmax = Math.max(vmax, f.v(q[0], q[1]));
+        }
+        int w = (int) Math.ceil(umax - umin), d = (int) Math.ceil(vmax - vmin);
+        double u0 = umin, v0 = vmin;
+        double[] o = f.world(u0, v0);
+        List<double[]> fp = new ArrayList<>();
+        for (double[] q : pts.subList(0, pts.size() - 1)) {
+            fp.add(new double[]{f.u(q[0], q[1]) - u0, f.v(q[0], q[1]) - v0});
+        }
+        double gu = f.u(cx, cz) - u0, gv = f.v(cx, cz) - v0;
+        int[] globe = {gx0, gz0, gx0 + Landmarks.GLOBE - 1, gz0 + Landmarks.GLOBE - 1};
+        out.add(Placement.rotated("공항 주차장", "parking", o[0], o[1], f.angle(), w, d, 0, 0, fp,
+                () -> parking(f, m, ring, u0, v0, w, d, gu, gv, globe)));
+    }
+
+    /** 공항 앞 주차장과 지구본 광장 (건물 좌표 a = 터미널 축, b = 육지 쪽) */
+    private static Voxels parking(Frame f, BuildMask m, Polygon ring, double u0, double v0, int w, int d,
+                                  double gu, double gv, int[] globe) {
+        Voxels v = new Voxels(w, d, -1, 6);
+        double plazaR = Landmarks.GLOBE / 2.0 + 7;
+        for (int b = 0; b < d; b++) {
+            for (int a = 0; a < w; a++) {
+                double[] p = f.world(u0 + a + 0.5, v0 + b + 0.5);
+                int x = (int) Math.floor(p[0]), z = (int) Math.floor(p[1]);
+                if (!ring.contains(p[0], p[1]) || m.roadDistance(x, z) <= 2) {
                     continue;
                 }
-                for (LotPlanner.Lot lot : new LotPlanner(m, rnd, 12, 30, 4, 6).split(block)) {
-                    long seed = rnd.nextLong();
-                    out.add(Plans.lot("공항 주차장", "parking", lot, (w, d) -> ParkingLot.build(w, d, new Random(seed))));
+                boolean underGlobe = x >= globe[0] && x <= globe[2] && z >= globe[1] && z <= globe[3];
+                double dg = Math.hypot(a + 0.5 - gu, b + 0.5 - gv);
+                if (dg < plazaR) {
+                    // 지구본 둘레 광장: 동심원 무늬 포장, 가장자리 나무
+                    if (!underGlobe) {
+                        v.set(a, -1, b, Math.floorMod((int) Math.floor(dg), 4) == 0 ? SMOOTH_STONE : POLISHED_ANDESITE);
+                    }
+                    double ang = Math.toDegrees(Math.atan2(b + 0.5 - gv, a + 0.5 - gu));
+                    if (dg >= plazaR - 3 && dg < plazaR - 2 && Math.floorMod((int) Math.floor(ang), 24) == 0 && !underGlobe) {
+                        v.set(a, -1, b, COARSE_DIRT);
+                        v.fill(a, 0, b, a, 3, b, OAK_LOG);
+                        v.ellipsoid(a + 0.5, 5.2, b + 0.5, 2.0, 1.6, 2.0, OAK_LEAVES);
+                    }
+                    continue;
                 }
-                GuincheonPlan.claimAll(m, out);
+                // 지구본에서 터미널 쪽으로 곧은 보행로 (6칸), 양옆 화단
+                double walk = Math.abs(a + 0.5 - gu);
+                if (b < gv && walk < 3) {
+                    v.set(a, -1, b, Math.floorMod(b, 6) == 0 ? SMOOTH_STONE : POLISHED_ANDESITE);
+                    continue;
+                }
+                if (b < gv && walk < 4) {
+                    v.set(a, -1, b, MOSS);
+                    v.set(a, 0, b, Block.of("oak_leaves[persistent=true]", 0x4F7F2A)); // 회양목 화단
+                    continue;
+                }
+                // 주차장: 통로 7칸, 주차 칸 5칸 두 줄 (머리를 맞댐), 칸 폭 3
+                int pb = Math.floorMod(b, 17);
+                v.set(a, -1, b, GRAY_CONCRETE);
+                if (pb >= 7) {
+                    if (Math.floorMod(a, 3) == 0) {
+                        v.set(a, -1, b, WHITE_CONCRETE);
+                    }
+                    if (pb == 12 && Math.floorMod(a, 24) == 12) {
+                        MarketPlan.lampPost(v, a, b);
+                    }
+                } else if (pb == 3 && Math.floorMod(a, 12) < 4) {
+                    v.set(a, -1, b, WHITE_CONCRETE); // 통로 가운데 점선
+                }
             }
         }
+        return v;
     }
 
     private AirportPlan() {

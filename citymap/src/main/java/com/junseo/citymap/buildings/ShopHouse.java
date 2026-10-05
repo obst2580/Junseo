@@ -7,7 +7,7 @@ import static com.junseo.citymap.buildings.Blocks.*;
 /**
  * 한국 동네의 낮은 건물. 한 층은 4칸(바닥 1 + 빈 칸 3).
  * <ul>
- *   <li>VILLA (다세대·빌라): 1층 필로티 주차장(세워 둔 차), 2~4층 집. 붉은 벽돌·베이지 타일·흰 벽,
+ *   <li>VILLA (다세대·빌라): 1층 필로티 주차장(주차선만, 차 모형 없음), 2~4층 집. 붉은 벽돌·베이지 타일·흰 벽,
  *       알루미늄 창과 창턱, 방범창, 작은 발코니, 계단실 창, 실외기, 노란 가스관, 문패,
  *       옥상 초록 방수 도장·물탱크·계단실 옥탑</li>
  *   <li>MIXED (상가주택): 1층 가게(유리 가게 앞, 간판, 차양), 위층 집</li>
@@ -44,7 +44,6 @@ final class ShopHouse {
             {LIGHT_GRAY_CONCRETE, "oak", "black"}, {WHITE_CONCRETE, "birch", "green"},
     };
     private static final String[] AWNING_WOOD = {"spruce", "dark_oak", "birch", "mangrove", "warped", "acacia"};
-    private static final String[] CAR_COLORS = {"white", "white", "white", "black", "black", "gray", "light_gray", "blue", "red"};
     private static final Block SILL = Block.of("smooth_stone_slab[type=top,waterlogged=false]", 0x9E9E9E);
 
     private final Voxels v;
@@ -151,7 +150,7 @@ final class ShopHouse {
         }
     }
 
-    /** 1층 필로티 주차장: 기둥만 남기고 비움, 주차선과 차, 공동현관, 우편함 */
+    /** 1층 필로티 주차장: 기둥만 남기고 비움, 주차선, 공동현관, 문패 */
     private void piloti() {
         v.fill(i0 + 1, 0, jf, i1 - 1, 2, jf, AIR);
         v.fill(i0, 0, cz1 + 1, i0, 2, jf - 1, AIR);
@@ -178,15 +177,12 @@ final class ShopHouse {
         v.set(stairI, 0, cz1, door("pale_oak", "south", false));
         v.set(stairI, 1, cz1, door("pale_oak", "south", true));
         v.set(stairI - 2, 1, cz1 + 1, Blocks.wallSign("dark_oak", "south", "white", false, KoreanNames.villa(r), KoreanNames.address(r)));
-        // 주차선과 차 (계단실 앞은 비움)
+        // 주차선 (계단실 앞은 비움)
         for (int i = i0 + 1; i + 2 < i1; i += 3) {
             if (i <= cx1 && i + 2 >= cx0) {
                 continue;
             }
             v.fill(i, -1, j0 + 2, i, -1, jf - 1, WHITE_CONCRETE);
-            if (r.nextInt(10) < 6 && jf - (j0 + 2) >= 5) {
-                car(v, r, i + 1, jf - 4);
-            }
         }
     }
 
@@ -641,12 +637,4 @@ final class ShopHouse {
             v.set(i, y, j, b);
         }
     }
-
-    /** 2×4 칸 세워 둔 차 (i, j 가 왼쪽 앞, 앞이 +j) */
-    static void car(Voxels v, Random r, int i, int j) {
-        Block body = concrete(CAR_COLORS[r.nextInt(CAR_COLORS.length)]);
-        v.fill(i, 0, j, i + 1, 0, j + 3, body);
-        v.fill(i, 1, j + 1, i + 1, 1, j + 2, Block.of("black_stained_glass", 0x191919));
-    }
-
 }
