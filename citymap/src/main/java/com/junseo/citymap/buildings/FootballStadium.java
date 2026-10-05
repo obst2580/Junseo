@@ -762,6 +762,10 @@ final class FootballStadium {
                     boolean border = j == j0 || j == j1 || y == y0 || y == y1;
                     v.set(i, y, j, border ? GRAY_CONCRETE : BLACK_CONCRETE);
                 }
+                // 지붕에 매닮: 위 지붕까지 틀을 올림
+                for (int y = y1 + 1; y <= y1 + 4 && v.get(i, y, j) == null; y++) {
+                    v.set(i, y, j, (j - j0) % 4 == 0 ? GRAY_CONCRETE : null);
+                }
             }
             // 화면에 점수 (LED): 가운데 줄
             for (int j = j0 + 2; j <= j1 - 2; j += 3) {
