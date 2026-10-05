@@ -79,6 +79,14 @@ class BuildingsTest {
         assertTrue(n.getOrDefault("skyscraper", 0) >= 1, "송파 준서월드타워");
         assertTrue(n.getOrDefault("ballpark", 0) >= 1, "잠실 야구장");
         assertTrue(n.getOrDefault("stadium", 0) >= 1, "서울월드컵경기장");
+        assertEquals(3, n.getOrDefault("port", 0), "구인천 항만 터미널 바닥·정문·하역 사무소");
+        assertEquals(2, n.getOrDefault("crane", 0), "안벽 크레인 2대");
+        assertEquals(5, n.getOrDefault("container", 0), "컨테이너 장치장 블록");
+        assertEquals(2, n.getOrDefault("pier", 0), "호송선 선착장, 방파제");
+        assertEquals(1, n.getOrDefault("mudflat", 0), "구인천 갯벌 체험장");
+        assertEquals(2, n.getOrDefault("lumber", 0), "목재 집하장, 북한산 벌채 구역");
+        assertEquals(3, n.getOrDefault("farm", 0), "청라 농지, 농산물 공판장, 축산 농장 마당");
+        assertEquals(5, n.getOrDefault("barn", 0), "우사·착유실·돈사·계사·농장 사무실");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */
