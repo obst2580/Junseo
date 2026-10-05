@@ -1,5 +1,6 @@
 package com.junseo.mapgen;
 
+import com.junseo.citymap.layout.LayoutFile;
 import com.junseo.citymap.terrain.CityTerrain;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.Bukkit;
@@ -130,11 +131,19 @@ public final class MapGenPlugin extends JavaPlugin {
         return Math.round((max[0] - min[0]) / 2) + " " + Math.round((max[1] - min[1]) / 2);
     }
 
-    /** plugins/JunseoMapGen/layout.json 을 읽습니다. 없으면 플러그인 안의 설계도를 꺼내 둡니다. */
+    /**
+     * plugins/JunseoMapGen/layout.json 을 읽습니다. 없으면 플러그인 안의 설계도를 꺼내 두고,
+     * 플러그인 안의 설계도가 더 새 버전이면 바꿉니다 (옛 파일은 .bak 으로 남김).
+     */
     private CityTerrain loadTerrain() {
         File file = new File(getDataFolder(), "layout.json");
-        if (!file.exists()) {
-            saveResource("layout.json", false);
+        try {
+            String done = LayoutFile.ensureCurrent(file.toPath(), () -> getResource("layout.json"));
+            if (done != null) {
+                getLogger().info(done);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("layout.json 을 준비하지 못했어요: " + e.getMessage(), e);
         }
         try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
             return CityTerrain.load(reader);

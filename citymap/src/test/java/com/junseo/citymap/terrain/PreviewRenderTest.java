@@ -29,10 +29,17 @@ class PreviewRenderTest {
         long elapsed = (System.nanoTime() - start) / 1_000_000;
         System.out.println("전체 미리보기 " + elapsed + "ms (" + (w * h) + "칸)");
 
-        // 확대: 1px = 1블록
-        ImageIO.write(render(terrain, -650, -175, 700, 450, 1), "png", new File(dir, "yeouido-1to1.png"));
-        ImageIO.write(render(terrain, 775, -400, 500, 650, 1), "png", new File(dir, "namsan-tunnel-1to1.png"));
-        ImageIO.write(render(terrain, -2200, 500, 750, 500, 1), "png", new File(dir, "airport-1to1.png"));
+        // 확대: 1px = 1블록. 설계도 크기가 바뀌어도 같은 곳이 나오게 구역·거점 기준으로
+        double[] yeouido = terrain.districtCenter("yeouido");
+        double[] namsan = terrain.districtCenter("namsan");
+        double[] airport = terrain.districtCenter("airport");
+        ImageIO.write(crop(terrain, yeouido, 520, 340), "png", new File(dir, "yeouido-1to1.png"));
+        ImageIO.write(crop(terrain, namsan, 380, 480), "png", new File(dir, "namsan-tunnel-1to1.png"));
+        ImageIO.write(crop(terrain, airport, 560, 380), "png", new File(dir, "airport-1to1.png"));
+    }
+
+    private static BufferedImage crop(CityTerrain terrain, double[] center, int w, int h) {
+        return render(terrain, (int) center[0] - w / 2, (int) center[1] - h / 2, w, h, 1);
     }
 
     static BufferedImage render(CityTerrain terrain, int x0, int z0, int w, int h, int scale) {

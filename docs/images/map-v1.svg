@@ -3,161 +3,151 @@
 <defs><clipPath id="border"><rect x="-5000" y="-2800" width="10000" height="5600"/></clipPath></defs>
 <rect x="-5000" y="-2800" width="10000" height="5600" fill="#efeadb"/>
 <g clip-path="url(#border)">
-<line x1="-5000" y1="-2800" x2="-5000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-5000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -2500</text>
-<line x1="-4000" y1="-2800" x2="-4000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-4000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -2000</text>
-<line x1="-3000" y1="-2800" x2="-3000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-3000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -1500</text>
-<line x1="-2000" y1="-2800" x2="-2000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-2000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -1000</text>
-<line x1="-1000" y1="-2800" x2="-1000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-1000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -500</text>
+<line x1="-5716" y1="-2800" x2="-5716" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-5716" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -2001</text>
+<line x1="-4287" y1="-2800" x2="-4287" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-4287" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -1500</text>
+<line x1="-2858" y1="-2800" x2="-2858" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-2858" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -1000</text>
+<line x1="-1429" y1="-2800" x2="-1429" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-1429" y="-2840" font-size="90" text-anchor="middle" fill="#777">X -500</text>
 <line x1="0" y1="-2800" x2="0" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
 <text x="0" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 0</text>
-<line x1="1000" y1="-2800" x2="1000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="1000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 500</text>
-<line x1="2000" y1="-2800" x2="2000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="2000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 1000</text>
-<line x1="3000" y1="-2800" x2="3000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="3000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 1500</text>
-<line x1="4000" y1="-2800" x2="4000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="4000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 2000</text>
-<line x1="5000" y1="-2800" x2="5000" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="5000" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 2500</text>
-<line x1="-5000" y1="-3000" x2="5000" y2="-3000" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-5030" y="-2970" font-size="90" text-anchor="end" fill="#777">Z -1500</text>
-<line x1="-5000" y1="-2000" x2="5000" y2="-2000" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-5030" y="-1970" font-size="90" text-anchor="end" fill="#777">Z -1000</text>
-<line x1="-5000" y1="-1000" x2="5000" y2="-1000" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-5030" y="-970" font-size="90" text-anchor="end" fill="#777">Z -500</text>
+<line x1="1429" y1="-2800" x2="1429" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="1429" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 500</text>
+<line x1="2858" y1="-2800" x2="2858" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="2858" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 1000</text>
+<line x1="4287" y1="-2800" x2="4287" y2="2800" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="4287" y="-2840" font-size="90" text-anchor="middle" fill="#777">X 1500</text>
+<line x1="-5000" y1="-2858" x2="5000" y2="-2858" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-5030" y="-2828" font-size="90" text-anchor="end" fill="#777">Z -1000</text>
+<line x1="-5000" y1="-1429" x2="5000" y2="-1429" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-5030" y="-1399" font-size="90" text-anchor="end" fill="#777">Z -500</text>
 <line x1="-5000" y1="0" x2="5000" y2="0" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
 <text x="-5030" y="30" font-size="90" text-anchor="end" fill="#777">Z 0</text>
-<line x1="-5000" y1="1000" x2="5000" y2="1000" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-5030" y="1030" font-size="90" text-anchor="end" fill="#777">Z 500</text>
-<line x1="-5000" y1="2000" x2="5000" y2="2000" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
-<text x="-5030" y="2030" font-size="90" text-anchor="end" fill="#777">Z 1000</text>
-<polygon points="-5986.0,-1218.0 -5000.0,-464.0 -4660.0,300.0 -4200.0,500.0 -3600.0,560.0 -3160.0,600.0 -2840.0,600.0 -2840.0,1200.0 -2860.0,1800.0 -2800.0,2160.0 -2738.0,2238.0 -2274.0,2204.0 -1926.0,2118.0 -1462.0,2060.0 -998.0,2030.0 -766.0,3306.0 -5986.0,3306.0" fill="#86c2e6"/>
-<circle cx="-1810.0" cy="2640.0" r="180.0" fill="#d9d2bd" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-3178,976 -3150,1042 -3139,1117 -3145,1198 -3168,1285 -3206,1376 -3261,1470 -3330,1564 -3412,1658 -3507,1749 -3612,1836 -3726,1918 -3847,1993 -3972,2060 -4100,2118 -4228,2165 -4355,2202 -4477,2226 -4593,2239 -4701,2239 -4800,2228 -4886,2204 -4959,2168 -5019,2121 -5062,2064 -5090,1998 -5101,1923 -5095,1842 -5072,1755 -5034,1664 -4979,1570 -4910,1476 -4828,1383 -4733,1291 -4628,1204 -4514,1122 -4393,1047 -4268,980 -4140,922 -4012,875 -3885,838 -3763,814 -3647,801 -3539,801 -3440,812 -3354,836 -3281,872 -3221,919" fill="#efeadb" stroke="#8a8a8a" stroke-width="8"/>
-<polygon points="-852.0,-1334.0 -882.0,-1856.0 -680.0,-2204.0 -244.0,-2408.0 278.0,-2424.0 858.0,-2320.0 1554.0,-2204.0 2018.0,-2030.0 2134.0,-1624.0 1554.0,-1554.0 510.0,-1508.0 -186.0,-1392.0" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-2390.0,-436.0 -2360.0,-696.0 -2216.0,-1102.0 -1926.0,-1334.0 -1346.0,-1392.0 -852.0,-1334.0 -882.0,-1218.0 -1056.0,-812.0 -940.0,-522.0 -1346.0,-464.0 -1926.0,-406.0" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-186.0,-1392.0 510.0,-1508.0 540.0,-1218.0 510.0,-696.0 162.0,-492.0 -418.0,-464.0 -940.0,-522.0 -1056.0,-812.0 -882.0,-1218.0" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="510.0,-1508.0 1554.0,-1554.0 2134.0,-1624.0 2598.0,-1508.0 2888.0,-1218.0 2976.0,-812.0 2946.0,-464.0 2598.0,-406.0 2250.0,-552.0 1612.0,-552.0 974.0,-522.0 510.0,-696.0 540.0,-1218.0" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="2946.0,-464.0 2976.0,-812.0 3062.0,-1016.0 3584.0,-1044.0 4076.0,-870.0 4252.0,-464.0 4106.0,-144.0 3526.0,-116.0 3062.0,-232.0" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="510.0,-696.0 974.0,-522.0 1612.0,-552.0 1670.0,-174.0 1728.0,116.0 1496.0,436.0 1148.0,476.0 1004.0,232.0 858.0,-104.0 568.0,-376.0" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="1612.0,-552.0 2250.0,-552.0 2598.0,-406.0 2684.0,0.0 2540.0,290.0 2134.0,360.0 1728.0,116.0 1670.0,-174.0" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="646,231 648,296 635,361 609,426 569,490 516,552 451,610 375,663 289,711 196,753 95,788 -10,816 -118,835 -227,846 -335,849 -441,843 -543,828 -638,806 -726,775 -804,737 -872,693 -928,642 -972,587 -1002,527 -1018,465 -1020,400 -1007,335 -981,270 -941,206 -888,144 -823,86 -747,33 -661,-15 -568,-57 -467,-92 -362,-120 -254,-139 -145,-150 -37,-153 69,-147 171,-132 266,-110 354,-79 432,-41 500,3 556,54 600,109 630,169" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-3316,1056 -3297,1106 -3291,1163 -3300,1226 -3322,1294 -3359,1366 -3408,1441 -3470,1516 -3542,1592 -3625,1667 -3716,1740 -3814,1808 -3917,1872 -4024,1929 -4132,1980 -4240,2022 -4346,2056 -4448,2081 -4545,2097 -4634,2102 -4714,2098 -4785,2083 -4844,2059 -4890,2026 -4924,1984 -4943,1934 -4949,1877 -4940,1814 -4918,1746 -4881,1674 -4832,1599 -4770,1524 -4698,1448 -4615,1373 -4524,1300 -4426,1232 -4323,1168 -4216,1111 -4108,1060 -4000,1018 -3894,984 -3792,959 -3695,943 -3606,938 -3526,942 -3455,957 -3396,981 -3350,1014" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-2738.0,522.0 -2390.0,436.0 -1984.0,638.0 -1896.0,1276.0 -1984.0,1914.0 -2274.0,2116.0 -2622.0,2076.0 -2768.0,1566.0 -2784.0,986.0" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-2506.0,58.0 -1926.0,-12.0 -1240.0,-46.0 -1136.0,464.0 -1172.0,928.0 -1260.0,1712.0 -1578.0,1856.0 -1984.0,1914.0 -1896.0,1276.0 -1984.0,638.0 -2390.0,436.0" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-1084.0,998.0 -186.0,998.0 -128.0,1624.0 -418.0,1798.0 -998.0,1768.0 -1136.0,1276.0" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="-70.0,1102.0 452.0,1056.0 1120.0,1028.0 1176.0,1566.0 858.0,1972.0 162.0,1984.0 -100.0,1624.0" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="1176.0,974.0 1844.0,928.0 2714.0,766.0 3236.0,1636.0 3062.0,2146.0 2250.0,2348.0 1554.0,2274.0 1264.0,1856.0 1196.0,1392.0" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
-<polygon points="2714.0,766.0 3178.0,360.0 3874.0,244.0 4396.0,394.0 4656.0,928.0 4454.0,1624.0 3526.0,1712.0 3236.0,1636.0" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
-<polyline points="-3660.0,1400.0 -3280.0,1200.0 -2760.0,940.0 -2650.0,696.0 -2274.0,116.0 -2158.0,-290.0" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-2158.0,-290.0 -1056.0,-464.0 76.0,-500.0 568.0,-1044.0 974.0,-1264.0 2134.0,-1334.0 2860.0,-928.0 3032.0,-290.0" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="76.0,-500.0 510.0,-376.0 828.0,-174.0 1120.0,336.0 1496.0,418.0 2134.0,348.0 2656.0,116.0 3032.0,-290.0" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-3660.0,1440.0 -3500.0,1580.0 -2760.0,1660.0 -2506.0,1798.0 -1346.0,1740.0 -418.0,1914.0 46.0,2030.0 684.0,2060.0 1206.0,1914.0 1196.0,1276.0 1728.0,928.0 2482.0,784.0 3032.0,638.0 3294.0,376.0 3440.0,0.0 3294.0,-232.0 3032.0,-290.0" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-824.0,-1322.0 452.0,-1450.0 1554.0,-1578.0 2628.0,-1392.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="278.0,-1450.0 308.0,-696.0 104.0,-510.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-1260.0,-1072.0 -1172.0,-608.0 -852.0,-464.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="1584.0,-1566.0 1728.0,-608.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="2308.0,766.0 2424.0,1508.0 2482.0,2204.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-388.0,1090.0 684.0,1160.0 1756.0,1032.0 3062.0,1102.0 3874.0,1044.0 4396.0,812.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-2622.0,668.0 -1984.0,696.0 -1810.0,986.0 -1084.0,1056.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-1172.0,0.0 -1144.0,464.0 -1230.0,1044.0 -1404.0,1740.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="1728.0,-608.0 1872.0,-174.0 2134.0,320.0" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>
-<polyline points="-4792.0,1654.0 -3668.0,1004.0" fill="none" stroke="#5b5b60" stroke-width="45" stroke-linecap="butt"/>
-<polyline points="-986.0,360.0 -760.0,470.0 -186.0,470.0 330.0,430.0 626.0,320.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-696.0,-104.0 -560.0,180.0 -480.0,470.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-480.0,470.0 -534.0,784.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-5522.0,-2610.0 -4536.0,-1740.0 -3550.0,-928.0 -2738.0,-232.0 -1926.0,-144.0 -1056.0,-290.0 -186.0,-308.0 394.0,-232.0 800.0,58.0 1060.0,522.0 1352.0,732.0 2018.0,638.0 2598.0,464.0 3062.0,128.0 3584.0,28.0 4222.0,58.0 4802.0,464.0 5208.0,1566.0 5556.0,3248.0" fill="none" stroke="#86c2e6" stroke-width="300.0" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-1136.0,-232.0 -1096.0,232.0 -952.0,766.0 -418.0,940.0 162.0,916.0 626.0,696.0 1004.0,464.0" fill="none" stroke="#86c2e6" stroke-width="140.0" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="-736.0,-476.0 -696.0,-104.0" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="-736.0,-476.0 -696.0,-104.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<polyline points="-1230.0,376.0 -986.0,360.0" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="-1230.0,376.0 -986.0,360.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<polyline points="626.0,320.0 928.0,116.0" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="626.0,320.0 928.0,116.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<polyline points="2134.0,320.0 2308.0,766.0" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="2134.0,320.0 2308.0,766.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<polyline points="-534.0,784.0 -504.0,1032.0" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="-534.0,784.0 -504.0,1032.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<polyline points="-2274.0,116.0 -2158.0,-290.0" fill="none" stroke="#d6362f" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="-2274.0,116.0 -2158.0,-290.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<polyline points="3440.0,0.0 3294.0,-232.0" fill="none" stroke="#d6362f" stroke-width="55" stroke-linecap="butt"/>
-<polyline points="3440.0,0.0 3294.0,-232.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<line x1="-5000" y1="1429" x2="5000" y2="1429" stroke="#c9c2ad" stroke-width="8" stroke-dasharray="40 40"/>
+<text x="-5030" y="1459" font-size="90" text-anchor="end" fill="#777">Z 500</text>
+<polygon points="-5985.714285714286,-1217.142857142857 -5000.0,-462.8571428571429 -4660.0,300.0 -4200.0,500.0 -3600.0,560.0 -3160.0,600.0 -2840.0,600.0 -2840.0,1200.0 -2860.0,1800.0 -2800.0,2160.0 -2737.1428571428573,2237.1428571428573 -2274.285714285714,2202.857142857143 -1925.7142857142858,2117.1428571428573 -1462.857142857143,2060.0 -997.1428571428571,2028.5714285714287 -765.7142857142858,3305.714285714286 -5985.714285714286,3305.714285714286" fill="#86c2e6"/>
+<circle cx="-1811.4285714285716" cy="2640.0" r="180.0" fill="#d9d2bd" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-3177,976 -3150,1042 -3139,1117 -3145,1198 -3167,1285 -3206,1376 -3260,1469 -3330,1564 -3412,1657 -3507,1748 -3612,1836 -3726,1918 -3847,1993 -3973,2060 -4100,2117 -4229,2165 -4355,2201 -4477,2226 -4594,2239 -4702,2240 -4800,2228 -4887,2204 -4960,2168 -5019,2121 -5063,2064 -5090,1998 -5101,1923 -5095,1842 -5073,1755 -5034,1664 -4980,1571 -4910,1476 -4828,1383 -4733,1292 -4628,1204 -4514,1122 -4393,1047 -4267,980 -4140,923 -4011,875 -3885,839 -3763,814 -3646,801 -3538,800 -3440,812 -3353,836 -3280,872 -3221,919" fill="#efeadb" stroke="#8a8a8a" stroke-width="8"/>
+<polygon points="-851.4285714285714,-1334.2857142857142 -882.8571428571429,-1857.142857142857 -680.0,-2202.857142857143 -242.85714285714286,-2408.5714285714284 277.14285714285717,-2422.857142857143 857.1428571428571,-2320.0 1554.2857142857142,-2202.857142857143 2017.142857142857,-2028.5714285714287 2134.285714285714,-1622.857142857143 1554.2857142857142,-1554.2857142857142 508.57142857142856,-1508.5714285714287 -185.71428571428572,-1391.4285714285716" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-2388.5714285714284,-437.14285714285717 -2360.0,-697.1428571428571 -2217.1428571428573,-1102.857142857143 -1925.7142857142858,-1334.2857142857142 -1345.7142857142858,-1391.4285714285716 -851.4285714285714,-1334.2857142857142 -882.8571428571429,-1217.142857142857 -1057.142857142857,-811.4285714285714 -940.0,-522.8571428571429 -1345.7142857142858,-462.8571428571429 -1925.7142857142858,-405.7142857142857" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-185.71428571428572,-1391.4285714285716 508.57142857142856,-1508.5714285714287 540.0,-1217.142857142857 508.57142857142856,-697.1428571428571 162.85714285714286,-491.42857142857144 -417.14285714285717,-462.8571428571429 -940.0,-522.8571428571429 -1057.142857142857,-811.4285714285714 -882.8571428571429,-1217.142857142857" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="508.57142857142856,-1508.5714285714287 1554.2857142857142,-1554.2857142857142 2134.285714285714,-1622.857142857143 2597.1428571428573,-1508.5714285714287 2888.5714285714284,-1217.142857142857 2977.1428571428573,-811.4285714285714 2945.714285714286,-462.8571428571429 2597.1428571428573,-405.7142857142857 2251.4285714285716,-551.4285714285714 1611.4285714285716,-551.4285714285714 974.2857142857143,-522.8571428571429 508.57142857142856,-697.1428571428571 540.0,-1217.142857142857" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="2945.714285714286,-462.8571428571429 2977.1428571428573,-811.4285714285714 3062.857142857143,-1017.1428571428571 3582.857142857143,-1042.857142857143 4077.1428571428573,-868.5714285714286 4251.428571428572,-462.8571428571429 4105.714285714286,-142.85714285714286 3525.714285714286,-117.14285714285714 3062.857142857143,-231.42857142857144" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="508.57142857142856,-697.1428571428571 974.2857142857143,-522.8571428571429 1611.4285714285716,-551.4285714285714 1668.5714285714287,-174.28571428571428 1728.5714285714287,117.14285714285714 1497.142857142857,437.14285714285717 1148.5714285714287,477.14285714285717 1002.8571428571429,231.42857142857144 857.1428571428571,-102.85714285714286 568.5714285714286,-377.14285714285717" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="1611.4285714285716,-551.4285714285714 2251.4285714285716,-551.4285714285714 2597.1428571428573,-405.7142857142857 2682.857142857143,0.0 2540.0,291.42857142857144 2134.285714285714,360.0 1728.5714285714287,117.14285714285714 1668.5714285714287,-174.28571428571428" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="646,232 648,296 635,362 609,427 569,491 516,552 451,610 375,663 289,712 196,753 96,788 -9,816 -117,835 -226,846 -335,849 -441,843 -542,828 -638,806 -726,775 -804,738 -872,693 -928,643 -971,587 -1001,528 -1018,465 -1019,401 -1007,336 -980,270 -940,206 -887,145 -822,87 -746,34 -661,-14 -567,-56 -467,-91 -362,-119 -254,-138 -145,-149 -36,-152 69,-146 171,-131 266,-109 354,-78 433,-40 500,4 557,54 600,110 630,169" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-3316,1056 -3296,1106 -3291,1162 -3299,1226 -3322,1294 -3359,1366 -3408,1440 -3470,1516 -3542,1592 -3625,1667 -3716,1739 -3814,1808 -3917,1871 -4024,1929 -4132,1980 -4240,2022 -4346,2056 -4449,2081 -4545,2097 -4634,2102 -4715,2098 -4785,2083 -4844,2059 -4891,2026 -4924,1984 -4944,1934 -4949,1878 -4941,1814 -4918,1746 -4881,1674 -4832,1600 -4770,1524 -4698,1448 -4615,1373 -4524,1301 -4426,1232 -4323,1169 -4216,1111 -4108,1060 -4000,1018 -3894,984 -3791,959 -3695,943 -3606,938 -3525,942 -3455,957 -3396,981 -3349,1014" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-2737.1428571428573,522.8571428571429 -2388.5714285714284,437.14285714285717 -1982.857142857143,637.1428571428571 -1897.142857142857,1277.142857142857 -1982.857142857143,1914.2857142857142 -2274.285714285714,2117.1428571428573 -2622.857142857143,2077.1428571428573 -2768.5714285714284,1565.7142857142858 -2782.857142857143,985.7142857142858" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-2505.714285714286,57.142857142857146 -1925.7142857142858,-11.428571428571429 -1240.0,-45.714285714285715 -1137.142857142857,462.8571428571429 -1171.4285714285716,928.5714285714286 -1260.0,1711.4285714285716 -1577.142857142857,1857.142857142857 -1982.857142857143,1914.2857142857142 -1897.142857142857,1277.142857142857 -1982.857142857143,637.1428571428571 -2388.5714285714284,437.14285714285717" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-1082.857142857143,997.1428571428571 -185.71428571428572,997.1428571428571 -128.57142857142858,1622.857142857143 -417.14285714285717,1797.142857142857 -997.1428571428571,1768.5714285714287 -1137.142857142857,1277.142857142857" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="-68.57142857142857,1102.857142857143 451.42857142857144,1057.142857142857 1120.0,1028.5714285714287 1177.142857142857,1565.7142857142858 857.1428571428571,1971.4285714285716 162.85714285714286,1982.857142857143 -100.0,1622.857142857143" fill="#f4c27a" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="1177.142857142857,974.2857142857143 1842.857142857143,928.5714285714286 2714.285714285714,765.7142857142858 3237.1428571428573,1637.142857142857 3062.857142857143,2145.714285714286 2251.4285714285716,2348.5714285714284 1554.2857142857142,2274.285714285714 1262.857142857143,1857.142857142857 1197.142857142857,1391.4285714285716" fill="#a9d4a3" stroke="#4a4a4a" stroke-width="14"/>
+<polygon points="2714.285714285714,765.7142857142858 3177.1428571428573,360.0 3874.285714285714,242.85714285714286 4397.142857142857,394.2857142857143 4657.142857142857,928.5714285714286 4454.285714285715,1622.857142857143 3525.714285714286,1711.4285714285716 3237.1428571428573,1637.142857142857" fill="#b7c9e8" stroke="#4a4a4a" stroke-width="14"/>
+<polyline points="-3660.0,1400.0 -3280.0,1200.0 -2760.0,940.0 -2648.5714285714284,697.1428571428571 -2274.285714285714,117.14285714285714 -2157.1428571428573,-291.42857142857144" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-2157.1428571428573,-291.42857142857144 -1057.142857142857,-462.8571428571429 77.14285714285714,-500.0 568.5714285714286,-1042.857142857143 974.2857142857143,-1262.857142857143 2134.285714285714,-1334.2857142857142 2860.0,-928.5714285714286 3031.4285714285716,-291.42857142857144" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="77.14285714285714,-500.0 508.57142857142856,-377.14285714285717 828.5714285714286,-174.28571428571428 1120.0,337.14285714285717 1497.142857142857,417.14285714285717 2134.285714285714,348.57142857142856 2657.1428571428573,117.14285714285714 3031.4285714285716,-291.42857142857144" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-3660.0,1440.0 -3500.0,1580.0 -2760.0,1660.0 -2505.714285714286,1797.142857142857 -1345.7142857142858,1740.0 -417.14285714285717,1914.2857142857142 45.714285714285715,2028.5714285714287 682.8571428571429,2060.0 1205.7142857142858,1914.2857142857142 1197.142857142857,1277.142857142857 1728.5714285714287,928.5714285714286 2482.857142857143,782.8571428571429 3031.4285714285716,637.1428571428571 3294.285714285714,377.14285714285717 3440.0,0.0 3294.285714285714,-231.42857142857144 3031.4285714285716,-291.42857142857144" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-822.8571428571429,-1322.857142857143 451.42857142857144,-1448.5714285714287 1554.2857142857142,-1577.142857142857 2628.5714285714284,-1391.4285714285716" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="277.14285714285717,-1448.5714285714287 308.57142857142856,-697.1428571428571 102.85714285714286,-508.57142857142856" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-1260.0,-1071.4285714285716 -1171.4285714285716,-608.5714285714286 -851.4285714285714,-462.8571428571429" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="1582.857142857143,-1565.7142857142858 1728.5714285714287,-608.5714285714286" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="2308.5714285714284,765.7142857142858 2422.857142857143,1508.5714285714287 2482.857142857143,2202.857142857143" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-388.57142857142856,1091.4285714285716 682.8571428571429,1160.0 1757.142857142857,1031.4285714285716 3062.857142857143,1102.857142857143 3874.285714285714,1042.857142857143 4397.142857142857,811.4285714285714" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-2622.857142857143,668.5714285714286 -1982.857142857143,697.1428571428571 -1811.4285714285716,985.7142857142858 -1082.857142857143,1057.142857142857" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-1171.4285714285716,0.0 -1142.857142857143,462.8571428571429 -1228.5714285714287,1042.857142857143 -1402.857142857143,1740.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="1728.5714285714287,-608.5714285714286 1871.4285714285716,-174.28571428571428 2134.285714285714,320.0" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>
+<polyline points="-4791.428571428572,1654.2857142857142 -3668.5714285714284,1002.8571428571429" fill="none" stroke="#5b5b60" stroke-width="45" stroke-linecap="butt"/>
+<polyline points="-985.7142857142858,360.0 -760.0,468.57142857142856 -185.71428571428572,468.57142857142856 328.57142857142856,428.57142857142856 625.7142857142858,320.0" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-697.1428571428571,-102.85714285714286 -560.0,180.0 -480.0,468.57142857142856" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-480.0,468.57142857142856 -534.2857142857143,782.8571428571429" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-5522.857142857143,-2608.5714285714284 -4537.142857142857,-1740.0 -3548.5714285714284,-928.5714285714286 -2737.1428571428573,-231.42857142857144 -1925.7142857142858,-142.85714285714286 -1057.142857142857,-291.42857142857144 -185.71428571428572,-308.57142857142856 394.2857142857143,-231.42857142857144 800.0,57.142857142857146 1060.0,522.8571428571429 1351.4285714285716,731.4285714285714 2017.142857142857,637.1428571428571 2597.1428571428573,462.8571428571429 3062.857142857143,128.57142857142858 3582.857142857143,28.571428571428573 4222.857142857143,57.142857142857146 4802.857142857143,462.8571428571429 5208.571428571428,1565.7142857142858 5557.142857142857,3248.5714285714284" fill="none" stroke="#86c2e6" stroke-width="300.0" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-1137.142857142857,-231.42857142857144 -1097.142857142857,231.42857142857144 -951.4285714285714,765.7142857142858 -417.14285714285717,940.0 162.85714285714286,917.1428571428571 625.7142857142858,697.1428571428571 1002.8571428571429,462.8571428571429" fill="none" stroke="#86c2e6" stroke-width="140.0" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-737.1428571428571,-477.14285714285717 -697.1428571428571,-102.85714285714286" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="-737.1428571428571,-477.14285714285717 -697.1428571428571,-102.85714285714286" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<polyline points="-1228.5714285714287,377.14285714285717 -985.7142857142858,360.0" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="-1228.5714285714287,377.14285714285717 -985.7142857142858,360.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<polyline points="625.7142857142858,320.0 928.5714285714286,117.14285714285714" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="625.7142857142858,320.0 928.5714285714286,117.14285714285714" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<polyline points="2134.285714285714,320.0 2308.5714285714284,765.7142857142858" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="2134.285714285714,320.0 2308.5714285714284,765.7142857142858" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<polyline points="-534.2857142857143,782.8571428571429 -502.8571428571429,1031.4285714285716" fill="none" stroke="#f2c200" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="-534.2857142857143,782.8571428571429 -502.8571428571429,1031.4285714285716" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<polyline points="-2274.285714285714,117.14285714285714 -2157.1428571428573,-291.42857142857144" fill="none" stroke="#d6362f" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="-2274.285714285714,117.14285714285714 -2157.1428571428573,-291.42857142857144" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
+<polyline points="3440.0,0.0 3294.285714285714,-231.42857142857144" fill="none" stroke="#d6362f" stroke-width="55" stroke-linecap="butt"/>
+<polyline points="3440.0,0.0 3294.285714285714,-231.42857142857144" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
 <polyline points="-3280.0,1200.0 -2760.0,940.0" fill="none" stroke="#d6362f" stroke-width="55" stroke-linecap="butt"/>
 <polyline points="-3280.0,1200.0 -2760.0,940.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
 <polyline points="-3500.0,1580.0 -2760.0,1660.0" fill="none" stroke="#d6362f" stroke-width="55" stroke-linecap="butt"/>
 <polyline points="-3500.0,1580.0 -2760.0,1660.0" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>
-<text x="505" y="-2097" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">북한산</text>
+<text x="505" y="-2096" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">북한산</text>
 <text x="-1567" y="-1096" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">마포구</text>
 <text x="-196" y="-1195" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">홍대</text>
-<text x="1853" y="-1259" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">중구</text>
-<text x="3510" y="-766" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">광진구</text>
-<text x="1157" y="-344" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">용산</text>
+<text x="1853" y="-1258" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">중구</text>
+<text x="3510" y="-765" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">광진구</text>
+<text x="1157" y="-345" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">용산</text>
 <text x="2152" y="-278" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">남산</text>
 <text x="-186" y="148" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">여의도</text>
 <text x="-4120" y="1287" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">공항</text>
-<text x="-2382" y="940" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">청라</text>
+<text x="-2382" y="941" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">청라</text>
 <text x="-1734" y="542" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">구인천</text>
-<text x="-658" y="1238" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">대형시장</text>
+<text x="-658" y="1237" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">대형시장</text>
 <text x="514" y="1315" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">대학교</text>
 <text x="2033" y="1241" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">강남</text>
-<text x="3754" y="684" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">송파</text>
+<text x="3755" y="683" font-size="170" font-weight="bold" text-anchor="middle" fill="#222" stroke="#efeadb" stroke-width="20" paint-order="stroke">송파</text>
 </g>
 <rect x="-5000" y="-2800" width="10000" height="5600" fill="none" stroke="#555" stroke-width="20"/>
 <circle cx="-4120.0" cy="1520.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
 <text x="-4050.0" y="1550.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">공항 터미널 (스폰·입국 심사)</text>
 <circle cx="-680.0" cy="360.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
 <text x="-610.0" y="390.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">여의도 메인 광장</text>
-<circle cx="-156.0" cy="244.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-86.0" y="274.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">은행 본점·금융 타워</text>
-<circle cx="348.0" cy="320.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="418.0" y="350.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">방송국</text>
+<circle cx="-157.14285714285714" cy="242.85714285714286" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-87.14285714285714" y="272.8571428571429" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">은행 본점·금융 타워</text>
+<circle cx="348.57142857142856" cy="320.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="418.57142857142856" y="350.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">방송국</text>
 <circle cx="540.0" cy="1480.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
 <text x="610.0" y="1510.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">대학병원 (의료국)</text>
-<circle cx="1264.0" cy="58.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
-<text x="1334.0" y="88.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">경찰서 (강북)</text>
-<circle cx="2134.0" cy="1624.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
-<text x="2204.0" y="1654.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">경찰서 (강남)</text>
-<circle cx="1670.0" cy="-1072.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="1740.0" y="-1042.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">시청과 광장</text>
-<circle cx="858.0" cy="-1172.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="928.0" y="-1142.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">기차역 (공항철도)</text>
-<circle cx="2250.0" cy="-928.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="2320.0" y="-898.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">명동 보석상</text>
-<circle cx="-1578.0" cy="1926.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
-<text x="-1508.0" y="1956.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">구인천 부두·호송선 선착장</text>
-<circle cx="-1664.0" cy="1276.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-1594.0" y="1306.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">폐공장 (암시장 후보)</text>
-<circle cx="-680.0" cy="1364.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-610.0" y="1394.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">물류센터·수산시장</text>
-<circle cx="-186.0" cy="-2030.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-116.0" y="-2000.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">채석장</text>
-<circle cx="974.0" cy="-2146.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="1044.0" y="-2116.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">은신처</text>
-<circle cx="-244.0" cy="-956.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-174.0" y="-926.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">클럽 거리</text>
-<circle cx="-1578.0" cy="-840.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-1508.0" y="-810.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">축구장</text>
-<circle cx="2192.0" cy="-116.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="2262.0" y="-86.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">남산타워</text>
-<circle cx="3642.0" cy="-580.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="3712.0" y="-550.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">대공원</text>
-<circle cx="3758.0" cy="754.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="3828.0" y="784.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">테마파크</text>
-<circle cx="3294.0" cy="870.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="3364.0" y="900.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">초고층 타워</text>
-<circle cx="3990.0" cy="1276.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="4060.0" y="1306.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">잠실 야구장</text>
-<circle cx="-2332.0" cy="1218.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
-<text x="-2262.0" y="1248.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">쇼핑몰·돔구장</text>
-<circle cx="-1810.0" cy="2640.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
-<text x="-1740.0" y="2670.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">교도소</text>
-<text x="-5000" y="-3030" font-size="190" font-weight="bold" fill="#111">준서 시티 도시 설계도 v2 — 압축 서울·인천 5×2.8km 범위 (1블록 = 1m)</text>
+<circle cx="1262.857142857143" cy="57.142857142857146" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
+<text x="1332.857142857143" y="87.14285714285714" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">경찰서 (강북)</text>
+<circle cx="2134.285714285714" cy="1622.857142857143" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
+<text x="2204.285714285714" y="1652.857142857143" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">경찰서 (강남)</text>
+<circle cx="1668.5714285714287" cy="-1071.4285714285716" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="1738.5714285714287" y="-1041.4285714285716" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">시청과 광장</text>
+<circle cx="857.1428571428571" cy="-1171.4285714285716" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="927.1428571428571" y="-1141.4285714285716" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">기차역 (공항철도)</text>
+<circle cx="2251.4285714285716" cy="-928.5714285714286" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="2321.4285714285716" y="-898.5714285714286" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">명동 보석상</text>
+<circle cx="-1577.142857142857" cy="1925.7142857142858" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
+<text x="-1507.142857142857" y="1955.7142857142858" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">구인천 부두·호송선 선착장</text>
+<circle cx="-1662.857142857143" cy="1277.142857142857" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-1592.857142857143" y="1307.142857142857" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">폐공장 (암시장 후보)</text>
+<circle cx="-680.0" cy="1362.857142857143" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-610.0" y="1392.857142857143" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">물류센터·수산시장</text>
+<circle cx="-185.71428571428572" cy="-2028.5714285714287" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-115.71428571428572" y="-1998.5714285714287" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">채석장</text>
+<circle cx="974.2857142857143" cy="-2145.714285714286" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="1044.2857142857142" y="-2115.714285714286" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">은신처</text>
+<circle cx="-242.85714285714286" cy="-957.1428571428571" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-172.85714285714286" y="-927.1428571428571" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">클럽 거리</text>
+<circle cx="-1577.142857142857" cy="-840.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-1507.142857142857" y="-810.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">축구장</text>
+<circle cx="2191.4285714285716" cy="-117.14285714285714" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="2261.4285714285716" y="-87.14285714285714" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">남산타워</text>
+<circle cx="3642.857142857143" cy="-580.0" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="3712.857142857143" y="-550.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">대공원</text>
+<circle cx="3757.1428571428573" cy="754.2857142857143" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="3827.1428571428573" y="784.2857142857143" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">테마파크</text>
+<circle cx="3294.285714285714" cy="868.5714285714286" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="3364.285714285714" y="898.5714285714286" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">초고층 타워</text>
+<circle cx="3988.5714285714284" cy="1277.142857142857" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="4058.5714285714284" y="1307.142857142857" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">잠실 야구장</text>
+<circle cx="-2331.4285714285716" cy="1217.142857142857" r="38" fill="#1f5fa8" stroke="#fff" stroke-width="14"/>
+<text x="-2261.4285714285716" y="1247.142857142857" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">쇼핑몰·돔구장</text>
+<circle cx="-1811.4285714285716" cy="2640.0" r="55" fill="#c0162b" stroke="#fff" stroke-width="14"/>
+<text x="-1741.4285714285716" y="2670.0" font-size="85" fill="#111" stroke="#fff" stroke-width="14" paint-order="stroke">교도소</text>
+<text x="-5000" y="-3030" font-size="190" font-weight="bold" fill="#111">준서 시티 도시 설계도 v3 — 압축 서울·인천 3.5×1.96km 범위 (1블록 = 1m)</text>
 <text x="5250" y="-2700" font-size="130" font-weight="bold">범례</text>
 <rect x="5250" y="-2600" width="200" height="110" fill="#f4c27a" stroke="#4a4a4a" stroke-width="10"/>
 <text x="5510" y="-2510" font-size="95">1차 오픈 구역</text>
@@ -179,8 +169,8 @@
 <text x="5510" y="-990" font-size="95">주요 거점 (사람이 몰리는 곳)</text>
 <circle cx="5350" cy="-835" r="50" fill="#1f5fa8"/>
 <text x="5510" y="-800" font-size="95">그 밖의 시설</text>
-<line x1="5250" y1="-500" x2="6250" y2="-500" stroke="#111" stroke-width="30"/>
-<text x="5750.0" y="-370" font-size="95" text-anchor="middle">500m (500블록)</text>
+<line x1="5250" y1="-500" x2="6679" y2="-500" stroke="#111" stroke-width="30"/>
+<text x="5964.5" y="-370" font-size="95" text-anchor="middle">500m (500블록)</text>
 <text x="5250" y="-170" font-size="85" fill="#555">북쪽이 위 (Z−), 동쪽이 오른쪽 (X+)</text>
-<text x="5250" y="-50" font-size="85" fill="#555">설계도 범위 5000×2800</text>
+<text x="5250" y="-50" font-size="85" fill="#555">설계도 범위 3500×1960</text>
 </svg>

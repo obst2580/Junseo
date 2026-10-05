@@ -9,6 +9,7 @@ import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
 import com.junseo.citymap.layout.Layout;
+import com.junseo.citymap.layout.LayoutFile;
 import com.junseo.citymap.terrain.CityTerrain;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.key.Key;
@@ -53,7 +54,7 @@ public final class MapService implements Listener {
 
     /** 큰 지도 확대 단계: 0 = 도시 전체 */
     private static final String[] ZOOM_NAMES = {"도시 전체", "구역", "동네"};
-    private static final double[] ZOOM_BPP = {0, 8, 3.5};
+    private static final double[] ZOOM_BPP = {0, 6, 3};
 
     private record RadarKey(long x, long z, int yaw, double bpp, long target) {
     }
@@ -74,7 +75,6 @@ public final class MapService implements Listener {
     private volatile CityTerrain terrain;
     private volatile RadarRaster walk;
     private volatile RadarRaster mid;
-    private volatile RadarRaster coarse;
     private volatile List<RadarHud.Marker> markers = List.of();
     private volatile List<BigMap.Place> places = List.of();
 
@@ -109,15 +109,20 @@ public final class MapService implements Listener {
             RadarRaster fine = RadarRaster.build(terrain, 2);
             walk = fine.pooled(2);
             mid = fine.pooled(4);
-            coarse = fine.pooled(8);
             plugin.getLogger().info("지도 그림 준비 완료 (" + (System.currentTimeMillis() - started) + "ms)");
         });
     }
 
+    /** plugins/JunseoCity/layout.json (없거나 플러그인 안의 것보다 옛 버전이면 새로 꺼냄) */
     private CityTerrain loadTerrain() {
         File file = new File(plugin.getDataFolder(), "layout.json");
-        if (!file.exists()) {
-            plugin.saveResource("layout.json", false);
+        try {
+            String done = LayoutFile.ensureCurrent(file.toPath(), () -> plugin.getResource("layout.json"));
+            if (done != null) {
+                plugin.getLogger().info(done);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e.getMessage(), e);
         }
         try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
             return CityTerrain.load(reader);
@@ -206,7 +211,7 @@ public final class MapService implements Listener {
     }
 
     public void openMap(Player player) {
-        if (terrain == null || coarse == null) {
+        if (terrain == null || mid == null) {
             Text.send(player, "<gray>지도를 준비하는 중이에요. 잠시 뒤에 다시 눌러 주세요.");
             return;
         }
@@ -235,7 +240,7 @@ public final class MapService implements Listener {
             cx = Math.max(min[0] + hw, Math.min(max[0] - hw, cx));
             cz = Math.max(min[1] + hh, Math.min(max[1] - hh, cz));
         }
-        RadarRaster raster = zoom == 0 ? coarse : zoom == 1 ? mid : walk;
+        RadarRaster raster = zoom == 0 ? mid : walk;
         Viewport view = BigMap.view(cx, cz, bpp);
         Location target = plugin.gps().target(player);
         double[] waypoint = target == null || target.getWorld() != loc.getWorld() ? null : new double[]{target.getX(), target.getZ()};
@@ -310,7 +315,7 @@ public final class MapService implements Listener {
         if (district != null) {
             return district;
         }
-        byte kind = coarse.at(x, z);
+        byte kind = mid.at(x, z);
         return switch (kind) {
             case RadarRaster.WATER -> "물가";
             case RadarRaster.OUTSIDE -> "바다";

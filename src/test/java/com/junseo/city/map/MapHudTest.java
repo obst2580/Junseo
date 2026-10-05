@@ -179,7 +179,8 @@ class MapHudTest {
 
     @Test
     void radarStaysInPlaceWhateverTheMessage() {
-        String radar = RadarHud.build(walk, -340, 180, 30, 6, markers, null);
+        double[] plaza = hub("plaza");
+        String radar = RadarHud.build(walk, plaza[0], plaza[1], 30, 6, markers, null);
         for (HudLayout.Side side : HudLayout.Side.values()) {
             for (float textWidth : new float[]{0, 1, 7, 8.5f, 33, 120.5f, 301}) {
                 int lead = HudLayout.radarLead(textWidth, side);
@@ -213,7 +214,8 @@ class MapHudTest {
         double[] min = terrain.layout().borderMin(), max = terrain.layout().borderMax();
         double bpp = Math.max((max[0] - min[0]) / BigMap.W, (max[1] - min[1]) / BigMap.H);
         Viewport view = BigMap.view((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, bpp);
-        BigMap.Picture picture = BigMap.draw(coarse, view, places, new double[]{270, 740}, new double[]{-340, 180, 45});
+        double[] hospital = hub("hospital"), plaza = hub("plaza");
+        BigMap.Picture picture = BigMap.draw(coarse, view, places, hospital, new double[]{plaza[0], plaza[1], 45});
         StringBuilder all = new StringBuilder();
         for (BigMap.Segment s : picture.segments()) {
             all.append(s.text());
@@ -259,14 +261,16 @@ class MapHudTest {
         File dir = new File("build/preview");
         dir.mkdirs();
         // 게임 화면(GUI 480×270, 1080p 기본 크기)에 미니맵 얹은 모습 3장
-        double[][] spots = {{-330, 200, 160, 6}, {-1500, 540, -60, 10}, {1067, 760, 200, 6}};
+        double[] plaza = hub("plaza"), police = hub("police_south"), hospital = hub("hospital");
+        double[] bridge = terrain.layout().bridges().stream().filter(b -> b.id().equals("HB3")).findFirst().orElseThrow().line().get(0);
+        double[][] spots = {{plaza[0] + 8, plaza[1] + 14, 160, 6}, {bridge[0], bridge[1], -60, 10}, {police[0], police[1] - 40, 200, 6}};
         String[] names = {"여의도 광장에서 걷기 (북쪽 보기)", "공항 다리를 차로 건너기", "강남 경찰서 근처"};
         int gw = 480, gh = 270, scale = 2, crop = 96;
         BufferedImage sheet = new BufferedImage(gw * scale, crop * scale * spots.length, BufferedImage.TYPE_INT_ARGB);
         for (int i = 0; i < spots.length; i++) {
             double[] s = spots[i];
             String radar = RadarHud.build(s[3] >= 8 ? mid : walk, s[0], s[1], (float) s[2], s[3], markers,
-                    new RadarHud.Marker(270, 740, MapIcons.WAYPOINT));
+                    new RadarHud.Marker(hospital[0], hospital[1], MapIcons.WAYPOINT));
             ClientTextSim sim = new ClientTextSim(pack.font(), gw, gh, gw / 2 + HudLayout.radarLeft(HudLayout.Side.LEFT),
                     gh - 72);
             fakeScreen(sim.pixels, gw, gh, i);
@@ -285,9 +289,9 @@ class MapHudTest {
         for (int v = 0; v < views.length; v++) {
             Viewport view = views[v][0] == 0
                     ? BigMap.view((min[0] + max[0]) / 2, (min[1] + max[1]) / 2, bpp)
-                    : BigMap.view(-200, 300, 8);
-            BigMap.Picture picture = BigMap.draw(views[v][0] == 0 ? coarse : mid, view, places, new double[]{270, 740},
-                    new double[]{-340, 180, 135});
+                    : BigMap.view(plaza[0] + 100, plaza[1] + 150, 6);
+            BigMap.Picture picture = BigMap.draw(views[v][0] == 0 ? mid : walk, view, places, hospital,
+                    new double[]{plaza[0], plaza[1], 135});
             StringBuilder all = new StringBuilder();
             picture.segments().forEach(s -> all.append(s.text()));
             ClientTextSim sim = new ClientTextSim(pack.font(), BigMap.W + 24, BigMap.H + 24, 12, 12 - BigMap.TOP_OFFSET);
@@ -296,6 +300,12 @@ class MapHudTest {
             paste(maps, sim.pixels, sim.width, sim.height, 0, (BigMap.H + 24) * v, 3);
         }
         ImageIO.write(maps, "png", new File(dir, "big-map.png"));
+    }
+
+    /** 설계도의 거점 좌표 */
+    private static double[] hub(String id) {
+        Layout.Hub h = terrain.layout().hubs().stream().filter(x -> x.id().equals(id)).findFirst().orElseThrow();
+        return new double[]{h.x(), h.z()};
     }
 
     /** 배경(하늘·땅)과 핫바 자리 */
