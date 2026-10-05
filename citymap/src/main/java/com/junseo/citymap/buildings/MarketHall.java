@@ -5,53 +5,65 @@ import java.util.Random;
 import static com.junseo.citymap.buildings.Blocks.*;
 
 /**
- * 대형시장 본관 (광장시장 느낌). 십자로 난 큰 골목(8칸)과 작은 골목(5칸)에 유리 아치 지붕을 씌우고,
- * 골목 양쪽에 4칸짜리 가게를 빽빽하게 늘어놓습니다. 가운데는 유리 돔 아래 먹자 광장(빈대떡·떡볶이 포장마차).
- * 가게마다 줄무늬 차양과 색 간판, 물건(먹거리·한복 천·채소·건어물·생선·꽃·잡화)이 다르고,
- * 남서쪽 구역은 수산시장입니다. 바깥벽은 알록달록한 패널과 불빛 띠, 정문 위에는 큰 간판.
- * <p>
- * 상자 둘레 2칸은 간판·차양이 튀어나오는 자리입니다.
+ * 대형시장 본관: 광장시장처럼 큰 건물 하나 안에 시장이 들어 있습니다.
+ * <ul>
+ *   <li>바깥: 베이지 타일 3층 건물. 1층 둘레는 길 쪽 가게(유리 가게 앞, 간판), 2·3층은 창문 줄과 창문 글씨,
+ *       모서리 세로 간판, 큰 문 네 곳 위 한글 간판(남문·북문·먹자골목), 옥상에 「대형시장」 대형 간판</li>
+ *   <li>안: 십자로 난 큰 통로는 3층 높이로 뚫린 홀이고 철골 유리 지붕을 얹었습니다. 긴 통로(동서)는 먹자골목:
+ *       가운데에 빈대떡·김밥·육회 좌판이 줄지어 있고 양옆에 긴 나무 의자, 좌판 위 등과 이름판,
+ *       그 위에 한글 간판이 매달려 있습니다. 통로 양옆은 반찬·떡집·건어물·채소·수산·그릇·참기름 가게,
+ *       남서쪽은 수산시장</li>
+ *   <li>2층: 홀을 둘러싼 난간 복도와 원단·한복·이불 가게. 둘레 복도 네 귀퉁이에 계단</li>
+ * </ul>
+ * 건물 기준 정면은 남쪽(j 큰 쪽). 상자 둘레 2칸은 간판이 튀어나오는 자리입니다.
  */
 final class MarketHall {
-    /** 가게 지붕 높이 */
-    private static final int ROOF = 6;
     private static final int MARGIN = 2;
-    private static final String[] BRIGHT = {"red", "yellow", "orange", "lime", "light_blue", "magenta", "pink", "cyan", "blue", "green", "purple"};
-    private static final Block[] WALL_PANELS = {YELLOW_TERRACOTTA, WHITE_CONCRETE, ORANGE_TERRACOTTA, LIGHT_BLUE_TERRACOTTA,
-            PINK_TERRACOTTA, LIME_TERRACOTTA, WHITE_TERRACOTTA};
+    /** 바깥 가게 줄 깊이 (벽 포함) */
+    private static final int RING = 7;
+    /** 둘레 복도 폭 */
+    private static final int HALL = 4;
+    private static final int INNER = RING + HALL;
+    /** 층 바닥 높이 */
+    private static final int F2 = 6, F3 = 12, ROOF = 18;
+    /** 홀 벽 꼭대기와 지붕 용마루 */
+    private static final int WALL_TOP = 25, RIDGE = 30;
+    /** 큰 통로 반폭 (가운데 칸 ± 4 → 9칸) */
+    private static final int HALF_MAIN = 4;
+    private static final Block TILE = WHITE_TERRACOTTA;
+    private static final Block BAND = SMOOTH_STONE;
+    private static final Block CHAIN = Block.of("iron_chain[axis=y,waterlogged=false]", 0x505050);
+    private static final String[] FABRIC = {"red", "pink", "magenta", "purple", "blue", "light_blue", "cyan", "lime",
+            "yellow", "orange", "white", "green"};
+    private static final String[] HANBOK = {"pink", "light_blue", "yellow", "white", "lime", "magenta"};
 
     private final Voxels v;
-    private final Random r;
     private final long seed;
-    /** 홀 안쪽 좌표 범위 (바깥벽 포함) */
-    private final int a0, a1, b0, b1;
-    private final int ci, cj;
-    private final boolean[] alleyI, alleyJ;
-    private final double plazaR;
+    private final int a0, a1, b0, b1, ci, cj;
+    private final boolean[] sideI, sideJ;
 
     private MarketHall(int w, int d, Random r) {
-        this.v = new Voxels(w, d, -1, 26);
-        this.r = r;
-        this.seed = r.nextLong();
+        v = new Voxels(w, d, -1, ROOF + 22);
+        seed = r.nextLong();
         a0 = MARGIN;
         a1 = w - 1 - MARGIN;
         b0 = MARGIN;
         b1 = d - 1 - MARGIN;
-        ci = (a0 + a1 + 1) / 2;
-        cj = (b0 + b1 + 1) / 2;
-        alleyI = new boolean[w];
-        alleyJ = new boolean[d];
-        mark(alleyI, ci - 4, ci + 3);
-        mark(alleyJ, cj - 4, cj + 3);
-        int qw = (a1 - a0) / 4;
-        mark(alleyI, a0 + qw - 2, a0 + qw + 2);
-        mark(alleyI, a1 - qw - 2, a1 - qw + 2);
-        int qd = (b1 - b0) / 4;
-        if (b1 - b0 > 50) {
-            mark(alleyJ, b0 + qd - 2, b0 + qd + 2);
-            mark(alleyJ, b1 - qd - 2, b1 - qd + 2);
+        ci = (a0 + a1) / 2;
+        cj = (b0 + b1) / 2;
+        sideI = new boolean[w];
+        sideJ = new boolean[d];
+        // 작은 통로(5칸): 안쪽 구역 가장자리와 큰 통로 사이 가운데
+        int west = (a0 + INNER + ci - HALF_MAIN - 1) / 2, east = (a1 - INNER + ci + HALF_MAIN + 1) / 2;
+        if (ci - HALF_MAIN - (a0 + INNER) >= 20) {
+            mark(sideI, west - 2, west + 2);
+            mark(sideI, east - 2, east + 2);
         }
-        plazaR = Math.min(9.5, Math.min(a1 - a0, b1 - b0) / 5.0);
+        int north = (b0 + INNER + cj - HALF_MAIN - 1) / 2, south = (b1 - INNER + cj + HALF_MAIN + 1) / 2;
+        if (cj - HALF_MAIN - (b0 + INNER) >= 20) {
+            mark(sideJ, north - 2, north + 2);
+            mark(sideJ, south - 2, south + 2);
+        }
     }
 
     private static void mark(boolean[] a, int from, int to) {
@@ -62,54 +74,122 @@ final class MarketHall {
 
     static Voxels build(int w, int d, Random r) {
         MarketHall m = new MarketHall(w, d, r);
-        m.floorsAndStalls();
-        m.roofs();
-        m.plaza();
-        m.outerWalls();
+        m.structure();
+        m.floor1();
+        m.floor2();
+        m.stairs();
+        m.nave();
+        m.facade();
         m.v.connect();
         return m.v;
     }
 
-    private boolean inside(int i, int j) {
-        return i > a0 && i < a1 && j > b0 && j < b1;
+    // ------------------------------------------------------------------ 칸 구분
+
+    private boolean inBuilding(int i, int j) {
+        return i >= a0 && i <= a1 && j >= b0 && j <= b1;
     }
 
-    private boolean inPlaza(int i, int j) {
-        return Math.hypot(i + 0.5 - ci, j + 0.5 - cj) < plazaR;
+    /** 바깥벽에서 안쪽으로 몇 칸 (0 = 바깥벽) */
+    private int depth(int i, int j) {
+        return Math.min(Math.min(i - a0, a1 - i), Math.min(j - b0, b1 - j));
     }
 
-    /** 사람이 다니는 칸 (골목·광장) */
-    private boolean open(int i, int j) {
-        return inside(i, j) && (alleyI[i] || alleyJ[j] || inPlaza(i, j));
+    private boolean mainNS(int i) {
+        return Math.abs(i - ci) <= HALF_MAIN;
     }
 
-    // ------------------------------------------------------------------ 바닥과 가게
+    private boolean mainEW(int j) {
+        return Math.abs(j - cj) <= HALF_MAIN;
+    }
 
-    private static final int[][] DIRS = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}}; // 남, 북, 동, 서
+    /** 3층 높이로 뚫린 큰 통로 (홀) */
+    private boolean nave(int i, int j) {
+        return inBuilding(i, j) && depth(i, j) >= INNER && (mainNS(i) || mainEW(j));
+    }
 
-    private void floorsAndStalls() {
+    /** 바깥에서 홀로 들어오는 1층 입구 통로 */
+    private boolean passage(int i, int j) {
+        int dd = depth(i, j);
+        return inBuilding(i, j) && dd >= 1 && dd < INNER && ((mainNS(i) && (j - b0 < INNER || b1 - j < INNER))
+                || (mainEW(j) && (i - a0 < INNER || a1 - i < INNER)));
+    }
+
+    /** 둘레 복도 (1·2층) */
+    private boolean ringHall(int i, int j) {
+        int dd = depth(i, j);
+        return inBuilding(i, j) && dd >= RING && dd < INNER;
+    }
+
+    /** 작은 통로 (1·2층) */
+    private boolean side(int i, int j) {
+        return inBuilding(i, j) && depth(i, j) >= INNER && (sideI[i] || sideJ[j]) && !nave(i, j);
+    }
+
+    private boolean walk1(int i, int j) {
+        return nave(i, j) || passage(i, j) || ringHall(i, j) || side(i, j);
+    }
+
+    // ------------------------------------------------------------------ 바닥·천장·벽
+
+    private void structure() {
         for (int j = b0; j <= b1; j++) {
             for (int i = a0; i <= a1; i++) {
-                if (!inside(i, j)) {
+                boolean n = nave(i, j);
+                boolean centerLine = (mainEW(j) && j == cj) || (mainNS(i) && i == ci);
+                v.set(i, -1, j, n && centerLine ? POLISHED_GRANITE : walk1(i, j) ? POLISHED_ANDESITE : SMOOTH_STONE);
+                if (!n) {
+                    v.set(i, F2, j, SMOOTH_STONE);
+                    v.set(i, F3, j, SMOOTH_STONE);
+                    v.set(i, ROOF, j, LIGHT_GRAY_CONCRETE);
+                }
+                // 1층 둘레 가게 뒷벽과 칸막이, 2층 가게 칸막이
+                int dd = depth(i, j);
+                if (dd >= 1 && dd < RING && !passage(i, j)) {
+                    int along = (dd == j - b0 || dd == b1 - j) ? i : j;
+                    if (dd == RING - 1) {
+                        v.fill(i, 0, j, i, F2 - 1, j, TILE);
+                    } else if (Math.floorMod(along, 7) == 0) {
+                        v.fill(i, 0, j, i, F2 - 1, j, TILE);
+                        v.fill(i, F2 + 1, j, i, F3 - 1, j, TILE);
+                    }
+                }
+                // 복도 조명: 1층은 2층 바닥에, 2층은 3층 바닥에 매달린 등
+                if ((ringHall(i, j) && dd == RING + 1 || side(i, j)) && (i + j) % 4 == 0) {
+                    v.set(i, F2 - 1, j, LANTERN_HANGING);
+                    v.set(i, F3 - 1, j, LANTERN_HANGING);
+                }
+                if (passage(i, j) && (i + j) % 4 == 0) {
+                    v.set(i, F2 - 1, j, LANTERN_HANGING);
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 1층
+
+    private static final int[][] DIRS = {{0, 1}, {0, -1}, {1, 0}, {-1, 0}};
+
+    private void floor1() {
+        for (int j = b0; j <= b1; j++) {
+            for (int i = a0; i <= a1; i++) {
+                int dd = depth(i, j);
+                if (dd >= 1 && dd < RING - 1 && !passage(i, j)) {
+                    ringShop1(i, j, dd);
                     continue;
                 }
-                if (open(i, j)) {
-                    // 골목 바닥: 가운데 줄무늬
-                    boolean center = (alleyI[i] && Math.abs(i + 0.5 - ci) < 1) || (alleyJ[j] && Math.abs(j + 0.5 - cj) < 1);
-                    v.set(i, -1, j, center ? POLISHED_GRANITE : SMOOTH_STONE);
+                if (dd < INNER || walk1(i, j)) {
                     continue;
                 }
-                v.set(i, -1, j, POLISHED_ANDESITE);
-                v.set(i, ROOF, j, LIGHT_GRAY_CONCRETE);
-                // 가장 가까운 골목 쪽 (그쪽을 보는 가게)
+                // 가장 가까운 통로 쪽을 보는 가게
                 int best = Integer.MAX_VALUE, dir = -1;
                 for (int k = 0; k < 4; k++) {
-                    for (int s = 1; s <= 6; s++) {
+                    for (int s = 1; s <= 7; s++) {
                         int ni = i + DIRS[k][0] * s, nj = j + DIRS[k][1] * s;
-                        if (!inside(ni, nj)) {
+                        if (!inBuilding(ni, nj)) {
                             break;
                         }
-                        if (open(ni, nj)) {
+                        if (walk1(ni, nj)) {
                             if (s - 1 < best) {
                                 best = s - 1;
                                 dir = k;
@@ -118,248 +198,370 @@ final class MarketHall {
                         }
                     }
                 }
-                if (dir < 0 || best > 3) {
-                    continue; // 가게 뒤 창고 (지붕만)
+                if (dir >= 0 && best <= 3) {
+                    stall1(i, j, best, dir);
                 }
-                stallCell(i, j, best, dir);
             }
         }
+        // 큰 통로 가운데 먹자골목 좌판
+        islands(true);
+        islands(false);
     }
 
-    /** 가게 한 칸. m 은 골목에서 몇 칸 안쪽인지(0 = 판매대 줄), dir 은 가게가 보는 쪽 */
-    private void stallCell(int i, int j, int m, int dir) {
+    private long stallSeed(int i, int j, int dir, int level) {
         int along = DIRS[dir][0] == 0 ? i : j;
-        int stall = Math.floorDiv(along, 4);
-        int slot = Math.floorMod(along, 4);
-        long h = seed ^ (stall * 0x9E3779B97F4A7C15L) ^ ((long) dir << 40) ^ ((long) (DIRS[dir][0] == 0 ? j / 8 : i / 8) << 20);
-        Random sr = new Random(h);
-        int kind = sr.nextInt(7);
-        // 남서쪽은 수산시장
-        if (i < ci && j > cj && sr.nextInt(10) < 7) {
-            kind = 4;
-        }
-        String color = switch (kind) {
-            case 0 -> new String[]{"red", "orange", "yellow"}[sr.nextInt(3)];
-            case 1 -> new String[]{"magenta", "pink", "purple"}[sr.nextInt(3)];
-            case 2 -> new String[]{"lime", "green", "yellow"}[sr.nextInt(3)];
-            case 4 -> new String[]{"light_blue", "cyan", "blue"}[sr.nextInt(3)];
-            default -> BRIGHT[sr.nextInt(BRIGHT.length)];
-        };
-        Block awningA = wool(color), awningB = sr.nextInt(3) == 0 ? YELLOW_WOOL : WHITE_WOOL;
-        Block sign = concrete(BRIGHT[sr.nextInt(BRIGHT.length)]);
+        return seed ^ (Math.floorDiv(along, 4) * 0x9E3779B97F4A7C15L) ^ ((long) dir << 40) ^ ((long) level << 50)
+                ^ ((long) (DIRS[dir][0] == 0 ? j / 9 : i / 9) << 20);
+    }
 
+    /** 1층 가게 한 칸. m = 통로에서 몇 칸 안쪽 (0 = 판매대) */
+    private void stall1(int i, int j, int m, int dir) {
+        int along = DIRS[dir][0] == 0 ? i : j;
+        int slot = Math.floorMod(along, 4);
+        Random sr = new Random(stallSeed(i, j, dir, 1));
+        int kind = sr.nextInt(8);
+        if (i < ci && j > cj && sr.nextInt(10) < 8) {
+            kind = 4; // 남서쪽 수산시장
+        }
         if (slot == 0) {
-            // 가게 사이 칸막이와 기둥
-            v.fill(i, 0, j, i, m == 0 ? ROOF - 1 : 2, j, m == 0 ? WHITE_CONCRETE : SPRUCE_PLANKS);
+            v.fill(i, 0, j, i, F2 - 1, j, m == 0 ? LIGHT_GRAY_CONCRETE : TILE); // 가게 사이 벽
             return;
         }
         switch (m) {
             case 0 -> {
-                // 판매대
-                v.set(i, 0, j, counter(kind, sr));
-                if (kind == 1 || kind == 2) {
-                    v.set(i, 1, j, kind == 1 ? wool(BRIGHT[sr.nextInt(BRIGHT.length)]) : (sr.nextBoolean() ? MELON : PUMPKIN));
+                v.set(i, 0, j, goods(kind, sr, 0));
+                // 셔터 통 + 간판 (두 줄)
+                v.set(i, F2 - 1, j, LIGHT_GRAY_CONCRETE);
+                if (slot == 1) {
+                    int di = DIRS[dir][0] == 0 ? 1 : 0, dj = 1 - di;
+                    SignText.line(v, i, F2 - 2, j, 3, di, dj, SignText.combo(sr), sr);
                 }
-                if (kind == 5) {
-                    v.set(i, 0, j, SPRUCE_PLANKS);
-                    v.set(i, 1, j, sr.nextBoolean() ? FLOWER_POT_TULIP : FLOWER_POT_DANDELION);
-                }
-                // 줄무늬 차양 (골목으로 한 칸 튀어나옴)
-                Block stripe = (along % 2 == 0) ? awningA : awningB;
-                v.set(i, 3, j, stripe);
-                v.set(i + DIRS[dir][0], 3, j + DIRS[dir][1], stripe);
-                // 간판 두 줄, 가운데에 불빛
-                v.set(i, 4, j, sign);
-                v.set(i, 5, j, slot == 2 ? SEA_LANTERN : sign);
             }
             case 1 -> {
-                if (kind == 0 && slot == 2) {
-                    v.set(i, 0, j, CAULDRON);
+                if (slot == 2) {
+                    v.set(i, F2 - 1, j, LANTERN_HANGING);
                 }
             }
             case 2 -> {
-                Block back = switch (kind) {
-                    case 1 -> wool(BRIGHT[sr.nextInt(BRIGHT.length)]);
-                    case 2, 3 -> BARREL;
-                    case 4 -> BLUE_ICE;
-                    case 5 -> AZALEA_LEAVES;
-                    default -> null;
-                };
-                if (back != null) {
-                    int hgt = kind == 1 ? 1 + sr.nextInt(3) : 1;
-                    for (int y = 0; y < hgt; y++) {
-                        v.set(i, y, j, kind == 1 ? wool(BRIGHT[sr.nextInt(BRIGHT.length)]) : back);
-                    }
-                }
-                if (slot == 2) {
-                    v.set(i, ROOF - 1, j, LANTERN_HANGING);
+                for (int y = 0; y < (kind == 1 || kind == 2 ? 2 : 1); y++) {
+                    v.set(i, y, j, goods(kind, sr, y + 1));
                 }
             }
             default -> {
-                // 뒷벽 (선반)
-                v.fill(i, 0, j, i, ROOF - 1, j, kind == 1 ? wool(color) : WHITE_TERRACOTTA);
-                v.set(i, 1, j, kind == 3 || kind == 2 ? BARREL : v.get(i, 1, j));
+                v.fill(i, 0, j, i, F2 - 1, j, TILE);
+                v.set(i, 1, j, kind == 2 || kind == 6 ? BARREL : TILE);
             }
         }
     }
 
-    private static Block counter(int kind, Random r) {
+    /** 가게 물건. kind: 0 반찬, 1 떡집, 2 건어물, 3 채소·과일, 4 수산, 5 그릇·잡화, 6 참기름·곡물, 7 분식 */
+    private static Block goods(int kind, Random r, int row) {
         return switch (kind) {
-            case 0 -> r.nextInt(3) == 0 ? CAMPFIRE : SMOKER; // 빈대떡·떡볶이
-            case 1 -> wool(BRIGHT[r.nextInt(BRIGHT.length)]); // 한복·원단
-            case 2 -> r.nextBoolean() ? MELON : HAY; // 채소·과일·곡물
-            case 3 -> r.nextBoolean() ? DRIED_KELP : BARREL; // 건어물
-            case 4 -> r.nextBoolean() ? PACKED_ICE : PRISMARINE; // 생선
-            case 5 -> SPRUCE_PLANKS; // 꽃
-            default -> r.nextBoolean() ? CAULDRON : BARREL; // 그릇·잡화
+            case 0 -> new Block[]{RED_TERRACOTTA, LIME_TERRACOTTA, BROWN_TERRACOTTA, YELLOW_TERRACOTTA, IRON_BLOCK}[r.nextInt(5)];
+            case 1 -> new Block[]{WHITE_CONCRETE, PINK_TERRACOTTA, LIME_TERRACOTTA, YELLOW_TERRACOTTA, WHITE_CONCRETE}[r.nextInt(5)];
+            case 2 -> r.nextBoolean() ? DRIED_KELP : (r.nextBoolean() ? BARREL : BROWN_TERRACOTTA);
+            case 3 -> new Block[]{MELON, PUMPKIN, HAY, MOSS, MELON}[r.nextInt(5)];
+            case 4 -> row == 0 ? (r.nextBoolean() ? PACKED_ICE : BLUE_ICE) : (r.nextBoolean() ? PRISMARINE : PACKED_ICE);
+            case 5 -> r.nextBoolean() ? CAULDRON : (r.nextBoolean() ? IRON_BLOCK : BARREL);
+            case 6 -> r.nextBoolean() ? BARREL : HAY;
+            default -> row == 0 ? (r.nextInt(3) == 0 ? SMOKER : IRON_BLOCK) : CAULDRON;
         };
     }
 
-    // ------------------------------------------------------------------ 지붕
-
-    /** 가운데 광장 유리 돔 높이 (없으면 0) */
-    private double dome(double i, double j) {
-        double rr = Math.hypot(i - ci, j - cj), domeR = plazaR + 1.5;
-        return rr <= domeR ? ROOF + Math.sqrt(domeR * domeR - rr * rr) * 0.95 : 0;
+    /** 1층 둘레 가게 (길 쪽을 보는 가게): 안쪽 물건과 천장 등 */
+    private void ringShop1(int i, int j, int dd) {
+        if (dd == 2 && (i + j) % 7 == 3) {
+            v.set(i, 0, j, (i + j) % 2 == 0 ? IRON_BLOCK : BARREL);
+        }
+        if (dd == 3 && (i * 7 + j * 3) % 7 == 0) {
+            v.set(i, F2 - 1, j, SEA_LANTERN);
+        }
     }
 
-    /**
-     * 한 방향 골목들의 아치 높이 (없으면 0). coord 는 골목을 가로지르는 좌표, cell 은 그 칸 번호,
-     * other 는 골목을 따라가는 칸 번호. 골목 칸과 그 양옆 1칸(차양 줄)을 덮습니다.
-     */
-    private double arch(double coord, boolean[] alley, int cell, int other, boolean ns) {
-        int n = alley.length;
-        if (cell < 0 || cell >= n || (ns ? (other < b0 || other > b1) : (other < a0 || other > a1))) {
-            return 0;
-        }
-        int at = -1;
-        for (int k = Math.max(0, cell - 1); k <= Math.min(n - 1, cell + 1); k++) {
-            if (alley[k]) {
-                at = k;
-                break;
+    /** 큰 통로 가운데 먹자골목 좌판: 스테인리스 판매대, 불판·솥, 양옆 긴 의자, 위에 등과 이름판 */
+    private void islands(boolean ew) {
+        int c = ew ? cj : ci;
+        int from = ew ? a0 + INNER + 2 : b0 + INNER + 2, to = ew ? a1 - INNER - 2 : b1 - INNER - 2;
+        int cross = ew ? ci : cj;
+        String[][] menus = {{"빈대떡", "c"}, {"김밥", "k"}, {"육회", "r"}, {"떡볶이", "t"}, {"순대", "s"}, {"칼국수", "n"}, {"녹두전", "c"}};
+        int n = 0;
+        for (int s = from; s + 6 <= to; s += 11) {
+            if (Math.abs(s - cross) <= HALF_MAIN + 3 || Math.abs(s + 6 - cross) <= HALF_MAIN + 3
+                    || (s < cross && s + 6 > cross)) {
+                continue;
             }
-        }
-        if (at < 0) {
-            return 0;
-        }
-        int lo = at, hi = at;
-        while (lo > 0 && alley[lo - 1]) {
-            lo--;
-        }
-        while (hi < n - 1 && alley[hi + 1]) {
-            hi++;
-        }
-        double center = (lo + hi + 1) / 2.0, half = (hi - lo + 1) / 2.0 + 1;
-        double u = Math.abs(coord - center);
-        if (u > half) {
-            return 0;
-        }
-        return ROOF + Math.sqrt(half * half - u * u) * (half > 4 ? 1.0 : 0.9);
-    }
-
-    private double vaultHeight(double i, double j) {
-        int ii = (int) Math.floor(i), jj = (int) Math.floor(j);
-        return Math.max(dome(i, j), Math.max(arch(i, alleyI, ii, jj, true), arch(j, alleyJ, jj, ii, false)));
-    }
-
-    private void roofs() {
-        int w = v.w, d = v.d;
-        double[][] hgt = new double[w][d];
-        boolean[][] nsRib = new boolean[w][d];
-        for (int i = 0; i < w; i++) {
-            for (int j = 0; j < d; j++) {
-                double ns = arch(i + 0.5, alleyI, i, j, true), ew = arch(j + 0.5, alleyJ, j, i, false);
-                hgt[i][j] = Math.max(dome(i + 0.5, j + 0.5), Math.max(ns, ew));
-                nsRib[i][j] = ns >= ew;
-            }
-        }
-        for (int i = a0; i <= a1; i++) {
-            for (int j = b0; j <= b1; j++) {
-                if (hgt[i][j] <= 0) {
-                    continue;
-                }
-                int top = (int) Math.floor(hgt[i][j]);
-                if (i == a0 || i == a1 || j == b0 || j == b1) {
-                    // 아치 끝(바깥벽 위) 반달 모양을 유리로 막음
-                    if (top > ROOF + 1) {
-                        v.fill(i, ROOF + 2, j, i, top, j, WHITE_GLASS);
+            Random sr = new Random(seed ^ (s * 31L) ^ (ew ? 7 : 13));
+            char menu = menus[(n++ + (ew ? 0 : 3)) % menus.length][1].charAt(0);
+            for (int t = s; t <= s + 6; t++) {
+                for (int off = -1; off <= 1; off++) {
+                    int i = ew ? t : c + off, j = ew ? c + off : t;
+                    boolean end = t == s || t == s + 6;
+                    if (off == 0 && !end) {
+                        continue; // 주인이 서는 자리
                     }
-                    continue;
+                    v.set(i, 0, j, end ? IRON_BLOCK : islandItem(menu, sr, t - s));
                 }
-                int low = top;
-                for (int[] dd : DIRS) {
-                    double nh = hgt[i + dd[0]][j + dd[1]];
-                    low = Math.min(low, nh <= 0 ? ROOF : (int) Math.floor(nh));
+                // 긴 의자
+                if (t > s && t < s + 6) {
+                    for (int side : new int[]{-2, 2}) {
+                        v.set(ew ? t : c + side, 0, ew ? c + side : t, SPRUCE_SLAB);
+                    }
                 }
-                low = Math.max(ROOF, Math.min(low + 1, top));
-                boolean rib = (nsRib[i][j] ? j : i) % 4 == 0;
-                boolean domeRib = false;
-                double rr = Math.hypot(i + 0.5 - ci, j + 0.5 - cj);
-                if (dome(i + 0.5, j + 0.5) >= hgt[i][j] && rr <= plazaR + 1.5) {
-                    double ang = Math.toDegrees(Math.atan2(j + 0.5 - cj, i + 0.5 - ci));
-                    domeRib = Math.abs(((ang % 45) + 45) % 45 - 22.5) > 19.5 || rr < 1.5;
-                    rib = false;
+            }
+            // 등 받침대: 양 끝 기둥, 위 가로대, 매달린 등, 이름판
+            for (int t : new int[]{s, s + 6}) {
+                v.fill(ew ? t : c, 1, ew ? c : t, ew ? t : c, 3, ew ? c : t, SPRUCE_FENCE);
+            }
+            for (int t = s; t <= s + 6; t++) {
+                int i = ew ? t : c, j = ew ? c : t;
+                v.set(i, 4, j, SPRUCE_PLANKS);
+                if ((t - s) % 2 == 1) {
+                    v.set(i, 3, j, LANTERN_HANGING);
                 }
-                Block shell = domeRib ? GOLD_BLOCK : rib ? RED_CONCRETE : WHITE_GLASS;
-                for (int y = low; y <= top; y++) {
-                    v.set(i, y, j, shell);
-                }
-                // 아치 꼭대기 줄에 갈빗대마다 매달린 등
-                boolean ridge = nsRib[i][j] ? alleyI[i] && Math.abs(i + 0.5 - centerOf(alleyI, i)) < 1
-                        : alleyJ[j] && Math.abs(j + 0.5 - centerOf(alleyJ, j)) < 1;
-                if (rib && ridge && top > ROOF + 2 && open(i, j)) {
-                    v.set(i, top - 1, j, LANTERN_HANGING);
-                }
+            }
+            Block[] combo = sr.nextBoolean() ? new Block[]{YELLOW_CONCRETE, RED_CONCRETE} : new Block[]{RED_CONCRETE, WHITE_CONCRETE};
+            for (int side : new int[]{-1, 1}) {
+                int i = ew ? s : c + side, j = ew ? c + side : s;
+                SignText.line(v, i, 6, j, 7, ew ? 1 : 0, ew ? 0 : 1, combo, sr);
             }
         }
     }
 
-    private static double centerOf(boolean[] alley, int k) {
-        int lo = k, hi = k;
-        while (lo > 0 && alley[lo - 1]) {
-            lo--;
-        }
-        while (hi < alley.length - 1 && alley[hi + 1]) {
-            hi++;
-        }
-        return (lo + hi + 1) / 2.0;
+    private static Block islandItem(char menu, Random r, int t) {
+        return switch (menu) {
+            case 'c' -> t % 3 == 1 ? CAMPFIRE : t % 3 == 2 ? SMOKER : IRON_BLOCK; // 빈대떡·녹두전: 불판
+            case 'k' -> t % 2 == 0 ? DRIED_KELP : WHITE_CONCRETE; // 김밥
+            case 'r' -> t % 2 == 0 ? RED_TERRACOTTA : IRON_BLOCK; // 육회
+            case 't' -> t % 2 == 0 ? CAULDRON : RED_CONCRETE; // 떡볶이
+            case 's' -> t % 2 == 0 ? BROWN_TERRACOTTA : CAULDRON; // 순대
+            default -> t % 2 == 0 ? CAULDRON : SMOKER; // 칼국수
+        };
     }
 
-    // ------------------------------------------------------------------ 가운데 먹자 광장
+    // ------------------------------------------------------------------ 2층
 
-    private void plaza() {
-        double rr0 = plazaR;
+    private void floor2() {
+        int y0 = F2 + 1;
         for (int j = b0; j <= b1; j++) {
             for (int i = a0; i <= a1; i++) {
-                double rr = Math.hypot(i + 0.5 - ci, j + 0.5 - cj);
-                if (rr >= rr0) {
+                int dd = depth(i, j);
+                if (dd >= 1 && dd < RING && !passage(i, j)) {
+                    // 둘레 2층 가게: 둘레 복도 쪽을 보고, 바깥벽에는 창문
+                    int m = RING - 1 - dd;
+                    ringShop2(i, j, m, dd);
                     continue;
                 }
-                // 바닥 무늬: 동심원
-                v.set(i, -1, j, ((int) rr) % 3 == 0 ? POLISHED_GRANITE : (((int) rr) % 3 == 1 ? SMOOTH_STONE : POLISHED_DIORITE));
-                double ang = Math.toDegrees(Math.atan2(j + 0.5 - cj, i + 0.5 - ci));
-                boolean walkway = Math.abs(i + 0.5 - ci) < 2.5 || Math.abs(j + 0.5 - cj) < 2.5;
-                // 둥근 포장마차 판매대
-                if (rr >= rr0 * 0.42 && rr < rr0 * 0.42 + 1 && !walkway) {
-                    v.set(i, 0, j, ((int) (ang + 360)) % 30 < 8 ? SMOKER : SMOOTH_QUARTZ);
-                    v.set(i, 3, j, ((int) (ang + 360) / 15) % 2 == 0 ? ORANGE_WOOL : RED_WOOL);
+                if (passage(i, j) && dd < RING) {
+                    // 입구 통로 위 2층: 둘레 가게와 이어진 방
+                    continue;
                 }
-                // 손님 의자
-                if (rr >= rr0 * 0.42 + 2 && rr < rr0 * 0.42 + 3 && !walkway && ((i + j) % 2 == 0)) {
-                    v.set(i, 0, j, SPRUCE_SLAB);
+                if (ringHall(i, j) && (nave(i + 1, j) || nave(i - 1, j) || nave(i, j + 1) || nave(i, j - 1))) {
+                    v.set(i, y0, j, IRON_BARS); // 홀 끝 난간
+                    continue;
+                }
+                if (dd < INNER || nave(i, j) || side(i, j) || ringHall(i, j)) {
+                    continue;
+                }
+                // 가장 가까운 2층 통로(작은 통로·둘레 복도) 또는 홀
+                int best = Integer.MAX_VALUE, dir = -1;
+                boolean toNave = false;
+                for (int k = 0; k < 4; k++) {
+                    for (int s = 1; s <= 9; s++) {
+                        int ni = i + DIRS[k][0] * s, nj = j + DIRS[k][1] * s;
+                        if (!inBuilding(ni, nj)) {
+                            break;
+                        }
+                        boolean naveHit = nave(ni, nj);
+                        if (naveHit || side(ni, nj) || ringHall(ni, nj)) {
+                            if (s - 1 < best) {
+                                best = s - 1;
+                                dir = k;
+                                toNave = naveHit;
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (dir < 0) {
+                    continue;
+                }
+                int m = best;
+                if (toNave) {
+                    if (m == 0) {
+                        v.set(i, y0, j, IRON_BARS); // 홀 쪽 난간
+                        v.set(i, F2 - 1, j, (i + j) % 3 == 0 ? LANTERN_HANGING : null);
+                        continue;
+                    }
+                    if (m <= 2) {
+                        continue; // 난간 복도
+                    }
+                    m -= 3;
+                }
+                if (m <= 3) {
+                    stall2(i, j, m, dir);
                 }
             }
         }
-        // 가운데: 빈대떡 굽는 큰 솥과 불
-        v.set(ci, 0, cj, CAMPFIRE);
-        v.set(ci - 1, 0, cj, CAULDRON);
-        v.set(ci, 0, cj - 1, CAULDRON);
-        // 청사초롱 샹들리에 (돔 꼭대기에 매달림)
-        int top = (int) Math.floor(vaultHeight(ci + 0.5, cj + 0.5));
-        for (int y = top - 1; y >= top - 3; y--) {
-            v.set(ci, y, cj, Block.of("iron_chain[axis=y,waterlogged=false]", 0x505050));
+    }
+
+    /** 2층 가게: 원단·한복·이불 (천 가게) */
+    private void stall2(int i, int j, int m, int dir) {
+        int y0 = F2 + 1;
+        int along = DIRS[dir][0] == 0 ? i : j;
+        int slot = Math.floorMod(along, 4);
+        Random sr = new Random(stallSeed(i, j, dir, 2));
+        int kind = sr.nextInt(3); // 0 원단, 1 한복, 2 이불
+        if (slot == 0) {
+            v.fill(i, y0, j, i, F3 - 1, j, m == 0 ? LIGHT_GRAY_CONCRETE : TILE);
+            return;
         }
-        int ring = top - 4;
+        switch (m) {
+            case 0 -> {
+                v.set(i, y0, j, wool(kind == 1 ? HANBOK[sr.nextInt(HANBOK.length)] : FABRIC[sr.nextInt(FABRIC.length)]));
+                if (slot == 1) {
+                    int di = DIRS[dir][0] == 0 ? 1 : 0, dj = 1 - di;
+                    SignText.line(v, i, F3 - 1, j, 3, di, dj, SignText.combo(sr), sr);
+                }
+            }
+            case 1 -> {
+                if (slot == 2) {
+                    v.set(i, F3 - 1, j, SEA_LANTERN);
+                }
+            }
+            case 2 -> {
+                // 원단 두루마리·한복·이불을 쌓아 둠
+                int h = kind == 2 ? 2 : 3;
+                for (int y = 0; y < h; y++) {
+                    String c = kind == 1 ? HANBOK[sr.nextInt(HANBOK.length)] : kind == 2
+                            ? new String[]{"white", "pink", "light_blue", "yellow"}[sr.nextInt(4)] : FABRIC[sr.nextInt(FABRIC.length)];
+                    v.set(i, y0 + y, j, wool(c));
+                }
+            }
+            default -> {
+                for (int y = y0; y < F3; y++) {
+                    v.set(i, y, j, wool(FABRIC[sr.nextInt(FABRIC.length)])); // 벽 가득 원단
+                }
+            }
+        }
+    }
+
+    /** 2층 둘레 가게 (m = 둘레 복도에서 몇 칸 안쪽) */
+    private void ringShop2(int i, int j, int m, int dd) {
+        int y0 = F2 + 1;
+        Random sr = new Random(seed ^ (i * 92821L) ^ (j * 689287L));
+        if (m == 0) {
+            // 가게 앞: 유리와 문
+            boolean door = Math.floorMod(i + j, 7) == 3;
+            v.fill(i, y0, j, i, F3 - 1, j, door ? null : GLASS_PANE);
+            if (!door) {
+                v.set(i, y0, j, TILE);
+            }
+        } else if (m == 3 && (i + j) % 5 == 0) {
+            v.set(i, y0, j, wool(FABRIC[sr.nextInt(FABRIC.length)]));
+            v.set(i, y0 + 1, j, wool(FABRIC[sr.nextInt(FABRIC.length)]));
+        } else if (m == 2 && (i * 3 + j) % 7 == 0) {
+            v.set(i, F3 - 1, j, SEA_LANTERN);
+        }
+    }
+
+    // ------------------------------------------------------------------ 계단
+
+    /** 둘레 복도 남쪽·북쪽에 계단 네 개 (1층 → 2층) */
+    private void stairs() {
+        for (boolean southSide : new boolean[]{true, false}) {
+            for (boolean westEnd : new boolean[]{true, false}) {
+                int row = southSide ? b1 - RING : b0 + RING; // 둘레 복도 바깥쪽 줄
+                int row2 = southSide ? row - 1 : row + 1;
+                int start = westEnd ? a0 + INNER + 1 : a1 - INNER - 1;
+                int step = westEnd ? 1 : -1;
+                String facing = westEnd ? "east" : "west";
+                for (int k = 0; k <= F2; k++) {
+                    int i = start + k * step;
+                    for (int j : new int[]{row, row2}) {
+                        v.fill(i, 0, j, i, k - 1, j, SMOOTH_STONE);
+                        v.set(i, k, j, Blocks.stairs("oak", facing, 0xA2834F));
+                        for (int y = k + 1; y <= Math.min(F2, k + 3); y++) {
+                            v.set(i, y, j, AIR);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 홀 (뚫린 큰 통로)
+
+    private void nave() {
+        int w = v.w, d = v.d;
+        double[][] h = new double[w][d];
+        boolean[][] ribAlongI = new boolean[w][d];
+        for (int i = 0; i < w; i++) {
+            for (int j = 0; j < d; j++) {
+                if (!inBuilding(i, j) || depth(i, j) < INNER - 1) {
+                    continue;
+                }
+                double ew = Math.abs(j - cj) <= HALF_MAIN + 1 && i - a0 >= INNER - 1 && a1 - i >= INNER - 1
+                        ? WALL_TOP + 1 + (HALF_MAIN + 1 - Math.abs(j - cj)) * 0.8 : 0;
+                double ns = Math.abs(i - ci) <= HALF_MAIN + 1 && j - b0 >= INNER - 1 && b1 - j >= INNER - 1
+                        ? WALL_TOP + 1 + (HALF_MAIN + 1 - Math.abs(i - ci)) * 0.8 : 0;
+                h[i][j] = Math.max(ew, ns);
+                ribAlongI[i][j] = ew >= ns;
+            }
+        }
+        for (int j = b0; j <= b1; j++) {
+            for (int i = a0; i <= a1; i++) {
+                if (h[i][j] <= 0) {
+                    continue;
+                }
+                int top = (int) Math.floor(h[i][j]);
+                boolean edgeNS = Math.abs(i - ci) == HALF_MAIN + 1 && !mainEW(j);
+                boolean edgeEW = Math.abs(j - cj) == HALF_MAIN + 1 && !mainNS(i);
+                boolean end = depth(i, j) == INNER - 1;
+                // 홀 벽: 3층 바닥부터 벽 꼭대기까지, 지붕 위로 나온 부분은 창
+                if ((edgeNS || edgeEW) && !nave(i, j)) {
+                    int along = edgeNS ? j : i;
+                    for (int y = F3; y <= WALL_TOP; y++) {
+                        boolean window = y > ROOF + 1 && y < WALL_TOP && along % 3 != 0;
+                        v.set(i, y, j, window ? GLASS : y == WALL_TOP || y == ROOF + 1 ? BAND : TILE);
+                    }
+                }
+                if (end && (mainNS(i) || mainEW(j))) {
+                    // 홀 끝벽 (1·2층은 둘레 복도로 열려 있음)
+                    for (int y = F3; y <= WALL_TOP; y++) {
+                        v.set(i, y, j, y > ROOF + 1 && y < WALL_TOP && (i + j) % 3 != 0 ? GLASS : TILE);
+                    }
+                }
+                // 지붕: 철골 갈빗대와 반투명 유리
+                int low = top;
+                for (int[] dd : DIRS) {
+                    double nh = h[i + dd[0]][j + dd[1]];
+                    low = Math.min(low, nh <= 0 ? WALL_TOP + 1 : (int) Math.floor(nh));
+                }
+                low = Math.max(WALL_TOP + 1, Math.min(low + 1, top));
+                if (end && (mainNS(i) || mainEW(j))) {
+                    low = WALL_TOP + 1; // 박공 끝 삼각형
+                }
+                int along = ribAlongI[i][j] ? i : j;
+                boolean ridge = ribAlongI[i][j] ? j == cj : i == ci;
+                Block b = ridge || along % 4 == 0 || edgeNS || edgeEW ? LIGHT_GRAY_CONCRETE : WHITE_GLASS;
+                for (int y = low; y <= top; y++) {
+                    v.set(i, y, j, b);
+                }
+                // 용마루에 매달린 등 (8칸마다)
+                if (ridge && along % 8 == 4 && nave(i, j)) {
+                    for (int y = top - 1; y >= top - 5; y--) {
+                        v.set(i, y, j, CHAIN);
+                    }
+                    v.set(i, top - 6, j, LANTERN_HANGING);
+                }
+            }
+        }
+        // 가운데 교차점: 청사초롱 샹들리에
+        int top = (int) Math.floor(h[ci][cj]);
+        for (int y = top - 1; y >= top - 8; y--) {
+            v.set(ci, y, cj, CHAIN);
+        }
+        int ring = top - 9;
         for (int k = 0; k < 8; k++) {
             double ang = Math.toRadians(k * 45);
             int li = (int) Math.floor(ci + 0.5 + 2.6 * Math.cos(ang)), lj = (int) Math.floor(cj + 0.5 + 2.6 * Math.sin(ang));
@@ -369,85 +571,175 @@ final class MarketHall {
         }
         v.set(ci, ring, cj, GOLD_BLOCK);
         v.set(ci, ring - 1, cj, SEA_LANTERN);
+
+        // 먹자골목(동서 홀) 위에 매달린 한글 간판, 남북 홀에는 현수막
+        hangingSigns();
+        banners();
     }
 
-    // ------------------------------------------------------------------ 바깥벽과 문
+    /** 동서 홀 가운데 위에 매달린 양면 한글 간판 (12칸 글씨) */
+    private void hangingSigns() {
+        String[] words = {"육회", "김밥", "순대", "빈대떡"};
+        int west = a0 + INNER, east = a1 - INNER;
+        int[][] halves = {{west, ci - HALF_MAIN - 2}, {ci + HALF_MAIN + 2, east}};
+        int n = 0;
+        for (int[] half : halves) {
+            int len = half[1] - half[0];
+            String word = null;
+            for (String wd : words) {
+                if (HangulFont.width(12, wd) + 2 <= len + 2 && (word == null || wd.length() > word.length())) {
+                    word = wd;
+                }
+            }
+            if (word == null) {
+                continue;
+            }
+            if (word.length() == 2) {
+                word = words[n % 3];
+            }
+            n++;
+            int bw = HangulFont.width(12, word) + 2;
+            int i0 = (half[0] + half[1]) / 2 - bw / 2;
+            int yTop = WALL_TOP - 2, yBot = yTop - 13;
+            for (int i = i0; i < i0 + bw; i++) {
+                for (int y = yBot; y <= yTop; y++) {
+                    boolean edge = i == i0 || i == i0 + bw - 1 || y == yBot || y == yTop;
+                    v.set(i, y, cj, edge ? RED_CONCRETE : YELLOW_CONCRETE);
+                }
+            }
+            // 남쪽 면은 서→동, 북쪽 면은 동→서로 읽힘
+            HangulFont.draw(v, 12, word, i0 + 1, yTop - 1, cj + 1, 1, 0, RED_CONCRETE);
+            HangulFont.draw(v, 12, word, i0 + bw - 2, yTop - 1, cj - 1, -1, 0, RED_CONCRETE);
+            for (int i : new int[]{i0 + 2, i0 + bw - 3}) {
+                for (int y = yTop + 1; y <= RIDGE; y++) {
+                    if (v.get(i, y, cj) == null) {
+                        v.set(i, y, cj, CHAIN);
+                    }
+                }
+            }
+        }
+    }
 
-    private void outerWalls() {
-        int top = ROOF + 1;
+    /** 남북 홀을 가로지르는 현수막 (흰 바탕 빨간 글씨 무늬) */
+    private void banners() {
+        Random r = new Random(seed ^ 0xBA22E2L);
+        for (int j = b0 + INNER + 3; j < b1 - INNER - 2; j += 10) {
+            if (Math.abs(j - cj) <= HALF_MAIN + 2) {
+                continue;
+            }
+            SignText.line(v, ci - HALF_MAIN, 15, j, HALF_MAIN * 2 + 1, 1, 0,
+                    r.nextBoolean() ? new Block[]{WHITE_WOOL, RED_WOOL} : new Block[]{YELLOW_WOOL, BLUE_WOOL}, r);
+        }
+    }
+
+    // ------------------------------------------------------------------ 바깥 모습
+
+    private void facade() {
+        Random r = new Random(seed ^ 0xFACADEL);
         for (int j = b0; j <= b1; j++) {
             for (int i = a0; i <= a1; i++) {
-                boolean edge = i == a0 || i == a1 || j == b0 || j == b1;
-                if (!edge) {
+                if (depth(i, j) != 0) {
                     continue;
                 }
-                int along = (i == a0 || i == a1) ? j : i;
-                Block panel = WALL_PANELS[Math.floorMod(Math.floorDiv(along, 6) * 7 + (i == a0 ? 3 : 0) + (j == b0 ? 5 : 0), WALL_PANELS.length)];
-                v.set(i, -1, j, POLISHED_ANDESITE);
-                v.fill(i, 0, j, i, 3, j, along % 6 == 0 ? WHITE_CONCRETE : panel);
-                if (along % 6 >= 2 && along % 6 <= 4) {
-                    v.set(i, 1, j, GLASS_PANE);
-                    v.set(i, 2, j, GLASS_PANE);
+                boolean ns = j == b0 || j == b1;
+                int along = ns ? i : j;
+                int unit = Math.floorMod(along, 7);
+                boolean entrance = (ns && mainNS(i)) || (!ns && mainEW(j));
+                // 1층: 유리 가게 앞 (7칸마다 기둥), 문, 간판 띠
+                for (int y = 0; y < F2; y++) {
+                    Block b;
+                    if (entrance) {
+                        b = y <= 4 ? AIR : BAND;
+                    } else if (unit == 0) {
+                        b = LIGHT_GRAY_CONCRETE;
+                    } else if (y <= 2) {
+                        b = unit == 3 && y <= 1 ? AIR : GLASS;
+                    } else {
+                        b = y == F2 - 1 ? BAND : TILE;
+                    }
+                    v.set(i, y, j, b);
                 }
-                // 간판 띠 (여러 색), 위에 불빛 줄
-                Block sign = concrete(BRIGHT[Math.floorMod(Math.floorDiv(along, 6) * 5 + 1, BRIGHT.length)]);
-                v.set(i, 4, j, along % 6 == 3 ? SEA_LANTERN : sign);
-                v.set(i, 5, j, sign);
-                v.set(i, ROOF, j, WHITE_CONCRETE);
-                v.set(i, top, j, along % 3 == 0 ? (along % 6 == 0 ? SHROOMLIGHT : SEA_LANTERN) : WHITE_CONCRETE);
+                // 2·3층: 띠, 창문 줄
+                for (int y = F2; y <= ROOF; y++) {
+                    Block b;
+                    boolean floorLine = y == F2 || y == F3 || y == ROOF;
+                    boolean window = !floorLine && unit != 0 && ((y >= F2 + 2 && y <= F2 + 4) || (y >= F3 + 2 && y <= F3 + 4));
+                    b = floorLine ? BAND : window ? GLASS_PANE : TILE;
+                    v.set(i, y, j, b);
+                }
+                v.set(i, ROOF + 1, j, BAND); // 난간
             }
         }
-        // 문: 골목이 바깥벽과 만나는 곳을 엶
-        for (int i = a0; i <= a1; i++) {
-            if (alleyI[i]) {
-                v.fill(i, 0, b0, i, 4, b0, AIR);
-                v.fill(i, 0, b1, i, 4, b1, AIR);
+        // 1층 가게 간판 (7칸마다, 바깥으로 1칸)
+        for (int side = 0; side < 4; side++) {
+            int len = side < 2 ? a1 - a0 : b1 - b0;
+            for (int t = 1; t + 6 <= len; t += 7) {
+                int[] p = facadePoint(side, t);
+                boolean blocked = false;
+                for (int k = -1; k <= 6; k++) {
+                    int[] q = facadePoint(side, t + k);
+                    blocked |= side < 2 ? mainNS(q[0]) : mainEW(q[1]);
+                }
+                if (blocked) {
+                    continue;
+                }
+                SignText.line(v, p[0] + p[4], 4, p[1] + p[5], 6, p[2], p[3], SignText.combo(r), r);
+                // 2층 창문 글씨 (일부)
+                if (r.nextInt(3) == 0) {
+                    SignText.line(v, p[0], F2 + 4, p[1], 6, p[2], p[3], new Block[]{GLASS, r.nextBoolean() ? RED_CONCRETE : BLUE_CONCRETE}, r);
+                }
             }
         }
-        for (int j = b0; j <= b1; j++) {
-            if (alleyJ[j]) {
-                v.fill(a0, 0, j, a0, 4, j, AIR);
-                v.fill(a1, 0, j, a1, 4, j, AIR);
+        // 모서리 세로 간판
+        for (int side = 0; side < 4; side++) {
+            int len = side < 2 ? a1 - a0 : b1 - b0;
+            for (int t : new int[]{3, len - 5}) {
+                int[] p = facadePoint(side, t);
+                SignText.vertical(v, p[0] + p[4], ROOF - 2, p[1] + p[5], 11, p[2], p[3], SignText.combo(r), r);
             }
         }
-        // 큰 문 네 곳: 빨간 기둥, 큰 간판
-        gate(ci, b1, 1, 0, 1, "JUNSEO MARKET");
-        gate(ci, b0, -1, 0, -1, "MARKET");
-        gate(a1, cj, 0, -1, 1, "MARKET");
-        gate(a0, cj, 0, 1, -1, "MARKET");
+        // 큰 문 위 한글 간판: 남문·북문, 동·서는 「먹자골목」 (건물 이름은 옥상 간판)
+        Block blue = BLUE_CONCRETE, white = WHITE_CONCRETE;
+        HangulFont.board(v, 12, "남문", ci, ROOF, b1, 1, 0, 0, 1, blue, white, white);
+        HangulFont.board(v, 12, "북문", ci, ROOF, b0, -1, 0, 0, -1, blue, white, white);
+        HangulFont.board(v, 12, "먹자골목", a1, ROOF, cj, 0, -1, 1, 0, RED_CONCRETE, YELLOW_CONCRETE, YELLOW_CONCRETE);
+        HangulFont.board(v, 12, "먹자골목", a0, ROOF, cj, 0, 1, -1, 0, RED_CONCRETE, YELLOW_CONCRETE, YELLOW_CONCRETE);
+        rooftopSign();
     }
 
     /**
-     * 큰 문. (gi, gj) 는 벽 위의 문 가운데, (ti, tj) 는 글씨가 나아가는 방향, out 은 바깥쪽 (+1/-1, 벽이 i 방향이면 j 쪽).
+     * 바깥벽 위의 점. side 0 = 남쪽(정면), 1 = 북쪽, 2 = 동쪽, 3 = 서쪽.
+     * @return {i, j, 글씨 방향 di, dj, 바깥쪽 oi, oj}
      */
-    private void gate(int gi, int gj, int ti, int tj, int out, String text) {
-        boolean southNorth = tj == 0;
-        int oi = southNorth ? 0 : out, oj = southNorth ? out : 0;
-        // 기둥: 문 양쪽 (골목 폭 8 + 1)
-        for (int side : new int[]{-1, 1}) {
-            int pi = gi + (southNorth ? side * 5 + (side < 0 ? 0 : -1) : 0);
-            int pj = gj + (southNorth ? 0 : side * 5 + (side < 0 ? 0 : -1));
-            for (int k = 0; k <= 1; k++) {
-                v.fill(pi + oi * k, 0, pj + oj * k, pi + oi * k, 13, pj + oj * k, RED_CONCRETE);
-            }
+    private int[] facadePoint(int side, int t) {
+        return switch (side) {
+            case 0 -> new int[]{a0 + t, b1, 1, 0, 0, 1};
+            case 1 -> new int[]{a1 - t, b0, -1, 0, 0, -1};
+            case 2 -> new int[]{a1, b1 - t, 0, -1, 1, 0};
+            default -> new int[]{a0, b0 + t, 0, 1, -1, 0};
+        };
+    }
+
+    /** 옥상 정면 쪽에 철골로 세운 큰 간판 「대형시장」 (16칸 글씨, 흰 바탕 빨간 글씨, 아래 조명) */
+    private void rooftopSign() {
+        String text = "대형시장";
+        int bw = HangulFont.width(16, text) + 6, bh = 16 + 4;
+        int i0 = ci - bw / 2, j = b1 - 3;
+        int y0 = ROOF + 3, y1 = y0 + bh - 1;
+        if (i0 < a0 + 2) {
+            return;
         }
-        // 간판 판: 문 위 y 8~16, 벽 바로 바깥 면
-        int len = PixelFont.width(text) + 4;
-        int start = -len / 2;
-        int y0 = 8, y1 = 16;
-        for (int t = start; t < start + len; t++) {
-            int i = gi + ti * t + oi, j = gj + tj * t + oj;
+        for (int i = i0; i < i0 + bw; i++) {
             for (int y = y0; y <= y1; y++) {
-                boolean border = t == start || t == start + len - 1 || y == y0 || y == y1;
-                v.set(i, y, j, border ? GOLD_BLOCK : RED_CONCRETE);
+                boolean edge = i == i0 || i == i0 + bw - 1 || y == y0 || y == y1;
+                v.set(i, y, j, edge ? (y == y0 && i % 3 == 0 ? SEA_LANTERN : RED_CONCRETE) : WHITE_CONCRETE);
+                v.set(i, y, j - 1, LIGHT_GRAY_CONCRETE); // 뒷판
             }
-            // 판 뒤 받침
-            v.set(i - oi, y0, j - oj, WHITE_CONCRETE);
+            if ((i - i0) % 8 == 0 || i == i0 + bw - 1) {
+                v.fill(i, ROOF + 1, j - 1, i, y0 - 1, j - 1, IRON_BARS); // 철골 다리
+                v.fill(i, ROOF + 1, j - 3, i, y1 - 4, j - 3, IRON_BARS);
+            }
         }
-        PixelFont.draw(v, text, gi + ti * (start + 2) + oi * 2, y1 - 1, gj + tj * (start + 2) + oj * 2, ti, tj, YELLOW_CONCRETE);
-        // 간판 아래 불빛
-        for (int t = start + 1; t < start + len - 1; t += 3) {
-            v.set(gi + ti * t + oi, y0 - 1, gj + tj * t + oj, LANTERN_HANGING);
-        }
+        HangulFont.draw(v, 16, text, i0 + 3, y1 - 2, j + 1, 1, 0, RED_CONCRETE);
     }
 }
