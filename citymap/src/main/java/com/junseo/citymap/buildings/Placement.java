@@ -36,6 +36,13 @@ public final class Placement {
     private record Built(Voxels voxels, Block[] palette, List<int[]> signs) {
     }
 
+    /**
+     * 차를 꺼내 줄 자리 (월드 좌표). y 는 바퀴가 닿는 바닥 바로 위 칸의 월드 높이,
+     * yaw 는 차 앞 방향 (마인크래프트 기준: 0 = 남쪽, 90 = 서쪽, 180 = 북쪽, -90 = 동쪽).
+     */
+    public record CarSpot(double x, int y, double z, float yaw) {
+    }
+
     /** 표지판 자리 (월드 좌표)와 블록 (글씨 포함) */
     public record SignSpot(int x, int y, int z, Block block) {
     }
@@ -196,6 +203,19 @@ public final class Placement {
         for (int[] s : b.signs) {
             double[] w = toWorld(s[0] + 0.5, s[2] + 0.5);
             out.add(new SignSpot((int) Math.floor(w[0]), baseY + s[1], (int) Math.floor(w[1]), b.palette[s[3]]));
+        }
+        return out;
+    }
+
+    /** 이 건물의 차 꺼내는 자리들 (주차장·차고·필로티 등, 없으면 빈 목록) */
+    public List<CarSpot> carSpots(int baseY) {
+        List<double[]> spots = built().voxels.carSpots();
+        List<CarSpot> out = new ArrayList<>(spots.size());
+        for (double[] s : spots) {
+            double[] w = toWorld(s[0], s[2]);
+            double dx = s[3] * cos - s[4] * sin, dz = s[3] * sin + s[4] * cos;
+            float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            out.add(new CarSpot(w[0], baseY + (int) s[1], w[1], Math.round(yaw * 100) / 100f));
         }
         return out;
     }

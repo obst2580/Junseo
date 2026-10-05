@@ -22,6 +22,7 @@ public final class Voxels {
     private final short[] cells;
     private final List<Block> palette = new ArrayList<>();
     private final Map<Block, Short> index = new HashMap<>();
+    private final List<double[]> carSpots = new ArrayList<>();
 
     public Voxels(int w, int d, int y0, int y1) {
         this.w = w;
@@ -29,6 +30,19 @@ public final class Voxels {
         this.y0 = y0;
         this.h = y1 - y0 + 1;
         this.cells = new short[w * d * h];
+    }
+
+    /**
+     * 차를 꺼내 줄 자리(주차 칸)를 표시합니다. (a, b) 는 건물 좌표의 실수 위치(칸 가운데면 i + 0.5),
+     * y 는 바퀴가 닿는 바닥 바로 위 칸, (da, db) 는 차 앞이 보는 방향 (예: 0, 1 = 정면 쪽).
+     */
+    public void carSpot(double a, int y, double b, int da, int db) {
+        carSpots.add(new double[]{a, y, b, da, db});
+    }
+
+    /** 표시한 차 자리들 {a, y, b, da, db} */
+    public List<double[]> carSpots() {
+        return carSpots;
     }
 
     public boolean inside(int i, int y, int j) {

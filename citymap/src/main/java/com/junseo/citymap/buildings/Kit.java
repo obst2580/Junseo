@@ -174,26 +174,9 @@ final class Kit {
 
     // ------------------------------------------------------------------ 주차장
 
-    /** 노상 주차장 (주차선만, 차는 두지 않음): 아스팔트, 흰 선, 둘레 연석, 통로 화살표 대신 가운데 점선 */
+    /** 주차장 (주차선만, 칸마다 차 꺼내는 자리) */
     static Voxels parking(int w, int d) {
-        Voxels v = new Voxels(w, d, -1, 1);
-        v.fill(0, -1, 0, w - 1, -1, d - 1, GRAY_CONCRETE);
-        v.walls(0, -1, 0, w - 1, -1, d - 1, SMOOTH_STONE);
-        // 주차 칸 (깊이 5, 너비 3) 두 줄 사이 통로 6: i 방향으로 16칸마다 되풀이
-        for (int i = 1; i + 4 < w - 1; i += 16) {
-            for (int j = 1; j < d - 1; j += 3) {
-                v.fill(i, -1, j, Math.min(i + 4, w - 2), -1, j, WHITE_CONCRETE);
-                if (i + 15 < w - 1) {
-                    v.fill(i + 11, -1, j, i + 15, -1, j, WHITE_CONCRETE);
-                }
-            }
-            if (i + 10 < w - 1) {
-                for (int j = 2; j < d - 2; j += 4) {
-                    v.fill(i + 8, -1, j, i + 8, -1, j + 1, YELLOW_CONCRETE);
-                }
-            }
-        }
-        return v;
+        return ParkingLot.build(w, d, null);
     }
 
     private Kit() {

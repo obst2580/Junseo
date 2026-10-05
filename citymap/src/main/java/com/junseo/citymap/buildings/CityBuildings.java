@@ -158,6 +158,44 @@ public final class CityBuildings {
         return out;
     }
 
+    /**
+     * (x, z) 에서 radius 안에 있는 차 꺼내는 자리들, 가까운 순 (공영주차장·주차타워·아파트 주차장·빌라 필로티 등).
+     * 둘레 건물의 블록 상자를 만들어 보므로 차를 꺼낼 때만 부릅니다.
+     */
+    public List<Placement.CarSpot> carSpots(double x, double z, double radius) {
+        List<Placement.CarSpot> out = new ArrayList<>();
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        int base = terrain.groundY() + 1;
+        for (int cz = Math.floorDiv((int) Math.floor(z - radius), CELL); cz <= Math.floorDiv((int) Math.ceil(z + radius), CELL); cz++) {
+            for (int cx = Math.floorDiv((int) Math.floor(x - radius), CELL); cx <= Math.floorDiv((int) Math.ceil(x + radius), CELL); cx++) {
+                int gx = cx - gx0, gz = cz - gz0;
+                if (gx < 0 || gz < 0 || gx >= gw || gz >= gh) {
+                    continue;
+                }
+                for (int k : cells[gz * gw + gx]) {
+                    Placement p = placements.get(k);
+                    double[] b = p.boundsRef();
+                    double nx = Math.max(b[0], Math.min(x, b[2])), nz = Math.max(b[1], Math.min(z, b[3]));
+                    if (isGround(p) || (nx - x) * (nx - x) + (nz - z) * (nz - z) > radius * radius || !seen.add(k)) {
+                        continue;
+                    }
+                    for (Placement.CarSpot s : p.carSpots(base)) {
+                        if ((s.x() - x) * (s.x() - x) + (s.z() - z) * (s.z() - z) <= radius * radius) {
+                            out.add(s);
+                        }
+                    }
+                }
+            }
+        }
+        out.sort(java.util.Comparator.comparingDouble(s -> (s.x() - x) * (s.x() - x) + (s.z() - z) * (s.z() - z)));
+        return out;
+    }
+
+    /** 공영 차고 (공영주차장·주차타워): 지도에 표시하고 차를 꺼내는 곳 */
+    public List<Placement> garages() {
+        return placements.stream().filter(p -> p.kind.equals("garage")).toList();
+    }
+
     /** 칸 (x, z) 를 덮는 건물 (없으면 null). 포장·거리 시설은 건물로 치지 않음. 미니맵용 */
     public Placement at(double x, double z) {
         for (int k : cell(x, z)) {
