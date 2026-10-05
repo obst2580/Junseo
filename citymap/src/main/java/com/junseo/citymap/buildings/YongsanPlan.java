@@ -55,7 +55,7 @@ final class YongsanPlan {
                     null, 4, 12),
             new Lot(s(CAFE, "베이커리 카페", "Bakery"),
                     new StreetBuilding.Shop[]{s(FOOD, "태국 음식", "Thai Food"), s(FOOD, "스테이크하우스", "Steak House"),
-                            s(BAR, "라운지 바", "Lounge Bar", "lounge")},
+                            s(BAR, "라운지 바", "Lounge Bar", "lounge"), s(BAR, "재즈 클럽", "Jazz Club", "lounge")},
                     null, 1, 14),
             new Lot(s(STORE, "외국 식품점", "World Foods"),
                     new StreetBuilding.Shop[]{s(FOOD, "아랍 식당", "Arabic Food", "halal"), s(BAR, "와인 바", "Wine Bar", "wine")},
