@@ -12,7 +12,7 @@ import static com.junseo.citymap.buildings.Blocks.*;
  *   <li>거점 쪽 가운데는 가림막이 안으로 들어간 진입 마당: 그 안쪽에 출입문(문틀과 「안전제일」, 옆으로 밀어 연 문짝),
  *       경비실, 세륜기, 건축허가 표지판</li>
  *   <li>안: 평평하게 고른 흙·자갈 땅, 현장 사무실(2층으로 쌓은 컨테이너, 바깥 철계단과 복도, 사무실·회의실·소장실·휴게실),
- *       이동식 화장실, 자재 야적장(철근 다발, 거푸집 합판, H형강, 벽돌 팔레트), 굴착기, 조명탑</li>
+ *       이동식 화장실, 자재 야적장(철근 다발, 거푸집 합판, H형강, 벽돌 팔레트), 흙 더미, 조명탑 (장비·차량은 두지 않음)</li>
  * </ul>
  * 정면(남쪽, j 큰 쪽)이 거점 쪽입니다.
  */
@@ -53,7 +53,6 @@ final class ThemeParkSite {
         s.office(s.hi + NOTCH + 3, s.gateJ - 16);
         s.toilets(s.hi + NOTCH + 3, s.gateJ - 21);
         s.materials();
-        s.excavator(s.land.w / 2 - 12, s.land.d / 2 - 6);
         s.floodlights();
         s.v.connect();
         land.clip(s.v);
@@ -426,31 +425,6 @@ final class ThemeParkSite {
             double rr = 5.5 - y * 1.4;
             v.cylinder(mi + 0.5, mj + 0.5, rr, y, y, y == 3 ? COARSE_DIRT : DIRT);
         }
-    }
-
-    /** 굴착기 (노란 몸체, 무한궤도, 붐·암·버킷을 땅에 내려놓음): 바깥 10×9 안 */
-    private void excavator(int i0, int j0) {
-        if (!inside(i0, j0) || !inside(i0 + 13, j0 + 6)) {
-            return;
-        }
-        Block body = YELLOW_CONCRETE, track = BLACK_CONCRETE, steel = GRAY_CONCRETE;
-        // 궤도 (앞뒤로 긴 두 줄)
-        v.fill(i0, 0, j0, i0 + 7, 0, j0 + 1, track);
-        v.fill(i0, 0, j0 + 4, i0 + 7, 0, j0 + 5, track);
-        v.fill(i0 + 1, 0, j0 + 2, i0 + 6, 0, j0 + 3, steel);
-        // 상부 몸체와 평형추, 운전석
-        v.fill(i0 + 1, 1, j0, i0 + 6, 2, j0 + 5, body);
-        v.fill(i0, 1, j0, i0, 2, j0 + 5, steel);
-        v.fill(i0 + 4, 3, j0, i0 + 6, 4, j0 + 1, body);
-        v.fill(i0 + 5, 3, j0, i0 + 6, 4, j0, BLACK_GLASS);
-        v.fill(i0 + 6, 3, j0 + 1, i0 + 6, 4, j0 + 1, BLACK_GLASS);
-        v.fill(i0 + 4, 5, j0, i0 + 6, 5, j0 + 1, body);
-        v.set(i0 + 2, 3, j0 + 4, steel); // 배기구
-        // 붐(위로)과 암(아래로), 버킷
-        v.rod(i0 + 7, 3, j0 + 3, i0 + 10.5, 7.5, j0 + 3, 0.6, body);
-        v.rod(i0 + 10.5, 7.5, j0 + 3, i0 + 12.5, 1, j0 + 3, 0.55, body);
-        v.fill(i0 + 12, 0, j0 + 2, i0 + 13, 0, j0 + 4, steel);
-        v.set(i0 + 13, 1, j0 + 3, steel);
     }
 
     /** 공사장 조명탑: 귀퉁이 안쪽에 철 기둥과 투광등 */
