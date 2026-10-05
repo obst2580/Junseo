@@ -69,11 +69,13 @@ final class SeoulStation {
             Site s = new Site(t, area, rx0, rz0, rx1, rz1);
             return platforms(s, hallX1 - rx0, hallZ0 - rz0, hallZ1 - rz0, bridgeZ - rz0, rnd(s1));
         }));
-        // 역 앞 광장
-        int px0 = blk[0] - 3, px1 = bx0 - 1, pz0 = blk[1] - 3, pz1 = blk[3] + 3;
+        // 역 앞 광장 (역사 남북 빈 땅까지, 역사 자리는 비움)
+        int px0 = blk[0] - 3, px1 = ox1, pz0 = blk[1] - 3, pz1 = blk[3] + 3;
+        int[][] keep = {{bx0 - px0, oz0 - pz0, ox1 - px0, oz1 - pz0}, {bx0 - px0, nz0 - pz0, nx1 - px0, nz1 - pz0}};
+        int face = bx0 - px0;
         out.add(Placement.rect("서울역 광장", "plaza", px0, pz0, px1, pz1, "south", (w, d) -> {
             Site s = new Site(t, area, px0, pz0, px1, pz1);
-            return frontPlaza(s, hx - px0, hz - pz0);
+            return frontPlaza(s, hx - px0, hz - pz0, face, keep);
         }));
     }
 
@@ -627,11 +629,12 @@ final class SeoulStation {
 
     // ------------------------------------------------------------------ 역 앞 광장
 
-    static Voxels frontPlaza(Site s, int hi, int hj) {
+    /** 역 앞 광장 (face: 역사 정면 i, keep: 역사 자리) */
+    static Voxels frontPlaza(Site s, int hi, int hj, int face, int[][] keep) {
         Voxels v = new Voxels(s.w, s.d, -1, 8);
         for (int j = 0; j < s.d; j++) {
             for (int i = 0; i < s.w; i++) {
-                if (s.land(i, j)) {
+                if (s.land(i, j) && !inside(keep, i, j)) {
                     boolean band = Math.floorMod(j - hj, 9) == 0;
                     v.set(i, -1, j, band ? Block.of("light_gray_concrete", 0x7D7D73) : POLISHED_ANDESITE);
                 }
@@ -642,8 +645,8 @@ final class SeoulStation {
             if (Math.abs(j - hj) < 9) {
                 continue;
             }
-            for (int i : new int[]{5, s.w - 6}) {
-                if (s.solid(i, j, 2)) {
+            for (int i : new int[]{5, face - 6}) {
+                if (s.solid(i, j, 2) && !near(keep, i, j, 3)) {
                     Site.planter(v, i, j);
                     if (s.solid(i + 2, j + 3)) {
                         Site.bench(v, i - 1, j + 3, 3, true);
@@ -651,18 +654,43 @@ final class SeoulStation {
                 }
             }
         }
+        // 역사 남북 빈 땅: 나무 그늘 쉼터
+        for (int j = 3; j < s.d - 3; j += 7) {
+            for (int i = face + 3; i < s.w - 3; i += 7) {
+                if (s.solid(i, j, 2) && !near(keep, i, j, 4)) {
+                    Site.tree(v, i, j, (i + j) % 3 == 0);
+                    if (s.solid(i, j + 3)) {
+                        v.set(i, 0, j + 3, Site.BENCH);
+                    }
+                }
+            }
+        }
         for (int j = 6; j < s.d - 3; j += 12) {
-            if (s.solid(s.w / 2, j) && Math.abs(j - hj) > 5) {
-                Site.lamp(v, s.w / 2, j);
+            int li = (5 + face - 6) / 2;
+            if (s.solid(li, j) && Math.abs(j - hj) > 5) {
+                Site.lamp(v, li, j);
             }
         }
         // 표석
-        int mi = s.w - 4, mj = hj + 8;
+        int mi = face - 3, mj = hj + 8;
         if (s.solid(mi, mj, 1) && s.solid(mi, mj + 3, 1)) {
             v.fill(mi, 0, mj, mi, 1, mj + 3, POLISHED_GRANITE);
             v.set(mi - 1, 1, mj + 1, Blocks.wallSign("dark_oak", "west", "white", false, "", "서울역", "SEOUL STATION"));
         }
         v.connect();
         return v;
+    }
+
+    private static boolean inside(int[][] boxes, int i, int j) {
+        return near(boxes, i, j, 0);
+    }
+
+    private static boolean near(int[][] boxes, int i, int j, int r) {
+        for (int[] b : boxes) {
+            if (i >= b[0] - r && i <= b[2] + r && j >= b[1] - r && j <= b[3] + r) {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -66,7 +66,8 @@ final class Myeongdong {
         List<int[]> lots = new ArrayList<>();
         // 보석상: 거점 동쪽, 명동길을 봄
         int jd = 20, jw = 16;
-        int[] jewel = {ex0, hz - jw / 2, ex0 + jd - 1, hz - jw / 2 + jw - 1};
+        int jx = Math.max(ex0, hx + 7);                         // 거점 바닥 둘레 4칸은 비움
+        int[] jewel = {jx, hz - jw / 2, jx + jd - 1, hz - jw / 2 + jw - 1};
         if (jewel[3] > z1) {
             jewel[1] -= jewel[3] - z1;
             jewel[3] = z1;
@@ -304,6 +305,10 @@ final class Myeongdong {
      */
     private static void jewelry(Voxels v, Frame f, Random r, int a0, int a1, int jf, int h, int door) {
         int top = h - 2;
+        // 매장 벽은 흰 대리석
+        v.fill(a0 - 1, 0, 1, a0 - 1, top, jf - 1, Block.of("smooth_quartz", 0xECE6DF));
+        v.fill(a1 + 1, 0, 1, a1 + 1, top, jf - 1, Block.of("smooth_quartz", 0xECE6DF));
+        v.fill(a0, 0, 0, a1, top, 0, Block.of("smooth_quartz", 0xECE6DF));
         // 방범 셔터: 앞면 위 셔터 통과 양옆 레일 (바깥 줄)
         v.fill(a0, top, jf + 1, a1, top, jf + 1, Block.of("light_gray_concrete", 0x7D7D73));
         v.fill(a0 - 1, 0, jf + 1, a0 - 1, top - 1, jf + 1, IRON_BARS);

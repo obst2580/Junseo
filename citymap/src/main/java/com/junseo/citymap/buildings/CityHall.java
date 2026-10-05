@@ -255,16 +255,24 @@ final class CityHall {
     // ------------------------------------------------------------------ 새 청사
 
     static final int NEW_W = 71, NEW_D = 58, NEW_FLOORS = 13;
-    /** 새 청사 물결: 맨 위층이 1층보다 앞으로 나온 칸 수 */
-    static final int WAVE = 8;
+    /** 새 청사 물결: 맨 위층 정면이 1층 정면보다 앞으로 나온 칸 수 */
+    static final int WAVE = 10;
+    /** 정면이 평면에서 휜 정도 (가운데가 양 끝보다 앞으로) */
+    static final int CURVE = 5;
+    /** 지붕이 뒤로 갈수록 낮아지는 물결: 맨 위층 뒷벽이 1층 뒷벽보다 앞으로 들어온 칸 수 */
+    static final int BACK = 16;
 
+    /**
+     * 새 청사 층 k 의 바닥판. 위로 갈수록 정면이 앞으로 휘어 나오고(물결 머리), 뒤쪽은 위로 갈수록 깎여서
+     * 옆에서 보면 뒤에서 앞으로 솟아올라 앞으로 쏟아지는 파도 모양입니다.
+     */
     static boolean newInside(int w, int d, int i, int j, int k) {
         double t = k / (double) (NEW_FLOORS - 1);
-        int front = d - 1 - WAVE + (int) Math.round(WAVE * t * t);
-        // 평면에서도 정면이 살짝 휘어 가운데가 앞으로
         double c = (i - (w - 1) / 2.0) / ((w - 1) / 2.0);
-        front -= (int) Math.round(2 * c * c);
-        return i >= 0 && i < w && j >= 0 && j <= front;
+        int front = d - 1 - WAVE + (int) Math.round(WAVE * t * t) - (int) Math.round(CURVE * c * c);
+        double u = Math.max(0, (t - 0.35) / 0.65);
+        int back = (int) Math.round(BACK * u * u);
+        return i >= 0 && i < w && j >= back && j <= front;
     }
 
     static int[] newLevels() {
