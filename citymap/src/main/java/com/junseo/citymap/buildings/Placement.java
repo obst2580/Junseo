@@ -161,6 +161,7 @@ public final class Placement {
                 b = cache.get();
                 if (b == null) {
                     Voxels v = builder.get();
+                    Unfurnish.declutter(v, kind); // 표지판·집 가구·실내 장식 줄이기 [운영자 요청: 렉]
                     Block[] pal = new Block[v.palette().size() + 1];
                     boolean anyText = false;
                     for (int k = 0; k < v.palette().size(); k++) {

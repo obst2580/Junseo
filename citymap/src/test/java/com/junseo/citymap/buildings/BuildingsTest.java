@@ -230,33 +230,13 @@ class BuildingsTest {
 
     /** 표지판 글씨가 한 줄에 들어가는지 (한 줄 폭 90픽셀: 한글 약 9, 영문·숫자 약 6) */
     @Test
-    void signTextFitsOnSigns() {
-        List<String> bad = new ArrayList<>();
+    void noSignsInTheCity() {
+        // 표지판은 모두 없앰 [운영자 요청: 렉]. 글씨 너비 검사는 건물별 검사(StreetShopTest 등)가 함
         int signs = 0;
-        java.util.Set<String> seen = new java.util.HashSet<>();
         for (Placement p : buildings.placements()) {
-            if (!seen.add(p.kind + p.name) && !p.kind.equals("house") && !p.kind.equals("shop")) {
-                continue;
-            }
-            for (Placement.SignSpot s : p.signs(terrain.groundY() + 1)) {
-                signs++;
-                String[] lines = s.block().textLines();
-                if (lines.length > 4) {
-                    bad.add(p.name + ": " + lines.length + "줄");
-                }
-                for (String line : lines) {
-                    int px = 0;
-                    for (char ch : line.toCharArray()) {
-                        px += ch >= 0xAC00 && ch <= 0xD7A3 ? 9 : 6;
-                    }
-                    if (px > 90) {
-                        bad.add(p.name + ": " + line);
-                    }
-                }
-            }
+            signs += p.signs(terrain.groundY() + 1).size();
         }
-        assertTrue(signs > 300, "표지판 " + signs);
-        assertTrue(bad.isEmpty(), "표지판에 안 들어가는 글씨: " + bad);
+        assertEquals(0, signs, "도시에 남은 표지판");
     }
 
     @Test

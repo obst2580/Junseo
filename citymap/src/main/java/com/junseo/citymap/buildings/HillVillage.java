@@ -490,7 +490,7 @@ final class HillVillage {
             String[] sn = shop ? HillHouse.shopName(rnd) : null;
             String street2 = name.length() <= 4 ? name + "길" : "산동네길";
             int fb = back;
-            lot = new Lot(shop ? name + " " + sn[0] : name + " 다가구", shop ? "shop" : "house", a, row.ja, b, row.jb, row.level,
+            lot = new Lot(shop ? name + " " + sn[0] : name + " 다가구", "house", a, row.ja, b, row.jb, row.level,
                     Floors.levels(Floors.HOME, Floors.HOME, floors), () -> HillHouse.build(lw, depth, floors, fb, sn, street2, new Random(seed)));
         }
         int idx = lots.size();

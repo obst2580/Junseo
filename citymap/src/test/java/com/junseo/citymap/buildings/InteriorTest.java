@@ -104,19 +104,10 @@ class InteriorTest {
         int offices = 0, apartments = 0;
         for (Placement p : TestCity.buildings().placements()) {
             if (p.kind.equals("office") && offices < 12) {
-                // 왕관·옥탑 높이가 건물마다 달라서, 로비에 들어가 계단으로 꼭대기 근처까지 오르는지 봄 (층마다는 OfficeParkingTest)
+                // 동네 업무 빌딩은 속을 비움 (Unfurnish.declutter): 1층에 들어갈 수 있는지만
                 offices++;
-                Voxels v = p.voxels();
-                int top = v.y0 + v.h - 1;
-                WalkCheck walk = new WalkCheck(v).run();
-                assertTrue(walk.reachedAt(0) > 10, p + " 로비에 못 들어가요");
-                int highest = 0;
-                for (int y = top; y > 0 && highest == 0; y--) {
-                    if (walk.reachedAt(y) > 6) {
-                        highest = y;
-                    }
-                }
-                assertTrue(highest >= top - 30, p + " 꼭대기까지 못 올라가요 (" + highest + " / " + top + ")");
+                WalkCheck walk = new WalkCheck(p.voxels()).run();
+                assertTrue(walk.reachedAt(0) > 10, p + " 1층에 못 들어가요");
             } else if (p.kind.equals("apartment") && apartments < 8) {
                 // 동마다 층 높이가 달라서(필로티·로비) 1층과 꼭대기 근처(옥상·계단실 지붕)에 닿는지만 봄. 층마다는 ApartmentComplexTest
                 apartments++;
@@ -130,7 +121,7 @@ class InteriorTest {
                         highest = y;
                     }
                 }
-                assertTrue(highest >= top - 18, p + " 꼭대기까지 못 올라가요 (" + highest + " / " + top + ")");
+                assertTrue(highest >= 8 || top < 12, p + " 아래 3개 층까지 못 올라가요 (" + highest + ")"); // 그 위는 비움
             }
         }
         assertTrue(offices > 0 && apartments > 0);

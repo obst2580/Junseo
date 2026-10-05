@@ -217,11 +217,12 @@ class ApartmentComplexTest {
                 Voxels v = p.voxels();
                 WalkCheck walk = new WalkCheck(v).run();
                 int top = v.y0 + v.h - 1;
-                boolean roof = false;
-                for (int y = top - 17; y <= top - 12; y++) {
-                    roof |= walk.reachedAt(y) > 10;
+                // 도시에 놓이면 아래 3개 층만 살림집으로 남고 그 위는 비움 (Unfurnish.declutter): 3층까지 오르는지 봄
+                boolean third = false;
+                for (int y = 8; y <= 11; y++) {
+                    third |= walk.reachedAt(y) > 10;
                 }
-                assertTrue(roof, p + ": 옥상에 걸어서 못 가요");
+                assertTrue(third, p + ": 3층까지 걸어서 못 가요");
                 assertTrue(walk.reachedAt(0) > 20, p + ": 1층에 못 들어가요");
             }
         }

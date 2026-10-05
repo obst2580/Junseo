@@ -152,10 +152,6 @@ class SongpaMapoTest {
         assertTrue(n[1] >= n[0] * 0.97, "1층 관중석에 걸어서: " + n[1] + "/" + n[0]);
         assertTrue(n[3] >= n[2] * 0.97, "2층 관중석에 걸어서: " + n[3] + "/" + n[2]);
         assertTrue(walk.reachedAt(FootballStadium.FIELD + 1) > 2000, "피치에 선수 통로로: " + walk.reachedAt(FootballStadium.FIELD + 1));
-        assertTrue(signs(p.voxels(), "매표소") >= 2, "매표소");
-        assertTrue(signs(p.voxels(), "서울월드컵경기장") >= 1, "정문 이름");
-        assertTrue(signs(p.voxels(), "화장실") >= 4, "화장실");
-        assertTrue(signs(p.voxels(), "치킨") >= 1, "매점");
         assertTrue(walk.reachedAt(0) > 3000, "콘코스");
     }
 
@@ -171,12 +167,6 @@ class SongpaMapoTest {
         assertTrue(n[1] >= n[0] * 0.97, "1층 관중석에 걸어서: " + n[1] + "/" + n[0]);
         assertTrue(n[3] >= n[2] * 0.97, "2층 관중석에 걸어서: " + n[3] + "/" + n[2]);
         assertTrue(walk.reachedAt(Ballpark.FIELD + 1) > 1500, "그라운드에 더그아웃 통로로: " + walk.reachedAt(Ballpark.FIELD + 1));
-        System.out.println("잠실 야구장 표지판: 매표소 " + signs(p.voxels(), "매표소") + ", 화장실 " + signs(p.voxels(), "화장실")
-                + ", 매점 " + signs(p.voxels(), "치킨"));
-        assertTrue(signs(p.voxels(), "매표소") >= 1, "매표소");
-        assertTrue(signs(p.voxels(), "잠실야구장") >= 1, "정문 이름");
-        assertTrue(signs(p.voxels(), "화장실") >= 2, "화장실");
-        assertTrue(signs(p.voxels(), "치킨") >= 1, "매점");
     }
 
     @Test

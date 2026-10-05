@@ -214,6 +214,9 @@ class HillsideTest {
                 assertTrue(n > all / 2, vl.name + " " + r + "번째 골목 (높이 " + row.level() + ") 에 걸어서 못 감: " + n + "/" + all);
             }
             for (HillVillage.Lot lot : vl.lots) {
+                if (lot.kind().equals("shop")) {
+                    continue; // 사람이 안 들어가는 가게는 속을 비움 (Unfurnish.declutter)
+                }
                 for (int k = 0; k < lot.floors().length; k++) {
                     int y = lot.level() + lot.floors()[k], n = 0;
                     for (int j = lot.j0(); j <= lot.j1(); j++) {

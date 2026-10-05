@@ -40,6 +40,24 @@ public final class Voxels {
         carSpots.add(new double[]{a, y, b, da, db});
     }
 
+    /** 조건에 맞는 블록이 놓인 칸을 모두 비움 (null, 지형 그대로) */
+    public void removeIf(java.util.function.Predicate<Block> test) {
+        boolean[] hit = new boolean[palette.size() + 1];
+        boolean any = false;
+        for (int k = 0; k < palette.size(); k++) {
+            hit[k + 1] = test.test(palette.get(k));
+            any |= hit[k + 1];
+        }
+        if (!any) {
+            return;
+        }
+        for (int k = 0; k < cells.length; k++) {
+            if (hit[cells[k]]) {
+                cells[k] = 0;
+            }
+        }
+    }
+
     /** 표시한 차 자리들 {a, y, b, da, db} */
     public List<double[]> carSpots() {
         return carSpots;

@@ -1274,12 +1274,21 @@ final class StreetShop {
             case MARKET -> market(t, A);
             case ACADEMY -> academy(t, A);
             case CLINIC -> clinic(t, A);
-            case GOSIWON -> gosiwon(A);
-            case ONEROOM -> oneroom(A);
+            case GOSIWON -> {
+                gosiwon(A);
+                Unfurnish.strip(v, A.L(), A.L() + A.h() - 1); // 집 안 가구는 없앰 (플레이어가 꾸밈)
+            }
+            case ONEROOM -> {
+                oneroom(A);
+                Unfurnish.strip(v, A.L(), A.L() + A.h() - 1);
+            }
             case OFFICE -> office(t, A);
             case PC -> pc(A);
             case NORAE -> norae(A);
-            case HOME -> home(A);
+            case HOME -> {
+                home(A);
+                Unfurnish.strip(v, A.L(), A.L() + A.h() - 1);
+            }
             case STUDIO -> studio(t, A);
             case WORKSHOP -> workshop(t, A);
             case BILLIARD -> billiard(A);
