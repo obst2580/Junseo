@@ -64,6 +64,9 @@ class BuildingsTest {
         assertTrue(n.getOrDefault("campus", 0) >= 8, "서울대학교 정문·건물·기숙사");
         assertEquals(1, n.getOrDefault("casino", 0), "카지노 호텔");
         assertTrue(n.getOrDefault("park", 0) >= 3, "대공원 정문·화장실·매점");
+        assertEquals(1, n.getOrDefault("landmark", 0), "남산타워");
+        assertEquals(7, n.getOrDefault("prison", 0), "교도소 (담·본관·의료동·수용동 둘·노역장·식당)");
+        assertEquals(3, n.getOrDefault("quarry", 0), "북한산 채석장 + 진입로 두 구간");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */

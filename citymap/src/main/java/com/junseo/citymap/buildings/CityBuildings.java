@@ -63,6 +63,9 @@ public final class CityBuildings {
         all.addAll(CheongnaPlan.plan(terrain));
         all.addAll(GuincheonPlan.plan(terrain));
         all.addAll(MarketPlan.plan(terrain));
+        all.addAll(NamsanPlan.plan(terrain));
+        all.addAll(PrisonPlan.plan(terrain));
+        all.addAll(QuarryPlan.plan(terrain));
         all.addAll(YongsanPlan.plan(terrain));
         all.addAll(GangnamPlan.plan(terrain));
         all.addAll(HongdaePlan.plan(terrain));
