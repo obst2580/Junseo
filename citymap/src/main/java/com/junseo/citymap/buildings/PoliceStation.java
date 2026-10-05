@@ -1080,7 +1080,7 @@ final class PoliceStation {
         for (int i = 0; i < w; i += 2) {
             boolean drive = i <= 5 || i >= w - 6 || Math.abs(i - cx) <= 4;
             if (!drive && !nearHub(i, j1, 1) && v.get(i, 0, j1) == null) {
-                v.set(i, 0, j1, Block.of("polished_andesite_wall[east=none,north=none,south=none,up=true,waterlogged=false,west=none]", 0x848685));
+                v.set(i, 0, j1, Block.of("andesite_wall[east=none,north=none,south=none,up=true,waterlogged=false,west=none]", 0x848685));
             }
         }
         // 보행등

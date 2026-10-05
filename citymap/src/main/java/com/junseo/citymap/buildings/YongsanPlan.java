@@ -119,9 +119,14 @@ final class YongsanPlan {
             return;
         }
         int cx = (int) Math.floor(rx), cz = (int) Math.floor(rz);
-        int xw = HongdaePlan.edge(t, cx, cz, -1, 0), xe = HongdaePlan.edge(t, cx, cz, 1, 0);
-        // 남쪽 끝: 큰길 앞, 북쪽 끝: 구역 경계
-        int zs = HongdaePlan.edge(t, xe, cz, 0, 1) - 1;
+        // 남쪽 끝: 큰길 앞 (길에서 떨어진 땅에서 잼), 북쪽 끝: 구역 경계
+        int zs = HongdaePlan.edge(t, cx + 20, cz, 0, 1) - 1;
+        // 길가 건물 앞선: 도로가 조금씩 비스듬하므로 구간 전체에서 가장 바깥
+        int xw = Integer.MAX_VALUE, xe = Integer.MIN_VALUE;
+        for (int z = cz - 80; z <= zs; z++) {
+            xw = Math.min(xw, beyondRoad(t, cx, z, -1));
+            xe = Math.max(xe, beyondRoad(t, cx, z, 1));
+        }
         int zn = cz;
         while (area.contains(xe + 0.5, zn - 1 + 0.5) && area.contains(xw - LOT_DEPTH + 0.5, zn - 1 + 0.5)
                 && area.contains(xe + 34.5, zn - 1 + 0.5) && zn - 1 > cz - 200) {
@@ -163,6 +168,17 @@ final class YongsanPlan {
             Lot e = EAST_SOUTH;
             add(t, area, out, rnd, new Lot(e.ground(), e.upper(), e.rooftop(), e.skin(), zs - hz1), xe, hz1 + 1, xe + LOT_DEPTH - 1, zs, "west");
         }
+    }
+
+    /** 도로 가운데 (x, z) 에서 dx 쪽으로 나가 처음 만나는 길 아닌 칸의 x */
+    private static int beyondRoad(CityTerrain t, int x, int z, int dx) {
+        for (int s = 0; s < 60; s++) {
+            com.junseo.citymap.terrain.Column c = t.column(x + dx * s, z);
+            if (!(c.isRoad() || c.isWater() || c.deck || c.tunnel)) {
+                return x + dx * s;
+            }
+        }
+        return x + dx * 60;
     }
 
     private static void add(CityTerrain t, Polygon area, List<Placement> out, Random rnd, Lot lot,
