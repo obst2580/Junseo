@@ -157,6 +157,21 @@ class SongpaMapoTest {
     }
 
     @Test
+    void ballparkEveryStandWalkable() {
+        Placement p = find("ballpark");
+        assertNotNull(p, "잠실 야구장");
+        DeepWalk walk = new DeepWalk(p.voxels(), hub("songpa", "ballpark", SongpaPlan.MAX_SIDE));
+        int[] n = seats(walk, java.util.Set.of("minecraft:warped_stairs", "minecraft:waxed_cut_copper_stairs",
+                "minecraft:red_nether_brick_stairs", "minecraft:waxed_oxidized_cut_copper_stairs", "minecraft:polished_andesite_stairs"), 0);
+        System.out.println("잠실 야구장 좌석: 1층 " + n[1] + "/" + n[0] + ", 2층 " + n[3] + "/" + n[2] + ", 높이별 " + walk.profile(-8, 20));
+        dump(walk, "ballpark");
+        assertTrue(n[0] > 800 && n[2] > 300, "좌석 수");
+        assertTrue(n[1] >= n[0] * 0.97, "1층 관중석에 걸어서: " + n[1] + "/" + n[0]);
+        assertTrue(n[3] >= n[2] * 0.97, "2층 관중석에 걸어서: " + n[3] + "/" + n[2]);
+        assertTrue(walk.reachedAt(Ballpark.FIELD + 1) > 1500, "그라운드에 더그아웃 통로로: " + walk.reachedAt(Ballpark.FIELD + 1));
+    }
+
+    @Test
     void renderPreviews() throws IOException {
         Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
         // -DpreviewOnly=lm-site:3,7 → 테마파크 부지만, 높이 3·7 에서 자른 그림도
@@ -192,6 +207,7 @@ class SongpaMapoTest {
                 scale = crop[4];
             }
             ImageIO.write(new IsoRender(v, 2).iso(scale, Integer.MAX_VALUE), "png", new File(dir, "lm-" + kind + ".png"));
+            ImageIO.write(new IsoRender(v, 2).top(crop != null ? scale : 6), "png", new File(dir, "lm-" + kind + "-top.png"));
             for (String cut : cuts.split(",")) {
                 if (!cut.isBlank()) {
                     int y = Integer.parseInt(cut.trim());

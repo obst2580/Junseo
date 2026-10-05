@@ -14,6 +14,8 @@ import java.util.Random;
  */
 final class SongpaPlan {
     static final String DISTRICT = "songpa";
+    /** 블록을 이보다 크게는 찾지 않음 (길을 없애 블록이 합쳐져도) */
+    static final int MAX_SIDE = 200;
 
     static List<Placement> plan(CityTerrain t) {
         List<Placement> out = new ArrayList<>();
@@ -24,8 +26,14 @@ final class SongpaPlan {
         Layout.Hub park = Plans.hub(t, "themepark");
         if (park != null) {
             long seed = rnd.nextLong();
-            site(t, park, 160, (land, hub) -> ThemeParkSite.build(land, hub[0], hub[1], new Random(seed)),
+            site(t, park, MAX_SIDE, (land, hub) -> ThemeParkSite.build(land, hub[0], hub[1], new Random(seed)),
                     "테마파크 건설 예정 부지", "site", out);
+        }
+        Layout.Hub ball = Plans.hub(t, "ballpark");
+        if (ball != null) {
+            long seed = rnd.nextLong();
+            site(t, DISTRICT, ball, MAX_SIDE, (land, hub) -> Ballpark.build(land, hub[0], hub[1], new Random(seed)),
+                    "잠실 야구장", "ballpark", (land, hub) -> Ballpark.footprint(land, hub[0], hub[1]), out);
         }
         return out;
     }
