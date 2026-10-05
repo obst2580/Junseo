@@ -2486,6 +2486,15 @@
    ]
   },
   {
+   "id": "sanitation",
+   "name": "시청 차고지 (환경미화)",
+   "district": "junggu",
+   "pos": [
+    484,
+    -470
+   ]
+  },
+  {
    "id": "port",
    "name": "구인천 부두·호송선 선착장",
    "district": "guincheon",

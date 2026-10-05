@@ -23,6 +23,8 @@ final class BuildMask {
     private final boolean[] ok;
     /** 가장 가까운 도로·물 칸까지 거리 (맨해튼, FAR 까지) */
     private final short[] road;
+    /** 거점 둘레를 막기 전의 땅 (거점 바닥 칸 포함). {@link #openHub} 용 */
+    private final boolean[] base;
 
     private BuildMask(int x0, int z0, int w, int h) {
         this.x0 = x0;
@@ -31,6 +33,7 @@ final class BuildMask {
         this.h = h;
         this.ok = new boolean[w * h];
         this.road = new short[w * h];
+        this.base = new boolean[w * h];
     }
 
     /** area 안의 땅을 훑어서 만듭니다 */
@@ -74,17 +77,40 @@ final class BuildMask {
         }
         for (int k = 0; k < w * h; k++) {
             m.ok[k] = land[k] && m.road[k] > setback;
+            m.base[k] = m.ok[k];
         }
         // 거점 바닥(PAD) 둘레는 비워 둠
         for (int j = 0; j < h; j++) {
             for (int i = 0; i < w; i++) {
                 Column c = terrain.column(x0 + i, z0 + j);
                 if (c.surface == Surface.PAD) {
+                    m.base[j * w + i] = area.contains(x0 + i + 0.5, z0 + j + 0.5) && m.road[j * w + i] > setback;
                     m.claim(x0 + i - 4, z0 + j - 4, x0 + i + 4, z0 + j + 4);
                 }
             }
         }
         return m;
+    }
+
+    /**
+     * 거점 id 의 표시 바닥(5×5) 둘레를 다시 지을 수 있는 땅으로 엽니다. 거점을 앞마당에 품는 랜드마크가 먼저 부릅니다
+     * (생성기는 거점 바닥 위 낮은 칸에 블록을 놓지 않으므로 거점은 늘 트여 있음). 앞마당을 거점 위에 두는 건 랜드마크 몫.
+     */
+    void openHub(CityTerrain t, String id) {
+        for (com.junseo.citymap.layout.Layout.Hub hub : t.layout().hubs()) {
+            if (!hub.id().equals(id)) {
+                continue;
+            }
+            int hx = (int) Math.floor(hub.x()), hz = (int) Math.floor(hub.z());
+            for (int z = hz - 6; z <= hz + 6; z++) {
+                for (int x = hx - 6; x <= hx + 6; x++) {
+                    int i = x - x0, j = z - z0;
+                    if (i >= 0 && j >= 0 && i < w && j < h) {
+                        ok[j * w + i] = base[j * w + i];
+                    }
+                }
+            }
+        }
     }
 
     boolean free(int x, int z) {

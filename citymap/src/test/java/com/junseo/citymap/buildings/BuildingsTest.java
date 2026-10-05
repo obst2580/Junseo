@@ -67,6 +67,14 @@ class BuildingsTest {
         assertEquals(1, n.getOrDefault("landmark", 0), "남산타워");
         assertEquals(7, n.getOrDefault("prison", 0), "교도소 (담·본관·의료동·수용동 둘·노역장·식당)");
         assertEquals(3, n.getOrDefault("quarry", 0), "북한산 채석장 + 진입로 두 구간");
+        assertEquals(1, n.getOrDefault("bank", 0), "63빌딩 (은행 본점)");
+        assertEquals(2, n.getOrDefault("studio", 0), "방송국 본관·스튜디오");
+        assertEquals(2, n.getOrDefault("cityhall", 0), "시청 옛·새 청사");
+        assertEquals(1, n.getOrDefault("depot", 0), "시청 차고지 (환경미화)");
+        assertEquals(3, n.getOrDefault("station", 0), "서울역 새·옛 역사, 승강장");
+        assertEquals(1, n.getOrDefault("jewelry", 0), "명동 보석상");
+        assertEquals(1, n.getOrDefault("cafe", 0), "명동 카페");
+        assertTrue(n.getOrDefault("retail", 0) >= 8, "명동 상가");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */

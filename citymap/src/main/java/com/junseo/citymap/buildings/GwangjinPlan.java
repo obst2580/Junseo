@@ -25,6 +25,7 @@ final class GwangjinPlan {
             return List.of();
         }
         BuildMask m = BuildMask.of(t, area, 2);
+        m.openHub(t, "casino"); // 카지노 앞 광장 안의 거점
         Random rnd = Plans.random(t, "gwangjin");
         List<Placement> out = new ArrayList<>();
         park(t, area, m, rnd, out);
@@ -161,7 +162,7 @@ final class GwangjinPlan {
         int x0 = blk[0] + 2, z0 = blk[1];
         int w = Math.min(74, blk[2] - blk[0] - 25), d = Math.min(62, blk[3] - blk[1] - 2);
         int x1 = x0 + w - 1, z1 = z0 + d - 1;
-        if (!freeBesideHub(t, m, x0, z0, x1, z1) || w < Casino.MIN_W || d < Casino.MIN_D) {
+        if (!m.rectFree(x0, z0, x1, z1) || w < Casino.MIN_W || d < Casino.MIN_D) {
             return;
         }
         long seed = rnd.nextLong();
@@ -176,24 +177,6 @@ final class GwangjinPlan {
             out.add(Placement.rect(Casino.NAME + " 주차장", "parking", px0, pz0, px1, pz1, "north", (pw, pd) -> Kit.parking(pw, pd)));
             m.claim(px0 - 1, pz0 - 1, px1 + 1, pz1 + 1);
         }
-    }
-
-    /**
-     * 직사각형이 지을 수 있는 땅인지. 카지노 거점 표시(5×5 바닥) 둘레 ±6 은 카지노가 앞 광장으로 비워 두니 지을 수 있는 땅으로 봅니다
-     * (BuildMask 는 거점 둘레를 막아 둠).
-     */
-    private static boolean freeBesideHub(CityTerrain t, BuildMask m, int x0, int z0, int x1, int z1) {
-        Layout.Hub h = Plans.hub(t, "casino");
-        for (int z = z0; z <= z1; z++) {
-            for (int x = x0; x <= x1; x++) {
-                boolean nearHub = h != null && Math.abs(x - Math.floor(h.x())) <= 6 && Math.abs(z - Math.floor(h.z())) <= 6
-                        && m.roadDistance(x, z) > 2;
-                if (!m.free(x, z) && !nearHub) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     // ------------------------------------------------------------------ 땅 지도

@@ -67,6 +67,14 @@ class BuildingPreviewTest {
             new Eye("eye-gwangjin-park-gate", 1262, 2.6, -196, -100, -4, 80),
             new Eye("eye-gwangjin-fountain", 1316, 1.7, -196, 160, -4, 80),
             new Eye("eye-gwangjin-casino", 1314, 2.6, -149, 15, -14, 80),
+            new Eye("eye-lm-plaza", -237, 1.7, 104, 180, 2, 80),
+            new Eye("eye-lm-63", -22, 1.7, 42, 59, -28, 85),
+            new Eye("eye-lm-broadcast", 118, 1.7, 112, -110, -8, 85),
+            new Eye("eye-lm-cityhall", 553, 1.7, -372, 180, -12, 85),
+            new Eye("eye-lm-station", 275, 1.7, -400, -100, -8, 85),
+            new Eye("eye-lm-platform", 349, 1.7, -455, 180, -2, 80),
+            new Eye("eye-lm-myeongdong", 788, 1.7, -318, 180, -4, 80),
+            new Eye("eye-lm-jewelry", 797, 1.7, -325, -90, -6, 85),
     };
 
     @Test
@@ -127,5 +135,16 @@ class BuildingPreviewTest {
             new View("lm-gwangjin-top", 1030, -366, 1490, -40, 90, 1, true, 0),
             new View("lm-gwangjin-park-iso", 1262, -268, 1374, -170, 30, 4, false, 0),
             new View("lm-gwangjin-casino-iso", 1262, -150, 1374, -78, 90, 3, false, 0),
+            new View("lm-yeouido-top", -380, -60, 250, 310, 60, 2, true, 0),
+            new View("lm-yeouido-plaza", -355, -35, -160, 125, 30, 3, false, 0),
+            new View("lm-yeouido-63", -140, 35, -40, 130, 260, 2, false, 0),
+            new View("lm-yeouido-63base", -140, 35, -40, 130, 20, 5, false, 0),
+            new View("lm-yeouido-broadcast", 108, 85, 200, 200, 110, 3, false, 0),
+            new View("lm-yeouido-studio", 135, 150, 190, 200, 25, 6, false, 12),
+            new View("lm-junggu-top", 170, -580, 1050, -130, 60, 1, true, 0),
+            new View("lm-junggu-cityhall", 390, -525, 600, -310, 70, 3, false, 0),
+            new View("lm-junggu-station", 262, -515, 372, -310, 50, 3, false, 0),
+            new View("lm-junggu-station-plat", 300, -500, 372, -420, 30, 6, false, 0),
+            new View("lm-junggu-myeongdong", 755, -400, 862, -310, 50, 4, false, 0),
     };
 }
