@@ -39,6 +39,7 @@ class PreviewRenderTest {
         // 다리·교차로 확대: 마포대교 북단(강변북로와 만나는 곳), 강남 중로 교차로
         ImageIO.write(crop(terrain, new double[]{-150, -150}, 260, 200), "png", new File(dir, "bridge-1to1.png"));
         ImageIO.write(crop(terrain, new double[]{845, 520}, 260, 200), "png", new File(dir, "junction-1to1.png"));
+        ImageIO.write(crop(terrain, new double[]{-620, -440}, 160, 110), "png", new File(dir, "tjunction-1to1.png"));
     }
 
     private static BufferedImage crop(CityTerrain terrain, double[] center, int w, int h) {

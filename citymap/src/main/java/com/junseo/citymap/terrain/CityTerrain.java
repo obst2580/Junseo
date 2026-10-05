@@ -23,7 +23,7 @@ public final class CityTerrain {
     private static final double OFFSET_X = 0.0137;
     private static final double OFFSET_Z = -0.0129;
     /** 횡단보도 폭 (도로를 따라) */
-    private static final double CROSSWALK = 4;
+    private static final double CROSSWALK = 5;
 
     record DistrictShape(String id, String name, int phase, Polygon polygon) {
     }
@@ -372,7 +372,7 @@ public final class CityTerrain {
             return c;
         }
         Cell cell = cellAt(px, pz);
-        double[] tmp = new double[2];
+        double[] tmp = new double[3];
 
         // 섬
         IslandShape island = null;
@@ -537,8 +537,8 @@ public final class CityTerrain {
 
     // ------------------------------------------------------------------ 도로
 
-    /** 도로 위 한 점: 몇 번 도로, kind, 가운데선에서 거리 a, 선을 따라 잰 위치 s */
-    private record Hit(int road, String kind, double a, double s, double half) {
+    /** 도로 위 한 점: 몇 번 도로, kind, 가운데선에서 거리 a, 선을 따라 잰 위치 s, 어느 쪽인지 붙인 거리 side */
+    private record Hit(int road, String kind, double a, double s, double half, double side) {
     }
 
     /** 이 점에 걸친 도로들. 같은 도로는 가장 가까운 선분 하나만 */
@@ -555,12 +555,12 @@ public final class CityTerrain {
             }
             if (f == lastFeature && lastHit != null) {
                 if (tmp[0] < lastHit.a) {
-                    out.set(out.size() - 1, new Hit(f, r.kind(), tmp[0], tmp[1], r.half()));
+                    out.set(out.size() - 1, new Hit(f, r.kind(), tmp[0], tmp[1], r.half(), tmp[2]));
                     lastHit = out.get(out.size() - 1);
                 }
                 continue;
             }
-            lastHit = new Hit(f, r.kind(), tmp[0], tmp[1], r.half());
+            lastHit = new Hit(f, r.kind(), tmp[0], tmp[1], r.half(), tmp[2]);
             lastFeature = f;
             out.add(lastHit);
         }
@@ -582,7 +582,9 @@ public final class CityTerrain {
         }
         if (carriage == 1) {
             if (crosswalk(only)) {
-                return ((int) Math.floor(only.a)) % 2 == 0 ? Surface.LINE_WHITE : Surface.ASPHALT;
+                // 차도 한쪽 끝부터 1칸 흰 줄, 1칸 빈칸을 번갈아 (줄은 차가 가는 방향과 나란히)
+                int k = (int) Math.floor(only.side + carriageHalf(only.kind));
+                return Math.floorMod(k, 2) == 1 ? Surface.LINE_WHITE : Surface.ASPHALT;
             }
             return roadSurface(only.kind, only.a, only.s);
         }

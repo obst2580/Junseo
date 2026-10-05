@@ -59,6 +59,7 @@ public final class Polyline {
 
     /**
      * i번 선분까지의 거리. 결과는 out[0] = 거리, out[1] = 선을 따라 잰 위치.
+     * out 이 3칸 이상이면 out[2] = 선의 어느 쪽인지 붙인 거리 (진행 방향 오른쪽이 +).
      */
     public void distanceToSegment(int i, double x, double z, double[] out) {
         double ax = xs[i], az = zs[i];
@@ -69,6 +70,10 @@ public final class Polyline {
         double px = ax + t * dx, pz = az + t * dz;
         out[0] = Math.hypot(x - px, z - pz);
         out[1] = cum[i] + t * Math.sqrt(len2);
+        if (out.length > 2) {
+            double cross = dx * (z - az) - dz * (x - ax);
+            out[2] = cross >= 0 ? out[0] : -out[0];
+        }
     }
 
     /** 전체 선분 중 가장 가까운 곳. out[0] = 거리, out[1] = 선을 따라 잰 위치 */

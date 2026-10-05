@@ -118,10 +118,13 @@ def render(layout):
 
     # 도로 (물 위에 그림: 물을 건너는 곳이 곧 다리). 중로 → 대로 → 고속도로 순서로 위에 쌓음
     order = {"street": 0, "runway": 1, "arterial": 2, "tunnel": 3, "highway": 4}
-    for r in sorted(layout["roads"], key=lambda r: order.get(r["kind"], 0)):
+    for r in sorted(layout["roads"], key=lambda r: (order.get(r["kind"], 0), not r["id"].startswith("S-"))):
         line = pts(r["line"])
         if r["kind"] == "highway":
             o.append(f'<polyline points="{line}" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>')
+        elif r["kind"] == "arterial" and r["id"].startswith("S-"):
+            # 구역 안 길: 규격은 대로와 같지만 그림에서는 조금 가늘고 옅게 (큰길이 잘 보이게)
+            o.append(f'<polyline points="{line}" fill="none" stroke="#f5b06b" stroke-width="28" stroke-linejoin="round" stroke-linecap="round"/>')
         elif r["kind"] == "arterial":
             o.append(f'<polyline points="{line}" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>')
         elif r["kind"] == "street":
@@ -154,7 +157,7 @@ def render(layout):
     rows = [("rect", PHASE_FILL[1], "1차 오픈 구역"), ("rect", PHASE_FILL[2], "2차 오픈 구역"),
             ("rect", PHASE_FILL[3], "3차 오픈 구역"), ("rect", WATER, "한강·바다"),
             ("line", "#d6362f", "고속도로 (왕복 6차로)"), ("line", "#f0892a", "대로 (왕복 4차로)"),
-            ("line", "#8a8a8a", "중로 (왕복 2차로)"), ("dash", "#7b4bc4", "남산터널"),
+            ("line", "#f5b06b", "구역 안 길 (대로와 같은 규격)"), ("dash", "#7b4bc4", "남산터널"),
             ("dot", "#c0162b", "주요 거점 (사람이 몰리는 곳)"), ("dot", "#1f5fa8", "그 밖의 시설")]
     y = bz0 + 100
     o.append(f'<text x="{lx}" y="{y}" font-size="130" font-weight="bold">범례</text>')

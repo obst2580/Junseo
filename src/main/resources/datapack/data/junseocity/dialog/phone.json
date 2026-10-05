@@ -27,5 +27,6 @@
     {"label": {"text": "관리자 호출", "color": "light_purple"}, "tooltip": "신고 · 도움 요청", "width": 90,
      "action": {"type": "minecraft:custom", "id": "junseocity:app/admin"}}
   ],
-  "exit_action": {"label": "닫기", "width": 90}
+  "exit_action": {"label": "닫기", "width": 90,
+                  "action": {"type": "minecraft:custom", "id": "junseocity:close"}}
 }

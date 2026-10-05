@@ -47,6 +47,9 @@ public final class UiService implements Listener {
 
     public UiService(JunseoCity plugin) {
         this.plugin = plugin;
+        // "junseocity:close": 아무것도 안 하고 닫기 (데이터팩 화면의 닫기 버튼)
+        staticActions.put("close", (player, rest) -> {
+        });
     }
 
     /** 데이터팩 대화창의 고정 버튼(junseocity:접두어/나머지) 처리기 등록. */
@@ -85,10 +88,11 @@ public final class UiService implements Listener {
                     .action(DialogAction.customClick(Key.key(NAMESPACE, "s/" + token + "/" + i), null))
                     .build());
         }
+        // 닫기 버튼에도 늘 서버 동작을 붙임: 화면이 "서버 응답 기다리기"라서, 동작이 없으면
+        // 클라이언트가 응답을 몇 초 기다리다 닫힘. 서버가 바로 닫아 줍니다
         ActionButton exit = ActionButton.builder(Text.mm(screen.exit.label()))
                 .width(Math.min(screen.width * Math.max(1, Math.min(screen.columns, buttons.size())), 300))
-                .action(screen.exit.action() == null ? null
-                        : DialogAction.customClick(Key.key(NAMESPACE, "s/" + token + "/exit"), null))
+                .action(DialogAction.customClick(Key.key(NAMESPACE, "s/" + token + "/exit"), null))
                 .build();
         List<DialogBody> body = new ArrayList<>();
         for (Screen.Body part : screen.body) {

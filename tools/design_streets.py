@@ -1,9 +1,10 @@
-"""구역마다 중로(왕복 2차로, kind=street)를 깔아 도시 도로망을 완성합니다.
+"""구역마다 골목 대로(왕복 4차로, 대로와 같은 규격)를 격자로 깔아 도시 도로망을 완성합니다.
 
 사용법:
     python3 tools/design_streets.py map/layout.json
 
-- 큰길(고속도로·대로·터널·활주로)과 손으로 그린 중로는 그대로 두고, 이 도구가 만든 중로(id 가 S- 로 시작)만 새로 만듭니다.
+- 손으로 설계한 길(고속도로·대로·터널·활주로)은 그대로 두고, 이 도구가 만든 길(id 가 S- 로 시작)만 새로 만듭니다.
+- 고속도로 말고는 모든 길이 같은 규격(왕복 4차로 + 인도)입니다 [확정].
 - 구역마다 layout.json 의 "street_plan" (방향·간격·기준점)대로 격자를 깝니다.
 - 물(한강·샛강·바다), 산 구역, 활주로, 거점 표시 자리, 나란히 달리는 큰길 옆은 피합니다.
 - 길 끝이 다른 길에 닿지 않으면 마지막 교차로까지 잘라 냅니다. 그래서 막다른 길이 없습니다.
@@ -13,7 +14,8 @@ import json
 import math
 import sys
 
-STREET_HALF = 7          # 중로 절반 폭 (차도 4 + 인도 3)
+STREET_KIND = "arterial"  # 고속도로 외에는 모두 같은 규격
+STREET_HALF = 12          # 절반 폭 (차도 8 + 인도 4)
 HALF = {"highway": 14, "arterial": 12, "street": 7, "tunnel": 6, "runway": 22.5}
 INSET = 10               # 구역 경계에서 이만큼 안쪽까지만 (이웃 구역 길과 겹치지 않게)
 WATER_GAP = 6            # 물가에서 길 가장자리까지 띄울 거리
@@ -332,7 +334,7 @@ def main():
     for s in sorted(segments, key=lambda s: (s["district"], s["fam"], s["a"][1], s["a"][0])):
         n = count.get(s["district"], 0) + 1
         count[s["district"]] = n
-        streets.append({"id": f"S-{s['district']}-{n}", "name": f"{names[s['district']]} {n}길", "kind": "street",
+        streets.append({"id": f"S-{s['district']}-{n}", "name": f"{names[s['district']]} {n}길", "kind": STREET_KIND,
                         "line": [[round(s["a"][0], 1), round(s["a"][1], 1)], [round(s["b"][0], 1), round(s["b"][1], 1)]]})
     L["roads"] += streets
     moved = place_hubs(world, L)
@@ -342,7 +344,7 @@ def main():
         json.dump(L, f, ensure_ascii=False, indent=1)
         f.write("\n")
     total = sum(math.hypot(r["line"][1][0] - r["line"][0][0], r["line"][1][1] - r["line"][0][1]) for r in streets)
-    print(f"중로 {len(streets)}개, 총 {total / 1000:.1f}km  " + ", ".join(f"{names[k]} {v}" for k, v in sorted(count.items())))
+    print(f"구역 안 길 {len(streets)}개, 총 {total / 1000:.1f}km  " + ", ".join(f"{names[k]} {v}" for k, v in sorted(count.items())))
 
 
 if __name__ == "__main__":
