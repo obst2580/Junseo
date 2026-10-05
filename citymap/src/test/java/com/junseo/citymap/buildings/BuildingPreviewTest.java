@@ -103,5 +103,7 @@ class BuildingPreviewTest {
             new View("fill-songpa-iso", 1000, 380, 1200, 590, 100, 2, false, 0),
             new View("fill-yeouido-iso", -200, 40, 40, 260, 160, 2, false, 0),
             new View("fill-hongdae-iso", -300, -460, -140, -300, 60, 3, false, 0),
+            new View("lm-yeouido-top", -380, -60, 250, 310, 60, 2, true, 0),
+            new View("lm-junggu-top", 170, -580, 1050, -130, 60, 1, true, 0),
     };
 }
