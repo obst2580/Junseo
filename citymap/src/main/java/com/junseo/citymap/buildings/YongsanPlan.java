@@ -11,9 +11,8 @@ import java.util.Random;
 import static com.junseo.citymap.buildings.Blocks.*;
 
 /**
- * 용산: 경찰서(강북) 거점(police_north)에 용산경찰서, 그리고 이태원 거리.
+ * 용산: 이태원 거리 (경찰서는 강남 한 곳뿐이라 용산에는 두지 않음 [확정: 운영자]).
  * <ul>
- *   <li>용산경찰서: 거점 앞 도로 쪽이 정면인 대지 (앞마당에 거점), {@link PoliceStation} CLASSIC</li>
  *   <li>이태원 거리: 용산 북쪽 블록을 남북으로 지나는 큰길(세종대로) 양옆에 3~5층 건물을 빽빽이 세웁니다.
  *       케밥·할랄·타코·버거·커리 식당, 펍과 와인 바, 옥상 바, 맞춤 양복점, 빅사이즈 옷가게, 외국 식품점,
  *       간판은 한글과 영어(「Kebab」「Pub」「Halal Food」 …). 동쪽 가운데에 호텔과 작은 광장(거점 자리 제안)</li>
@@ -85,13 +84,6 @@ final class YongsanPlan {
         }
         List<Placement> out = new ArrayList<>();
         Random rnd = Plans.random(t, "yongsan-landmarks");
-        Layout.Hub police = Plans.hub(t, "police_north");
-        if (police != null) {
-            Placement p = PoliceStation.place(t, area, police.x(), police.z(), 89, "용산경찰서", PoliceStation.Style.CLASSIC, rnd);
-            if (p != null) {
-                out.add(p);
-            }
-        }
         itaewon(t, area, rnd, out);
         return out;
     }

@@ -145,7 +145,7 @@ def render(layout):
     # 거점
     for h in layout["hubs"]:
         x, z = h["pos"]
-        star = h["id"] in ("spawn", "plaza", "hospital", "police_north", "police_south", "port", "prison")
+        star = h["id"] in ("spawn", "plaza", "hospital", "police_south", "port", "prison")
         o.append(f'<circle cx="{x}" cy="{z}" r="{55 if star else 38}" fill="{"#c0162b" if star else "#1f5fa8"}" stroke="#fff" stroke-width="14"/>')
         o.append(f'<text x="{x + 70}" y="{z + 30}" font-size="85" fill="#111" stroke="#fff" stroke-width="14" '
                  f'paint-order="stroke">{escape(h["name"])}</text>')

@@ -10,20 +10,15 @@ import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** 용산·강남 경찰서, 이태원 거리, 홍대 클럽 거리: 걸어서 모든 층에 가는지와 미리보기 그림 */
+/** 강남경찰서, 이태원 거리, 홍대 클럽 거리: 걸어서 모든 층에 가는지와 미리보기 그림 */
 class PoliceStreetsTest {
-
-    static Voxels yongsan() {
-        return PoliceStation.build(89, 60, new Random(7), PoliceStation.Style.CLASSIC, "용산경찰서", 44, 10);
-    }
 
     static Voxels gangnam() {
         return PoliceStation.build(95, 60, new Random(8), PoliceStation.Style.MODERN, "강남경찰서", 35, 10);
     }
 
     @Test
-    void policeStationsHaveStairsToEveryFloor() {
-        InteriorTest.assertAllFloorsReachable("용산경찰서", yongsan(), PoliceStation.levels());
+    void policeStationHasStairsToEveryFloor() {
         InteriorTest.assertAllFloorsReachable("강남경찰서", gangnam(), PoliceStation.levels());
     }
 
@@ -133,14 +128,11 @@ class PoliceStreetsTest {
         String only = System.getProperty("previewOnly", "");
         File dir = new File("build/preview");
         dir.mkdirs();
-        if (only.isEmpty() || "police-yongsan".contains(only) || only.contains("police-yongsan")) {
-            police("police-yongsan", yongsan(), dir);
-        }
         if (only.isEmpty() || "police-gangnam".contains(only) || only.contains("police-gangnam")) {
             police("police-gangnam", gangnam(), dir);
         }
         if (only.isEmpty() || only.contains("police-detail")) {
-            Voxels v = yongsan();
+            Voxels v = gangnam();
             int[][] spots = {{12, 13, 32, 29, 6}, {20, 24, 68, 46, 2}, {5, 24, 45, 39, 24}, {34, 26, 82, 39, 18}, {56, 13, 82, 29, 1}};
             String[] names = {"cells", "lobby", "hall", "chief", "situation"};
             for (int k = 0; k < spots.length; k++) {

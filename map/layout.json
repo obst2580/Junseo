@@ -266,7 +266,7 @@
   {
    "id": "yongsan",
    "name": "용산",
-   "facilities": "영화관, 공원, 이태원 다문화 거리, 경찰서(강북)",
+   "facilities": "영화관, 공원, 이태원 다문화 거리",
    "polygon": [
     [
      178,
@@ -2423,12 +2423,12 @@
    ]
   },
   {
-   "id": "police_north",
-   "name": "경찰서 (강북)",
+   "id": "itaewon",
+   "name": "이태원 거리",
    "district": "yongsan",
    "pos": [
-    473,
-    -68
+    399,
+    -152
    ]
   },
   {

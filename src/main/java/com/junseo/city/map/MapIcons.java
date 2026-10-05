@@ -76,7 +76,7 @@ public final class MapIcons {
             case "bank_hq" -> BANK;
             case "broadcast" -> TV;
             case "hospital" -> HOSPITAL;
-            case "police_north", "police_south" -> POLICE;
+            case "police_south" -> POLICE;
             case "cityhall" -> CITYHALL;
             case "station" -> TRAIN;
             case "jewelry" -> GEM;
