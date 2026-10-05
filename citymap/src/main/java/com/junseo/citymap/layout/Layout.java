@@ -47,7 +47,7 @@ public record Layout(
     public record Island(String id, String name, double cx, double cz, double radius, Ellipse ellipse) {
     }
 
-    /** kind: highway, arterial, tunnel, runway. 다리는 bridge(일반) / bridge-highway */
+    /** kind: highway(고속도로), arterial(대로), street(중로), tunnel, runway. 물을 건너는 부분은 저절로 다리 */
     public record Road(String id, String name, String kind, List<double[]> line) {
     }
 
@@ -109,8 +109,9 @@ public record Layout(
                     points(r.getAsJsonArray("line"))));
         }
 
+        // 예전 설계도(v3 까지)의 따로 그린 다리. 지금은 물을 건너는 도로가 저절로 다리가 됩니다
         List<Road> bridges = new ArrayList<>();
-        for (JsonElement e : o.getAsJsonArray("bridges")) {
+        for (JsonElement e : o.has("bridges") ? o.getAsJsonArray("bridges") : new com.google.gson.JsonArray()) {
             JsonObject r = e.getAsJsonObject();
             String id = r.get("id").getAsString();
             // 고속도로 교량은 HB 로 시작합니다

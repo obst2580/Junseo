@@ -36,6 +36,9 @@ class PreviewRenderTest {
         ImageIO.write(crop(terrain, yeouido, 520, 340), "png", new File(dir, "yeouido-1to1.png"));
         ImageIO.write(crop(terrain, namsan, 380, 480), "png", new File(dir, "namsan-tunnel-1to1.png"));
         ImageIO.write(crop(terrain, airport, 560, 380), "png", new File(dir, "airport-1to1.png"));
+        // 다리·교차로 확대: 마포대교 북단(강변북로와 만나는 곳), 강남 중로 교차로
+        ImageIO.write(crop(terrain, new double[]{-150, -150}, 260, 200), "png", new File(dir, "bridge-1to1.png"));
+        ImageIO.write(crop(terrain, new double[]{845, 520}, 260, 200), "png", new File(dir, "junction-1to1.png"));
     }
 
     private static BufferedImage crop(CityTerrain terrain, double[] center, int w, int h) {
@@ -47,11 +50,32 @@ class PreviewRenderTest {
         for (int py = 0; py < h; py++) {
             for (int px = 0; px < w; px++) {
                 int x = x0 + px * scale, z = z0 + py * scale;
-                Column c = terrain.column(x, z);
-                img.setRGB(px, py, color(terrain, c, x, z, scale));
+                // 줄여 그릴 때 1칸짜리 차선이 빠지지 않게, 칸 묶음 안에 차선이 있으면 차선을 보여 줌
+                int bx = x, bz = z, rank = -1;
+                for (int dz = 0; dz < scale; dz++) {
+                    for (int dx = 0; dx < scale; dx++) {
+                        int r = rank(terrain.column(x + dx, z + dz).surface);
+                        if (r > rank) {
+                            rank = r;
+                            bx = x + dx;
+                            bz = z + dz;
+                        }
+                    }
+                }
+                Column c = terrain.column(bx, bz);
+                img.setRGB(px, py, color(terrain, c, bx, bz, scale));
             }
         }
         return img;
+    }
+
+    /** 줄여 그릴 때 우선순위: 차선 > 나머지 */
+    private static int rank(Surface s) {
+        return switch (s) {
+            case LINE_YELLOW -> 2;
+            case LINE_WHITE -> 1;
+            default -> 0;
+        };
     }
 
     static int color(CityTerrain terrain, Column c, int x, int z, int scale) {

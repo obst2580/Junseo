@@ -22,6 +22,8 @@ public final class CityTerrain {
     private static final int MAX_MOUNTAIN = 300;
     private static final double OFFSET_X = 0.0137;
     private static final double OFFSET_Z = -0.0129;
+    /** 횡단보도 폭 (도로를 따라) */
+    private static final double CROSSWALK = 4;
 
     record DistrictShape(String id, String name, int phase, Polygon polygon) {
     }
@@ -60,7 +62,6 @@ public final class CityTerrain {
         int[] river = new int[0];
         int[] road = new int[0];
         int[] roadMask = new int[0];
-        int[] bridge = new int[0];
         int[] districts = new int[0];
         int[] mountains = new int[0];
         int[] islands = new int[0];
@@ -85,7 +86,9 @@ public final class CityTerrain {
     private final Polygon sea;
     private final List<IslandShape> islands = new ArrayList<>();
     private final List<RoadShape> roads = new ArrayList<>();
-    private final List<RoadShape> bridges = new ArrayList<>();
+    /** 도로마다 교차로 위치(선을 따라 잰 값)와, 그 교차로에서 횡단보도가 시작되는 거리 */
+    private double[][] junctionAt;
+    private double[][] junctionClear;
     private final List<MountainShape> mountains = new ArrayList<>();
     private final List<Layout.Hub> hubs;
     private final Noise noise = new Noise(20261004L);
@@ -136,8 +139,10 @@ public final class CityTerrain {
         for (Layout.Road r : layout.roads()) {
             roads.add(new RoadShape(r.id(), r.kind(), new Polyline(r.line()), halfWidth(r.kind())));
         }
+        // 예전 설계도의 따로 그린 다리: 이제는 물을 건너는 도로가 저절로 다리가 되므로 보통 도로로 바꿔 읽음
         for (Layout.Road r : layout.bridges()) {
-            bridges.add(new RoadShape(r.id(), r.kind(), new Polyline(r.line()), halfWidth(r.kind())));
+            String kind = "bridge-highway".equals(r.kind()) ? "highway" : "arterial";
+            roads.add(new RoadShape(r.id(), kind, new Polyline(r.line()), halfWidth(kind)));
         }
         for (Layout.Mountain m : layout.mountains()) {
             for (DistrictShape d : districts) {
@@ -157,14 +162,16 @@ public final class CityTerrain {
             cells[i] = new Cell();
         }
         buildIndex();
+        buildJunctions();
     }
 
     /** 도로 종류별 절반 폭 (블록). 1차로 = 4블록 */
-    static double halfWidth(String kind) {
+    public static double halfWidth(String kind) {
         return switch (kind) {
-            case "highway", "bridge-highway" -> 14;   // 왕복 6차로 24 + 중앙선 2 + 갓길
-            case "arterial", "bridge" -> 12;           // 왕복 4차로 16 + 인도 4씩
-            case "tunnel" -> 6;                        // 왕복 2차로 8 + 보행로 2씩
+            case "highway" -> 14;     // 왕복 6차로 24 + 중앙선 2 + 갓길
+            case "arterial" -> 12;    // 왕복 4차로 16 + 인도 4씩
+            case "street" -> 7;       // 왕복 2차로 8 + 인도 3씩 (중로)
+            case "tunnel" -> 6;       // 왕복 2차로 8 + 보행로 2씩
             case "runway" -> 22.5;
             default -> 8;
         };
@@ -173,16 +180,26 @@ public final class CityTerrain {
     /** 차가 다니는 부분의 절반 폭 (인도 제외) */
     private static double carriageHalf(String kind) {
         return switch (kind) {
-            case "arterial", "bridge" -> 8;
-            case "tunnel" -> 4;
+            case "arterial" -> 8;
+            case "street", "tunnel" -> 4;
             default -> halfWidth(kind);
         };
+    }
+
+    /** 횡단보도를 그리는 도로 (고속도로·활주로·터널은 없음) */
+    private static boolean hasCrosswalks(String kind) {
+        return "arterial".equals(kind) || "street".equals(kind);
+    }
+
+    /** 다리 상판이 될 수 있는 도로 */
+    private static boolean canBridge(String kind) {
+        return !"tunnel".equals(kind) && !"runway".equals(kind);
     }
 
     // ------------------------------------------------------------------ 공간 색인
 
     private void buildIndex() {
-        List<List<Integer>> river = lists(), road = lists(), roadMask = lists(), bridge = lists(),
+        List<List<Integer>> river = lists(), road = lists(), roadMask = lists(),
                 dist = lists(), mount = lists(), isl = lists(), hub = lists();
         for (int f = 0; f < rivers.size(); f++) {
             RiverShape r = rivers.get(f);
@@ -194,12 +211,6 @@ public final class CityTerrain {
             if (!"tunnel".equals(r.kind())) {
                 addSegments(roadMask, f, r.line(), r.half() + roadFade + 4);
             }
-        }
-        for (int f = 0; f < bridges.size(); f++) {
-            RoadShape r = bridges.get(f);
-            addSegments(bridge, f, r.line(), r.half() + 1);
-            // 다리도 산을 깎는 도로로 칩니다 (번호는 도로 뒤에 이어 붙임)
-            addSegments(roadMask, roads.size() + f, r.line(), r.half() + roadFade + 4);
         }
         for (int i = 0; i < districts.size(); i++) {
             addBox(dist, i, districts.get(i).polygon().bounds(), 2);
@@ -223,7 +234,6 @@ public final class CityTerrain {
             c.river = toArray(river.get(i));
             c.road = toArray(road.get(i));
             c.roadMask = toArray(roadMask.get(i));
-            c.bridge = toArray(bridge.get(i));
             c.districts = toArray(dist.get(i));
             c.mountains = toArray(mount.get(i));
             c.islands = toArray(isl.get(i));
@@ -395,8 +405,8 @@ public final class CityTerrain {
         }
         boolean inRiver = riverEdge <= 0;
 
-        // 다리
-        Hit bridgeHit = nearestHit(cell.bridge, bridges, px, pz, tmp);
+        // 도로 (물 위를 지나면 다리 상판이 됨)
+        List<Hit> hits = roadHits(cell, px, pz, tmp);
 
         // 구역
         DistrictShape district = null;
@@ -410,7 +420,7 @@ public final class CityTerrain {
         c.district = district == null ? null : district.id();
 
         if (island == null && (inSea || inRiver)) {
-            return water(c, inSea, coast, inRiver, riverDepth, bridgeHit);
+            return water(c, inSea, coast, inRiver, riverDepth, hits);
         }
 
         c.groundY = groundY;
@@ -425,12 +435,6 @@ public final class CityTerrain {
                 mh = h;
                 inMountain = m;
             }
-        }
-
-        // 도로 (다리가 땅 위에 걸친 부분도 도로로 침)
-        List<Hit> hits = roadHits(cell, px, pz, tmp);
-        if (bridgeHit != null) {
-            hits.add(bridgeHit);
         }
 
         Hit tunnelHit = null;
@@ -494,7 +498,7 @@ public final class CityTerrain {
         return c;
     }
 
-    private Column water(Column c, boolean inSea, double coast, boolean inRiver, int riverDepth, Hit bridgeHit) {
+    private Column water(Column c, boolean inSea, double coast, boolean inRiver, int riverDepth, List<Hit> hits) {
         c.waterTop = waterY;
         int depth = 0;
         if (inSea) {
@@ -511,31 +515,30 @@ public final class CityTerrain {
         }
         c.groundY = waterY - Math.max(1, depth);
         c.surface = c.bed;
-        if (bridgeHit != null) {
+        Hit nearest = null;
+        boolean edge = true;
+        for (Hit h : hits) {
+            if (!canBridge(h.kind)) {
+                continue;
+            }
+            if (nearest == null || h.a / h.half < nearest.a / nearest.half) {
+                nearest = h;
+            }
+            edge &= h.a >= h.half - 1;
+        }
+        if (nearest != null) {
             c.deck = true;
-            c.surface = roadSurface(bridgeHit.kind, bridgeHit.a, bridgeHit.s);
-            c.railing = bridgeHit.a >= bridgeHit.half - 1;
-            c.pillar = (bridgeHit.s % 40) < 3 && bridgeHit.a < bridgeHit.half - 3;
+            c.surface = combinedRoadSurface(hits);
+            c.railing = edge;
+            c.pillar = (nearest.s % 40) < 3 && nearest.a < nearest.half - 3;
         }
         return c;
     }
 
     // ------------------------------------------------------------------ 도로
 
-    /** 도로 위 한 점: kind, 가운데선에서 거리 a, 선을 따라 잰 위치 s */
-    private record Hit(String kind, double a, double s, double half) {
-    }
-
-    private Hit nearestHit(int[] segs, List<RoadShape> shapes, double px, double pz, double[] tmp) {
-        Hit best = null;
-        for (int k = 0; k < segs.length; k += 2) {
-            RoadShape r = shapes.get(segs[k]);
-            r.line().distanceToSegment(segs[k + 1], px, pz, tmp);
-            if (tmp[0] <= r.half() && (best == null || tmp[0] / r.half() < best.a / best.half)) {
-                best = new Hit(r.kind(), tmp[0], tmp[1], r.half());
-            }
-        }
-        return best;
+    /** 도로 위 한 점: 몇 번 도로, kind, 가운데선에서 거리 a, 선을 따라 잰 위치 s */
+    private record Hit(int road, String kind, double a, double s, double half) {
     }
 
     /** 이 점에 걸친 도로들. 같은 도로는 가장 가까운 선분 하나만 */
@@ -552,12 +555,12 @@ public final class CityTerrain {
             }
             if (f == lastFeature && lastHit != null) {
                 if (tmp[0] < lastHit.a) {
-                    out.set(out.size() - 1, new Hit(r.kind(), tmp[0], tmp[1], r.half()));
+                    out.set(out.size() - 1, new Hit(f, r.kind(), tmp[0], tmp[1], r.half()));
                     lastHit = out.get(out.size() - 1);
                 }
                 continue;
             }
-            lastHit = new Hit(r.kind(), tmp[0], tmp[1], r.half());
+            lastHit = new Hit(f, r.kind(), tmp[0], tmp[1], r.half());
             lastFeature = f;
             out.add(lastHit);
         }
@@ -565,7 +568,7 @@ public final class CityTerrain {
     }
 
     /** 여러 도로가 겹치는 교차로는 차선 없이 아스팔트만 */
-    private static Surface combinedRoadSurface(List<Hit> hits) {
+    private Surface combinedRoadSurface(List<Hit> hits) {
         int carriage = 0;
         Hit only = null;
         for (Hit h : hits) {
@@ -578,9 +581,142 @@ public final class CityTerrain {
             return Surface.ASPHALT;
         }
         if (carriage == 1) {
+            if (crosswalk(only)) {
+                return ((int) Math.floor(only.a)) % 2 == 0 ? Surface.LINE_WHITE : Surface.ASPHALT;
+            }
             return roadSurface(only.kind, only.a, only.s);
         }
         return Surface.SIDEWALK;
+    }
+
+    /** 교차로 바로 바깥의 횡단보도 자리인지 (차도 위, 도로를 따라 CROSSWALK 칸) */
+    private boolean crosswalk(Hit h) {
+        if (!hasCrosswalks(h.kind)) {
+            return false;
+        }
+        double[] at = junctionAt[h.road], clear = junctionClear[h.road];
+        for (int k = 0; k < at.length; k++) {
+            double d = Math.abs(h.s - at[k]);
+            if (d >= clear[k] && d < clear[k] + CROSSWALK) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ 교차로
+
+    /**
+     * 도로끼리 만나는 곳(가로지름, T자, ㄱ자)을 미리 찾아 둡니다. 횡단보도를 그릴 때 씁니다.
+     * 같은 방향으로 끝과 끝이 이어진 곳(한 도로를 둘로 나눈 곳)은 교차로가 아닙니다.
+     */
+    private void buildJunctions() {
+        int n = roads.size();
+        List<List<double[]>> found = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            found.add(new ArrayList<>());
+        }
+        for (int i = 0; i < n; i++) {
+            for (int j = i + 1; j < n; j++) {
+                RoadShape a = roads.get(i), b = roads.get(j);
+                if ("runway".equals(a.kind()) || "runway".equals(b.kind())) {
+                    continue;
+                }
+                crossings(i, j, found);
+                touches(i, j, found);
+                touches(j, i, found);
+            }
+        }
+        junctionAt = new double[n][];
+        junctionClear = new double[n][];
+        for (int i = 0; i < n; i++) {
+            List<double[]> list = found.get(i);
+            list.sort((p, q) -> Double.compare(p[0], q[0]));
+            List<double[]> unique = new ArrayList<>();
+            for (double[] j : list) {
+                if (unique.isEmpty() || Math.abs(unique.get(unique.size() - 1)[0] - j[0]) > 1) {
+                    unique.add(j);
+                }
+            }
+            junctionAt[i] = new double[unique.size()];
+            junctionClear[i] = new double[unique.size()];
+            for (int k = 0; k < unique.size(); k++) {
+                junctionAt[i][k] = unique.get(k)[0];
+                junctionClear[i][k] = unique.get(k)[1];
+            }
+        }
+    }
+
+    /** 두 도로의 가운데선이 서로 가로지르는 곳 */
+    private void crossings(int i, int j, List<List<double[]>> found) {
+        Polyline a = roads.get(i).line(), b = roads.get(j).line();
+        for (int p = 0; p < a.segmentCount(); p++) {
+            for (int q = 0; q < b.segmentCount(); q++) {
+                double ax = a.x(p), az = a.z(p), adx = a.x(p + 1) - ax, adz = a.z(p + 1) - az;
+                double bx = b.x(q), bz = b.z(q), bdx = b.x(q + 1) - bx, bdz = b.z(q + 1) - bz;
+                double den = adx * bdz - adz * bdx;
+                if (Math.abs(den) < 1e-9) {
+                    continue;
+                }
+                double t = ((bx - ax) * bdz - (bz - az) * bdx) / den;
+                double u = ((bx - ax) * adz - (bz - az) * adx) / den;
+                if (t < 0 || t > 1 || u < 0 || u > 1) {
+                    continue;
+                }
+                double sa = a.along(p) + t * Math.hypot(adx, adz), sb = b.along(q) + u * Math.hypot(bdx, bdz);
+                if (isEnd(a, sa) && isEnd(b, sb) && straight(a, sa, b, sb)) {
+                    continue; // 끝과 끝이 나란히 이어짐
+                }
+                found.get(i).add(new double[]{sa, roads.get(j).half() + 1});
+                found.get(j).add(new double[]{sb, roads.get(i).half() + 1});
+            }
+        }
+    }
+
+    /** b 의 끝점이 a 위에 닿는 곳 (T자·ㄱ자) */
+    private void touches(int ia, int ib, List<List<double[]>> found) {
+        RoadShape a = roads.get(ia), b = roads.get(ib);
+        double[] out = new double[2];
+        Polyline bl = b.line();
+        for (int end = 0; end < 2; end++) {
+            int k = end == 0 ? 0 : bl.pointCount() - 1;
+            a.line().nearest(bl.x(k), bl.z(k), out);
+            if (out[0] > a.half()) {
+                continue;
+            }
+            double sb = bl.along(k);
+            if (isEnd(a.line(), out[1]) && straight(a.line(), out[1], bl, sb)) {
+                continue;
+            }
+            found.get(ia).add(new double[]{out[1], b.half() + 1});
+            found.get(ib).add(new double[]{sb, a.half() + 1});
+        }
+    }
+
+    private static boolean isEnd(Polyline line, double s) {
+        return s < 1 || s > line.length() - 1;
+    }
+
+    /** 끝과 끝에서 두 도로의 방향이 거의 같은지 (30° 안) */
+    private static boolean straight(Polyline a, double sa, Polyline b, double sb) {
+        double[] da = endDirection(a, sa), db = endDirection(b, sb);
+        // 한쪽은 끝에서 나가는 방향, 다른 쪽은 들어오는 방향이라 서로 반대여야 이어진 것
+        return da[0] * db[0] + da[1] * db[1] < -Math.cos(Math.toRadians(30));
+    }
+
+    /** 끝점에서 도로 안쪽으로 향하는 방향 */
+    private static double[] endDirection(Polyline line, double s) {
+        int n = line.pointCount();
+        double dx, dz;
+        if (s < line.length() / 2) {
+            dx = line.x(1) - line.x(0);
+            dz = line.z(1) - line.z(0);
+        } else {
+            dx = line.x(n - 2) - line.x(n - 1);
+            dz = line.z(n - 2) - line.z(n - 1);
+        }
+        double len = Math.hypot(dx, dz);
+        return new double[]{dx / len, dz / len};
     }
 
     /** 도로 단면: 가운데선에서 거리 a, 도로를 따라 잰 위치 s */
@@ -612,6 +748,12 @@ public final class CityTerrain {
                     return Surface.LINE_WHITE;
                 }
                 return Surface.ASPHALT;
+            }
+            case "street" -> {
+                if (a >= 4) {
+                    return Surface.SIDEWALK;                 // 인도 3칸
+                }
+                return a < 0.5 ? Surface.LINE_YELLOW : Surface.ASPHALT;
             }
             case "tunnel" -> {
                 if (a >= 4) {
@@ -692,7 +834,7 @@ public final class CityTerrain {
         double edge = Double.MAX_VALUE;
         for (int k = 0; k < cell.roadMask.length; k += 2) {
             int f = cell.roadMask[k];
-            RoadShape r = f < roads.size() ? roads.get(f) : bridges.get(f - roads.size());
+            RoadShape r = roads.get(f);
             r.line().distanceToSegment(cell.roadMask[k + 1], px, pz, tmp);
             edge = Math.min(edge, tmp[0] - r.half());
         }

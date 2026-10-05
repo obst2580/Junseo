@@ -30,6 +30,23 @@ public final class Polyline {
         return xs.length - 1;
     }
 
+    public int pointCount() {
+        return xs.length;
+    }
+
+    public double x(int i) {
+        return xs[i];
+    }
+
+    public double z(int i) {
+        return zs[i];
+    }
+
+    /** i번 꼭짓점까지 선을 따라 잰 길이 */
+    public double along(int i) {
+        return cum[i];
+    }
+
     public double length() {
         return cum[cum.length - 1];
     }

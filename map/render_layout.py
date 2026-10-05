@@ -57,7 +57,7 @@ def scaled(layout, k):
             e["center"], e["rx"], e["rz"] = sp(e["center"]), e["rx"] * k, e["rz"] * k
         else:
             isl["center"], isl["radius"] = sp(isl["center"]), isl["radius"] * k
-    for r in L["roads"] + L["bridges"]:
+    for r in L["roads"] + L.get("bridges", []):
         r["line"] = [sp(p) for p in r["line"]]
     for h in L["hubs"]:
         h["pos"] = sp(h["pos"])
@@ -111,28 +111,25 @@ def render(layout):
         # 구역 이름은 구역 위쪽에 둬서 시설 이름과 겹치지 않게 합니다
         labels.append(((cx, min(zs) + (max(zs) - min(zs)) * 0.3), d["name"]))
 
-    # 도로 (물보다 먼저 그려서, 다리가 아닌 곳은 물에 가려지게)
-    for r in layout["roads"]:
-        line = pts(r["line"])
-        if r["kind"] == "highway":
-            o.append(f'<polyline points="{line}" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>')
-        elif r["kind"] == "arterial":
-            o.append(f'<polyline points="{line}" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>')
-        elif r["kind"] == "runway":
-            o.append(f'<polyline points="{line}" fill="none" stroke="#5b5b60" stroke-width="45" stroke-linecap="butt"/>')
-        elif r["kind"] == "tunnel":
-            o.append(f'<polyline points="{line}" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>')
-
     # 한강·샛강 (구역 위에 그려서 강이 구역을 가르게)
     for w in layout["water"]:
         if w["kind"] != "sea":
             o.append(f'<polyline points="{pts(w["line"])}" fill="none" stroke="{WATER}" stroke-width="{w["width"]}" stroke-linejoin="round" stroke-linecap="round"/>')
 
-    # 다리 (물 위)
-    for br in layout["bridges"]:
-        color = "#d6362f" if br["id"].startswith("HB") else "#f2c200"
-        o.append(f'<polyline points="{pts(br["line"])}" fill="none" stroke="{color}" stroke-width="55" stroke-linecap="butt"/>')
-        o.append(f'<polyline points="{pts(br["line"])}" fill="none" stroke="#333" stroke-width="6" stroke-dasharray="20 20"/>')
+    # 도로 (물 위에 그림: 물을 건너는 곳이 곧 다리). 중로 → 대로 → 고속도로 순서로 위에 쌓음
+    order = {"street": 0, "runway": 1, "arterial": 2, "tunnel": 3, "highway": 4}
+    for r in sorted(layout["roads"], key=lambda r: order.get(r["kind"], 0)):
+        line = pts(r["line"])
+        if r["kind"] == "highway":
+            o.append(f'<polyline points="{line}" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>')
+        elif r["kind"] == "arterial":
+            o.append(f'<polyline points="{line}" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>')
+        elif r["kind"] == "street":
+            o.append(f'<polyline points="{line}" fill="none" stroke="#8a8a8a" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/>')
+        elif r["kind"] == "runway":
+            o.append(f'<polyline points="{line}" fill="none" stroke="#5b5b60" stroke-width="45" stroke-linecap="butt"/>')
+        elif r["kind"] == "tunnel":
+            o.append(f'<polyline points="{line}" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>')
 
     # 구역 이름
     for (cx, cz), name in labels:
@@ -156,8 +153,8 @@ def render(layout):
              f'준서 시티 도시 설계도 v{layout["version"]} — 압축 서울·인천 {real(bx1 - bx0) / 1000:g}×{real(bz1 - bz0) / 1000:g}km 범위 (1블록 = 1m)</text>')
     rows = [("rect", PHASE_FILL[1], "1차 오픈 구역"), ("rect", PHASE_FILL[2], "2차 오픈 구역"),
             ("rect", PHASE_FILL[3], "3차 오픈 구역"), ("rect", WATER, "한강·바다"),
-            ("line", "#d6362f", "고속도로 (기존 도로 본뜸)"), ("line", "#f0892a", "대로 (신규)"),
-            ("dash", "#7b4bc4", "남산터널"), ("line", "#f2c200", "한강 다리"),
+            ("line", "#d6362f", "고속도로 (왕복 6차로)"), ("line", "#f0892a", "대로 (왕복 4차로)"),
+            ("line", "#8a8a8a", "중로 (왕복 2차로)"), ("dash", "#7b4bc4", "남산터널"),
             ("dot", "#c0162b", "주요 거점 (사람이 몰리는 곳)"), ("dot", "#1f5fa8", "그 밖의 시설")]
     y = bz0 + 100
     o.append(f'<text x="{lx}" y="{y}" font-size="130" font-weight="bold">범례</text>')

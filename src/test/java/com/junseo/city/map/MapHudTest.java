@@ -262,7 +262,8 @@ class MapHudTest {
         dir.mkdirs();
         // 게임 화면(GUI 480×270, 1080p 기본 크기)에 미니맵 얹은 모습 3장
         double[] plaza = hub("plaza"), police = hub("police_south"), hospital = hub("hospital");
-        double[] bridge = terrain.layout().bridges().stream().filter(b -> b.id().equals("HB3")).findFirst().orElseThrow().line().get(0);
+        // 공항고속도로가 해협 대교를 건너 청라에 닿는 곳
+        double[] bridge = terrain.layout().roads().stream().filter(r -> r.id().equals("H1")).findFirst().orElseThrow().line().get(3);
         double[][] spots = {{plaza[0] + 8, plaza[1] + 14, 160, 6}, {bridge[0], bridge[1], -60, 10}, {police[0], police[1] - 40, 200, 6}};
         String[] names = {"여의도 광장에서 걷기 (북쪽 보기)", "공항 다리를 차로 건너기", "강남 경찰서 근처"};
         int gw = 480, gh = 270, scale = 2, crop = 96;

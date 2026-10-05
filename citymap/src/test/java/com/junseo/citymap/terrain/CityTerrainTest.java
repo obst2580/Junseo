@@ -84,11 +84,32 @@ class CityTerrainTest {
         assertEquals(0, c.groundY);
     }
 
+    /** 이 도로가 물을 건너는 가운데 지점 (없으면 실패) */
+    static double[] waterCrossing(String roadId) {
+        Layout.Road r = terrain.layout().roads().stream().filter(x -> x.id().equals(roadId)).findFirst().orElseThrow();
+        for (int i = 0; i + 1 < r.line().size(); i++) {
+            double[] a = r.line().get(i), b = r.line().get(i + 1);
+            double len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            double start = -1;
+            for (double t = 0; t <= len; t += 1) {
+                double x = a[0] + (b[0] - a[0]) * t / len, z = a[1] + (b[1] - a[1]) * t / len;
+                boolean water = at(x, z).isWater();
+                if (water && start < 0) {
+                    start = t;
+                } else if (!water && start >= 0) {
+                    double m = (start + t) / 2;
+                    return new double[]{a[0] + (b[0] - a[0]) * m / len, a[1] + (b[1] - a[1]) * m / len};
+                }
+            }
+        }
+        throw new AssertionError(roadId + " 는 물을 건너지 않아요");
+    }
+
     @Test
     void mapoBridgeHasDeckOverWater() {
-        Layout.Road b1 = terrain.layout().bridges().stream().filter(b -> b.id().equals("B1")).findFirst().orElseThrow();
-        double[] a = b1.line().get(0), b = b1.line().get(1);
-        Column c = at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        // 마포대교: 홍대입구로(A3)가 한강을 건너는 곳. 물을 건너는 도로는 저절로 다리가 됩니다
+        double[] mid = waterCrossing("A3");
+        Column c = at(mid[0], mid[1]);
         assertTrue(c.isWater(), "다리 밑은 물이어야 해요");
         assertTrue(c.deck, "다리 상판이 있어야 해요");
         assertTrue(c.isRoad(), "상판은 도로여야 해요: " + c.surface);
@@ -125,10 +146,10 @@ class CityTerrainTest {
         Column strait = at(-1500, 1000);
         assertTrue(strait.isWater(), "공항과 청라 사이는 바다여야 해요");
         assertFalse(strait.deck);
-        for (String id : new String[]{"HB3", "HB4"}) {
-            Layout.Road bridge = terrain.layout().bridges().stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
-            double[] a = bridge.line().get(0), b = bridge.line().get(1);
-            Column mid = at((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+        // 해협 대교 2개: 공항고속도로(H1)와 올림픽대로(H3)
+        for (String id : new String[]{"H1", "H3"}) {
+            double[] p = waterCrossing(id);
+            Column mid = at(p[0], p[1]);
             assertTrue(mid.isWater() && mid.deck, id + " 다리 가운데는 물 위의 상판이어야 해요");
         }
     }
