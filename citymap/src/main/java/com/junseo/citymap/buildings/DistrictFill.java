@@ -323,7 +323,7 @@ final class DistrictFill {
             }
             boolean party = l.partyWall();
             p = house
-                    ? Placement.rect(houseName(), "house", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
+                    ? Placement.rect(House.name(id, new Random(seed)), "house", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
                     (bw, bd) -> house(id, bw, bd, floors, new Random(seed)))
                     : Placement.rect(StreetShop.name(id, new Random(seed ^ 0x5EED)), "shop", l.x0(), l.z0(), l.x1(), l.z1(), l.front(),
                     (bw, bd) -> shop(id, party, bw, bd, floors, new Random(seed)));
@@ -366,17 +366,14 @@ final class DistrictFill {
         return StreetShop.build(district, partyWall, w, d, Math.max(1, Math.min(10, floors)), r);
     }
 
+    /** 구역마다 다른 주택 ({@link House}): 필로티 빌라·벽돌 다가구·연남동 벽돌집·평창동 단독. 땅은 12×14 이상 */
     static Voxels house(String district, int w, int d, int floors, Random r) {
-        return ShopHouse.build(w, d, r, ShopHouse.Style.VILLA);
+        return House.build(district, w, d, Math.max(1, Math.min(6, floors)), r);
     }
 
     /** 구역마다 다른 업무·주상복합 빌딩 ({@link Office}): 8층 이상은 1층·포디움·쓰는 옥상만 실내 */
     static Voxels office(String district, int w, int d, int floors, boolean podium, Random r) {
         return Office.build(district, Math.max(24, w), Math.max(24, d), Math.max(6, Math.min(60, floors)), podium, r);
-    }
-
-    private String houseName() {
-        return "다세대 주택";
     }
 
     /** 골목 바닥: 시멘트 포장, 가운데 배수 줄 */
