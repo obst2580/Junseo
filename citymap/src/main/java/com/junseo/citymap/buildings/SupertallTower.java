@@ -166,6 +166,8 @@ final class SupertallTower {
                         // 바닥 마감(방 바닥)이 바닥판 밖으로 나간 것: 아래층 천장도 아니면 비움
                         if (k == 0 || !inPlan(i, j, k - 1)) {
                             v.set(i, y0 - 1, j, null);
+                        } else if (!BAND.equals(v.get(i, y0 - 1, j))) {
+                            v.set(i, y0 - 1, j, SMOOTH_STONE); // 아래층 지붕(물러난 테라스)은 바닥 마감 대신 돌판
                         }
                     }
                 }
