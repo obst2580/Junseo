@@ -157,6 +157,9 @@ src/main/resources/datapack/   G키·ESC 메뉴에 스마트폰을 연결하는 
 - **빌드:** `./gradlew build` (JDK 25)
 - **테스트:** `./gradlew test` — 돈·송금 동시성, 이름 규칙, 주민번호, SQLite 저장소, 자동차 물리를 검사합니다.
 - **CI:** GitHub에 올리면 Actions가 빌드하고 jar를 Artifacts로 올립니다.
+- **도시 바탕 생성기:** `mapgen/` 모듈(`JunseoMapGen-*.jar`)입니다.
+  - 설계도 `map/layout.json`으로 땅·한강·바다·산·도로·다리·터널이 깔린 빈 도시 월드를 만듭니다.
+  - 건축 서버용입니다. 사용법은 [`mapgen/README.md`](mapgen/README.md)를 보세요.
 
 ---
 

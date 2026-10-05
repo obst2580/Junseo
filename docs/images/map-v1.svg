@@ -59,12 +59,16 @@
 <polyline points="-824,-1322 452,-1450 1554,-1578 2627,-1392" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="278,-1450 307,-696 104,-510" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="-1259,-1073 -1172,-609 -853,-464" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
-<polyline points="1612,-2204 1583,-1566 1728,-609" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="1583,-1566 1728,-609" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="2308,766 2424,1508 2482,2204" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="-389,1090 684,1160 1757,1032 3062,1102 3874,1044 4396,812" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="-2622,667 -1984,696 -1810,986 -1085,1056" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="-1172,0 -1143,464 -1230,1044 -1404,1740" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="1728,-609 1873,-174 2134,319" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>
+<polyline points="-4397,1614 -3271,964" fill="none" stroke="#5b5b60" stroke-width="45" stroke-linecap="butt"/>
+<polyline points="-986,360 -760,470 -186,470 330,430 626,319" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-696,-104 -560,180 -480,470" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
+<polyline points="-480,470 -534,783" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="-5522,-2610 -4536,-1740 -3550,-928 -2738,-232 -1926,-145 -1056,-290 -186,-307 394,-232 800,58 1061,522 1351,731 2018,638 2598,464 3062,128 3584,29 4222,58 4802,464 5208,1566 5556,3248" fill="none" stroke="#86c2e6" stroke-width="260" stroke-linejoin="round" stroke-linecap="round"/>
 <polyline points="-1137,-232 -1096,232 -951,766 -418,940 162,916 626,696 1003,464" fill="none" stroke="#86c2e6" stroke-width="120" stroke-linejoin="round" stroke-linecap="round"/>
 <polygon points="-5986,-1218 -5000,-464 -4623,464 -4565,1276 -4594,1856 -4246,2216 -2738,2239 -2274,2204 -1926,2117 -1462,2059 -998,2030 -766,3306 -5986,3306" fill="#86c2e6"/>

@@ -1,0 +1,13 @@
+name: JunseoMapGen
+version: '${version}'
+main: com.junseo.mapgen.MapGenPlugin
+api-version: '26.2'
+# 월드보다 먼저 켜져야 bukkit.yml 의 generator 설정으로 쓸 수 있습니다
+load: STARTUP
+description: 준서 시티 도시 바탕 생성기 (map/layout.json → 땅·한강·바다·산·도로·다리)
+authors: [Junseo]
+
+permissions:
+  junseomapgen.admin:
+    description: /mapgen 명령어
+    default: op

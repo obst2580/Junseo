@@ -69,6 +69,8 @@ def render(layout):
             o.append(f'<polyline points="{line}" fill="none" stroke="#d6362f" stroke-width="70" stroke-linejoin="round" stroke-linecap="round"/>')
         elif r["kind"] == "arterial":
             o.append(f'<polyline points="{line}" fill="none" stroke="#f0892a" stroke-width="45" stroke-linejoin="round" stroke-linecap="round"/>')
+        elif r["kind"] == "runway":
+            o.append(f'<polyline points="{line}" fill="none" stroke="#5b5b60" stroke-width="45" stroke-linecap="butt"/>')
         elif r["kind"] == "tunnel":
             o.append(f'<polyline points="{line}" fill="none" stroke="#7b4bc4" stroke-width="40" stroke-dasharray="90 60"/>')
 

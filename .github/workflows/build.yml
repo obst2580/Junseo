@@ -26,3 +26,9 @@ jobs:
         with:
           name: JunseoCity-plugin
           path: build/libs/JunseoCity-*.jar
+
+      - name: Upload map generator jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: JunseoMapGen-plugin
+          path: mapgen/build/libs/JunseoMapGen-*.jar
