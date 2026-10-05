@@ -280,8 +280,14 @@ final class DistrictFill {
         if (use == Use.GARAGE) {
             String dn = t.districtName((int) l.cx(), (int) l.cz());
             String name = (dn == null ? "" : dn + " ") + "제" + garageNo++;
-            if (st.garageTower || !fitsLot(l)) {
-                int[] rect = towerRect(l);
+            if (st.garageTower && w >= 24 && d >= 30) {
+                // 넓은 도심 터: 자주식 공영 주차빌딩 (경사로로 층마다)
+                int lv = 3 + (int) (seed & 1);
+                int[] rect = frontRect(l, Math.min(45, w), Math.min(60, d));
+                p = Placement.rect(name + " 공영주차장", "garage", rect[0], rect[1], rect[2], rect[3], l.front(),
+                        (bw, bd) -> ParkingBuilding.build(bw, bd, lv, name, new Random(seed)));
+            } else if (st.garageTower || !fitsLot(l)) {
+                int[] rect = frontRect(l, Garage.TOWER_W, Garage.TOWER_D);
                 p = Placement.rect(name + " 주차타워", "garage", rect[0], rect[1], rect[2], rect[3], l.front(),
                         (bw, bd) -> Garage.tower(4 + (int) (seed & 3), name, new Random(seed)));
             } else {
@@ -327,9 +333,8 @@ final class DistrictFill {
         m.claim((int) Math.floor(b[0]), (int) Math.floor(b[1]), (int) Math.ceil(b[2]) - 1, (int) Math.ceil(b[3]) - 1);
     }
 
-    /** 주차타워 자리: 필지 정면 가운데에 붙인 TOWER_W × TOWER_D */
-    private static int[] towerRect(BlockLayout.Lot l) {
-        int W = Garage.TOWER_W, D = Garage.TOWER_D;
+    /** 필지 정면 가운데에 붙인 정면 너비 W × 깊이 D 자리 {x0, z0, x1, z1} */
+    private static int[] frontRect(BlockLayout.Lot l, int W, int D) {
         return switch (l.front()) {
             case "south" -> {
                 int x0 = (l.x0() + l.x1() + 1 - W) / 2;
