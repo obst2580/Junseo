@@ -36,7 +36,9 @@ public final class MapIcons {
     public static final int CAMPUS = 25;
     public static final int FOOD = 26;
     public static final int TRUCK = 27;
-    private static final int FIXED = 28;
+    public static final int AXE = 28;
+    public static final int FARM = 29;
+    private static final int FIXED = 30;
     /** 16방향 화살표 (0 = 화면 위, 시계 방향으로 22.5°씩) */
     private static final int ARROW_BASE = FIXED;
     public static final int COUNT = FIXED + 16;
@@ -100,6 +102,8 @@ public final class MapIcons {
             case "snu_gate" -> CAMPUS;
             case "itaewon" -> FOOD;
             case "sanitation" -> TRUCK;
+            case "lumber" -> AXE;
+            case "farm", "ranch" -> FARM;
             default -> -1; // blackmarket, hideout 등 범죄 장소는 지도에 없음
         };
     }
@@ -154,6 +158,8 @@ public final class MapIcons {
         badge(CAMPUS, 0xFF1A237E, "..w..", ".www.", "wwwww", ".www.", ".w...");
         badge(FOOD, 0xFFEF6C00, "w.w.w", "www.w", ".w..w", ".w..w", ".w..w");
         badge(TRUCK, 0xFF558B2F, "www..", "wwwww", "wwwww", "wwwww", ".w.w.");
+        badge(AXE, 0xFF6D4C41, "ww...", "www..", ".ww..", "...w.", "....w");
+        badge(FARM, 0xFF9E9D24, "w...w", ".w.w.", "..w..", "..w..", "wwwww");
         for (int d = 0; d < 16; d++) {
             PIXELS[ARROW_BASE + d] = arrowPixels(d * 22.5);
         }

@@ -56,8 +56,10 @@ class PoliceStreetsTest {
      * 길에서 출발점: 앞 줄 가운데, 길 높이.
      */
     static WalkCheck walkFromStreet(Voxels v, int shift, int startI) {
-        Voxels c = new Voxels(v.w, v.d, v.y0 + shift, v.y0 + v.h - 1 + shift);
+        // 앞에 인도 두 줄을 더 붙임: 실제로는 건물 앞이 길이라 입간판·화분을 돌아서 지나갈 수 있음
+        Voxels c = new Voxels(v.w, v.d + 2, v.y0 + shift, v.y0 + v.h - 1 + shift);
         Block soil = Block.of("dirt", 0x86603F);
+        c.fill(0, shift - 1, v.d, v.w - 1, shift - 1, v.d + 1, Block.of("light_gray_concrete", 0x7D7D73));
         for (int y = v.y0; y < v.y0 + v.h; y++) {
             for (int j = 0; j < v.d; j++) {
                 for (int i = 0; i < v.w; i++) {
@@ -75,7 +77,7 @@ class PoliceStreetsTest {
                 break;
             }
         }
-        return new WalkCheck(c).run(si + 1, shift, v.d);
+        return new WalkCheck(c).run(si + 1, shift, v.d + 1);
     }
 
     @Test

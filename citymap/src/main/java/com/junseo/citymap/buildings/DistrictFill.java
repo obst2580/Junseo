@@ -193,6 +193,55 @@ final class DistrictFill {
                 place(l, leftover(l));
             }
         }
+        ensureGarage();
+    }
+
+    /**
+     * 구역마다 공영 차고가 적어도 하나: 이 구역에 하나도 안 생겼으면 가장 넓은 거주자 우선 주차장·쌈지공원 자리를
+     * 공영주차장으로 바꿈 (그것도 없으면 가장 넓은 가게·집 자리를 주차타워로).
+     */
+    private void ensureGarage() {
+        if (out.stream().anyMatch(p -> p.kind.equals("garage"))) {
+            return;
+        }
+        Placement best = null;
+        for (Placement p : out) {
+            boolean open = p.kind.equals("parking") || p.kind.equals("park");
+            boolean building = p.kind.equals("shop") || p.kind.equals("house");
+            double[] b = p.boundsRef();
+            double sx = b[2] - b[0], sz = b[3] - b[1];
+            boolean fits = open ? Math.min(sx, sz) >= 12 : building && Math.min(sx, sz) >= Garage.TOWER_W && Math.max(sx, sz) >= Garage.TOWER_D;
+            if (fits && (best == null || rank(p) > rank(best))) {
+                best = p;
+            }
+        }
+        if (best == null) {
+            return;
+        }
+        double[] b = best.boundsRef();
+        int x0 = (int) Math.floor(b[0]), z0 = (int) Math.floor(b[1]), x1 = (int) Math.ceil(b[2]) - 1, z1 = (int) Math.ceil(b[3]) - 1;
+        String front = m.frontOf(x0, z0, x1, z1);
+        String dn = t.districtName((x0 + x1) / 2, (z0 + z1) / 2);
+        String name = (dn == null ? "" : dn + " ") + "제" + garageNo++;
+        long seed = rnd.nextLong();
+        boolean open = best.kind.equals("parking") || best.kind.equals("park");
+        BlockLayout.Lot l = new BlockLayout.Lot(x0, z0, x1, z1, front, BlockLayout.Tier.INNER, false, false);
+        Placement g;
+        if (open) {
+            g = Placement.rect(name + " 공영주차장", "garage", x0, z0, x1, z1, front, (bw, bd) -> Garage.lot(bw, bd, name, new Random(seed)));
+        } else {
+            int[] r = frontRect(l, Garage.TOWER_W, Garage.TOWER_D);
+            g = Placement.rect(name + " 주차타워", "garage", r[0], r[1], r[2], r[3], front, (bw, bd) -> Garage.tower(4, name, new Random(seed)));
+        }
+        out.set(out.indexOf(best), g);
+        garages.add(new double[]{l.cx(), l.cz()});
+    }
+
+    /** 차고로 바꿀 자리 순위: 빈 땅(주차장·공원) 먼저, 같으면 넓은 것 */
+    private static double rank(Placement p) {
+        double[] b = p.boundsRef();
+        double area = (b[2] - b[0]) * (b[3] - b[1]);
+        return (p.kind.equals("parking") || p.kind.equals("park") ? 1e6 : 0) + area;
     }
 
     private enum Use { BUILD, PARK, GARAGE, LOT }
