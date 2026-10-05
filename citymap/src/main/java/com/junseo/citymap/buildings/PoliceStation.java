@@ -8,7 +8,7 @@ import static com.junseo.citymap.buildings.Blocks.*;
  * 경찰서 (용산경찰서·강남경찰서): 6층 관공서 건물과 앞마당·뒷마당.
  * <ul>
  *   <li>앞마당: 도로 쪽 보도와 이어진 포장 마당, 가운데 정문 길(거점 자리), 국기 게양대 세 개(깃대만),
- *       양옆 주차장(순찰차·민원인 차), 화단과 볼라드. 건물 양옆은 뒷마당으로 가는 차로</li>
+ *       양옆 주차장(순찰차·민원인 칸, 주차선만), 화단과 볼라드. 건물 양옆은 뒷마당으로 가는 차로</li>
  *   <li>1층(5칸): 로비와 안내 데스크, 민원실·교통민원실(창구와 대기 의자), 무기고, 당직실, 상황실, 후문</li>
  *   <li>2~5층(4칸): 형사과·수사과·여성청소년과 사무실, 유치장(쇠창살 방), 조사실, 회의실, 전산실, 서장실,
  *       브리핑룸, 남녀 탈의실</li>
@@ -949,14 +949,9 @@ final class PoliceStation {
                     if (i + 3 <= i1) {
                         v.fill(i + 3, -1, jj, i + 3, -1, jj + 4, WHITE_CONCRETE);
                     }
-                    if (i + 2 <= i1 && r.nextInt(10) < 7) {
-                        Frame f = row == 0 ? Frame.facing(v, i + 1, jj, "north") : Frame.facing(v, i + 1, jj + 3, "south");
-                        // 건물 가까운 줄은 순찰차
-                        if (row == 0 && n++ % 3 != 2) {
-                            patrolCar(row == 0 ? Frame.facing(v, i + 2, jj + 3, "north") : f, 0, 0);
-                        } else {
-                            car(row == 0 ? Frame.facing(v, i + 2, jj + 3, "north") : Frame.facing(v, i + 1, jj, "south"), 0, 0);
-                        }
+                    // 건물 가까운 줄은 순찰차 칸: 바닥에 노란 글씨 대신 노란 칸 끝 표시
+                    if (row == 0 && i + 2 <= i1 && n++ % 3 != 2) {
+                        v.fill(i + 1, -1, jj, i + 2, -1, jj, YELLOW_CONCRETE);
                     }
                 }
             }
@@ -1024,7 +1019,7 @@ final class PoliceStation {
     }
 
     private void rearYard() {
-        // 뒷마당·옆 차로: 아스팔트, 주차선, 호송버스, 순찰차
+        // 뒷마당·옆 차로: 아스팔트와 주차선 (순찰차·호송버스 칸)
         for (int j = 0; j <= bj1; j++) {
             for (int i = 0; i < w; i++) {
                 if (j < bj0 || i < bi0 || i > bi1) {
@@ -1044,13 +1039,8 @@ final class PoliceStation {
         for (int i = bi0 + 14; i + 3 <= bi1 - 2; i += 3) {
             v.fill(i, -1, 1, i, -1, 5, WHITE_CONCRETE);
         }
-        for (int i = bi0 + 15; i + 2 <= bi1 - 2; i += 6) {
-            if (r.nextBoolean()) {
-                patrolCar(Frame.facing(v, i + 1, 2, "north"), 0, 0);
-            }
-        }
-        // 호송버스 (서쪽)
-        bus(bi0 + 2, 2);
+        // 호송버스 칸 (서쪽, 큰 칸)
+        v.walls(bi0 + 1, -1, 1, bi0 + 5, -1, 12, YELLOW_CONCRETE);
         // 뒷마당 등
         for (int i = bi0 + 10; i <= bi1 - 10; i += 16) {
             MarketPlan.lampPost(v, i, bj0 - 1);
@@ -1061,44 +1051,5 @@ final class PoliceStation {
         boolean post = (i + j) % 4 == 0;
         v.set(i, 0, j, POLISHED_ANDESITE);
         v.fill(i, 1, j, i, 2, j, post ? POLISHED_ANDESITE : IRON_BARS);
-    }
-
-    /** 순찰차 (2×4, 기준 좌표 a 0..1, b 0..3, 앞이 +b): 흰 차체, 옆 파란 띠, 지붕 경광등 */
-    static void patrolCar(Frame f, int a, int b) {
-        Block white = Block.of("white_concrete", 0xCFD5D6), blue = Block.of("blue_concrete", 0x2C2E8F);
-        for (int k = 0; k < 4; k++) {
-            f.set(a, 0, b + k, k == 1 || k == 2 ? blue : white);
-            f.set(a + 1, 0, b + k, k == 1 || k == 2 ? blue : white);
-        }
-        f.set(a, 1, b + 1, BLACK_GLASS);
-        f.set(a + 1, 1, b + 1, BLACK_GLASS);
-        f.set(a, 1, b + 2, white);
-        f.set(a + 1, 1, b + 2, white);
-        f.set(a, 2, b + 2, Block.of("red_carpet", 0xA12722));
-        f.set(a + 1, 2, b + 2, Block.of("blue_carpet", 0x35399D));
-    }
-
-    /** 세워 둔 승용차 (민원인) */
-    private void car(Frame f, int a, int b) {
-        String[] colors = {"white", "black", "gray", "light_gray", "white", "blue"};
-        Block body = Blocks.concrete(colors[r.nextInt(colors.length)]);
-        f.fill(a, 0, b, a + 1, 0, b + 3, body);
-        f.fill(a, 1, b + 1, a + 1, 1, b + 2, BLACK_GLASS);
-    }
-
-    /** 호송버스 (3×10, j 방향): 흰 몸체, 파란 띠, 창살 창 */
-    private void bus(int i, int j) {
-        Block white = Block.of("white_concrete", 0xCFD5D6), blue = Block.of("blue_concrete", 0x2C2E8F);
-        v.fill(i, 0, j, i + 2, 2, j + 9, white);
-        v.fill(i, 0, j, i + 2, 0, j + 9, blue);
-        for (int jj = j + 1; jj <= j + 8; jj++) {
-            v.set(i, 1, jj, (jj - j) % 3 == 0 ? white : Block.of("gray_stained_glass", 0x4C4C4C));
-            v.set(i + 2, 1, jj, (jj - j) % 3 == 0 ? white : Block.of("gray_stained_glass", 0x4C4C4C));
-        }
-        v.fill(i, 1, j + 9, i + 2, 1, j + 9, BLACK_GLASS);
-        v.set(i, 0, j + 1, Block.of("black_concrete", 0x080A0F));
-        v.set(i + 2, 0, j + 1, Block.of("black_concrete", 0x080A0F));
-        v.set(i, 0, j + 8, Block.of("black_concrete", 0x080A0F));
-        v.set(i + 2, 0, j + 8, Block.of("black_concrete", 0x080A0F));
     }
 }
