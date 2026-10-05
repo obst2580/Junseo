@@ -158,8 +158,8 @@ class CityTerrainTest {
     void namsanRisesNearTheTower() {
         Layout.Hub tower = hub("tower");
         Column c = at(tower.x() + 10, tower.z() + 10);
-        assertTrue(c.mountainHeight > 120, "남산은 높아야 해요: " + c.mountainHeight);
-        assertTrue(c.mountainHeight <= 300);
+        assertTrue(c.mountainHeight > 55, "남산은 도시 위로 솟아야 해요: " + c.mountainHeight);
+        assertTrue(c.mountainHeight <= 95, "남산은 낮고 부드러운 산이에요: " + c.mountainHeight);
         assertTrue(c.groundY == c.mountainHeight);
     }
 

@@ -30,12 +30,14 @@ final class TreePopulator extends BlockPopulator {
                 continue;
             }
             boolean mountain = c.mountainHeight >= 6;
-            double chance = mountain ? 0.55 : c.district == null ? 0.05 : 0;
+            double chance = mountain ? 0.45 : c.district == null ? 0.05 : 0;
             if (random.nextDouble() >= chance) {
                 continue;
             }
-            TreeType type = c.mountainHeight > 150 ? TreeType.REDWOOD
-                    : random.nextInt(4) == 0 ? TreeType.BIRCH : TreeType.TREE;
+            // 한국 산: 높은 곳은 소나무(가문비로 대신), 낮은 곳은 참나무에 소나무·자작나무 조금
+            int roll = random.nextInt(8);
+            TreeType type = mountain && (c.mountainHeight > 60 ? roll < 5 : roll < 2) ? TreeType.REDWOOD
+                    : roll == 7 ? TreeType.BIRCH : TreeType.TREE;
             Location at = new Location(null, x, c.groundY + 1, z);
             if (region.isInRegion(at)) {
                 region.generateTree(at, random, type);

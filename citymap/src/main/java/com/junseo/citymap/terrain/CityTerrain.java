@@ -20,6 +20,8 @@ public final class CityTerrain {
     /** 이 높이보다 산이 높아야 터널에 천장이 생김 */
     private static final int TUNNEL_COVER = 10;
     private static final int MAX_MOUNTAIN = 300;
+    /** 이보다 높은 산은 나무 없는 바위 봉우리 (남산은 이보다 낮음) */
+    private static final int ROCK_LINE = 95;
     private static final double OFFSET_X = 0.0137;
     private static final double OFFSET_Z = -0.0129;
     /** 횡단보도 폭 (도로를 따라) */
@@ -791,25 +793,31 @@ public final class CityTerrain {
         return (int) Math.round(Math.max(0, Math.min(MAX_MOUNTAIN, h)));
     }
 
-    /** 도로를 깎지 않은 산 높이 (구역 테두리 쪽은 낮아짐) */
+    /**
+     * 도로를 깎지 않은 산 높이 (구역 테두리 쪽은 낮아짐). 봉우리마다 코사인 언덕을 만들고 4제곱 평균으로 합쳐
+     * 봉우리 사이가 부드러운 안부(능선)로 이어지게 합니다. 바위 봉우리 높이 근처에서는 울퉁불퉁한 암릉을 조금 더합니다.
+     */
     private double rawMountain(MountainShape m, double px, double pz) {
         double inside = m.polygon().insideDistance(px, pz);
         if (inside <= 0) {
             return 0;
         }
-        double base = 0;
+        double sum = 0;
         for (Layout.Peak p : m.mountain().peaks()) {
             double u = Math.hypot(px - p.x(), pz - p.z()) / p.radius();
             if (u < 1) {
-                base = Math.max(base, p.height() * (Math.cos(Math.PI * u) + 1) / 2);
+                double b = p.height() * (Math.cos(Math.PI * u) + 1) / 2;
+                sum += b * b * b * b;
             }
         }
-        if (base <= 0) {
+        if (sum <= 0) {
             return 0;
         }
-        double variation = 1 + 0.22 * noise.fbm(px / 380, pz / 380, 3);
-        double detail = 7 * noise.fbm(px / 70 + 100, pz / 70 + 100, 3);
-        double h = (base * variation + detail * Math.min(1, base / 30)) * smooth(0, mountainEdgeFade, inside);
+        double base = Math.sqrt(Math.sqrt(sum));
+        double variation = 1 + 0.15 * noise.fbm(px / 380, pz / 380, 3);
+        double detail = 5 * noise.fbm(px / 70 + 100, pz / 70 + 100, 3);
+        double crag = 9 * Math.abs(noise.fbm(px / 28 + 300, pz / 28 + 300, 2)) * smooth(ROCK_LINE - 30, ROCK_LINE, base);
+        double h = (base * variation + detail * Math.min(1, base / 30) + crag) * smooth(0, mountainEdgeFade, inside);
         return Math.max(0, Math.min(MAX_MOUNTAIN, h));
     }
 
@@ -852,13 +860,13 @@ public final class CityTerrain {
                 return Surface.ROCK;                       // 채석장 바닥
             }
         }
-        if (h > 240) {
-            return Surface.ROCK;                           // 높은 봉우리는 바위
+        if (h > ROCK_LINE + 8 * noise.fbm(px / 40 + 50, pz / 40 + 50, 2)) {
+            return Surface.ROCK;                           // 북한산 꼭대기 화강암 봉우리
         }
         double hx = mountainHeight(m, px + 2, pz, cell, tmp) - mountainHeight(m, px - 2, pz, cell, tmp);
         double hz = mountainHeight(m, px, pz + 2, cell, tmp) - mountainHeight(m, px, pz - 2, cell, tmp);
         double slope = Math.max(Math.abs(hx), Math.abs(hz)) / 4;
-        return slope > 1.3 ? Surface.ROCK : Surface.GRASS;
+        return slope > 2 ? Surface.ROCK : Surface.GRASS;   // 절벽처럼 가파른 곳만 바위
     }
 
     // ------------------------------------------------------------------ 바이옴 (가볍게)

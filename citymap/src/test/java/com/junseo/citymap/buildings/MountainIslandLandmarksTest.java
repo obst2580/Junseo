@@ -234,14 +234,21 @@ class MountainIslandLandmarksTest {
     record View(String name, int x0, int z0, int x1, int z1, int ymin, int ymax, int scale, int cut, boolean top) {
     }
 
-    record Eye(String name, double x, double y, double z, double yaw, double pitch, int ymin, int ymax) {
+    /** r: 그릴 범위 (눈 둘레 반지름) */
+    record Eye(String name, double x, double y, double z, double yaw, double pitch, int ymin, int ymax, int r) {
+        Eye(String name, double x, double y, double z, double yaw, double pitch, int ymin, int ymax) {
+            this(name, x, y, z, yaw, pitch, ymin, ymax, 170);
+        }
     }
 
     static final View[] VIEWS = {
-            new View("lm-namsan-iso", 720, -105, 815, -5, 110, 312, 3, 0, false),
-            new View("lm-namsan-base", 722, -100, 812, -8, 130, 175, 5, 0, false),
-            new View("lm-namsan-b1", 740, -90, 795, -45, 130, 175, 8, 0, false),
-            new View("lm-namsan-top", 720, -105, 815, -5, 110, 312, 4, 0, true),
+            new View("mt-namsan-iso", 560, -200, 945, 130, 0, 200, 2, 0, false),
+            new View("mt-namsan-top", 560, -200, 945, 130, 0, 200, 2, 0, true),
+            new View("mt-bukhansan-iso", -315, -855, 755, -460, 0, 170, 1, 0, false),
+            new View("lm-namsan-iso", 720, -105, 815, -5, 30, 240, 3, 0, false),
+            new View("lm-namsan-base", 722, -100, 812, -8, 50, 100, 5, 0, false),
+            new View("lm-namsan-b1", 740, -90, 795, -45, 50, 100, 8, 0, false),
+            new View("lm-namsan-top", 720, -105, 815, -5, 30, 240, 4, 0, true),
             new View("lm-quarry-iso", -150, -805, 35, -480, 20, 200, 3, 0, false),
             new View("lm-quarry-top", -150, -805, 35, -480, 0, 200, 3, 0, true),
             new View("lm-quarry-yard", -110, -750, -25, -665, 25, 80, 7, 0, false),
@@ -253,8 +260,11 @@ class MountainIslandLandmarksTest {
     };
 
     static final Eye[] EYES = {
-            new Eye("eye-namsan-plaza", 767, 158.6, -24, 180, -22, 100, 312),
-            new Eye("eye-namsan-far", 715, 150, 70, 201, -28, 0, 312),
+            new Eye("eye-namsan-plaza", 767, 0, -24, 180, -10, 0, 260),
+            new Eye("eye-namsan-far", 715, 110, 70, 201, -12, 0, 260),
+            new Eye("eye-namsan-yongsan", 545, 45, 150, 230, 6, 0, 260, 330),
+            new Eye("eye-bukhansan-junggu", 230, 70, -380, 175, 4, 0, 260, 420),
+            new Eye("eye-bukhansan-pyeongchang", 300, 0, -520, 185, -8, 0, 260, 300),
             new Eye("eye-quarry-yard", -72, 0, -684, 200, -6, 20, 200),
             new Eye("eye-quarry-face", -90, 0, -718, -110, -12, 20, 200),
             new Eye("eye-quarry-road", -95, 0, -600, 180, 4, 0, 200),
@@ -284,7 +294,7 @@ class MountainIslandLandmarksTest {
             if (!only.isEmpty() && !e.name.contains(only)) {
                 continue;
             }
-            int r = 170;
+            int r = e.r;
             int gy = terrain.standY((int) e.x, (int) e.z);
             IsoRender ir = new IsoRender(terrain, b, (int) e.x - r, (int) e.z - r, (int) e.x + r, (int) e.z + r, g + e.ymin, g + e.ymax);
             // y 가 0 이면 그 자리 땅 위 눈높이, 아니면 월드 높이 그대로

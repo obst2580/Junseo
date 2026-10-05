@@ -41,7 +41,7 @@ final class Plans {
 
     /** 이름과 설계도 버전으로 정하는 난수 (같은 설계도면 같은 건물) */
     static Random random(CityTerrain t, String name) {
-        return new Random(name.hashCode() * 31L + t.layout().version() * 1_000_003L);
+        return new Random(name.hashCode() * 31L + t.layout().buildingSeed() * 1_000_003L);
     }
 
     /** 필지 하나에 맞는 건물을 놓습니다 */

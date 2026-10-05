@@ -14,6 +14,7 @@ import java.util.List;
  */
 public record Layout(
         int version,
+        int buildingSeed,
         double[] borderMin,
         double[] borderMax,
         TerrainSettings terrain,
@@ -156,7 +157,10 @@ public record Layout(
                 terrain.has("mountain_edge_fade") ? terrain.get("mountain_edge_fade").getAsDouble() : 220,
                 terrain.has("road_clear") ? terrain.get("road_clear").getAsDouble() : 30,
                 terrain.has("road_fade") ? terrain.get("road_fade").getAsDouble() : 150);
-        return new Layout(o.get("version").getAsInt(), point(border.getAsJsonArray("min")), point(border.getAsJsonArray("max")),
+        int version = o.get("version").getAsInt();
+        // building_seed: 건물 배치 난수 씨앗 (없으면 version). 지형만 바꿀 때 version 을 올려도 건물은 그대로 두려고 따로 둠
+        int buildingSeed = o.has("building_seed") ? o.get("building_seed").getAsInt() : version;
+        return new Layout(version, buildingSeed, point(border.getAsJsonArray("min")), point(border.getAsJsonArray("max")),
                 settings, districts, water, islands, roads, bridges, hubs, mountains);
     }
 
