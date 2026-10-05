@@ -101,7 +101,7 @@ class DensityReportTest {
                 int x = X0 + i * S, z = Z0 + j * S;
                 Column c = t.column(x, z);
                 int rgb;
-                if (c.isWater()) {
+                if (c.isWater() && !c.deck) {
                     rgb = 0x3A6EA5;
                 } else if (c.isRoad()) {
                     rgb = 0x707070;
@@ -134,7 +134,7 @@ class DensityReportTest {
                 for (int i = 0; i < cw; i++) {
                     int x = c[0] + i, z = c[1] + j;
                     Column col = t.column(x, z);
-                    int rgb = col.isWater() ? 0x3A6EA5 : col.isRoad() ? 0x707070 : col.mountainHeight > 0 ? 0x5E8C4A - Math.min(40, col.mountainHeight) * 0x000100 : 0xB9D79E;
+                    int rgb = col.isWater() && !col.deck ? 0x3A6EA5 : col.isRoad() ? 0x707070 : col.mountainHeight > 0 ? 0x5E8C4A - Math.min(40, col.mountainHeight) * 0x000100 : 0xB9D79E;
                     Placement p = b.at(x + 0.5, z + 0.5);
                     if (p != null) {
                         int hh = Math.min(100, height.get(p));
@@ -151,6 +151,14 @@ class DensityReportTest {
                 }
             }
             ImageIO.write(ci, "png", new File(dir, "density-" + names[q] + ".png"));
+        }
+        java.util.TreeMap<String, Integer> kinds = new java.util.TreeMap<>();
+        for (Placement p : b.placements()) {
+            kinds.merge(p.kind, 1, Integer::sum);
+        }
+        sb.append(kinds).append('\n');
+        for (Placement p : b.garages()) {
+            sb.append("garage ").append(p).append(" spots=").append(p.carSpots(t.groundY() + 1).size()).append('\n');
         }
         System.out.println(sb);
         java.nio.file.Files.writeString(new File(dir, "density.txt").toPath(), sb);
@@ -169,7 +177,8 @@ class DensityReportTest {
             for (int i = 0; i < W; i++) {
                 int x = X0 + i, z = Z0 + j;
                 Column c = t.column(x, z);
-                int[] best = {c.isWater() ? c.waterTop : c.groundY, c.isWater() ? 0x3A6EA5 : IsoRender.surfaceColor(c)};
+                boolean water = c.isWater() && !c.deck; // 다리 상판은 물 위 길
+                int[] best = {water ? c.waterTop : c.deck ? t.groundY() : c.groundY, water ? 0x3A6EA5 : IsoRender.surfaceColor(c)};
                 b.column(x, z, c, (y, block) -> {
                     if (y >= best[0] && !block.isAir() && block.rgb() >= 0) {
                         best[0] = y;
