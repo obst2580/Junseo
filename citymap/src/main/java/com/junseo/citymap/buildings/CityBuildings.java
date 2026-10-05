@@ -63,6 +63,9 @@ public final class CityBuildings {
         all.addAll(CheongnaPlan.plan(terrain));
         all.addAll(GuincheonPlan.plan(terrain));
         all.addAll(MarketPlan.plan(terrain));
+        all.addAll(YongsanPlan.plan(terrain));
+        all.addAll(GangnamPlan.plan(terrain));
+        all.addAll(HongdaePlan.plan(terrain));
         // 랜드마크를 먼저 짓고, 남은 동네 땅을 일반 건물로 채움
         for (String id : DistrictFill.DISTRICTS) {
             all.addAll(DistrictFill.fill(terrain, id, all));

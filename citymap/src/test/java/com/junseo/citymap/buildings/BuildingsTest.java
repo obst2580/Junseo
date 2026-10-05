@@ -56,6 +56,10 @@ class BuildingsTest {
         assertTrue(n.getOrDefault("factory", 0) >= 6, "구인천 공장");
         assertTrue(n.getOrDefault("house", 0) >= 100, "구인천 다세대");
         assertTrue(n.getOrDefault("shop", 0) >= 60, "시장 상가");
+        assertEquals(2, n.getOrDefault("police", 0), "용산·강남 경찰서");
+        assertEquals(1, n.getOrDefault("hotel", 0), "이태원 호텔");
+        assertTrue(n.getOrDefault("restaurant", 0) >= 8, "이태원 거리 건물");
+        assertTrue(n.getOrDefault("nightlife", 0) >= 10, "홍대 클럽 거리 건물");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */
