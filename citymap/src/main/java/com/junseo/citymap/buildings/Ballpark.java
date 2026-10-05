@@ -31,7 +31,7 @@ final class Ballpark {
     /** 바깥벽 밖 보도 폭 */
     static final int RING = 3;
     /** 외야 관중석 뒤 콘코스 폭 */
-    static final int OUTFIELD_CONCOURSE = 5;
+    static final int OUTFIELD_CONCOURSE = 8;
 
     private static final Block BLUE_SEAT = Block.of("warped_stairs", 0x2B6963);
     private static final Block ORANGE_SEAT = Block.of("waxed_cut_copper_stairs", 0xBF6B4F);
@@ -823,7 +823,7 @@ final class Ballpark {
 
     // ------------------------------------------------------------------ 콘코스
 
-    /** 2층 밑 콘코스 천장 조명, 1루·3루 쪽 바깥벽 안에 매점과 화장실 */
+    /** 2층 밑 콘코스 천장 조명, 1루·3루 쪽 콘코스 바깥벽 따라 매점(작은 가판)과 남녀 화장실 */
     private void concourse() {
         for (int i = 0; i < land.w; i++) {
             for (int j = 0; j < land.d; j++) {
@@ -836,54 +836,73 @@ final class Ballpark {
                 }
             }
         }
-        int fk = 0;
-        double wallAcross = FOUL + SIDE - 1.5; // 바깥벽 바로 안쪽
-        for (int side = 0; side < 2; side++) {
-            String toField = side == 0 ? dirName(e3i, e3j) : dirName(e1i, e1j);
-            for (double s = 6; s + 6 <= upperReach + 12; s += 13) {
-                double mid = s + 0.5;
-                int[] p = side == 0 ? cell(mid, -wallAcross) : cell(-wallAcross, mid);
-                if (blockedConcourse(side, s - 6, s + 6)) {
+        amenities();
+    }
+
+    /**
+     * 콘코스 바깥벽을 따라 남녀 화장실(두 곳)과 가판 매점: 벽 바로 안쪽 칸마다 그라운드 쪽을 보게 놓아 보고,
+     * 바닥이 비어 있고 앞에 지나갈 칸이 남는 자리에만 (서로 12칸 넘게 띄움).
+     */
+    private void amenities() {
+        List<int[]> placed = new ArrayList<>();
+        int fk = 0, rest = 0;
+        for (int j = 0; j < land.d; j++) {
+            for (int i = 0; i < land.w; i++) {
+                if (!stadium[i][j] || play[i][j] || u[i][j] < 1.5 || u[i][j] >= 2.5 || row(i, j) <= ROWS) {
                     continue;
                 }
-                Frame f = Frame.facing(v, p[0], p[1], toField);
-                if (fk % 3 == 1) {
-                    StadiumParts.restrooms(f);
-                } else {
-                    // 매점 상자는 a -1..9: 가운데 맞춤
-                    Frame g = Frame.facing(v, side == 0 ? cell(mid - 4, -wallAcross)[0] : cell(-wallAcross, mid - 4)[0],
-                            side == 0 ? cell(mid - 4, -wallAcross)[1] : cell(-wallAcross, mid - 4)[1], toField);
-                    StadiumParts.foodStand(g, StadiumParts.FOOD[(fk + side) % StadiumParts.FOOD.length]);
+                boolean far = true;
+                for (int[] p : placed) {
+                    far &= Math.abs(p[0] - i) + Math.abs(p[1] - j) > 14;
                 }
-                fk++;
+                if (!far) {
+                    continue;
+                }
+                String facing = opposite(outward(i, j));
+                Frame f = Frame.facing(v, i, j, facing);
+                if (rest < 2 && clearArea(f, -5, 5, 6)) {
+                    StadiumParts.restrooms(f);
+                    rest++;
+                    placed.add(new int[]{i, j});
+                } else if (clearArea(f, 0, 7, 4)) {
+                    StadiumParts.kiosk(f, StadiumParts.FOOD[fk++ % StadiumParts.FOOD.length]);
+                    placed.add(new int[]{i, j});
+                }
             }
         }
     }
 
-    /** 콘코스 바깥쪽 이 범위에 계단·출입구가 있는지 */
-    private boolean blockedConcourse(int side, double s0, double s1) {
-        for (double s = s0; s <= s1; s += 1) {
-            for (int k = 1; k <= 7; k++) {
-                double across = -(FOUL + SIDE - 1.5 - k + 1);
-                int[] p = side == 0 ? cell(s + 0.5, across) : cell(across, s + 0.5);
-                if (p[0] < 0 || p[1] < 0 || p[0] >= land.w || p[1] >= land.d) {
-                    return true;
+    /** 틀 f 에서 a0..a1, b 0..deep-1 이 빈 콘코스 바닥이고, b = deep 줄은 지나갈 수 있는지 (뒤 벽에 출입구 없음) */
+    private boolean clearArea(Frame f, int a0, int a1, int deep) {
+        for (int a = a0; a <= a1; a++) {
+            for (int b = -1; b <= deep; b++) {
+                int i = f.i(a, b), j = f.j(a, b);
+                if (i < 0 || j < 0 || i >= land.w || j >= land.d) {
+                    return false;
                 }
-                Block b = v.get(p[0], 0, p[1]);
-                if (b != null && !b.isAir()) {
-                    return true;
+                if (b == -1) {
+                    if (gate(i, j) || !stadium[i][j]) {
+                        return false;
+                    }
+                    continue;
                 }
-                Block f = v.get(p[0], -1, p[1]);
-                if (f == null || f.isAir() || !upper(p[0], p[1])) {
-                    return true;
+                boolean passage = b == deep;
+                if (!stadium[i][j] || play[i][j] || row(i, j) < (passage ? ROWS : ROWS + 1) || u[i][j] < (passage ? 1 : 1.5)) {
+                    return false;
                 }
-            }
-            int[] w = side == 0 ? cell(s + 0.5, -(FOUL + SIDE - 0.5)) : cell(-(FOUL + SIDE - 0.5), s + 0.5);
-            if (w[0] >= 0 && w[1] >= 0 && w[0] < land.w && w[1] < land.d && gate(w[0], w[1])) {
-                return true;
+                Block floor = v.get(i, -1, j);
+                if (floor == null || floor.isAir()) {
+                    return false;
+                }
+                for (int y = 0; y <= (passage ? 1 : 3); y++) {
+                    Block bl = v.get(i, y, j);
+                    if (bl != null && !bl.isAir()) {
+                        return false;
+                    }
+                }
             }
         }
-        return false;
+        return true;
     }
 
     // ------------------------------------------------------------------ 전광판·조명탑

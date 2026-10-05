@@ -44,6 +44,27 @@ final class StadiumParts {
         Interior.door(f, -1, 0, 2, "pale_oak", "west");
     }
 
+    /**
+     * 콘코스 가판 (작은 매점): 바깥 8×4 (a 0..7, b 0..3), 뒤(b = 0)는 벽 쪽, 앞(b = 3) 계산대, 위 차양(b 4 까지)과
+     * 차양 앞 표지판 둘, 옆(a = 0) 문.
+     */
+    static void kiosk(Frame f, String[] name) {
+        f.fill(0, 0, 0, 7, 2, 0, WHITE_CONCRETE);
+        f.fill(0, 0, 0, 0, 2, 3, WHITE_CONCRETE);
+        f.fill(7, 0, 0, 7, 2, 3, WHITE_CONCRETE);
+        f.fill(1, 0, 1, 6, 2, 2, AIR);
+        f.fill(1, 0, 3, 6, 0, 3, Furniture.COUNTER);
+        f.fill(1, 1, 3, 6, 2, 3, AIR);
+        f.set(2, 0, 1, SMOKER);
+        f.set(5, 0, 1, Furniture.FRIDGE);
+        f.set(5, 1, 1, Furniture.FRIDGE);
+        f.set(3, 2, 1, Interior.LIGHT);
+        f.fill(0, 3, 0, 7, 3, 4, Block.of("red_concrete", 0x8E2121));
+        f.set(2, 3, 5, Blocks.wallSign("spruce", "south", "white", true, "", name[0], name[1], ""));
+        f.set(5, 3, 5, Blocks.wallSign("spruce", "south", "white", true, "", name[0], name[1], ""));
+        Interior.door(f, 0, 0, 2, "pale_oak", "west");
+    }
+
     /** 남·여 화장실 나란히: 바깥 a -5..5, b 0..5, 문은 +b 쪽 벽 */
     static void restrooms(Frame f) {
         for (int n = 0; n < 2; n++) {
