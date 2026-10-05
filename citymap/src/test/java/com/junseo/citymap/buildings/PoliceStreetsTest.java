@@ -14,11 +14,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PoliceStreetsTest {
 
     static Voxels yongsan() {
-        return PoliceStation.build(89, 60, new Random(7), PoliceStation.Style.CLASSIC, "용산경찰서", 44);
+        return PoliceStation.build(89, 60, new Random(7), PoliceStation.Style.CLASSIC, "용산경찰서", 44, 10);
     }
 
     static Voxels gangnam() {
-        return PoliceStation.build(95, 60, new Random(8), PoliceStation.Style.MODERN, "강남경찰서", 35);
+        return PoliceStation.build(95, 60, new Random(8), PoliceStation.Style.MODERN, "강남경찰서", 35, 10);
     }
 
     @Test

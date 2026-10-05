@@ -57,6 +57,11 @@ class BuildingPreviewTest {
             new Eye("eye-cheongna-dome", -818, 2.6, 410, 0, -12, 80),
             new Eye("eye-fill-gangnam", 700, 2.6, 500, 180, 4, 80),
             new Eye("eye-fill-songpa", 1100, 2.6, 480, 180, 4, 80),
+            new Eye("eye-police-yongsan", 473, 2.6, -96, 0, -6, 80),
+            new Eye("eye-police-gangnam", 728, 2.6, 575, -90, -6, 80),
+            new Eye("eye-itaewon", 384, 2.6, -102, 180, 0, 75),
+            new Eye("eye-hongdae-club", -85, 2.6, -316, 180, 0, 75),
+            new Eye("eye-hongdae-busking", -88, 2.6, -335, -90, 2, 80),
     };
 
     @Test
@@ -103,8 +108,12 @@ class BuildingPreviewTest {
             new View("fill-songpa-iso", 1000, 380, 1200, 590, 100, 2, false, 0),
             new View("fill-yeouido-iso", -200, 40, 40, 260, 160, 2, false, 0),
             new View("fill-hongdae-iso", -300, -460, -140, -300, 60, 3, false, 0),
-            new View("pol-yongsan-top", 170, -250, 610, 170, 60, 2, true, 0),
-            new View("pol-gangnam-top", 405, 260, 1140, 830, 60, 1, true, 0),
-            new View("pol-hongdae-top", -375, -535, 195, -155, 60, 2, true, 0),
+            new View("bld-police-yongsan", 422, -84, 524, -12, 50, 4, false, 0),
+            new View("bld-police-gangnam", 731, 527, 802, 633, 50, 4, false, 0),
+            new View("bld-itaewon-iso", 340, -190, 432, -98, 50, 4, false, 0),
+            new View("bld-itaewon-2f", 340, -190, 432, -98, 50, 4, false, 6),
+            new View("bld-hongdae-club-iso", -116, -404, -54, -306, 40, 4, false, 0),
+            new View("bld-hongdae-club-b1", -116, -404, -54, -306, 40, 4, false, -3),
+            new View("bld-hongdae-club-1f", -116, -404, -54, -306, 40, 4, false, 2),
     };
 }

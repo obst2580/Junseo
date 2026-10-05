@@ -30,8 +30,8 @@ final class PoliceStation {
     /** 서는 높이: 1층 5, 2~5층 4, 6층(강당·무도장) 8, 옥상 */
     static final int[] LEVELS = {0, 5, 9, 13, 17, 21, 29};
     static final int FLOORS = LEVELS.length - 1;
-    /** 거점이 앞마당 앞 끝에서 이만큼 안쪽 */
-    static final int HUB_FROM_FRONT = 10;
+    /** 대지 깊이 (앞마당 + 건물 + 뒷마당) */
+    static final int SITE_DEPTH = 60;
 
     private static final Block IN = Interior.INNER_WALL;
     private static final Block CARPET = Rooms.CARPET_TILE;
@@ -53,14 +53,14 @@ final class PoliceStation {
     private final int wb0, wb1, eb0, eb1;
     private final Block wall, base, trim, glass, frame, band, letter;
 
-    private PoliceStation(int w, int d, Random r, Style style, String name, int hubI) {
+    private PoliceStation(int w, int d, Random r, Style style, String name, int hubI, int hubFront) {
         this.w = w;
         this.d = d;
         this.r = r;
         this.style = style;
         this.name = name;
         this.hubI = hubI;
-        this.hubJ = d - 1 - HUB_FROM_FRONT;
+        this.hubJ = d - 1 - hubFront;
         v = new Voxels(w, d, -1, LEVELS[FLOORS] + 18);
         bi0 = SIDE;
         bi1 = w - 1 - SIDE;
@@ -99,10 +99,11 @@ final class PoliceStation {
     }
 
     /**
-     * @param hubI 거점의 i (앞 끝에서 {@link #HUB_FROM_FRONT} 칸 안쪽 줄). 거점 둘레는 비워 둡니다
+     * @param hubI     거점의 i. 거점 둘레(5×5 와 여유)는 비워 둡니다
+     * @param hubFront 거점이 대지 앞 끝(도로 쪽)에서 몇 칸 안쪽인지
      */
-    static Voxels build(int w, int d, Random r, Style style, String name, int hubI) {
-        PoliceStation p = new PoliceStation(w, d, r, style, name, hubI);
+    static Voxels build(int w, int d, Random r, Style style, String name, int hubI, int hubFront) {
+        PoliceStation p = new PoliceStation(w, d, r, style, name, hubI, hubFront);
         p.slabs();
         for (int k = 0; k < FLOORS; k++) {
             p.floor(k);
@@ -114,6 +115,78 @@ final class PoliceStation {
         p.rearYard();
         p.v.connect();
         return p.v;
+    }
+
+    /**
+     * 거점 앞에 경찰서 대지를 잡아 놓습니다: 거점에서 가장 가까운 도로 쪽이 정면, 대지 앞 끝은 그 인도 바로 안쪽.
+     * 대지는 도로를 따라 width 칸, 안쪽으로 {@link #SITE_DEPTH} 칸이고, 거점이 가운데 오도록 하되
+     * 도로·물·산·구역 밖에 걸리면 옆으로 밀어 봅니다. 못 놓으면 null.
+     */
+    static Placement place(com.junseo.citymap.terrain.CityTerrain t, com.junseo.citymap.geo.Polygon area, double hx, double hz,
+                           int width, String name, Style style, Random rnd) {
+        int x = (int) Math.floor(hx), z = (int) Math.floor(hz);
+        int[][] dirs = {{0, 1}, {-1, 0}, {0, -1}, {1, 0}};
+        String[] fronts = {"south", "west", "north", "east"};
+        int best = -1, dist = Integer.MAX_VALUE;
+        for (int k = 0; k < 4; k++) {
+            for (int s = 1; s <= 40; s++) {
+                if (blocked(t, x + dirs[k][0] * s, z + dirs[k][1] * s)) {
+                    if (s < dist) {
+                        dist = s;
+                        best = k;
+                    }
+                    break;
+                }
+            }
+        }
+        if (best < 0 || dist < 8) {
+            return null;
+        }
+        int hubFront = dist - 1;
+        int dx = dirs[best][0], dz = dirs[best][1];
+        // 앞 끝 칸과 안쪽 끝 칸 (정면 방향 축)
+        int along = dx != 0 ? x : z;
+        int front = along + (dx + dz) * hubFront, back = front - (dx + dz) * (SITE_DEPTH - 1);
+        int lo = Math.min(front, back), hi = Math.max(front, back);
+        int lateral = dx != 0 ? z : x;
+        for (int shift = 0; shift <= width / 2 - 8; shift++) {
+            for (int sign : new int[]{1, -1}) {
+                int c0 = lateral - width / 2 + shift * sign, c1 = c0 + width - 1;
+                int x0 = dx != 0 ? lo : c0, x1 = dx != 0 ? hi : c1, z0 = dx != 0 ? c0 : lo, z1 = dx != 0 ? c1 : hi;
+                if (!landOk(t, area, x0, z0, x1, z1)) {
+                    continue;
+                }
+                String f = fronts[best];
+                // 정면 방향으로 돌렸을 때 거점의 건물 좌표 i
+                int hubI = switch (f) {
+                    case "south" -> x - x0;
+                    case "north" -> x1 - x;
+                    case "west" -> z - z0;
+                    default -> z1 - z;
+                };
+                long seed = rnd.nextLong();
+                return Placement.rect(name, "police", x0, z0, x1, z1, f,
+                        (w, d) -> build(w, d, new Random(seed), style, name, hubI, hubFront));
+            }
+        }
+        return null;
+    }
+
+    private static boolean blocked(com.junseo.citymap.terrain.CityTerrain t, int x, int z) {
+        com.junseo.citymap.terrain.Column c = t.column(x, z);
+        return c.isRoad() || c.isWater() || c.deck || c.tunnel;
+    }
+
+    /** 직사각형이 모두 구역 안의 평평한 땅인지 (도로·물·산이 아님) */
+    static boolean landOk(com.junseo.citymap.terrain.CityTerrain t, com.junseo.citymap.geo.Polygon area, int x0, int z0, int x1, int z1) {
+        for (int z = z0; z <= z1; z++) {
+            for (int x = x0; x <= x1; x++) {
+                if (blocked(t, x, z) || t.column(x, z).mountainHeight > 0 || !area.contains(x + 0.5, z + 0.5)) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** 층마다 서는 높이 (검사용) */
