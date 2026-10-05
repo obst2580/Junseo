@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import javax.imageio.ImageIO;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -86,6 +88,68 @@ class YeouidoJungguTest {
             Voxels v = Myeongdong.building(w, d, new Random(seed), kind, floors);
             assertLevels("명동 " + kind + " " + w + "×" + d + " #" + seed, new WalkCheck(v).run(), Myeongdong.levels(floors), 6);
         }
+    }
+
+    /** 실제 도시 배치에서 이름이 names 중 하나인 건물들을 월드 좌표 상자 하나로 합침 (x0, z0 이 상자 0, 0) */
+    static Voxels compose(List<String> names, int x0, int z0, int x1, int z1, int ymax) {
+        List<Placement> ps = new ArrayList<>();
+        for (Placement p : TestCity.buildings().placements()) {
+            if (names.contains(p.name)) {
+                ps.add(p);
+            }
+        }
+        assertTrue(ps.size() == names.size(), "건물을 다 찾지 못함: " + names + " → " + ps);
+        Voxels v = new Voxels(x1 - x0 + 1, z1 - z0 + 1, -2, ymax);
+        for (int z = z0; z <= z1; z++) {
+            for (int x = x0; x <= x1; x++) {
+                int fx = x - x0, fz = z - z0;
+                for (Placement p : ps) {
+                    double[] b = p.bounds();
+                    if (x + 1 > b[0] && x < b[2] && z + 1 > b[1] && z < b[3]) {
+                        p.column(x, z, 0, Integer.MIN_VALUE, (y, blk) -> v.set(fx, y, fz, blk));
+                    }
+                }
+            }
+        }
+        return v;
+    }
+
+    /** 거점 (월드) 에서 걸어서 (월드 x, y, z) 에 갈 수 있는지 */
+    static void assertWalk(String what, Voxels v, int x0, int z0, String hubId, int[]... targets) {
+        var hub = Plans.hub(TestCity.terrain(), hubId);
+        WalkCheck walk = new WalkCheck(v).run((int) Math.floor(hub.x()) - x0 + 1, 0, (int) Math.floor(hub.z()) - z0 + 1);
+        for (int[] t : targets) {
+            int r = t.length > 3 ? t[3] : 0;
+            boolean ok = false;
+            for (int dz = -r; dz <= r && !ok; dz++) {
+                for (int dx = -r; dx <= r && !ok; dx++) {
+                    ok = walk.reached(t[0] + dx - x0, t[1], t[2] + dz - z0);
+                }
+            }
+            assertTrue(ok, what + ": 거점에서 (" + t[0] + ", " + t[1] + ", " + t[2] + ") 둘레 " + r + "칸까지 걸어서 못 가요");
+        }
+    }
+
+    @Test
+    void stationPlatformsAreReachableFromThePlaza() {
+        int x0 = 262, z0 = -515, x1 = 370, z1 = -310;
+        Voxels v = compose(List.of("서울역 (새 역사)", "서울역 승강장", "서울역 광장", "문화역서울284 (옛 서울역사)"), x0, z0, x1, z1, 40);
+        // 1번 승강장(역사 옆), 섬식 승강장 둘(연결 통로 계단으로), 옛 역사 2층
+        assertWalk("서울역", v, x0, z0, "station", new int[]{331, 1, -420}, new int[]{342, 1, -420}, new int[]{358, 1, -380},
+                new int[]{305, 6, -425});
+    }
+
+    @Test
+    void cityHallAndJewelryAreReachableFromTheirHubs() {
+        int x0 = 505, z0 = -520, x1 = 600, z1 = -310;
+        Voxels v = compose(List.of("서울광장", "서울도서관 (옛 서울시청)", "서울시청 (새 청사)", "시청 마당"), x0, z0, x1, z1, 70);
+        int[] nl = CityHall.newLevels();
+        assertWalk("서울시청", v, x0, z0, "cityhall", new int[]{553, CityHall.OLD_LEVELS[3], -430}, new int[]{553, nl[8], -470, 12},
+                new int[]{553, nl[12], -470, 12});
+        int mx0 = 755, mz0 = -400, mx1 = 862, mz1 = -310;
+        Voxels m = compose(List.of("명동 거리", "명동 보석상"), mx0, mz0, mx1, mz1, 30);
+        // 보석상 매장 안 (진열장 사이)과 2층
+        assertWalk("명동 보석상", m, mx0, mz0, "jewelry", new int[]{801, 0, -325, 2}, new int[]{805, Myeongdong.levels(5)[1], -326, 4});
     }
 
     /** 하늘색 여백을 잘라 낸 그림 */

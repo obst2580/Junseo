@@ -56,6 +56,14 @@ class BuildingsTest {
         assertTrue(n.getOrDefault("factory", 0) >= 6, "구인천 공장");
         assertTrue(n.getOrDefault("house", 0) >= 100, "구인천 다세대");
         assertTrue(n.getOrDefault("shop", 0) >= 60, "시장 상가");
+        assertEquals(1, n.getOrDefault("bank", 0), "63빌딩 (은행 본점)");
+        assertEquals(2, n.getOrDefault("studio", 0), "방송국 본관·스튜디오");
+        assertEquals(2, n.getOrDefault("cityhall", 0), "시청 옛·새 청사");
+        assertEquals(1, n.getOrDefault("garage", 0), "시청 차고지");
+        assertEquals(3, n.getOrDefault("station", 0), "서울역 새·옛 역사, 승강장");
+        assertEquals(1, n.getOrDefault("jewelry", 0), "명동 보석상");
+        assertEquals(1, n.getOrDefault("cafe", 0), "명동 카페");
+        assertTrue(n.getOrDefault("retail", 0) >= 8, "명동 상가");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */
