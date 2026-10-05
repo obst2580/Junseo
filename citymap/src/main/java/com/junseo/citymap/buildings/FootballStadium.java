@@ -293,25 +293,9 @@ final class FootballStadium {
             int i0 = hubI + side * 9 - (side < 0 ? 4 : 0);
             int j0 = jFront + 1;
             if (land.inner(i0, j0, 2) && land.inner(i0 + 4, j0 + 2, 2)) {
-                ticketBooth(i0, j0);
+                StadiumParts.ticketBooth(new Frame(v, i0, j0, 0));
             }
         }
-    }
-
-    /** 매표소: 바깥 5×3, 정면 창구 세 칸, 뒤 문 */
-    private void ticketBooth(int i0, int j0) {
-        Frame f = new Frame(v, i0, j0, 0);
-        f.walls(0, 0, 0, 4, 2, 2, WHITE_CONCRETE);
-        f.fill(1, 0, 1, 3, 2, 1, AIR);
-        for (int a = 1; a <= 3; a++) {
-            f.set(a, 1, 2, GLASS_PANE);
-            f.set(a, 0, 1, Furniture.COUNTER);
-        }
-        Interior.door(f, 2, 0, 0, "pale_oak", "north");
-        f.fill(-1, 3, -1, 5, 3, 3, Block.of("smooth_stone_slab[type=bottom,waterlogged=false]", 0x9E9E9E));
-        f.fill(-1, 3, 3, 5, 3, 3, RED_CONCRETE);
-        f.set(2, 2, 3, Blocks.wallSign("dark_oak", "south", "white", true, "", "매표소", "", ""));
-        f.set(2, 2, 1, Interior.LIGHT);
     }
 
     // ------------------------------------------------------------------ 관중석 그릇
@@ -610,7 +594,6 @@ final class FootballStadium {
             }
         }
         // 긴 변 콘코스 뒤쪽(바깥벽 안): 매점과 화장실
-        String[][] food = {{"치킨", "맥주"}, {"떡볶이", "순대"}, {"김밥", "어묵"}, {"핫도그", "음료"}, {"커피", "빵"}};
         int fk = 0;
         for (int side = -1; side <= 1; side += 2) {
             double zEdge = cz + side * bz;
@@ -623,29 +606,11 @@ final class FootballStadium {
                 if (blocked(ci - 5, ci + 5, jw, side)) {
                     continue;
                 }
-                String into = side > 0 ? "north" : "south"; // 피치 쪽
                 Frame f = Frame.facing(v, ci + (side > 0 ? 4 : -4), jw, side > 0 ? "north" : "south");
                 if (restroom) {
-                    // 남·여 화장실 (안쪽 깊이 4)
-                    for (int n = 0; n < 2; n++) {
-                        int a0 = n * 5 - 4;
-                        Interior.restroom(f, a0, 1, a0 + 3, 4, 0, 4, n == 0 ? "남자 화장실" : "여자 화장실", a0 + 2);
-                    }
+                    StadiumParts.restrooms(f);
                 } else {
-                    // 매점: 계산대, 뒤 선반과 조리대, 매단 간판
-                    String[] name = food[fk++ % food.length];
-                    f.walls(-1, 0, 0, 9, 3, 4, WHITE_CONCRETE);
-                    f.fill(0, 0, 1, 8, 3, 3, AIR);
-                    f.fill(0, 0, 4, 8, 2, 4, AIR);
-                    f.fill(0, 0, 4, 8, 0, 4, Furniture.COUNTER);
-                    f.fill(0, 0, 1, 8, 0, 1, Furniture.COUNTER);
-                    f.set(2, 1, 1, SMOKER);
-                    f.set(5, 1, 1, Furniture.FRIDGE);
-                    f.set(6, 1, 1, Furniture.FRIDGE);
-                    f.set(4, 2, 2, Interior.LIGHT);
-                    f.set(2, 3, 5, Blocks.hangingSign("spruce", 0, "white", true, name[0], name[1]));
-                    f.set(6, 3, 5, Blocks.hangingSign("spruce", 0, "white", true, name[0], name[1]));
-                    Interior.door(f, -1, 0, 2, "pale_oak", "west");
+                    StadiumParts.foodStand(f, StadiumParts.FOOD[fk++ % StadiumParts.FOOD.length]);
                 }
             }
         }

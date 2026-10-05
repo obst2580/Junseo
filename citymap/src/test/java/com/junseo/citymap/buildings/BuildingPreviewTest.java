@@ -60,6 +60,7 @@ class BuildingPreviewTest {
             new Eye("eye-worldcup-plaza", -530, 2.6, -285, 20, -8, 80),
             new Eye("eye-worldcup-stands", -549, 15.6, -266, 0, 22, 85),
             new Eye("eye-worldcup-concourse", -560, 1.7, -259, -90, 0, 80),
+            new Eye("eye-worldcup-pitch", -549, -5.3, -215, 180, -8, 85),
     };
 
     @Test
