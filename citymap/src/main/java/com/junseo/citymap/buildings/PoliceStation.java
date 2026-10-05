@@ -197,8 +197,21 @@ final class PoliceStation {
         switch (k) {
             case 0 -> ground();
             case 1 -> {
-                office(bi0 + 1, cx - 1, L, h, "형사과", new String[]{"강력1팀", "강력2팀", "형사지원팀"});
-                office(cx + 1, bi1 - 1, L, h, "여성청소년과", new String[]{"여청수사팀", "학교폭력", "실종수사"});
+                if (style == Style.MODERN) {
+                    // 2층 높이로 트인 로비 (아트리움): 앞쪽 가운데 바닥을 비우고 복도에 유리 난간
+                    office(bi0 + 1, cx - 10, L, h, "형사과", new String[]{"강력1팀", "강력2팀"});
+                    office(cx + 10, bi1 - 1, L, h, "여성청소년과", new String[]{"여청수사팀", "학교폭력"});
+                    v.fill(cx - 9, L - 1, jF0, cx + 9, L - 1, jF1, AIR);
+                    v.fill(cx - 9, L, jCS, cx + 9, top, jCS, AIR);
+                    v.fill(cx - 9, L, jCS, cx + 9, L, jCS, Block.of("glass_pane", 0xC8DCE4));
+                    for (int i = cx - 6; i <= cx + 6; i += 6) {
+                        v.set(i, top, (jF0 + jF1) / 2, CHAIN);
+                        v.set(i, top - 1, (jF0 + jF1) / 2, Interior.LIGHT);
+                    }
+                } else {
+                    office(bi0 + 1, cx - 1, L, h, "형사과", new String[]{"강력1팀", "강력2팀", "형사지원팀"});
+                    office(cx + 1, bi1 - 1, L, h, "여성청소년과", new String[]{"여청수사팀", "학교폭력", "실종수사"});
+                }
                 cells(wb0, wb1, L, h);
                 interrogation(eb0, eb1, L, h, 1);
             }
@@ -766,6 +779,14 @@ final class PoliceStation {
                 }
                 return !corner && t % 4 == 2 && y >= L + 1 && y <= L + h - 3 ? glass : wall;
             }
+            int c = t - (cx - bi0);
+            if (front && Math.abs(c) <= 8) {
+                // 정문 위 가운데: 회색 돌 틀 안의 세로 유리면
+                if (Math.abs(c) >= 7) {
+                    return base;
+                }
+                return y == L - 1 ? frame : c % 3 == 0 ? frame : glass;
+            }
             if (corner || t % 4 == 0) {
                 return trim;
             }
@@ -781,6 +802,14 @@ final class PoliceStation {
                 return band;
             }
             return !frameZone && t % 3 != 0 && y >= L + 1 && y <= L + h - 3 ? glass : (frameZone ? wall : band);
+        }
+        if (front && k <= 1 && Math.abs(t - (cx - bi0)) <= 10) {
+            // 아트리움 로비: 두 층 통유리, 굵은 돌 기둥
+            int c = Math.abs(t - (cx - bi0));
+            if (c == 10 || (c % 5 == 0 && y >= 0)) {
+                return c == 10 ? wall : frame;
+            }
+            return k == 1 && y == L - 1 ? Block.of("glass", 0xC8DCE4) : Block.of("glass", 0xC8DCE4);
         }
         if (frameZone) {
             if (t == 3 || t == n - 3) {
@@ -970,6 +999,14 @@ final class PoliceStation {
             int top = n == 1 ? 13 : 11;
             v.fill(pi, 0, pj, pi, top, pj, Block.of("iron_bars", 0x888888));
             v.set(pi, top + 1, pj, Block.of("lightning_rod[facing=up,powered=false,waterlogged=false]", 0xC57A55));
+        }
+        // 표지석 (정문 길 동쪽, 도로 가까이): 돌덩이와 이름판
+        int mi = cx + 6, mj = j1 - 2;
+        if (!nearHub(mi, mj, 2) && !nearHub(mi + 3, mj, 2)) {
+            v.fill(mi, 0, mj, mi + 3, 1, mj, style == Style.CLASSIC ? POLISHED_GRANITE : POLISHED_DEEPSLATE);
+            v.fill(mi, -1, mj - 1, mi + 3, -1, mj + 1, POLISHED_ANDESITE);
+            v.set(mi + 1, 1, mj + 1, Blocks.wallSign("dark_oak", "south", "white", false, "", name));
+            v.set(mi + 2, 1, mj + 1, Blocks.wallSign("dark_oak", "south", "white", false, "서울", "경찰청"));
         }
         // 도로 쪽 볼라드 (차 드나드는 곳은 비움)
         for (int i = 0; i < w; i += 2) {
