@@ -441,12 +441,7 @@ final class SupertallTower {
 
     /** 포디움 칸인지 (타워 밑 바닥판 바깥, 포디움 상자 안) */
     private boolean pod(int i, int j) {
-        return i >= pi0 && i <= pi1 && j >= pj0 && j <= pj1 && !inPlan(i, j, 0) && !nearTower(i, j);
-    }
-
-    /** 타워 바로 옆 1칸 (타워 유리벽과 포디움 사이 틈 없이 붙임) */
-    private boolean nearTower(int i, int j) {
-        return false;
+        return i >= pi0 && i <= pi1 && j >= pj0 && j <= pj1 && !inPlan(i, j, 0);
     }
 
     private boolean podEdge(int i, int j) {

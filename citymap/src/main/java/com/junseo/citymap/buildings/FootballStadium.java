@@ -70,9 +70,6 @@ final class FootballStadium {
     static Voxels build(SiteLand land, int hubI, int hubJ, Random r) {
         FootballStadium s = new FootballStadium(land, hubI, hubJ, r);
         s.fit();
-        if (Boolean.getBoolean("mapPreview")) {
-            System.out.println("월드컵경기장 맞춤: 가운데 " + s.cx + "," + s.cz + " 바깥 " + s.bx + "×" + s.bz + " 피치 " + s.pitchL + "×" + s.pitchW + " 땅 " + land.w + "×" + land.d + " 거점 " + hubI + "," + hubJ);
-        }
         s.plaza();
         s.bowl();
         s.pitch();
@@ -371,7 +368,7 @@ final class FootballStadium {
         boolean post = a >= 1000 ? Math.floorMod((int) Math.floor((a - 1000) / 7.5), 2) == 0 : Math.floorMod((int) Math.floor(a), 4) == 0;
         int top = topRowY(i, j);
         v.set(i, -1, j, POLISHED_ANDESITE);
-        for (int y = 0; y <= roofLevel(); y++) {
+        for (int y = 0; y <= roofY; y++) {
             Block b;
             if (y <= 3) {
                 b = post ? WHITE_CONCRETE : y == 0 ? LIGHT_GRAY_CONCRETE : GLASS;
@@ -404,10 +401,6 @@ final class FootballStadium {
             return Math.abs(px - (hubI + 0.5 - cx) * (pz > 0 ? 1 : 0)) < 3.5 || Math.abs(Math.abs(px) - third) < 3;
         }
         return Math.abs(pz) < 3.5;
-    }
-
-    private int roofLevel() {
-        return roofY;
     }
 
     // ------------------------------------------------------------------ 피치

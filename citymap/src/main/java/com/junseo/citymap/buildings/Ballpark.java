@@ -74,9 +74,6 @@ final class Ballpark {
     static Voxels build(SiteLand land, int hubI, int hubJ, Random r) {
         Ballpark b = new Ballpark(land, hubI, hubJ, r);
         b.fit();
-        if (Boolean.getBoolean("mapPreview")) {
-            System.out.println("잠실 야구장 맞춤: 홈 " + b.hi + "," + b.hj + " 좌우 " + b.L + " 가운데 " + b.C + " 땅 " + land.w + "×" + land.d);
-        }
         b.regions();
         b.plaza();
         b.bowl();

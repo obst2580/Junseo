@@ -140,29 +140,6 @@ class SongpaMapoTest {
         return b == null || b.isAir() || WalkCheck.passable(b);
     }
 
-    /** 검사 실패 때 보는 지도 (build/walk-이름.txt): 칸마다 걸어서 간 가장 높은 곳 (0-9, a-z = 10.., A-Z = -1..), 못 가면 '.' */
-    static void dump(DeepWalk walk, String name) {
-        Voxels v = walk.v;
-        StringBuilder sb = new StringBuilder();
-        for (int j = 0; j < v.d; j++) {
-            for (int i = 0; i < v.w; i++) {
-                int best = Integer.MIN_VALUE;
-                for (int y = v.y0; y < v.y0 + v.h; y++) {
-                    if (walk.reached(i, y, j)) {
-                        best = y;
-                    }
-                }
-                sb.append(best == Integer.MIN_VALUE ? '.' : best < 0 ? (char) ('A' - best - 1) : best < 10 ? (char) ('0' + best) : (char) ('a' + best - 10));
-            }
-            sb.append('\n');
-        }
-        try {
-            java.nio.file.Files.writeString(java.nio.file.Path.of("build/walk-" + name + ".txt"), sb);
-        } catch (IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-    }
-
     @Test
     void worldCupStadiumEveryTierWalkable() {
         Placement p = find("stadium");
