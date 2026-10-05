@@ -89,12 +89,8 @@ final class DistrictFill {
             // 구인천: 공장 사이 낡은 다세대·상가주택, 5층 주공아파트
             Map.entry("guincheon", new Style(spec(14, 10, 15, false, 12, 18, 2), r(3, 5), r(2, 4), r(2, 4), r(0, 0), true, 10, r(5, 5), 25, 260, false)));
 
-    /** 구역마다 학교 수 (아파트·주택이 많은 동네일수록) */
-    static final Map<String, Integer> SCHOOLS = Map.ofEntries(
-            Map.entry("yeouido", 1), Map.entry("junggu", 1), Map.entry("yongsan", 1), Map.entry("gangnam", 2),
-            Map.entry("songpa", 2), Map.entry("mapo", 2), Map.entry("gwangjin", 1), Map.entry("hongdae", 1),
-            Map.entry("university", 1), Map.entry("guincheon", 1));
-    private static final String[] LEVELS = {"초등학교", "중학교", "고등학교"};
+    /** 학교는 도시에 세 곳만 [운영자 요청: 너무 많지 않게]: 잠실 초등학교, 공덕 중학교, 대치 고등학교 */
+    static final Map<String, String> SCHOOLS = Map.of("songpa", "초등학교", "mapo", "중학교", "gangnam", "고등학교");
 
     /** 채우는 구역 (청라는 분양 필지, 공항은 따로. 구인천·대형시장은 자기 계획 다음에 남은 땅만) */
     static final String[] DISTRICTS = {"yeouido", "junggu", "yongsan", "gangnam", "songpa", "mapo", "gwangjin", "hongdae",
@@ -142,7 +138,8 @@ final class DistrictFill {
 
     private void run() {
         String complex = COMPLEX[rnd.nextInt(COMPLEX.length)];
-        int schoolsLeft = SCHOOLS.getOrDefault(id, 0), schoolNo = rnd.nextInt(LEVELS.length);
+        String schoolLevel = SCHOOLS.get(id);
+        int schoolsLeft = schoolLevel == null ? 0 : 1;
         for (int[] block : m.blocks()) {
             if (block[4] < 150) {
                 continue;
@@ -153,9 +150,8 @@ final class DistrictFill {
             if (!regular) {
                 continue;
             }
-            if (schoolsLeft > 0 && bw >= School.MIN_W && bd >= School.MIN_D && rnd.nextInt(100) < 40) {
-                String level = LEVELS[schoolNo++ % LEVELS.length];
-                List<Placement> school = School.plan(m, block, id, level, KoreanNames.prefix(rnd) + level, rnd);
+            if (schoolsLeft > 0 && bw >= School.MIN_W && bd >= School.MIN_D) {
+                List<Placement> school = School.plan(m, block, id, schoolLevel, KoreanNames.prefix(rnd) + schoolLevel, rnd);
                 if (!school.isEmpty()) {
                     out.addAll(school);
                     schoolsLeft--;
