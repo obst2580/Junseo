@@ -9,11 +9,15 @@ import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Keys;
 import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
+import com.junseo.city.vehicle.model.CarDesign;
+import com.junseo.city.vehicle.model.CarModels;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.title.Title;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
@@ -26,6 +30,8 @@ import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
+import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -40,6 +46,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
@@ -60,6 +67,16 @@ public final class CarService implements Listener {
     /** 운전석 높이를 낮추려고 갑옷 거치대를 이만큼 줄입니다. */
     private static final double BASE_SCALE = 0.25;
     private static final double DRIVER_CAMERA_DISTANCE = 6.0;
+
+    /** 3D 모델 차를 실제 크기의 몇 배로 그릴지 (마인크래프트 사람 키에 맞춰 조금 키움) */
+    static final float MODEL_SCALE = 1.2f;
+    /** 아이템 표시 엔티티는 모델을 y 축으로 180° 돌려 그리므로 되돌림 */
+    private static final Quaternionf ITEM_FLIP = new Quaternionf().rotationY((float) Math.PI);
+    /** 번호판 글자 크기 */
+    private static final float PLATE_TEXT_SCALE = 0.42f;
+    /** 앞바퀴 최대 꺾임 (도) */
+    private static final float MAX_STEER = 28f;
+    private static final String PLATE_LETTERS = "가나다라마거너더러머버서어저고노도로모보소오조구누두루무부수우주";
 
     /** 차 부품 하나 (차 중심 바닥 기준, +z 가 앞쪽). */
     private record Part(Material material, float x1, float y1, float z1, float x2, float y2, float z2, boolean glow) {
@@ -124,37 +141,53 @@ public final class CarService implements Listener {
             tag(stand);
         });
         float attachY = (float) base.getHeight();
-        List<BlockDisplay> displays = new ArrayList<>();
-        for (Part part : model(type)) {
-            BlockDisplay display = world.spawn(loc, BlockDisplay.class, d -> {
-                d.setBlock(part.material().createBlockData());
-                d.setTransformation(new Transformation(
-                        new Vector3f(part.x1(), part.y1() - attachY, part.z1()),
-                        new Quaternionf(),
-                        new Vector3f(part.x2() - part.x1(), part.y2() - part.y1(), part.z2() - part.z1()),
-                        new Quaternionf()));
-                d.setTeleportDuration(2);
-                d.setShadowRadius(0f);
-                d.setPersistent(false);
-                if (part.glow()) {
-                    d.setBrightness(new Display.Brightness(15, 15));
-                }
-                d.setRotation(yaw, 0);
-                tag(d);
-            });
-            base.addPassenger(display);
-            displays.add(display);
+        List<Display> displays = new ArrayList<>();
+        List<ItemDisplay> wheels = new ArrayList<>();
+        String plate = plateNumber(keyId);
+        CarDesign design = type.design();
+        if (design != null) {
+            // 리소스팩 3D 모델: 차체 하나 + 바퀴 넷 + 앞뒤 번호판 글자
+            displays.add(itemDisplay(world, loc, yaw, CarModels.bodyModel(design), bodyTransform(attachY), true));
+            for (int i = 0; i < 4; i++) {
+                ItemDisplay w = itemDisplay(world, loc, yaw, CarModels.wheelModel(design), wheelTransform(design, i, attachY, 0, 0), false);
+                wheels.add(w);
+                displays.add(w);
+            }
+            displays.add(plateDisplay(world, loc, yaw, design, plate, attachY, true));
+            displays.add(plateDisplay(world, loc, yaw, design, plate, attachY, false));
+        } else {
+            for (Part part : model(type)) {
+                displays.add(world.spawn(loc, BlockDisplay.class, d -> {
+                    d.setBlock(part.material().createBlockData());
+                    d.setTransformation(new Transformation(
+                            new Vector3f(part.x1(), part.y1() - attachY, part.z1()),
+                            new Quaternionf(),
+                            new Vector3f(part.x2() - part.x1(), part.y2() - part.y1(), part.z2() - part.z1()),
+                            new Quaternionf()));
+                    d.setTeleportDuration(2);
+                    d.setShadowRadius(0f);
+                    d.setPersistent(false);
+                    if (part.glow()) {
+                        d.setBrightness(new Display.Brightness(15, 15));
+                    }
+                    d.setRotation(yaw, 0);
+                    tag(d);
+                }));
+            }
+        }
+        for (Display d : displays) {
+            base.addPassenger(d);
         }
         // 클릭 판정도 차에 태워서 매 틱 따로 옮기지 않아도 되게 (Folia 에서 순간이동은 비싸요)
         Interaction hitbox = world.spawn(loc, Interaction.class, i -> {
-            i.setInteractionWidth(2.2f);
-            i.setInteractionHeight(1.8f);
+            i.setInteractionWidth(design != null ? 2.4f : 2.2f);
+            i.setInteractionHeight(design != null ? 1.7f : 1.8f);
             i.setResponsive(true);
             i.setPersistent(false);
             tag(i);
         });
         base.addPassenger(hitbox);
-        Car car = new Car(type, owner, keyId, base, hitbox, displays, yaw);
+        Car car = new Car(type, owner, keyId, base, hitbox, displays, wheels, plate, yaw);
         byKey.put(keyId, car);
         byEntity.put(base.getUniqueId(), car);
         byEntity.put(hitbox.getUniqueId(), car);
@@ -169,6 +202,74 @@ public final class CarService implements Listener {
         });
         world.playSound(loc, Sound.BLOCK_PISTON_EXTEND, 1f, 0.6f);
         return car;
+    }
+
+    /** 3D 모델 한 조각 (아이템 표시 엔티티) */
+    private static ItemDisplay itemDisplay(World world, Location loc, float yaw, String model, Transformation tf, boolean shadow) {
+        return world.spawn(loc, ItemDisplay.class, d -> {
+            ItemStack stack = new ItemStack(Material.PAPER);
+            ItemMeta meta = stack.getItemMeta();
+            meta.setItemModel(NamespacedKey.fromString(model));
+            stack.setItemMeta(meta);
+            d.setItemStack(stack);
+            d.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
+            d.setTransformation(tf);
+            d.setTeleportDuration(2);
+            d.setInterpolationDuration(1);
+            d.setShadowRadius(shadow ? 1.4f : 0f);
+            d.setShadowStrength(0.75f);
+            d.setPersistent(false);
+            d.setRotation(yaw, 0);
+            tag(d);
+        });
+    }
+
+    /** 차체: 모델 (8, 0, 8) 이 차 바닥 가운데. 모델 1 칸 = 1/8 m 라서 2배 × MODEL_SCALE */
+    private static Transformation bodyTransform(float attachY) {
+        return new Transformation(new Vector3f(0, MODEL_SCALE - attachY, 0), new Quaternionf(),
+                new Vector3f(2 * MODEL_SCALE), ITEM_FLIP);
+    }
+
+    /** 바퀴 i (0 앞왼, 1 앞오, 2 뒤왼, 3 뒤오): 모델 가운데가 바퀴 중심. 굴림(spin, 라디안)·꺾임(steer, 도) */
+    private static Transformation wheelTransform(CarDesign d, int i, float attachY, double spin, float steer) {
+        boolean front = i < 2;
+        float x = (i % 2 == 0 ? 1 : -1) * (float) d.track() / 2 * MODEL_SCALE;
+        float y = (float) d.wheelRadius() * MODEL_SCALE - attachY;
+        float z = (float) (front ? d.frontAxle() : d.rearAxle()) * MODEL_SCALE;
+        Quaternionf rot = new Quaternionf().rotationY((float) Math.toRadians(front ? steer : 0)).rotateX((float) spin);
+        return new Transformation(new Vector3f(x, y, z), rot, new Vector3f(2 * MODEL_SCALE), ITEM_FLIP);
+    }
+
+    /** 번호판 글자 (검은 글씨, 배경 없음). 뒤 번호판은 뒤를 보게 돌림 */
+    private static TextDisplay plateDisplay(World world, Location loc, float yaw, CarDesign d, String plate, float attachY, boolean front) {
+        double[] p = d.plates();
+        float y = (float) ((front ? p[0] : p[2]) * MODEL_SCALE) - attachY - 0.05f;
+        float z = (float) ((front ? p[1] + 0.008 : p[3] - 0.008) * MODEL_SCALE);
+        return world.spawn(loc, TextDisplay.class, t -> {
+            t.text(Component.text(plate, NamedTextColor.BLACK));
+            t.setDefaultBackground(false);
+            t.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
+            t.setShadowed(false);
+            t.setSeeThrough(false);
+            t.setLineWidth(400);
+            t.setTeleportDuration(2);
+            t.setPersistent(false);
+            t.setRotation(yaw, 0);
+            Quaternionf rot = front ? new Quaternionf() : new Quaternionf().rotationY((float) Math.PI);
+            t.setTransformation(new Transformation(new Vector3f(0, y, z), rot, new Vector3f(PLATE_TEXT_SCALE), new Quaternionf()));
+            tag(t);
+        });
+    }
+
+    /** 열쇠마다 정해지는 번호판 (예: 12가 3456) */
+    static String plateNumber(UUID keyId) {
+        long h = (keyId.getMostSignificantBits() * 31 ^ keyId.getLeastSignificantBits()) & Long.MAX_VALUE;
+        int a = (int) (h % 90) + 10;
+        h /= 90;
+        char c = PLATE_LETTERS.charAt((int) (h % PLATE_LETTERS.length()));
+        h /= PLATE_LETTERS.length();
+        int b = (int) (h % 9000) + 1000;
+        return a + "" + c + " " + b;
     }
 
     private static void setAttribute(AttributeInstance attribute, double value) {
@@ -194,7 +295,7 @@ public final class CarService implements Listener {
         if (driver != null) {
             driver.leaveVehicle();
         }
-        for (BlockDisplay part : car.parts) {
+        for (Display part : car.parts) {
             part.remove();
         }
         car.hitbox.remove();
@@ -207,7 +308,7 @@ public final class CarService implements Listener {
         byKey.remove(car.keyId, car);
         byEntity.remove(car.base.getUniqueId());
         byEntity.remove(car.hitbox.getUniqueId());
-        for (BlockDisplay part : car.parts) {
+        for (Display part : car.parts) {
             byEntity.remove(part.getUniqueId());
         }
         if (car.task != null) {
@@ -261,8 +362,10 @@ public final class CarService implements Listener {
         Player driver = car.driver();
         double speed = car.speed;
         float yaw = car.yaw;
+        float steerTarget = 0;
         if (driver != null) {
             var input = driver.getCurrentInput();
+            steerTarget = (input.isLeft() ? MAX_STEER : 0) - (input.isRight() ? MAX_STEER : 0);
             speed = CarPhysics.nextSpeed(speed, input.isForward(), input.isBackward(), input.isJump(),
                     type.maxSpeed(), type.acceleration());
             yaw = CarPhysics.nextYaw(yaw, input.isLeft(), input.isRight(), speed, type.maxSpeed(), type.turnDegrees());
@@ -304,10 +407,11 @@ public final class CarService implements Listener {
         }
         if (Math.abs(yaw - car.yaw) > 0.001) {
             car.base.setRotation(yaw, 0);
-            for (BlockDisplay part : car.parts) {
+            for (Display part : car.parts) {
                 part.setRotation(yaw, 0);
             }
         }
+        turnWheels(car, speed, steerTarget);
         car.speed = speed;
         car.yaw = yaw;
         car.lastKnown = loc;
@@ -317,6 +421,27 @@ public final class CarService implements Listener {
         }
         if (car.siren && now % 10 == 0) {
             siren(car, loc, now);
+        }
+    }
+
+    /** 바퀴 굴리기·앞바퀴 꺾기 (움직이거나 꺾임이 바뀔 때만 보냄) */
+    private static void turnWheels(Car car, double speed, float steerTarget) {
+        CarDesign d = car.type.design();
+        if (d == null || car.wheels.isEmpty()) {
+            return;
+        }
+        float steer = car.steer + Math.max(-6f, Math.min(6f, steerTarget - car.steer));
+        if (speed == 0 && steer == car.steer) {
+            return;
+        }
+        car.spin = (car.spin + speed / (d.wheelRadius() * MODEL_SCALE)) % (Math.PI * 2);
+        car.steer = steer;
+        float attachY = (float) car.base.getHeight();
+        for (int i = 0; i < car.wheels.size(); i++) {
+            ItemDisplay w = car.wheels.get(i);
+            w.setInterpolationDelay(0);
+            w.setInterpolationDuration(1);
+            w.setTransformation(wheelTransform(d, i, attachY, car.spin, steer));
         }
     }
 

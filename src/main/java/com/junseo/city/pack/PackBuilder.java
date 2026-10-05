@@ -25,7 +25,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 /**
- * 서버 리소스팩(zip)을 만듭니다. 미니맵·큰 지도를 그리는 글꼴(junseocity:map) 하나가 들어 있습니다.
+ * 서버 리소스팩(zip)을 만듭니다. 미니맵·큰 지도를 그리는 글꼴(junseocity:map)과 자동차 모델이 들어 있습니다.
  * 같은 내용이면 언제나 같은 zip(같은 SHA-1)이 나와서, 플레이어는 처음 한 번만 받습니다.
  */
 public final class PackBuilder {
@@ -201,12 +201,13 @@ public final class PackBuilder {
 
     private byte[] zip(String fontJson) {
         Map<String, byte[]> files = new TreeMap<>();
-        files.put("pack.mcmeta", ("{\"pack\":{\"description\":\"준서 시티 미니맵·지도\",\"min_format\":" + MIN_FORMAT
+        files.put("pack.mcmeta", ("{\"pack\":{\"description\":\"준서 시티 미니맵·지도·자동차\",\"min_format\":" + MIN_FORMAT
                 + ",\"max_format\":" + MAX_FORMAT + "}}\n").getBytes(StandardCharsets.UTF_8));
         files.put("assets/junseocity/font/map.json", fontJson.getBytes(StandardCharsets.UTF_8));
         for (Map.Entry<String, Image> e : images.entrySet()) {
             files.put("assets/junseocity/textures/map/" + e.getKey(), png(e.getValue()));
         }
+        files.putAll(com.junseo.city.vehicle.model.CarModels.packFiles());
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream zip = new ZipOutputStream(bytes)) {
             for (Map.Entry<String, byte[]> e : files.entrySet()) {
