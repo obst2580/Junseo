@@ -56,6 +56,10 @@ class BuildingsTest {
         assertTrue(n.getOrDefault("factory", 0) >= 6, "구인천 공장");
         assertTrue(n.getOrDefault("house", 0) >= 100, "구인천 다세대");
         assertTrue(n.getOrDefault("shop", 0) >= 60, "시장 상가");
+        assertTrue(n.getOrDefault("site", 0) >= 1, "송파 테마파크 건설 예정 부지");
+        assertTrue(n.getOrDefault("skyscraper", 0) >= 1, "송파 준서월드타워");
+        assertTrue(n.getOrDefault("ballpark", 0) >= 1, "잠실 야구장");
+        assertTrue(n.getOrDefault("stadium", 0) >= 1, "서울월드컵경기장");
     }
 
     /** 칸 (x, z) 에 이 건물이 땅 위로 놓는 블록 높이들 (건물 기준 y, 공기 제외) */

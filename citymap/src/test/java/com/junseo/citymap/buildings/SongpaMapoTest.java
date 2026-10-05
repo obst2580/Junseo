@@ -13,9 +13,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /** 송파(테마파크 부지·초고층 타워·잠실 야구장)와 마포(서울월드컵경기장): 지어졌는지, 모든 층·관중석에 걸어서 가는지 */
 class SongpaMapoTest {
 
+    /** 이 종류·이름의 건물 (다른 구역도 같은 종류를 쓸 수 있어서 이름으로 찾음) */
     static Placement find(String kind) {
+        String name = switch (kind) {
+            case "site" -> "테마파크 건설 예정 부지";
+            case "skyscraper" -> "준서월드타워";
+            case "ballpark" -> "잠실 야구장";
+            default -> "서울월드컵경기장";
+        };
         for (Placement p : TestCity.buildings().placements()) {
-            if (p.kind.equals(kind)) {
+            if (p.kind.equals(kind) && p.name.equals(name)) {
                 return p;
             }
         }
