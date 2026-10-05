@@ -70,6 +70,9 @@ final class FootballStadium {
     static Voxels build(SiteLand land, int hubI, int hubJ, Random r) {
         FootballStadium s = new FootballStadium(land, hubI, hubJ, r);
         s.fit();
+        if (Boolean.getBoolean("mapPreview")) {
+            System.out.println("월드컵경기장 맞춤: 가운데 " + s.cx + "," + s.cz + " 바깥 " + s.bx + "×" + s.bz + " 피치 " + s.pitchL + "×" + s.pitchW + " 땅 " + land.w + "×" + land.d + " 거점 " + hubI + "," + hubJ);
+        }
         s.plaza();
         s.bowl();
         s.pitch();
@@ -117,9 +120,28 @@ final class FootballStadium {
     }
 
     private boolean fitsLand(double cxx, double czz, double hx, double hz, double rc) {
-        for (int i = 0; i < land.w; i++) {
-            for (int j = 0; j < land.d; j++) {
-                if (sdf(i + 0.5 - cxx, j + 0.5 - czz, hx + RING, hz + RING, rc + RING) <= 0 && !land.inner(i, j, 2)) {
+        // 바깥 둘레(보도 포함)를 따라 걸으며 안쪽 세 칸이 땅인지 (블록 땅은 볼록이라 둘레만 보면 됨)
+        double ex = hx + RING, ez = hz + RING, er = rc + RING;
+        double sx = ex - er, sz = ez - er;
+        List<double[]> pts = new ArrayList<>();
+        for (double a = -sx; a <= sx; a += 0.5) {
+            pts.add(new double[]{a, -ez, 0, 1});
+            pts.add(new double[]{a, ez, 0, -1});
+        }
+        for (double b = -sz; b <= sz; b += 0.5) {
+            pts.add(new double[]{-ex, b, 1, 0});
+            pts.add(new double[]{ex, b, -1, 0});
+        }
+        for (double th = 0; th < Math.PI / 2; th += 0.5 / Math.max(1, er)) {
+            double c = Math.cos(th), s = Math.sin(th);
+            for (int[] q : new int[][]{{1, 1}, {1, -1}, {-1, 1}, {-1, -1}}) {
+                pts.add(new double[]{q[0] * (sx + er * c), q[1] * (sz + er * s), -q[0] * c, -q[1] * s});
+            }
+        }
+        for (double[] p : pts) {
+            for (double k : new double[]{0.3, 1.2, 2.2}) {
+                int i = (int) Math.floor(cxx + p[0] + p[2] * k), j = (int) Math.floor(czz + p[1] + p[3] * k);
+                if (!land.inner(i, j, 2)) {
                     return false;
                 }
             }
@@ -127,45 +149,58 @@ final class FootballStadium {
         return true;
     }
 
+    /** 이 바깥 크기에 들어가는 피치 길이 (양 끝 관중석 14칸, 긴 변 16칸은 남김) */
+    private static int pitchFor(double hx, double hz) {
+        int endDepth = 14, sideDepth = 16;
+        int len = (int) Math.min(105, Math.floor(2 * (hx - RUNOFF - endDepth)));
+        len -= Math.floorMod(len, 2);
+        while (len > 30 && hz - Math.round(len * 68.0 / 105) / 2.0 - RUNOFF < sideDepth) {
+            len -= 2;
+        }
+        return len;
+    }
+
     private void fit() {
-        // 정면 광장: 거점 앞으로 4칸 띄운 곳까지가 경기장
+        // 정면 광장: 거점 앞으로 4칸 띄운 곳까지가 경기장 (보도 포함)
         int jMax = hubJ - 2 - 4 - RING;
-        int iMin = 0, iMax = land.w - 1;
-        while (iMin < land.w && !land.inner(iMin, jMax, 2)) {
-            iMin++;
-        }
-        while (iMax > 0 && !land.inner(iMax, jMax, 2)) {
-            iMax--;
-        }
-        iMin += RING;
-        iMax -= RING;
-        cx = (iMin + iMax + 1) / 2.0;
-        bx = (iMax - iMin + 1) / 2.0;
         br = 22;
-        // 뒤쪽(j 작은 쪽)은 땅이 허락하는 만큼
-        double best = -1;
-        for (int jMin = 0; jMin < jMax - 40; jMin++) {
-            double c = (jMin + jMax + 1) / 2.0, h = (jMax - jMin + 1) / 2.0;
-            if (fitsLand(cx, c, bx, h, br)) {
-                best = jMin;
-                break;
+        double bestScore = -1;
+        for (int iMin = RING; iMin < RING + 12; iMin++) {
+            for (int iMax = land.w - 1 - RING; iMax > land.w - 1 - RING - 12; iMax--) {
+                double c = (iMin + iMax + 1) / 2.0, hx = (iMax - iMin + 1) / 2.0;
+                // 뒤 끝: 맞는 것 중 가장 깊은 것 (이분법)
+                int lo = RING, hi = jMax - 50;
+                if (!fitsLand(c, (hi + jMax + 1) / 2.0, hx, (jMax - hi + 1) / 2.0, br)) {
+                    continue;
+                }
+                while (lo < hi) {
+                    int m = (lo + hi) / 2;
+                    if (fitsLand(c, (m + jMax + 1) / 2.0, hx, (jMax - m + 1) / 2.0, br)) {
+                        hi = m;
+                    } else {
+                        lo = m + 1;
+                    }
+                }
+                double cj = (lo + jMax + 1) / 2.0, hz = (jMax - lo + 1) / 2.0;
+                double score = pitchFor(hx, hz) * 100000.0 + hx * hz;
+                if (score > bestScore) {
+                    bestScore = score;
+                    cx = c;
+                    bx = hx;
+                    cz = cj;
+                    bz = hz;
+                }
             }
         }
-        if (best < 0) {
-            best = jMax - 60;
+        if (bestScore < 0) {
+            cx = land.w / 2.0;
+            bx = land.w / 2.0 - 8;
+            bz = 30;
+            cz = jMax - bz;
         }
-        cz = (best + jMax + 1) / 2.0;
-        bz = (jMax - best + 1) / 2.0;
-        // 피치: 실제 105×68 까지, 양 끝 관중석이 14칸은 남게
-        int endDepth = 14, sideDepth = 16;
-        pitchL = (int) Math.min(105, Math.floor(2 * (bx - RUNOFF - endDepth)));
+        pitchL = pitchFor(bx, bz);
         pitchW = (int) Math.round(pitchL * 68.0 / 105);
-        while (bz - pitchW / 2.0 - RUNOFF < sideDepth && pitchL > 40) {
-            pitchL -= 2;
-            pitchW = (int) Math.round(pitchL * 68.0 / 105);
-        }
-        pitchL -= pitchL % 2;
-        pitchW -= pitchW % 2;
+        pitchW -= Math.floorMod(pitchW, 2);
         ax = pitchL / 2.0 + RUNOFF;
         az = pitchW / 2.0 + RUNOFF;
         ar = 9;
@@ -314,8 +349,10 @@ final class FootballStadium {
                     // 1층 줄
                     int y = seatY(T);
                     v.fill(i, FIELD, j, i, y - 1, j, CONCRETE);
-                    v.set(i, y, j, (aisle ? STEP : SEAT_LOW).rotate(Frame.quarter("north")).with(stairProps(out)));
-                    v.fill(i, y + 1, j, i, -1, j, AIR);
+                    v.set(i, y, j, (aisle ? STEP : SEAT_LOW).with(stairProps(out)));
+                    if (y + 1 <= -1) {
+                        v.fill(i, y + 1, j, i, -1, j, AIR);
+                    }
                     continue;
                 }
                 // 콘코스 (땅 높이) 와 위 2층
@@ -354,7 +391,7 @@ final class FootballStadium {
             if (y <= 3) {
                 b = post ? WHITE_CONCRETE : y == 0 ? LIGHT_GRAY_CONCRETE : GLASS;
             } else if (y <= top + 2) {
-                b = y == 4 ? LIGHT_GRAY_CONCRETE : post ? WHITE_CONCRETE : SMOOTH_QUARTZ;
+                b = y == 4 || y % 5 == 4 ? LIGHT_GRAY_CONCRETE : post ? WHITE_CONCRETE : Block.of("white_stained_glass_pane", 0xF0F0F0);
             } else {
                 b = post ? WHITE_CONCRETE : null;
             }
@@ -536,19 +573,20 @@ final class FootballStadium {
                 }
                 int T = (int) Math.floor(t);
                 int tmax = (int) Math.floor(t + u);
+                // 계단 아래 끝 (콘코스 바닥, 서는 높이 0) 과 위 끝 (2층 줄과 같은 높이): start - T = seatY(T) + 1 = T + c
+                int c = 5 - UPPER_FRONT;
                 int start = tmax - 2;
-                start -= Math.floorMod(start - UPPER_FRONT, 2) == 0 ? 0 : 1;
-                int landT = (start + UPPER_FRONT + 3) / 2;
+                start -= Math.floorMod(start - c, 2);
+                int landT = (start - c) / 2;
                 if (landT <= UPPER_FRONT + 1 || T > start || T < landT) {
                     continue;
                 }
                 String in = opposite(outward(i, j));
                 int stand = start - T;
-                if (T == landT) {
-                    stand = seatY(T) + 1;
-                }
                 if (stand > 0) {
-                    v.fill(i, 4, j, i, stand - 2, j, CONCRETE);
+                    if (stand >= 2) {
+                        v.fill(i, 0, j, i, stand - 2, j, CONCRETE);
+                    }
                     v.set(i, stand - 1, j, STEP.with(stairProps(in)));
                 }
                 for (int y = Math.max(0, stand); y <= stand + 2; y++) {
@@ -685,7 +723,6 @@ final class FootballStadium {
     private void masts() {
         List<double[]> fp = new ArrayList<>();
         int n = 16;
-        double per = 0;
         // 바깥 선을 따라 고르게: 각도로 근사
         for (int k = 0; k < n; k++) {
             double th = 2 * Math.PI * (k + 0.5) / n;
@@ -707,14 +744,9 @@ final class FootballStadium {
             double ti = bi + p[2] * 3, tj = bj + p[3] * 3;
             v.rod(bi, -0.5, bj, ti, top, tj, 0.7, MAST);
             v.set((int) Math.floor(ti), top + 1, (int) Math.floor(tj), MAST);
-            // 케이블: 꼭대기 → 지붕 중간 (두 가닥), 꼭대기 → 바깥벽 위
-            double mid = p[4] - (p[4] - Math.hypot(ax, az) * 0.7) * 0.5;
-            for (double sh : new double[]{-0.18, 0.18}) {
-                double th = Math.atan2(p[3], p[2]) + sh;
-                double ri = cx + Math.cos(th) * mid, rj = cz + Math.sin(th) * mid;
-                v.rod(ti, top, tj, ri, roofY + 2, rj, 0.4, CABLE);
-            }
-            v.rod(ti, top, tj, bi - p[2] * 1.0, roofY + 1, bj - p[3] * 1.0, 0.4, CABLE);
+            // 케이블: 꼭대기 → 지붕 가운데쯤 한 가닥
+            double mid = p[4] - (p[4] - Math.hypot(ax, az) * 0.75) * 0.55;
+            v.rod(ti, top, tj, cx + p[2] * mid, roofY + 2, cz + p[3] * mid, 0.3, CABLE);
         }
     }
 

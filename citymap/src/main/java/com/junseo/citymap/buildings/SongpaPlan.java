@@ -34,6 +34,11 @@ final class SongpaPlan {
         Voxels build(SiteLand land, int[] hub);
     }
 
+    /** 건물이 땅을 차지하는 모양 (건물 좌표 다각형) */
+    interface SiteFootprint {
+        List<double[]> of(SiteLand land, int[] hub);
+    }
+
     /**
      * 거점이 있는 블록 하나에 건물 하나. 정면은 거점에 가까운 변, 건물 상자는 블록 전체.
      * maxSide 보다 큰 블록은 거점 둘레로 잘라 씁니다.
@@ -43,18 +48,34 @@ final class SongpaPlan {
     }
 
     static Placement site(CityTerrain t, String district, Layout.Hub hub, int maxSide, SiteBuilder builder, String name, String kind,
-                          java.util.function.BiFunction<Integer, Integer, List<double[]>> footprint, List<Placement> out) {
+                          SiteFootprint footprint, List<Placement> out) {
         int hx = (int) Math.floor(hub.x()), hz = (int) Math.floor(hub.z());
         int[] box = SiteLand.blockAround(t, district, hx, hz, maxSide);
         String front = SiteLand.sideNearest(box, hx, hz);
         int x0 = box[0], z0 = box[1], x1 = box[2], z1 = box[3];
-        Placement p = Placement.rect(name, kind, x0, z0, x1, z1, front, footprint, (bw, bd) -> {
+        java.util.function.BiFunction<Integer, Integer, List<double[]>> fp = footprint == null ? null : (bw, bd) -> {
+            SiteLand land = SiteLand.of(t, district, x0, z0, x1, z1, front, bw, bd);
+            return footprint.of(land, land.local(hx, hz));
+        };
+        Placement p = Placement.rect(name, kind, x0, z0, x1, z1, front, fp, (bw, bd) -> {
             SiteLand land = SiteLand.of(t, district, x0, z0, x1, z1, front, bw, bd);
             int[] local = land.local(hx, hz);
             return builder.build(land, local);
         });
         out.add(p);
         return p;
+    }
+
+    /** 거점의 건물 상자 좌표 {i, j} (검사용: site 와 같은 계산) */
+    static int[] hubLocal(CityTerrain t, String district, String hubId, int maxSide) {
+        Layout.Hub hub = Plans.hub(t, hubId);
+        int hx = (int) Math.floor(hub.x()), hz = (int) Math.floor(hub.z());
+        int[] box = SiteLand.blockAround(t, district, hx, hz, maxSide);
+        String front = SiteLand.sideNearest(box, hx, hz);
+        boolean ns = front.equals("north") || front.equals("south");
+        int sx = box[2] - box[0] + 1, sz = box[3] - box[1] + 1;
+        SiteLand land = SiteLand.of(t, district, box[0], box[1], box[2], box[3], front, ns ? sx : sz, ns ? sz : sx);
+        return land.local(hx, hz);
     }
 
     private SongpaPlan() {
