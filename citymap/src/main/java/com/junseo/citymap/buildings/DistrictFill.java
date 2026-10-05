@@ -78,11 +78,15 @@ final class DistrictFill {
             // 남산 아래: 낡은 2~3층 다가구
             Map.entry("namsan", new Style(spec(12, 8, 12, false, 8, 11, 1), r(2, 3), r(2, 3), r(2, 3), r(0, 0), true, 0, r(0, 0), 30, 260, false)),
             // 북한산 아래: 평창동 큰 단독주택, 등산로 입구 식당
-            Map.entry("bukhansan", new Style(spec(14, 12, 18, false, 12, 18, 3), r(2, 2), r(2, 2), r(2, 2), r(0, 0), true, 0, r(0, 0), 30, 260, false)));
+            Map.entry("bukhansan", new Style(spec(14, 12, 18, false, 12, 18, 3), r(2, 2), r(2, 2), r(2, 2), r(0, 0), true, 0, r(0, 0), 30, 260, false)),
+            // 대형시장 둘레: 시장 상가 골목, 뒤쪽 다세대
+            Map.entry("market", new Style(spec(13, 8, 12, false, 8, 12, 1), r(4, 6), r(3, 5), r(2, 4), r(0, 0), true, 0, r(0, 0), 20, 240, false)),
+            // 구인천: 공장 사이 낡은 다세대·상가주택, 5층 주공아파트
+            Map.entry("guincheon", new Style(spec(13, 9, 14, false, 9, 13, 2), r(3, 5), r(2, 4), r(2, 4), r(0, 0), true, 10, r(5, 5), 25, 260, false)));
 
-    /** 채우는 구역 (청라·공항·구인천·대형시장은 따로) */
+    /** 채우는 구역 (청라는 분양 필지, 공항은 따로. 구인천·대형시장은 자기 계획 다음에 남은 땅만) */
     static final String[] DISTRICTS = {"yeouido", "junggu", "yongsan", "gangnam", "songpa", "mapo", "gwangjin", "hongdae",
-            "university", "namsan", "bukhansan"};
+            "university", "namsan", "bukhansan", "market", "guincheon"};
 
     private static final String[] COMPLEX = {"한빛", "푸른숲", "청솔", "은하수", "무지개", "한마음", "새마을", "솔빛", "다솜", "햇살"};
     private static final Block[][] GLASS = {
