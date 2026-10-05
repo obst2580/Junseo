@@ -120,6 +120,22 @@ class SongpaMapoTest {
         return n;
     }
 
+    /** 표지판 글씨에 이 낱말이 든 것 수 */
+    static int signs(Voxels v, String word) {
+        int n = 0;
+        for (int y = v.y0; y < v.y0 + v.h; y++) {
+            for (int j = 0; j < v.d; j++) {
+                for (int i = 0; i < v.w; i++) {
+                    Block b = v.get(i, y, j);
+                    if (b != null && b.text() != null && String.join(" ", b.textLines()).contains(word)) {
+                        n++;
+                    }
+                }
+            }
+        }
+        return n;
+    }
+
     static boolean open(Block b) {
         return b == null || b.isAir() || WalkCheck.passable(b);
     }
@@ -155,11 +171,14 @@ class SongpaMapoTest {
         int[] n = seats(walk, java.util.Set.of("minecraft:red_nether_brick_stairs", "minecraft:resin_brick_stairs",
                 "minecraft:polished_andesite_stairs"), 0);
         System.out.println("월드컵경기장 좌석: 1층 " + n[1] + "/" + n[0] + ", 2층 " + n[3] + "/" + n[2] + ", 높이별 " + walk.profile(-8, 20));
-        dump(walk, "stadium");
         assertTrue(n[0] > 1000 && n[2] > 1000, "좌석 수");
         assertTrue(n[1] >= n[0] * 0.97, "1층 관중석에 걸어서: " + n[1] + "/" + n[0]);
         assertTrue(n[3] >= n[2] * 0.97, "2층 관중석에 걸어서: " + n[3] + "/" + n[2]);
         assertTrue(walk.reachedAt(FootballStadium.FIELD + 1) > 2000, "피치에 선수 통로로: " + walk.reachedAt(FootballStadium.FIELD + 1));
+        assertTrue(signs(p.voxels(), "매표소") >= 2, "매표소");
+        assertTrue(signs(p.voxels(), "서울월드컵경기장") >= 1, "정문 이름");
+        assertTrue(signs(p.voxels(), "화장실") >= 4, "화장실");
+        assertTrue(signs(p.voxels(), "치킨") >= 1, "매점");
         assertTrue(walk.reachedAt(0) > 3000, "콘코스");
     }
 
@@ -171,11 +190,16 @@ class SongpaMapoTest {
         int[] n = seats(walk, java.util.Set.of("minecraft:warped_stairs", "minecraft:waxed_cut_copper_stairs",
                 "minecraft:red_nether_brick_stairs", "minecraft:waxed_oxidized_cut_copper_stairs", "minecraft:polished_andesite_stairs"), 0);
         System.out.println("잠실 야구장 좌석: 1층 " + n[1] + "/" + n[0] + ", 2층 " + n[3] + "/" + n[2] + ", 높이별 " + walk.profile(-8, 20));
-        dump(walk, "ballpark");
         assertTrue(n[0] > 800 && n[2] > 300, "좌석 수");
         assertTrue(n[1] >= n[0] * 0.97, "1층 관중석에 걸어서: " + n[1] + "/" + n[0]);
         assertTrue(n[3] >= n[2] * 0.97, "2층 관중석에 걸어서: " + n[3] + "/" + n[2]);
         assertTrue(walk.reachedAt(Ballpark.FIELD + 1) > 1500, "그라운드에 더그아웃 통로로: " + walk.reachedAt(Ballpark.FIELD + 1));
+        System.out.println("잠실 야구장 표지판: 매표소 " + signs(p.voxels(), "매표소") + ", 화장실 " + signs(p.voxels(), "화장실")
+                + ", 매점 " + signs(p.voxels(), "치킨"));
+        assertTrue(signs(p.voxels(), "매표소") >= 1, "매표소");
+        assertTrue(signs(p.voxels(), "잠실야구장") >= 1, "정문 이름");
+        assertTrue(signs(p.voxels(), "화장실") >= 2, "화장실");
+        assertTrue(signs(p.voxels(), "치킨") >= 1, "매점");
     }
 
     @Test

@@ -82,6 +82,7 @@ final class FootballStadium {
         s.roof();
         s.masts();
         s.screens();
+        s.gateSign();
         s.v.connect();
         land.clip(s.v);
         return s.v;
@@ -742,6 +743,18 @@ final class FootballStadium {
             // 케이블: 꼭대기 → 지붕 가운데쯤 한 가닥
             double mid = p[4] - (p[4] - Math.hypot(ax, az) * 0.75) * 0.55;
             v.rod(ti, top, tj, cx + p[2] * mid, roofY + 2, cz + p[3] * mid, 0.3, CABLE);
+        }
+    }
+
+    /** 정면 가운데 출입구 위 「서울월드컵경기장」 표지판 */
+    private void gateSign() {
+        int i = hubI;
+        for (int j = land.d - 1; j > 0; j--) {
+            Block w = v.get(i, 4, j);
+            if (w != null && !w.isAir() && u(i, j) < 1 && u(i, j) >= 0) {
+                v.set(i, 4, j + 1, Blocks.wallSign("dark_oak", "south", "white", true, "", "서울월드컵경기장", "", ""));
+                return;
+            }
         }
     }
 

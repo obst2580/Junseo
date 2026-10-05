@@ -113,5 +113,12 @@ class BuildingPreviewTest {
             new View("fill-songpa-iso", 1000, 380, 1200, 590, 100, 2, false, 0),
             new View("fill-yeouido-iso", -200, 40, 40, 260, 160, 2, false, 0),
             new View("fill-hongdae-iso", -300, -460, -140, -300, 60, 3, false, 0),
+            new View("bld-songpa-themepark", 1262, 245, 1364, 344, 15, 4, false, 0),
+            new View("bld-songpa-tower", 1135, 245, 1241, 344, 320, 2, false, 0),
+            new View("bld-songpa-ballpark", 1385, 365, 1490, 456, 45, 4, false, 0),
+            new View("bld-songpa-ballpark-inside", 1385, 365, 1490, 456, 45, 4, false, 3),
+            new View("bld-mapo-worldcup", -610, -290, -490, -155, 50, 3, false, 0),
+            new View("bld-mapo-worldcup-inside", -610, -290, -490, -155, 50, 3, false, 3),
+            new View("bld-songpa-top", 950, 85, 1630, 599, 320, 1, true, 0),
     };
 }

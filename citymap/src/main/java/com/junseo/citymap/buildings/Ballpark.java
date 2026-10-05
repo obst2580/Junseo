@@ -81,6 +81,7 @@ final class Ballpark {
         b.plaza();
         b.bowl();
         b.ground();
+        b.gateSign();
         b.dugouts();
         b.bullpens();
         b.vomitories();
@@ -193,6 +194,9 @@ final class Ballpark {
     }
 
     private int bestI, bestJ;
+    /** 중앙 출입구 표지판 자리 (바깥벽 바로 밖)와 방향: 바깥벽을 그린 뒤 붙임 */
+    private int[] signsAtGate;
+    private String signFace;
 
     private boolean inner(double i, double j) {
         return land.inner((int) Math.floor(i), (int) Math.floor(j), RING + 1);
@@ -426,20 +430,49 @@ final class Ballpark {
                 v.set(i, -1, j, Math.floorMod(h, 9) == 0 ? SMOOTH_STONE : LIGHT_GRAY_CONCRETE);
             }
         }
-        // 정문 광장: 홈 뒤 바깥 귀퉁이 (거점) 에 나무·가로등·매표소
+        // 정문 광장: 홈 뒤 바깥 귀퉁이 (거점). 정문 양옆 가까운 빈 곳에 매표소 (창구는 거점 쪽)
         double ux = hubI - hi, uz = hubJ - hj, ul = Math.hypot(ux, uz);
         ux /= ul;
         uz /= ul;
-        double rGate = BACKSTOP + HOME + 1.5;
-        for (int side = -1; side <= 1; side += 2) {
-            // 정문 양옆 (호를 따라 ±12칸) 에 매표소
-            double ang = Math.atan2(uz, ux) + side * 12.0 / rGate;
-            int bi = (int) Math.floor(hi + 0.5 + Math.cos(ang) * (rGate + 3));
-            int bj = (int) Math.floor(hj + 0.5 + Math.sin(ang) * (rGate + 3));
-            if (land.inner(bi - 2, bj - 2, 2) && land.inner(bi + 3, bj + 3, 2) && !nearHub(bi, bj, 6)) {
-                String face = Math.abs(ux) > Math.abs(uz) ? (ux > 0 ? "east" : "west") : (uz > 0 ? "south" : "north");
-                StadiumParts.ticketBooth(Frame.facing(v, bi, bj, face));
+        double gx = hi + 0.5 + ux * (BACKSTOP + HOME + 1), gz = hj + 0.5 + uz * (BACKSTOP + HOME + 1);
+        int[][] best = new int[2][];
+        double[] bestD = {1e9, 1e9};
+        for (int i = 3; i < land.w - 3; i++) {
+            for (int j = 3; j < land.d - 3; j++) {
+                if (Math.abs(i - hubI) <= 5 && Math.abs(j - hubJ) <= 5) {
+                    continue;
+                }
+                boolean ok = true;
+                for (int di = -3; di <= 3 && ok; di++) {
+                    for (int dj = -3; dj <= 3 && ok; dj++) {
+                        int ni = i + di, nj = j + dj;
+                        ok = land.inner(ni, nj, 2) && !stadium[ni][nj] && !(Math.abs(ni - hubI) <= 3 && Math.abs(nj - hubJ) <= 3);
+                    }
+                }
+                if (!ok) {
+                    continue;
+                }
+                double d = Math.hypot(i - gx, j - gz);
+                int side = (i - gx) * uz - (j - gz) * ux > 0 ? 0 : 1;
+                if (d < bestD[side] && d < 24) {
+                    bestD[side] = d;
+                    best[side] = new int[]{i, j};
+                }
             }
+        }
+        // 중앙 출입구 위 이름 (바깥벽에 붙인 표지판, 거점 쪽을 봄)
+        String gateFace = Math.abs(ux) > Math.abs(uz) ? (ux > 0 ? "east" : "west") : (uz > 0 ? "south" : "north");
+        int si = (int) Math.floor(hi + 0.5 + ux * (BACKSTOP + HOME + 1.2)), sj = (int) Math.floor(hj + 0.5 + uz * (BACKSTOP + HOME + 1.2));
+        signsAtGate = new int[]{si, sj};
+        signFace = gateFace;
+        for (int[] b : best) {
+            if (b == null) {
+                continue;
+            }
+            double fx = hubI - b[0], fz = hubJ - b[1];
+            String face = Math.abs(fx) > Math.abs(fz) ? (fx > 0 ? "east" : "west") : (fz > 0 ? "south" : "north");
+            Frame f = Frame.facing(v, b[0], b[1], face);
+            StadiumParts.ticketBooth(new Frame(v, f.i(-2, -1), f.j(-2, -1), f.q));
         }
         for (int i = 2; i < land.w - 2; i += 8) {
             for (int j = 2; j < land.d - 2; j += 8) {
@@ -590,6 +623,28 @@ final class Ballpark {
         }
         double phi = Math.atan2(b, a), rr = Math.hypot(a, b);
         return Math.abs(phi - Math.toRadians(20)) * rr < 3 || Math.abs(phi - Math.toRadians(70)) * rr < 3;
+    }
+
+    /** 중앙 출입구 위 「잠실야구장」 표지판: 출입구 위 벽에 붙음 */
+    private void gateSign() {
+        if (signsAtGate == null) {
+            return;
+        }
+        int i = signsAtGate[0], j = signsAtGate[1];
+        int[] back = switch (signFace) {
+            case "east" -> new int[]{-1, 0};
+            case "west" -> new int[]{1, 0};
+            case "south" -> new int[]{0, -1};
+            default -> new int[]{0, 1};
+        };
+        for (int k = 0; k < 4; k++) {
+            int wi = i + back[0] * k, wj = j + back[1] * k;
+            Block w = v.get(wi, 4, wj);
+            if (w != null && !w.isAir() && v.get(wi - back[0], 4, wj - back[1]) == null) {
+                v.set(wi - back[0], 4, wj - back[1], Blocks.wallSign("dark_oak", signFace, "white", true, "", "잠실야구장", "중앙 출입구", ""));
+                return;
+            }
+        }
     }
 
     // ------------------------------------------------------------------ 그라운드
