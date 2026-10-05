@@ -44,6 +44,14 @@ final class Broadcast {
             out.add(Placement.rect("준서방송 스튜디오", "studio", sw[0], sw[1], sw[0] + STUDIO_D - 1, sw[1] + STUDIO_W - 1, "west",
                     (w, d) -> studio(w, d, new Random(seed2))));
         }
+        // 동쪽 직원·중계차 주차장 (주차선만)
+        int px0 = tw[0] + TOWER_D + 3, px1 = px0 + 27, pz0 = tw[1], pz1 = sw != null ? sw[1] + STUDIO_W - 1 : tw[1] + TOWER_W - 1;
+        if (m.count(px0, pz0, px1, pz1) > (px1 - px0 + 1) * (pz1 - pz0 + 1) / 3) {
+            out.add(Placement.rect("준서방송 주차장", "parking", px0, pz0, px1, pz1, "south", (w, d) -> {
+                Site s = new Site(t, area, px0, pz0, px1, pz1);
+                return parking(s);
+            }));
+        }
         // 앞마당: 본관·스튜디오 서쪽 줄 전체
         int[] blk = m.componentNear(hx, hz, 30);
         int fx0 = (blk == null ? hx - 12 : blk[0]) - 3, fx1 = tw[0] - 1;
@@ -389,6 +397,33 @@ final class Broadcast {
                 }
             }
         }
+    }
+
+    /** 주차장: 아스팔트, 주차선(차는 없음), 가장자리 나무 */
+    static Voxels parking(Site s) {
+        Voxels v = new Voxels(s.w, s.d, -1, 8);
+        for (int j = 0; j < s.d; j++) {
+            for (int i = 0; i < s.w; i++) {
+                if (s.land(i, j)) {
+                    v.set(i, -1, j, Block.of("gray_concrete", 0x36393D));
+                }
+            }
+        }
+        for (int i = 2; i + 5 < s.w; i += 13) {
+            for (int j = 2; j + 3 < s.d - 2; j += 3) {
+                for (int[] row : new int[][]{{i, 0}, {i + 8, 0}}) {
+                    if (s.solid(row[0], j) && s.solid(row[0] + 4, j)) {
+                        v.fill(row[0], -1, j, row[0] + 4, -1, j, WHITE_CONCRETE);
+                    }
+                }
+            }
+        }
+        for (int j = 3; j < s.d - 3; j += 9) {
+            if (s.solid(s.w - 2, j, 2)) {
+                Site.tree(v, s.w - 2, j, false);
+            }
+        }
+        return v;
     }
 
     // ------------------------------------------------------------------ 앞마당

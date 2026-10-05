@@ -262,10 +262,24 @@ final class YeouidoPlaza {
                 }
             }
         }
-        // 연못과 정자 (고리 안 서쪽)
-        int pi = (int) (cx - rx * 0.45), pj = (int) cz;
-        double prx = Math.min(12, rx * 0.25), prz = Math.min(7, rz * 0.45);
-        boolean pond = s.solid(pi, pj, (int) Math.ceil(Math.max(prx, prz)) + 2);
+        // 연못과 정자: 공원 땅 안에서 자리를 찾음 (고리 길 안쪽 가운데부터)
+        double prx = Math.min(10, rx * 0.25), prz = Math.min(6, rz * 0.45);
+        int need = (int) Math.ceil(Math.max(prx, prz)) + 2;
+        int pi = -1, pj = -1;
+        for (int rr = 0; rr < 60 && pi < 0; rr += 2) {
+            for (int dj = -rr; dj <= rr && pi < 0; dj += 2) {
+                for (int di = -rr; di <= rr; di += 2) {
+                    int ti = (int) cx - 12 + di, tj = (int) cz + dj;
+                    if (Math.max(Math.abs(di), Math.abs(dj)) == rr && tj + need < squareTop - 2
+                            && s.solid(ti, tj, need) && s.solid(ti + (int) prx + 4, tj, 4)) {
+                        pi = ti;
+                        pj = tj;
+                        break;
+                    }
+                }
+            }
+        }
+        boolean pond = pi >= 0;
         if (pond) {
             for (int j = pj - 10; j <= pj + 10; j++) {
                 for (int i = pi - 14; i <= pi + 14; i++) {
@@ -280,14 +294,16 @@ final class YeouidoPlaza {
             }
             pavilion(pi + (int) prx + 4, pj);
         }
-        // 나무숲: 길·연못·정자를 피해서
-        for (int j = 2; j < squareTop - 2; j += 5) {
-            for (int i = 2; i < s.w - 2; i += 5) {
+        // 공중화장실 (공원 동쪽 길가)
+        restroom((int) (cx + rx * 0.6), (int) (cz - rz * 0.2));
+        // 나무숲: 길·연못·정자·화장실을 피해서
+        for (int j = 2; j < squareTop - 2; j += 4) {
+            for (int i = 2; i < s.w - 2; i += 4) {
                 int ti = i + r.nextInt(3) - 1, tj = j + r.nextInt(3) - 1;
-                if (!s.solid(ti, tj, 2) || r.nextInt(10) < 3) {
+                if (!s.solid(ti, tj, 2) || r.nextInt(10) < 2 || !clear(ti, tj, 3)) {
                     continue;
                 }
-                if (nearPath(ti, tj, 2) || (pond && Math.abs(ti - pi) < prx + 10 && Math.abs(tj - pj) < prz + 5)) {
+                if (nearPath(ti, tj, 2) || (pond && Math.abs(ti - pi - 3) < prx + 9 && Math.abs(tj - pj) < prz + 4)) {
                     continue;
                 }
                 int kind = r.nextInt(10);
@@ -311,8 +327,20 @@ final class YeouidoPlaza {
                 }
             }
         }
-        // 공중화장실 (공원 동쪽 길가)
-        restroom((int) (cx + rx * 0.6), (int) (cz - rz * 0.2));
+    }
+
+    /** 둘레 rr 칸 땅 위(0~6)가 비어 있는지 */
+    private boolean clear(int i, int j, int rr) {
+        for (int b = -rr; b <= rr; b++) {
+            for (int a = -rr; a <= rr; a++) {
+                for (int y = 0; y <= 6; y++) {
+                    if (v.get(i + a, y, j + b) != null) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
     }
 
     private boolean nearPath(int i, int j, int rr) {
