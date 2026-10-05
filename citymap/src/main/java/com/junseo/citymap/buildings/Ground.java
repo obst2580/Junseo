@@ -40,6 +40,20 @@ final class Ground {
         };
     }
 
+    /** 칸 (i, j) 아래 지형 */
+    Column column(int i, int j) {
+        int[] w = world(i, j);
+        return terrain.column(w[0], w[1]);
+    }
+
+    /**
+     * 칸 (i, j) 의 땅 윗면 블록이 건물 y 로 몇인지. 평지는 -1, 산 위는 산 높이 - 1.
+     * (건물 y = 0 이 월드 groundY + 1 이고, 산은 groundY + 산 높이까지 솟아 있음)
+     */
+    int surfaceY(int i, int j) {
+        return column(i, j).mountainHeight - 1;
+    }
+
     /** 칸 (i, j) 둘레 r 칸 안에 도로·물이 없는지 */
     boolean clear(int i, int j, int r) {
         int[] w = world(i, j);
