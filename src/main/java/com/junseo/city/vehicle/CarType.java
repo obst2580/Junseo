@@ -8,7 +8,7 @@ import java.util.Locale;
 
 /** 차 종류와 성능. 속도 단위는 블록/틱 (1.0 = 시속 72km). */
 public enum CarType {
-    COMPACT("compact", "경차", 0.75, 0.018, 5.0, Material.LIGHT_BLUE_CONCRETE, CarModels.MORNING),
+    COMPACT("compact", "경차", 0.75, 0.018, 5.0, Material.LIGHT_BLUE_CONCRETE, CarModels.design("morning")),
     SEDAN("sedan", "세단", 1.0, 0.022, 4.2, Material.WHITE_CONCRETE),
     SPORTS("sports", "스포츠카", 1.4, 0.032, 3.8, Material.RED_CONCRETE),
     POLICE("police", "경찰차", 1.2, 0.028, 4.2, Material.BLUE_CONCRETE);

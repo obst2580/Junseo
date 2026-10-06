@@ -150,9 +150,9 @@ public final class CarService implements Listener {
         CarDesign design = type.design();
         if (design != null) {
             // 리소스팩 3D 모델: 차체 하나 + 바퀴 넷 + 앞뒤 번호판 글자
-            displays.add(itemDisplay(world, loc, yaw, CarModels.bodyModel(design), bodyTransform(attachY), true));
+            displays.add(itemDisplay(world, loc, yaw, CarModels.bodyModel(design.id(), CarModels.Paint.WHITE), bodyTransform(design, attachY), true));
             for (int i = 0; i < 4; i++) {
-                ItemDisplay w = itemDisplay(world, loc, yaw, CarModels.wheelModel(design), wheelTransform(design, i, attachY, 0, 0), false);
+                ItemDisplay w = itemDisplay(world, loc, yaw, CarModels.wheelModel(design.id()), wheelTransform(design, i, attachY, 0, 0), false);
                 wheels.add(w);
                 displays.add(w);
             }
@@ -253,10 +253,10 @@ public final class CarService implements Listener {
         });
     }
 
-    /** 차체: 모델 (8, 0, 8) 이 차 바닥 가운데. 모델 1 칸 = 1/8 m 라서 2배 × MODEL_SCALE */
-    private static Transformation bodyTransform(float attachY) {
-        return new Transformation(new Vector3f(0, MODEL_SCALE - attachY, 0), new Quaternionf(),
-                new Vector3f(2 * MODEL_SCALE), ITEM_FLIP);
+    /** 차체: 모델 (8, 0, 8) 이 차 바닥 가운데. 모델 1 칸 = 1/unit m 라서 16/unit 배 × MODEL_SCALE */
+    private static Transformation bodyTransform(CarDesign d, float attachY) {
+        float k = (float) (16 / d.unit()) * MODEL_SCALE;
+        return new Transformation(new Vector3f(0, k / 2 - attachY, 0), new Quaternionf(), new Vector3f(k), ITEM_FLIP);
     }
 
     /** 바퀴 i (0 앞왼, 1 앞오, 2 뒤왼, 3 뒤오): 모델 가운데가 바퀴 중심. 굴림(spin, 라디안)·꺾임(steer, 도) */
@@ -266,7 +266,7 @@ public final class CarService implements Listener {
         float y = (float) d.wheelRadius() * MODEL_SCALE - attachY;
         float z = (float) (front ? d.frontAxle() : d.rearAxle()) * MODEL_SCALE;
         Quaternionf rot = new Quaternionf().rotationY((float) Math.toRadians(front ? steer : 0)).rotateX((float) spin);
-        return new Transformation(new Vector3f(x, y, z), rot, new Vector3f(2 * MODEL_SCALE), ITEM_FLIP);
+        return new Transformation(new Vector3f(x, y, z), rot, new Vector3f((float) (16 / d.unit()) * MODEL_SCALE), ITEM_FLIP);
     }
 
     /** 번호판 글자 (검은 글씨, 배경 없음). 뒤 번호판은 뒤를 보게 돌림 */

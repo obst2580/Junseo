@@ -14,12 +14,13 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CarModelTest {
-    private static final CarDesign MORNING = new MorningDesign();
+    private static final CarDesign MORNING = Designs.morning(CarModels.Paint.WHITE.rgb);
 
     /** 마인크래프트가 받아들이는 모델인지: 좌표 -16..32, 돌림 각도, uv 0..16 */
     @Test
     void modelsStayInsideMinecraftLimits() {
-        CarModelMaker.Assets a = CarModelMaker.make(MORNING);
+        for (String id : CarModels.ids()) {
+        CarModelMaker.Assets a = CarModelMaker.make(CarModels.design(id));
         for (ItemModel m : new ItemModel[]{a.body(), a.wheel()}) {
             for (Element e : m.elements) {
                 for (int i = 0; i < 3; i++) {
@@ -33,17 +34,20 @@ class CarModelTest {
                 }
             }
         }
-        assertTrue(a.body().elements.size() < 500, "차체 상자 수 " + a.body().elements.size());
+        assertTrue(a.body().elements.size() < 600, id + " 차체 상자 수 " + a.body().elements.size());
         assertTrue(a.body().json().startsWith("{\"textures\""));
+        }
     }
 
     /** 리소스팩에 들어가는 파일: 아이템 정의·모델 JSON 은 읽히고, 그림은 PNG */
     @Test
     void packFilesAreValid() {
         Map<String, byte[]> files = CarModels.packFiles();
-        for (String path : new String[]{"assets/junseocity/items/car_morning.json", "assets/junseocity/items/car_morning_wheel.json",
-                "assets/junseocity/models/item/car/morning.json", "assets/junseocity/models/item/car/wheel_morning.json",
-                "assets/junseocity/textures/item/car/morning.png", "assets/junseocity/textures/item/car/wheel_morning.png"}) {
+        for (String path : new String[]{"assets/junseocity/items/car_morning_red.json", "assets/junseocity/items/car_morning_wheel.json",
+                "assets/junseocity/models/item/car/morning.json", "assets/junseocity/models/item/car/morning_red.json",
+                "assets/junseocity/models/item/car/wheel_morning.json", "assets/junseocity/textures/item/car/morning_red.png",
+                "assets/junseocity/textures/item/car/wheel_morning.png", "assets/junseocity/items/car_police.json",
+                "assets/junseocity/textures/item/car/garbage.png"}) {
             assertTrue(files.containsKey(path), path);
             byte[] b = files.get(path);
             if (path.endsWith(".json")) {
@@ -52,39 +56,53 @@ class CarModelTest {
                 assertTrue(b[1] == 'P' && b[2] == 'N' && b[3] == 'G', path);
             }
         }
-        System.out.println("차 모델 JSON " + files.get("assets/junseocity/models/item/car/morning.json").length / 1024 + " KB");
+        long total = files.values().stream().mapToLong(b -> b.length).sum();
+        System.out.println("차 리소스팩 파일 " + files.size() + "개, " + total / 1024 + " KB");
     }
 
+    /** 모든 차를 앞 3/4·뒤 3/4 로 한 장씩 (차종마다 칸 하나). -DmapPreview=true 일 때만 */
     @Test
     void renderPreview() throws IOException {
         Assumptions.assumeTrue(Boolean.getBoolean("mapPreview"), "-DmapPreview=true 일 때만 그립니다");
-        CarModelMaker.Assets a = CarModelMaker.make(MORNING);
-        System.out.println("차체 상자 " + a.body().elements.size() + "개, 바퀴 " + a.wheel().elements.size() + "개");
         File dir = new File("build/preview");
         dir.mkdirs();
-        ModelRaster r = scene(a, MORNING, 18);
-        Map<String, double[][]> views = Map.of(
-                "car-morning-front", new double[][]{{-3.4, 1.25, 4.3}, {0, 0.62, 0.35}},
-                "car-morning-rear", new double[][]{{3.6, 1.7, -4.4}, {0, 0.7, -0.3}},
-                "car-morning-side", new double[][]{{-7.5, 0.85, 0}, {0, 0.72, 0}});
-        for (Map.Entry<String, double[][]> v : views.entrySet()) {
-            BufferedImage img = r.render(v.getValue()[0], v.getValue()[1], 32, 1000, 640, 1.05, 2.0);
-            ImageIO.write(img, "png", new File(dir, v.getKey() + ".png"));
-        }
-        // 그림 원본 (3배)
-        BufferedImage tex = new BufferedImage(a.bodyTex().w * 3, a.bodyTex().h * 3, BufferedImage.TYPE_INT_ARGB);
-        for (int y = 0; y < tex.getHeight(); y++) {
-            for (int x = 0; x < tex.getWidth(); x++) {
-                tex.setRGB(x, y, a.bodyTex().get(x / 3, y / 3));
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        CarModels.ids().forEach(ids::add);
+        int cw = 480, ch = 300, cols = 3, rows = (ids.size() + cols - 1) / cols;
+        for (boolean front : new boolean[]{true, false}) {
+            BufferedImage sheet = new BufferedImage(cw * cols, ch * rows, BufferedImage.TYPE_INT_RGB);
+            java.awt.Graphics2D g = sheet.createGraphics();
+            for (int k = 0; k < ids.size(); k++) {
+                CarDesign d = CarModels.design(ids.get(k));
+                CarModelMaker.Assets a = CarModelMaker.make(d);
+                double L = d.length(), s = front ? 1 : -1;
+                double[] eye = {-s * L * 0.95, d.height() * 0.95 + 0.4, s * L * 1.2}, at = {0, d.height() * 0.45, s * 0.1};
+                BufferedImage img = scene(a, d, front ? 18 : 0).render(eye, at, 32, cw, ch, d.width() * 0.62, L * 0.55);
+                g.drawImage(img, (k % cols) * cw, (k / cols) * ch, null);
+                g.setColor(java.awt.Color.RED);
+                g.drawString(ids.get(k) + " (" + a.body().elements.size() + ")", (k % cols) * cw + 6, (k / cols) * ch + 14);
             }
+            g.dispose();
+            ImageIO.write(sheet, "png", new File(dir, front ? "car-lineup-front.png" : "car-lineup-rear.png"));
         }
-        ImageIO.write(tex, "png", new File(dir, "car-morning-texture.png"));
+        // 색 6가지 (세단)
+        BufferedImage colors = new BufferedImage(cw * 3, ch * 2, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = colors.createGraphics();
+        CarModels.Paint[] ps = CarModels.Paint.values();
+        for (int k = 0; k < ps.length; k++) {
+            CarDesign d = Designs.sedan(ps[k].rgb);
+            CarModelMaker.Assets a = CarModelMaker.make(d);
+            BufferedImage img = scene(a, d, 0).render(new double[]{-4.6, 1.8, 5.6}, new double[]{0, 0.6, 0.1}, 32, cw, ch, 1.15, 2.7);
+            g.drawImage(img, (k % 3) * cw, (k / 3) * ch, null);
+        }
+        g.dispose();
+        ImageIO.write(colors, "png", new File(dir, "car-colors.png"));
     }
 
     /** 차체 + 바퀴 넷 (앞바퀴는 steer 도 꺾음) */
     static ModelRaster scene(CarModelMaker.Assets a, CarDesign d, double steer) {
         ModelRaster r = new ModelRaster();
-        double u = CarModelMaker.UNIT;
+        double u = d.unit();
         r.add(a.body(), a.bodyTex(), p -> new double[]{(p[0] - 8) / u, p[1] / u, (p[2] - 8) / u});
         for (double ax : new double[]{d.frontAxle(), d.rearAxle()}) {
             for (int s : new int[]{1, -1}) {

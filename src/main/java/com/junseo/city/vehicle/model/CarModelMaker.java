@@ -12,92 +12,144 @@ import java.util.Map;
 /**
  * {@link CarDesign} 으로 차체 모델·바퀴 모델과 그림을 만듭니다.
  * <ul>
- *   <li>모델 단위: 1 미터 = {@link #UNIT} (아이템 표시 엔티티에서 2배로 키워 1:1 이 됨). 차 원점(바닥 가운데)이 모델 (8, 0, 8)</li>
+ *   <li>모델 단위: 1 미터 = {@link CarDesign#unit()} 칸 (아이템 표시 엔티티에서 16/unit 배로 키워 1:1 이 됨). 차 원점(바닥 가운데)이 모델 (8, 0, 8)</li>
  *   <li>차체: 앞뒤로 {@link #DZ} 씩 썬 조각마다 높이별 층(아래 차체, 어깨, 유리 부분 여러 층)을 상자로 쌓고,
  *       같은 모양이 이어지는 조각은 합칩니다. 바퀴 자리는 바깥쪽만 둥글게 파고 안쪽은 바닥 판으로 가립니다</li>
- *   <li>그림 (256×256): 옆(z·y)·앞·뒤(x·y)·위(x·z)에서 본 그림 넷과 단색 칸. 면은 자리에 맞는 그림을 비춰 씀</li>
+ *   <li>그림 (512×512): 왼쪽·오른쪽 옆(z·y)·앞·뒤(x·y)·위(x·z)에서 본 그림과 단색 칸. 면은 자리에 맞는 그림을 비춰 씀</li>
  *   <li>바퀴: 8 개 판을 22.5° 씩 돌려 16각 타이어를 만들고, 양옆에 휠 그림(투명 바깥)을 붙임. 바퀴 중심이 모델 (8, 8, 8)</li>
  * </ul>
  */
 public final class CarModelMaker {
-    public static final double UNIT = 8;
     static final double DZ = 0.05;
     /** 비스듬한 판 두께 (계단 끝이 삐져나오지 않게 덮음) */
     static final double SKIN = 0.024;
-    static final int TEX = 256;
-    static final double PPM = 48;
-    static final double HMAX = 1.5;
-    static final double XMAX = 0.8;
-    /** 그림 자리 (픽셀) */
-    static final int FRONT_X = 176, REAR_X = 176, REAR_Y = 76, TOP_Y = 76;
-    static final int TILE_DARK_X = 84, TILE_PAINT_X = 104, TILE_TRIM_X = 124, TILE_GLASS_X = 144, TILE_Y = 80;
+    static final int TEX = 512;
 
     public record Assets(ItemModel body, Tex bodyTex, ItemModel wheel, Tex wheelTex) {
     }
 
     private final CarDesign d;
-    private final double zF, zR;
+    private final double zF, zR, unit, ppm, hMax, xMax;
+    /** 그림 자리 (픽셀): 왼쪽 옆, 오른쪽 옆, 앞, 뒤, 위, 단색 칸 시작 */
+    private final int sw, sh, fw, rightY, frontX, rearY, topY, tileX0, tileY0;
+    /** 한 색 칸: 이름 → {x, y, 색}. 차 색이 바뀌어도 칸 자리는 같게 이름(역할)으로 나눔 */
+    private final java.util.LinkedHashMap<String, int[]> tiles = new java.util.LinkedHashMap<>();
+    private final java.util.List<int[]> signs = new java.util.ArrayList<>();
+    private int tileCursor;
 
     private CarModelMaker(CarDesign d) {
         this.d = d;
         this.zF = d.length() / 2;
         this.zR = -d.length() / 2;
+        this.unit = d.unit();
+        this.hMax = d.height() + 0.20;
+        this.xMax = d.width() / 2 + 0.03;
+        double p = 48;
+        while (p > 24 && (2 * Math.ceil(hMax * p) + 4 + Math.ceil(d.length() * p) > TEX
+                || Math.ceil(d.length() * p) + 2 + Math.ceil(2 * xMax * p) > TEX)) {
+            p -= 4;
+        }
+        this.ppm = p;
+        sw = (int) Math.ceil(d.length() * ppm);
+        sh = (int) Math.ceil(hMax * ppm);
+        fw = (int) Math.ceil(2 * xMax * ppm);
+        rightY = sh + 2;
+        frontX = sw + 2;
+        rearY = sh + 2;
+        topY = 2 * sh + 4;
+        tileX0 = fw + 4;
+        tileY0 = topY;
+        role("dark", d.underbody());
+        role("paint", d.paint());
+        role("trim", d.trim());
+        role("glass", d.glass());
     }
 
     public static Assets make(CarDesign d) {
         CarModelMaker m = new CarModelMaker(d);
-        return new Assets(m.body(), m.bodyTexture(), m.wheel(), m.wheelTexture());
+        ItemModel body = m.body();
+        return new Assets(body, m.bodyTexture(), m.wheel(), m.wheelTexture());
     }
 
-    // ------------------------------------------------------------------ 그림 좌표 (uv = 픽셀 / 16)
+    // ------------------------------------------------------------------ 그림 좌표 (uv = 픽셀 × 16 / TEX)
 
-    private double sideU(double z) {
-        return (zF - z) * PPM / 16;
+    private static double uv(double px) {
+        return px * 16 / TEX;
     }
 
-    private static double sideV(double y) {
-        return (HMAX - y) * PPM / 16;
+    private double sideLU(double z) {
+        return uv((zF - z) * ppm);
     }
 
-    private static double frontU(double x) {
-        return (FRONT_X + (x + XMAX) * PPM) / 16;
+    private double sideRU(double z) {
+        return uv((z - zR) * ppm);
     }
 
-    private static double rearU(double x) {
-        return (REAR_X + (XMAX - x) * PPM) / 16;
+    private double sideV(double y) {
+        return uv((hMax - y) * ppm);
     }
 
-    private static double rearV(double y) {
-        return (REAR_Y + (HMAX - y) * PPM) / 16;
+    private double sideRV(double y) {
+        return uv(rightY + (hMax - y) * ppm);
     }
 
-    private static double topU(double x) {
-        return (x + XMAX) * PPM / 16;
+    private double frontU(double x) {
+        return uv(frontX + (x + xMax) * ppm);
+    }
+
+    private double rearU(double x) {
+        return uv(frontX + (xMax - x) * ppm);
+    }
+
+    private double rearV(double y) {
+        return uv(rearY + (hMax - y) * ppm);
+    }
+
+    private double topU(double x) {
+        return uv((x + xMax) * ppm);
     }
 
     private double topV(double z) {
-        return (TOP_Y + (z - zR) * PPM) / 16;
+        return uv(topY + (z - zR) * ppm);
     }
 
-    private static Face tile(int px) {
-        double u = px / 16.0, v = TILE_Y / 16.0;
-        return new Face(u + 0.2, v + 0.2, u + 0.8, v + 0.8, "0");
+    /** 한 색 칸 (8×8 픽셀, 가운데만 씀) */
+    private Face role(String name, int color) {
+        int[] at = tiles.computeIfAbsent(name, k -> {
+            int per = (TEX - tileX0) / 10;
+            int[] a = {tileX0 + (tileCursor % per) * 10, tileY0 + (tileCursor / per) * 10, color};
+            tileCursor++;
+            return a;
+        });
+        return new Face(uv(at[0] + 2), uv(at[1] + 2), uv(at[0] + 6), uv(at[1] + 6), "0");
     }
+
+    /** 덧붙이는 상자 면 그림 자리 (48×16 픽셀) */
+    private Face sign(Tex.Shader shader) {
+        int k = signs.size();
+        int per = 4;
+        int x = tileX0 + (k % per) * 50, y = TEX - 18 - (k / per) * 18;
+        signs.add(new int[]{x, y});
+        signShaders.add(shader);
+        return new Face(uv(x), uv(y), uv(x + 48), uv(y + 16), "0");
+    }
+
+    private final java.util.List<Tex.Shader> signShaders = new java.util.ArrayList<>();
 
     /** 상자 면에 비춘 그림 자리 */
     private Face projected(Dir dir, double x0, double y0, double z0, double x1, double y1, double z1) {
         return switch (dir) {
-            case EAST -> new Face(sideU(z1), sideV(y1), sideU(z0), sideV(y0), "0");
-            case WEST -> new Face(sideU(z0), sideV(y1), sideU(z1), sideV(y0), "0");
+            case EAST -> new Face(sideLU(z1), sideV(y1), sideLU(z0), sideV(y0), "0");
+            case WEST -> new Face(sideRU(z0), sideRV(y1), sideRU(z1), sideRV(y0), "0");
             case SOUTH -> new Face(frontU(x0), sideV(y1), frontU(x1), sideV(y0), "0");
             case NORTH -> new Face(rearU(x1), rearV(y1), rearU(x0), rearV(y0), "0");
             case UP -> new Face(topU(x0), topV(z0), topU(x1), topV(z1), "0");
-            case DOWN -> tile(TILE_DARK_X);
+            case DOWN -> role("dark", d.underbody());
         };
     }
 
-    private static double[] mu(double x, double y, double z) {
-        return new double[]{8 + x * UNIT, y * UNIT, 8 + z * UNIT};
+    private double[] mu(double x, double y, double z) {
+        return new double[]{8 + x * unit, y * unit, 8 + z * unit};
     }
 
     // ------------------------------------------------------------------ 차체
@@ -189,7 +241,7 @@ public final class CarModelMaker {
                     faces.put(dir, projected(dir, -hw, y0, z0, hw, y1, z1));
                 }
                 if (k == 0) {
-                    faces.put(Dir.DOWN, tile(TILE_DARK_X));
+                    faces.put(Dir.DOWN, role("dark", d.underbody()));
                 }
                 if (!covered(ahead, y0, y1, hw)) {
                     faces.put(Dir.SOUTH, projected(Dir.SOUTH, -hw, y0, z0, hw, y1, z1));
@@ -238,8 +290,8 @@ public final class CarModelMaker {
                 }
                 double zlo = Math.min(za, zb), zhi = Math.max(za, zb), xlo = Math.min(xa, xb), xhi = Math.max(xa, xb);
                 Map<Dir, Face> faces = new EnumMap<>(Dir.class);
-                faces.put(Dir.UP, tile(TILE_PAINT_X));
-                faces.put(Dir.DOWN, tile(TILE_DARK_X));
+                faces.put(Dir.UP, role("paint", d.paint()));
+                faces.put(Dir.DOWN, role("dark", d.underbody()));
                 if (Math.abs(psi) <= 45) {
                     Dir out = side > 0 ? Dir.EAST : Dir.WEST;
                     faces.put(out, projected(out, xlo, y0, zlo, xhi, y1, zhi));
@@ -258,22 +310,31 @@ public final class CarModelMaker {
         }
         // 바닥 판 (바퀴집 안쪽이 뚫려 보이지 않게)
         double[] f = d.floor();
-        m.add(mu(-f[0], f[1], f[3]), mu(f[0], f[2], f[4]), all(tile(TILE_DARK_X)));
+        m.add(mu(-f[0], f[1], f[3]), mu(f[0], f[2], f[4]), all(role("dark", d.underbody())));
         // 사이드미러 (몸통은 차 색, 뒤쪽은 거울, 팔은 검정)
         double[] mr = d.mirror();
         for (int side : new int[]{1, -1}) {
             double xa = side * mr[0], xb = side * mr[3];
-            Map<Dir, Face> faces = all(tile(TILE_PAINT_X));
-            faces.put(Dir.NORTH, tile(TILE_GLASS_X));
-            faces.put(Dir.DOWN, tile(TILE_TRIM_X));
+            Map<Dir, Face> faces = all(role("paint", d.paint()));
+            faces.put(Dir.NORTH, role("glass", d.glass()));
+            faces.put(Dir.DOWN, role("trim", d.trim()));
             m.add(mu(Math.min(xa, xb), mr[1], mr[2]), mu(Math.max(xa, xb), mr[4], mr[5]), faces);
             double arm0 = side * (mr[0] - 0.09), arm1 = side * (mr[0] + 0.01);
-            m.add(mu(Math.min(arm0, arm1), mr[1], mr[2] + 0.03), mu(Math.max(arm0, arm1), mr[1] + 0.04, mr[5] - 0.01), all(tile(TILE_TRIM_X)));
+            m.add(mu(Math.min(arm0, arm1), mr[1], mr[2] + 0.03), mu(Math.max(arm0, arm1), mr[1] + 0.04, mr[5] - 0.01), all(role("trim", d.trim())));
+        }
+        // 덧붙이는 상자 (경광등·표시등·가로대 등)
+        for (CarDesign.Extra e : d.extras()) {
+            Map<Dir, Face> faces = all(role("x" + e.color(), e.color()));
+            if (e.sign() != null) {
+                faces.put(Dir.SOUTH, sign(e.sign()));
+                faces.put(Dir.NORTH, sign(e.sign()));
+            }
+            m.add(mu(e.x0(), e.y0(), e.z0()), mu(e.x1(), e.y1(), e.z1()), faces);
         }
         return m;
     }
 
-    private static Map<Dir, Face> all(Face f) {
+    private Map<Dir, Face> all(Face f) {
         Map<Dir, Face> faces = new EnumMap<>(Dir.class);
         for (Dir dir : Dir.values()) {
             faces.put(dir, f);
@@ -281,17 +342,22 @@ public final class CarModelMaker {
         return faces;
     }
 
+    /** body() 를 먼저 불러야 칸·간판 자리가 정해짐 */
     Tex bodyTexture() {
         Tex t = new Tex(TEX, TEX);
-        int sw = (int) Math.ceil((zF - zR) * PPM), sh = (int) Math.ceil(HMAX * PPM), fw = (int) Math.ceil(2 * XMAX * PPM);
-        t.paint(0, 0, sw, sh, (px, py) -> d.side(zF - px / PPM, HMAX - py / PPM));
-        t.paint(FRONT_X, 0, fw, sh, (px, py) -> d.front(px / PPM - XMAX, HMAX - py / PPM));
-        t.paint(REAR_X, REAR_Y, fw, sh, (px, py) -> d.rear(XMAX - px / PPM, HMAX - py / PPM));
-        t.paint(0, TOP_Y, fw, sw, (px, py) -> d.top(px / PPM - XMAX, zR + py / PPM));
-        t.fill(TILE_DARK_X, TILE_Y, 16, 16, d.underbody());
-        t.fill(TILE_PAINT_X, TILE_Y, 16, 16, d.paint());
-        t.fill(TILE_TRIM_X, TILE_Y, 16, 16, d.trim());
-        t.fill(TILE_GLASS_X, TILE_Y, 16, 16, d.glass());
+        t.paint(0, 0, sw, sh, (px, py) -> d.side(zF - px / ppm, hMax - py / ppm));
+        t.paint(0, rightY, sw, sh, (px, py) -> d.sideRight(zR + px / ppm, hMax - py / ppm));
+        t.paint(frontX, 0, fw, sh, (px, py) -> d.front(px / ppm - xMax, hMax - py / ppm));
+        t.paint(frontX, rearY, fw, sh, (px, py) -> d.rear(xMax - px / ppm, hMax - py / ppm));
+        t.paint(0, topY, fw, sw, (px, py) -> d.top(px / ppm - xMax, zR + py / ppm));
+        for (int[] at : tiles.values()) {
+            t.fill(at[0], at[1], 8, 8, at[2]);
+        }
+        for (int i = 0; i < signs.size(); i++) {
+            int[] at = signs.get(i);
+            Tex.Shader sh = signShaders.get(i);
+            t.paint(at[0], at[1], 48, 16, (px, py) -> sh.at(px / 48, py / 16));
+        }
         return t;
     }
 
@@ -311,7 +377,7 @@ public final class CarModelMaker {
             Map<Dir, Face> faces = new EnumMap<>(Dir.class);
             faces.put(Dir.NORTH, tread);
             faces.put(Dir.SOUTH, tread);
-            m.add(new double[]{8 - w * UNIT, 8 - s * UNIT, 8 - a * UNIT}, new double[]{8 + w * UNIT, 8 + s * UNIT, 8 + a * UNIT},
+            m.add(new double[]{8 - w * unit, 8 - s * unit, 8 - a * unit}, new double[]{8 + w * unit, 8 + s * unit, 8 + a * unit},
                     ang == 0 ? null : "x", ang, origin, faces);
         }
         // 세로 판 (위아래 끝이 타이어 바닥): 90°, 90° ± 22.5°
@@ -319,17 +385,17 @@ public final class CarModelMaker {
             Map<Dir, Face> faces = new EnumMap<>(Dir.class);
             faces.put(Dir.UP, tread);
             faces.put(Dir.DOWN, tread);
-            m.add(new double[]{8 - w * UNIT, 8 - a * UNIT, 8 - s * UNIT}, new double[]{8 + w * UNIT, 8 + a * UNIT, 8 + s * UNIT},
+            m.add(new double[]{8 - w * unit, 8 - a * unit, 8 - s * unit}, new double[]{8 + w * unit, 8 + a * unit, 8 + s * unit},
                     ang == 0 ? null : "x", ang, origin, faces);
         }
         // 양옆 휠 (투명 바깥)
         Face disc = new Face(0, 0, 8, 8, "0");
         Map<Dir, Face> east = new EnumMap<>(Dir.class);
         east.put(Dir.EAST, disc);
-        m.add(new double[]{8 + (w - 0.01) * UNIT, 8 - R * UNIT, 8 - R * UNIT}, new double[]{8 + (w + 0.003) * UNIT, 8 + R * UNIT, 8 + R * UNIT}, east);
+        m.add(new double[]{8 + (w - 0.01) * unit, 8 - R * unit, 8 - R * unit}, new double[]{8 + (w + 0.003) * unit, 8 + R * unit, 8 + R * unit}, east);
         Map<Dir, Face> west = new EnumMap<>(Dir.class);
         west.put(Dir.WEST, disc);
-        m.add(new double[]{8 - (w + 0.003) * UNIT, 8 - R * UNIT, 8 - R * UNIT}, new double[]{8 - (w - 0.01) * UNIT, 8 + R * UNIT, 8 + R * UNIT}, west);
+        m.add(new double[]{8 - (w + 0.003) * unit, 8 - R * unit, 8 - R * unit}, new double[]{8 - (w - 0.01) * unit, 8 + R * unit, 8 + R * unit}, west);
         return m;
     }
 
