@@ -104,7 +104,8 @@ class MapHudTest {
     @Test
     void packIsValidAndAlwaysTheSame() throws IOException {
         assertEquals(pack.sha1(), PackBuilder.build().sha1(), "같은 내용이면 같은 zip");
-        assertTrue(pack.zip().length < 400_000, "리소스팩 크기 " + pack.zip().length);
+        // 미니맵 글꼴 + 차 모델 11종(일반 차 색 6가지). 처음 한 번만 받으니 몇 MB 까지 괜찮음
+        assertTrue(pack.zip().length < 3_000_000, "리소스팩 크기 " + pack.zip().length);
         Map<String, byte[]> files = new HashMap<>();
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(pack.zip()))) {
             ZipEntry e;
