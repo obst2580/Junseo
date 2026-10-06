@@ -87,6 +87,15 @@ public final class MapService implements Listener {
     }
 
     /** 설계도를 읽고 도시 그림을 따로 만듭니다 (몇 초) */
+    /** 도시 건물 배치 (켜진 뒤 몇 초 동안은 아직 없어서 null) */
+    public CityBuildings buildings() {
+        return buildings;
+    }
+
+    public com.junseo.citymap.terrain.CityTerrain terrain() {
+        return terrain;
+    }
+
     public void start() {
         bar.side("right".equalsIgnoreCase(plugin.settings().radar.side()) ? HudLayout.Side.RIGHT : HudLayout.Side.LEFT);
         plugin.ui().onStaticAction(ACTION, this::onMapClick);

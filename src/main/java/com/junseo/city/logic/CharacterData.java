@@ -27,6 +27,7 @@ public final class CharacterData {
     private Job job = Job.CITIZEN;
     private int jobGrade;
     private int jailSeconds;
+    private boolean license;
     private boolean dirty;
 
     public CharacterData(long id, UUID uuid, String citizenId, String name, long createdAt) {
@@ -214,6 +215,16 @@ public final class CharacterData {
         return jailSeconds > 0;
     }
 
+    /** 운전면허가 있나 */
+    public synchronized boolean hasLicense() {
+        return license;
+    }
+
+    public synchronized void setLicense(boolean license) {
+        this.license = license;
+        dirty = true;
+    }
+
     public synchronized boolean isDirty() {
         return dirty;
     }
@@ -224,9 +235,9 @@ public final class CharacterData {
 
     /** DB 저장용 스냅샷 (잠금 밖에서 안전하게 쓰기 위해). */
     public synchronized Snapshot snapshot() {
-        return new Snapshot(id, cash, bank, job.key(), jobGrade, jailSeconds);
+        return new Snapshot(id, cash, bank, job.key(), jobGrade, jailSeconds, license);
     }
 
-    public record Snapshot(long id, long cash, long bank, String job, int jobGrade, int jailSeconds) {
+    public record Snapshot(long id, long cash, long bank, String job, int jobGrade, int jailSeconds, boolean license) {
     }
 }

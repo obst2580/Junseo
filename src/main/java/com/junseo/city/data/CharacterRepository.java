@@ -92,14 +92,15 @@ public final class CharacterRepository {
 
     public void save(Connection c, CharacterData.Snapshot s, long now) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement(
-                "UPDATE characters SET cash = ?, bank = ?, job = ?, job_grade = ?, jail_seconds = ?, last_seen = ? WHERE id = ?")) {
+                "UPDATE characters SET cash = ?, bank = ?, job = ?, job_grade = ?, jail_seconds = ?, license = ?, last_seen = ? WHERE id = ?")) {
             ps.setLong(1, s.cash());
             ps.setLong(2, s.bank());
             ps.setString(3, s.job());
             ps.setInt(4, s.jobGrade());
             ps.setInt(5, s.jailSeconds());
-            ps.setLong(6, now);
-            ps.setLong(7, s.id());
+            ps.setInt(6, s.license() ? 1 : 0);
+            ps.setLong(7, now);
+            ps.setLong(8, s.id());
             ps.executeUpdate();
         }
     }
@@ -147,6 +148,7 @@ public final class CharacterRepository {
                 Job job = Job.parse(rs.getString("job"));
                 data.setJob(job == null ? Job.CITIZEN : job, rs.getInt("job_grade"));
                 data.setJailSeconds(rs.getInt("jail_seconds"));
+                data.setLicense(rs.getInt("license") != 0);
                 data.markClean();
                 return Optional.of(data);
             }

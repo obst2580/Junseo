@@ -36,7 +36,8 @@ public final class AdminCommand implements BasicCommand {
     private static final List<String> SUBS = List.of("place", "npc", "info", "money", "job", "jail", "release",
             "give", "reload", "save");
     private static final List<String> ITEMS = List.of("phone", "idcard", "pistol", "shotgun", "rifle", "taser", "ammo",
-            "handcuffs", "bandage", "key_compact", "key_sedan", "key_sports", "key_police");
+            "handcuffs", "bandage", "key_police", "key_ambulance", "key_taxi", "key_delivery", "key_garbage", "key_cashvan",
+            "car_compact", "car_sedan", "car_large", "car_suv", "car_sports");
 
     private final JunseoCity plugin;
 
@@ -317,6 +318,22 @@ public final class AdminCommand implements BasicCommand {
         }
         String id = args[0].toLowerCase(Locale.ROOT);
         int count = amount;
+        if (id.startsWith("car_")) {
+            // 일반 차: 열쇠가 아니라 그 사람 차로 등록하고 가장 가까운 공영 차고에 넣음
+            CarType type = CarType.byId(id.substring(4));
+            if (type == null || !type.forSale()) {
+                Text.send(sender, "<red>일반 차가 아니에요: " + Text.esc(id));
+                return;
+            }
+            Sched.entity(target, () -> {
+                var g = plugin.garages().nearest(target.getLocation(), Double.MAX_VALUE);
+                String garage = g == null ? "공영 차고" : g.name();
+                var r = plugin.vehicles().create(target.getUniqueId(), type, com.junseo.city.vehicle.model.CarModels.Paint.WHITE, garage);
+                Text.send(target, "<green>" + r.label() + " 받았어요 (" + r.plate() + "). " + Text.esc(garage) + "에서 폰 → 차고로 꺼내세요.");
+                Text.send(sender, "<green>" + target.getName() + "에게 " + r.label() + " 지급");
+            });
+            return;
+        }
         Sched.entity(target, () -> {
             CharacterData data = plugin.characters().get(target);
             for (int i = 0; i < (id.equals("ammo") ? 1 : count); i++) {
@@ -338,7 +355,7 @@ public final class AdminCommand implements BasicCommand {
         }
         if (id.startsWith("key_")) {
             CarType car = CarType.byId(id.substring(4));
-            return car == null ? null : CustomItems.carKey(car, owner.getUniqueId(), owner.getName());
+            return car == null || car.forSale() ? null : CustomItems.carKey(car, owner.getUniqueId(), owner.getName());
         }
         return switch (id) {
             case "phone" -> CustomItems.phone();

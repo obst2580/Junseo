@@ -6,7 +6,6 @@ import com.junseo.city.logic.CharacterData;
 import com.junseo.city.menu.Menu;
 import com.junseo.city.util.CustomItems;
 import com.junseo.city.util.Text;
-import com.junseo.city.vehicle.CarType;
 import com.junseo.city.weapon.GunType;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
@@ -57,14 +56,6 @@ public final class ShopMenu extends Menu {
         return menu;
     }
 
-    public static ShopMenu carDealer(JunseoCity plugin) {
-        ShopMenu menu = new ShopMenu(plugin, "자동차 대리점");
-        menu.addCar(11, CarType.COMPACT, "car_compact", 6000);
-        menu.addCar(13, CarType.SEDAN, "car_sedan", 15000);
-        menu.addCar(15, CarType.SPORTS, "car_sports", 40000);
-        return menu;
-    }
-
     private static ItemStack armor() {
         ItemStack stack = new ItemStack(Material.IRON_CHESTPLATE);
         stack.editMeta(meta -> meta.itemName(Text.plain("<gray>방탄조끼")));
@@ -73,16 +64,6 @@ public final class ShopMenu extends Menu {
 
     private void add(int slot, String name, Supplier<ItemStack> supplier, String priceId, long defaultPrice, int bulk) {
         put(slot, name, supplier.get(), List.of(), p -> supplier.get(), priceId, defaultPrice, bulk);
-    }
-
-    private void addCar(int slot, CarType type, String priceId, long defaultPrice) {
-        ItemStack display = new ItemStack(Material.TRIPWIRE_HOOK);
-        display.editMeta(meta -> meta.itemName(Text.plain("<green>" + type.displayName())));
-        List<Component> info = Text.lore(
-                "최고 속도 <white>" + Math.round(type.maxSpeed() * 72) + "km/h</white>",
-                "사면 차 열쇠를 받아요. 열쇠로 땅을 우클릭!");
-        put(slot, type.displayName(), display, info,
-                p -> CustomItems.carKey(type, p.getUniqueId(), p.getName()), priceId, defaultPrice, 1);
     }
 
     private void put(int slot, String name, ItemStack display, List<Component> info, Function<Player, ItemStack> product,

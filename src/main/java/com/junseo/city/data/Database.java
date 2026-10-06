@@ -127,9 +127,35 @@ public final class Database implements AutoCloseable {
                 if (dialect == Dialect.SQLITE) {
                     st.executeUpdate("CREATE INDEX IF NOT EXISTS money_log_cid ON money_log(citizen_id, ts)");
                 }
+                // 차: 주인(플레이어 uuid), 차종, 색, 번호판, 상태(garage/out/impound), 마지막 차고
+                st.executeUpdate("CREATE TABLE IF NOT EXISTS vehicles ("
+                        + "id " + text + " PRIMARY KEY, "
+                        + "owner " + text + " NOT NULL, "
+                        + "model " + text + " NOT NULL, "
+                        + "paint " + text + " NOT NULL, "
+                        + "plate " + text + " NOT NULL UNIQUE, "
+                        + "health INT NOT NULL DEFAULT 100, "
+                        + "state " + text + " NOT NULL DEFAULT 'garage', "
+                        + "garage " + (dialect == Dialect.SQLITE ? "TEXT" : "VARCHAR(128)") + ", "
+                        + "created_at BIGINT NOT NULL)");
+                // 운전면허 (나중에 생긴 칸이라 없으면 더함)
+                if (!hasColumn(c, "characters", "license")) {
+                    st.executeUpdate("ALTER TABLE characters ADD COLUMN license INT NOT NULL DEFAULT 0");
+                }
             }
             return null;
         }).join();
+    }
+
+    private static boolean hasColumn(Connection c, String table, String column) throws SQLException {
+        try (java.sql.ResultSet rs = c.getMetaData().getColumns(null, null, table, null)) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("COLUMN_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private Connection connection() throws SQLException {

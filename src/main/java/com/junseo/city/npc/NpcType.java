@@ -13,7 +13,8 @@ public enum NpcType {
     MINERAL("mineral", "광물 거래소", () -> Villager.Profession.MASON),
     JOB_CENTER("jobcenter", "직업 소개소", () -> Villager.Profession.LIBRARIAN),
     DELIVERY_DEPOT("depot", "택배 물류센터", () -> Villager.Profession.SHEPHERD),
-    BANKER("banker", "은행원", () -> Villager.Profession.CARTOGRAPHER);
+    BANKER("banker", "은행원", () -> Villager.Profession.CARTOGRAPHER),
+    CITY_HALL("cityhall", "시청 민원실", () -> Villager.Profession.CLERIC);
 
     private final String id;
     private final String displayName;

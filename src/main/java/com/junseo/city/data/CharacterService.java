@@ -165,4 +165,13 @@ public final class CharacterService implements Listener {
     public CompletableFuture<Optional<CharacterData>> findByName(String name) {
         return db.submit(c -> repo.findByName(c, name));
     }
+
+    /** 접속 안 한 사람도 uuid 로 찾기 (접속 중이면 그 데이터). */
+    public CompletableFuture<Optional<CharacterData>> findByUuid(UUID uuid) {
+        CharacterData on = online.get(uuid);
+        if (on != null) {
+            return CompletableFuture.completedFuture(Optional.of(on));
+        }
+        return db.submit(c -> repo.findByUuid(c, uuid));
+    }
 }

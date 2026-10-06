@@ -89,9 +89,19 @@ prices:
   rifle: 9000
   ammo: 300
   armor: 1500
+  # 자동차 (대리점). 비율은 기획서 차 가격을 따름. 돈 단위를 기획서의 원 단위로 바꿀 때 아래도 함께 키우세요
   car_compact: 6000
-  car_sedan: 15000
-  car_sports: 40000
+  car_sedan: 14000
+  car_large: 22000
+  car_suv: 20000
+  car_sports: 60000
+  # 차 유지·면허·단속
+  car_tow: 40
+  car_impound: 200
+  car_repair_base: 20
+  car_repair_percent: 8
+  license: 40
+  fine_no_license: 1200
 
 # 광물 거래소에 팔 때 받는 가격 (1개당)
 sell-prices:

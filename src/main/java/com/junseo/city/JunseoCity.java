@@ -28,6 +28,8 @@ import com.junseo.city.util.Keys;
 import com.junseo.city.util.Sched;
 import com.junseo.city.util.Text;
 import com.junseo.city.vehicle.CarService;
+import com.junseo.city.vehicle.GarageService;
+import com.junseo.city.vehicle.VehicleService;
 import com.junseo.city.weapon.GunService;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
@@ -64,6 +66,11 @@ public final class JunseoCity extends JavaPlugin {
     private RobberyService robbery;
     private GunService guns;
     private CarService cars;
+    private VehicleService vehicles;
+    private GarageService garages;
+    private com.junseo.city.vehicle.GarageApp garageApp;
+    private com.junseo.city.vehicle.DealerApp dealer;
+    private com.junseo.city.vehicle.LicenseOffice licenseOffice;
     private PhoneService phone;
     private CreationService creation;
     private ActionBarHud actionBar;
@@ -96,6 +103,12 @@ public final class JunseoCity extends JavaPlugin {
         jail = new JailService(this);
         robbery = new RobberyService(this);
         guns = new GunService(this);
+        vehicles = new VehicleService(this, database);
+        vehicles.load();
+        garages = new GarageService(this);
+        garageApp = new com.junseo.city.vehicle.GarageApp(this);
+        dealer = new com.junseo.city.vehicle.DealerApp(this);
+        licenseOffice = new com.junseo.city.vehicle.LicenseOffice(this);
         cars = new CarService(this);
         phone = new PhoneService(this);
         creation = new CreationService(this);
@@ -268,6 +281,26 @@ public final class JunseoCity extends JavaPlugin {
 
     public GunService guns() {
         return guns;
+    }
+
+    public VehicleService vehicles() {
+        return vehicles;
+    }
+
+    public GarageService garages() {
+        return garages;
+    }
+
+    public com.junseo.city.vehicle.GarageApp garageApp() {
+        return garageApp;
+    }
+
+    public com.junseo.city.vehicle.DealerApp dealer() {
+        return dealer;
+    }
+
+    public com.junseo.city.vehicle.LicenseOffice licenseOffice() {
+        return licenseOffice;
     }
 
     public CarService cars() {

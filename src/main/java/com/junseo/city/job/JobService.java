@@ -46,6 +46,18 @@ public final class JobService {
             givePoliceKit(player);
         }
         if (old != job) {
+            // 업무용 차 열쇠: 의료국 구급차, 택배기사 택배 트럭 (그만두면 회수)
+            for (Job j : new Job[]{Job.EMS, Job.DELIVERY}) {
+                CarType car = j == Job.EMS ? CarType.AMBULANCE : CarType.DELIVERY;
+                if (old == j) {
+                    takeJobKey(player, car);
+                }
+                if (job == j) {
+                    Economy.give(player, CustomItems.carKey(car, player.getUniqueId(), player.getName()));
+                }
+            }
+        }
+        if (old != job) {
             player.showTitle(Title.title(Text.mm("<gold>" + job.displayName()), Text.mm("<gray>새 직업을 시작했어요!"),
                     Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500))));
             player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1f, 1.2f);
@@ -73,6 +85,17 @@ public final class JobService {
         if (!have.contains(CustomItems.id(stack))) {
             Economy.give(player, CustomItems.markPoliceGear(stack));
         }
+    }
+
+    private void takeJobKey(Player player, CarType car) {
+        PlayerInventory inv = player.getInventory();
+        for (int i = 0; i < inv.getSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (CustomItems.is(stack, CustomItems.CAR_KEY) && car.id().equals(CustomItems.string(stack, com.junseo.city.util.Keys.CAR_TYPE))) {
+                inv.setItem(i, null);
+            }
+        }
+        plugin.cars().despawnOwned(player.getUniqueId(), car);
     }
 
     public void removePoliceGear(Player player) {

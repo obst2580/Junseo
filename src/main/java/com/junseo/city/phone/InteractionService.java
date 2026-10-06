@@ -55,6 +55,11 @@ public final class InteractionService implements Listener {
         s.line("<gray>이 사람에게 무엇을 할까요?");
         s.button("<white>신분증 보여주기", "내 이름과 주민번호를 보여줘요", () -> showId(player, target));
         s.button("<green>현금 건네기", "내 현금을 직접 건네줘요", () -> giveCash(player, target));
+        CharacterData me = plugin.characters().get(player);
+        if (me != null && me.job() == com.junseo.city.logic.Job.POLICE) {
+            s.button("<blue>면허 확인", "운전면허가 있는지 조회해요", () -> checkLicense(player, target));
+            s.button("<red>무면허 벌금", plugin.settings().money(NO_LICENSE_FINE) + " (면허가 없을 때만)", () -> fineNoLicense(player, target));
+        }
         s.exit("닫기", null);
         plugin.ui().show(player, s);
     }
@@ -71,9 +76,44 @@ public final class InteractionService implements Listener {
             s.line("<gray>상대방이 신분증을 보여줬어요.");
             s.line("<gray>이름: <white><bold>" + Text.esc(me.name()));
             s.line("<gray>주민번호: <white>" + me.citizenId());
+            s.line("<gray>운전면허: " + (me.hasLicense() ? "<green>있음" : "<red>없음"));
             s.exit("확인", null);
             plugin.ui().show(target, s);
         });
+    }
+
+    /** 무면허 운전 벌금 기본값 (config.yml prices.fine_no_license) */
+    static final long NO_LICENSE_FINE = 1_200;
+
+    private void checkLicense(Player police, Player target) {
+        CharacterData them = plugin.characters().get(target);
+        if (them == null || !near(police, target)) {
+            Text.send(police, "<gray>너무 멀어요.");
+            return;
+        }
+        Text.send(police, "<blue>[조회] <white>" + Text.esc(them.name()) + " <gray>(" + them.citizenId() + ") 운전면허 "
+                + (them.hasLicense() ? "<green>있음" : "<red>없음"));
+    }
+
+    private void fineNoLicense(Player police, Player target) {
+        CharacterData them = plugin.characters().get(target);
+        if (them == null || !near(police, target)) {
+            Text.send(police, "<gray>너무 멀어요.");
+            return;
+        }
+        if (them.hasLicense()) {
+            Text.send(police, "<yellow>이 사람은 운전면허가 있어요.");
+            return;
+        }
+        long fine = plugin.settings().price("fine_no_license", NO_LICENSE_FINE);
+        CharacterData.PayResult result = them.pay(fine);
+        if (result == CharacterData.PayResult.INSUFFICIENT) {
+            Text.send(police, "<yellow>돈이 모자라 벌금을 받지 못했어요. 체포를 고려하세요.");
+            return;
+        }
+        plugin.characters().logMoney(them, -fine, result == CharacterData.PayResult.BANK ? "bank" : "cash", "무면허 운전 벌금", null);
+        Text.send(police, "<green>무면허 운전 벌금 " + plugin.settings().money(fine) + "을 부과했어요.");
+        Sched.entity(target, () -> Text.send(target, "<red>무면허 운전으로 벌금 " + plugin.settings().money(fine) + "을 냈어요."));
     }
 
     private void giveCash(Player player, Player target) {

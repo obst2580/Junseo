@@ -93,7 +93,7 @@ public final class PhoneService implements Listener {
         s.button("<red>긴급 신고", "112 경찰 · 119 구조", () -> openApp(player, "emergency"));
         s.button("<yellow>직업", "내 직업 · 직업 바꾸기", () -> openApp(player, "job"));
         s.button("<green>알바", "택배 배달 미션", () -> openApp(player, "parttime"));
-        s.button("<gray>차고", "내 차 위치 · 회수", () -> openApp(player, "garage"));
+        s.button("<gray>차고", "내 차 꺼내기 · 넣기 · 견인 · 수리", () -> openApp(player, "garage"));
         s.button("<dark_aqua>지도", "장소로 길 안내", () -> openApp(player, "map"));
         s.button("<light_purple>관리자 호출", "신고 · 도움 요청", () -> openApp(player, "admin"));
         plugin.ui().show(player, s);
@@ -401,31 +401,7 @@ public final class PhoneService implements Listener {
     // ------------------------------------------------------------------ 차고
 
     private void garage(Player player) {
-        Screen s = app("<gray><bold>차고");
-        List<Car> cars = plugin.cars().ownedBy(player.getUniqueId());
-        if (cars.isEmpty()) {
-            s.line("<gray>꺼내 놓은 차가 없어요.");
-        }
-        Location me = player.getLocation();
-        for (Car car : cars) {
-            Location at = car.lastKnownLocation();
-            String where = at == null || at.getWorld() != me.getWorld() ? "다른 지역"
-                    : Math.round(at.distance(me)) + "m " + Compass.arrow(me.getYaw(), at.getX() - me.getX(), at.getZ() - me.getZ());
-            s.line("<white>" + car.type().displayName() + " <gray>" + where);
-            s.button("<white>" + car.type().displayName() + " 길 안내", () -> {
-                if (at != null) {
-                    plugin.gps().start(player, at, "내 " + car.type().displayName());
-                }
-                plugin.ui().close(player);
-            });
-            s.button("<red>" + car.type().displayName() + " 차고에 넣기", () -> {
-                plugin.cars().despawn(car);
-                garage(player);
-            });
-        }
-        s.line("<dark_gray>차 열쇠를 들고 땅을 우클릭하면 차가 나와요.");
-        home(s, player);
-        plugin.ui().show(player, s);
+        plugin.garageApp().open(player, () -> openHome(player));
     }
 
     // ------------------------------------------------------------------ 지도

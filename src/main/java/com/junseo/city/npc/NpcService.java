@@ -72,7 +72,8 @@ public final class NpcService implements Listener {
         switch (type) {
             case CONVENIENCE -> ShopMenu.convenience(plugin).open(player);
             case GUN_STORE -> ShopMenu.gunStore(plugin).open(player);
-            case CAR_DEALER -> ShopMenu.carDealer(plugin).open(player);
+            case CAR_DEALER -> plugin.dealer().open(player);
+            case CITY_HALL -> plugin.licenseOffice().open(player);
             case MINERAL -> new SellMenu(plugin, player).open(player);
             case JOB_CENTER -> plugin.phone().job(player, null);
             case BANKER -> plugin.phone().bank(player, null);
