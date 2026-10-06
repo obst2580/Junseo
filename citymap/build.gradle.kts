@@ -42,6 +42,6 @@ tasks {
         systemProperty("mapPreview", System.getProperty("mapPreview") ?: "false")
         systemProperty("previewOnly", System.getProperty("previewOnly") ?: "")
         systemProperty("layoutFile", rootProject.file("map/layout.json").absolutePath)
-        maxHeapSize = "1g"
+        maxHeapSize = (project.findProperty("testHeap") as String?) ?: "1g"
     }
 }

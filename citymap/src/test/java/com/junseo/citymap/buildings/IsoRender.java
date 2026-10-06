@@ -25,6 +25,8 @@ final class IsoRender {
     private final List<Block> pal = new ArrayList<>();
     private final Map<Block, Short> index = new HashMap<>();
     private Shape[] shapes;
+    /** 안개가 다 끼는 거리, 광선이 가는 최대 거리 (멀리 보는 그림은 farView 로 늘림) */
+    private double fogDist = 230, maxDist = 260;
 
     IsoRender(CityTerrain terrain, CityBuildings buildings, int x0, int z0, int x1, int z1, int ymin, int ymax) {
         this.terrain = terrain;
@@ -68,6 +70,59 @@ final class IsoRender {
                 }
             }
         }
+    }
+
+    /** 멀리까지 보는 그림 (홍보용): 안개 거리·광선 거리 */
+    IsoRender farView(double fog, double max) {
+        this.fogDist = fog;
+        this.maxDist = max;
+        return this;
+    }
+
+    /**
+     * 산에 숲을 심음. 게임에서는 땅이 생길 때 나무가 자라지만 (TreePopulator) 이 그림에는 없어서 비슷하게 흉내:
+     * 산 잔디 칸의 약 2% 에 참나무, 높은 곳은 소나무(가문비)가 더 많음.
+     */
+    IsoRender plantTrees() {
+        Block log = Block.of("oak_log", 0x6B5434), leaves = Block.of("oak_leaves", 0x4A7A2C);
+        Block plog = Block.of("spruce_log", 0x3D2B1A), pleaves = Block.of("spruce_leaves", 0x2F5530);
+        for (int j = 2; j < d - 2; j++) {
+            for (int i = 2; i < w - 2; i++) {
+                int x = x0 + i, z = z0 + j;
+                long h = (x * 341873128712L) ^ (z * 132897987541L);
+                h ^= h >>> 29;
+                h *= 0xbf58476d1ce4e5b9L;
+                h ^= h >>> 32;
+                if ((h & 1023) > 21) {
+                    continue;
+                }
+                com.junseo.citymap.terrain.Column c = terrain.column(x, z);
+                if (c.surface != com.junseo.citymap.terrain.Surface.GRASS || c.mountainHeight < 6 || c.isWater() || c.tunnel) {
+                    continue;
+                }
+                int top = c.groundY;
+                if (raw(i, top + 1, j) != 0) {
+                    continue;
+                }
+                boolean pine = ((h >>> 10) & 7) < (c.mountainHeight > 60 ? 5 : 2);
+                int th = 4 + (int) ((h >>> 13) & 3) + (pine ? 2 : 0);
+                for (int y = top + 1; y <= top + th; y++) {
+                    put(i, y, j, pine ? plog : log);
+                }
+                for (int y = top + (pine ? 3 : th - 2); y <= top + th + 1; y++) {
+                    int rad = pine ? Math.max(0, (top + th + 1 - y) / 2 + (y == top + th + 1 ? 0 : 1)) : (y >= top + th ? 1 : 2);
+                    for (int a = -rad; a <= rad; a++) {
+                        for (int b = -rad; b <= rad; b++) {
+                            if (Math.abs(a) + Math.abs(b) <= rad + (pine ? 0 : 1) && raw(i + a, y, j + b) == 0
+                                    && i + a >= 0 && j + b >= 0 && i + a < w && j + b < d) {
+                                put(i + a, y, j + b, pine ? pleaves : leaves);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return this;
     }
 
     private int idx(int i, int y, int j) {
@@ -441,7 +496,7 @@ final class IsoRender {
         double px = ox, py = oy, pz = oz;
         double traveled = 0;
         for (int layer = 0; layer < 4; layer++) {
-            int c = march(px, py, pz, dx, dy, dz, 260 - traveled, hit);
+            int c = march(px, py, pz, dx, dy, dz, maxDist - traveled, hit);
             if (c == 0) {
                 int s = sky(dy);
                 r += weight * ((s >> 16) & 255);
@@ -472,7 +527,7 @@ final class IsoRender {
             if (glowing) {
                 light = 1.15;
             }
-            double fog = Math.min(1, traveled / 230.0);
+            double fog = Math.min(1, traveled / fogDist);
             fog = fog * fog;
             int s = sky(0.05);
             double cr = ((base >> 16) & 255) * light * grain, cg = ((base >> 8) & 255) * light * grain, cb = (base & 255) * light * grain;
