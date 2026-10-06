@@ -85,6 +85,15 @@ class CarModelTest {
             g.dispose();
             ImageIO.write(sheet, "png", new File(dir, front ? "car-lineup-front.png" : "car-lineup-rear.png"));
         }
+        // 차마다 크게 한 장 (앞 3/4)
+        for (String id : ids) {
+            CarDesign d = CarModels.design(id);
+            CarModelMaker.Assets a = CarModelMaker.make(d);
+            double L = d.length();
+            BufferedImage img = scene(a, d, 14).render(new double[]{-L * 0.85, d.height() * 0.75 + 0.3, L * 1.05},
+                    new double[]{0, d.height() * 0.42, 0.15}, 30, 1280, 720, d.width() * 0.62, L * 0.55);
+            ImageIO.write(img, "png", new File(dir, "car-hero-" + id + ".png"));
+        }
         // 색 6가지 (세단)
         BufferedImage colors = new BufferedImage(cw * 3, ch * 2, BufferedImage.TYPE_INT_RGB);
         java.awt.Graphics2D g = colors.createGraphics();
