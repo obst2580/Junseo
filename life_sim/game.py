@@ -50,7 +50,9 @@ EVENTS = [
     ("길고양이가 자꾸 따라온다", 10, 90, 1),
     ("동네에 재개발 소식이 들렸다", 30, 80, 1),
 ]
-DRAFT_NOTICE = "입영 통지서가 날아왔다"
+# 병역: 만 19살 무렵 병역판정검사 통지 한 번. 입대 시기는 이야기 속에서 플레이어가 정한다 (재학·유학 중엔 연기 가능).
+DRAFT_NOTICE = "병역판정검사 통지서가 왔다"
+OLD_DRAFT_NOTICE = "입영 통지서가 날아왔다"  # 예전 판이 스무 살에 억지로 보내던 통지 — 이미 받았으면 검사 통지는 건너뛴다
 ONCE = {DRAFT_NOTICE}  # 한 번 겪으면 다시 일어나지 않는 사건
 
 
@@ -192,7 +194,7 @@ def new_life(
 def roll_event(life: Life, age: int, rng: random.Random, chance: float = TURN_EVENT_CHANCE) -> str | None:
     """이 나이에 일어나는 무작위 사건. 이야기꾼이 결과에 녹여 넣는다.
     상태는 바꾸지 않는다 — 턴이 끝까지 진행된 뒤에 apply 가 ONCE 사건을 seen 에 남긴다."""
-    if life.gender == "남" and 20 <= age <= 28 and DRAFT_NOTICE not in life.seen:
+    if life.gender == "남" and 19 <= age <= 21 and not {DRAFT_NOTICE, OLD_DRAFT_NOTICE} & set(life.seen):
         return DRAFT_NOTICE
     if rng.random() >= chance:
         return None

@@ -117,13 +117,19 @@ class GameTest(unittest.TestCase):
         self.assertLess(game.death_chance(70, 90), game.death_chance(70, 20))
         self.assertLess(game.death_chance(30, 0), 0.01)  # 건강이 바닥이어도 곧바로 죽지 않는다
 
-    def test_draft_notice_once_for_men_at_20(self):
-        rng = random.Random(0)
-        self.assertEqual(game.roll_event(self.life, 20, rng), game.DRAFT_NOTICE)
+    def test_draft_physical_once_for_men_at_19(self):
+        self.assertEqual(game.DRAFT_NOTICE, "병역판정검사 통지서가 왔다")  # 입영(입대) 통지가 아니다
+        self.assertEqual(game.roll_event(self.life, 19, random.Random(0)), game.DRAFT_NOTICE)
         game.apply(self.life, turn_out(), 1, [game.DRAFT_NOTICE])
-        self.assertNotEqual(game.roll_event(self.life, 20, random.Random(0)), game.DRAFT_NOTICE)
+        self.assertNotEqual(game.roll_event(self.life, 19, random.Random(0)), game.DRAFT_NOTICE)
+        for age in (18, 22, 25):  # 그 밖의 나이에는 억지로 보내지 않는다
+            fresh = game.new_life("c", "남", random.Random(2))
+            self.assertNotEqual(game.roll_event(fresh, age, random.Random(0)), game.DRAFT_NOTICE)
         woman = game.new_life("b", "여", random.Random(1))
-        self.assertNotEqual(game.roll_event(woman, 20, random.Random(0)), game.DRAFT_NOTICE)
+        self.assertNotEqual(game.roll_event(woman, 19, random.Random(0)), game.DRAFT_NOTICE)
+        old_save = game.new_life("d", "남", random.Random(3))
+        old_save.seen.append(game.OLD_DRAFT_NOTICE)  # 예전 판에서 입영 통지를 이미 받은 저장본
+        self.assertNotEqual(game.roll_event(old_save, 20, random.Random(0)), game.DRAFT_NOTICE)
 
     def test_apply_clamps_and_advances(self):
         game.apply(self.life, turn_out(), 0)  # 태어나는 장면
