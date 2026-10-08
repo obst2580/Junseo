@@ -78,27 +78,29 @@ def start(rng: random.Random) -> game.Life:
     return create(rng)
 
 
-def play(teller: Storyteller, life: game.Life, action: str, years: int, rng: random.Random) -> None:
-    """한 턴: 사건과 수명을 굴리고, 이야기꾼이 결과를 쓰고, 상태에 반영한다."""
-    rolled, fate, lived = [], None, years
-    for age in range(life.age, life.age + years):
-        event = game.roll_event(life, age, rng)
-        if event:
-            rolled.append((age, event))
-        if rng.random() < game.death_chance(age, life.health):
-            fate, lived = game.cause_of_death(age, life.health, rng), age - life.age + 1
-            break
+def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, skip_years: int = 0) -> None:
+    """한 턴: 사건을 굴리고, 이야기꾼이 결과를 쓰고, 흐른 시간만큼 수명을 굴린다.
+    skip_years 가 있으면 그 햇수를 그냥 흘려보내고, 없으면 행동에 걸리는 만큼 시간이 흐른다."""
+    if skip_years:
+        rolled = [(age, e) for age in range(life.age, life.age + skip_years)
+                  if (e := game.roll_event(life, age, rng, game.EVENT_CHANCE))]
+    else:
+        rolled = [(life.age, e)] if (e := game.roll_event(life, life.age, rng)) else []
     events = [event for _, event in rolled]
-    shown = events if lived == 1 else [f"{age}살: {event}" for age, event in rolled]
-    out = call(teller.turn, life, action, lived, shown, fate)
+    shown = [f"{age}살 무렵: {event}" for age, event in rolled] if skip_years else events
+    out = call(teller.turn, life, action, shown, skip_years)
     if out is None:
         return
-    if fate:  # 수명은 게임이 정한다. 이야기꾼이 빠뜨려도 이번 턴에 떠난다.
-        out["died"] = True
-        out["cause_of_death"] = out["cause_of_death"] or fate
+    months = skip_years * 12 if skip_years else max(0, min(120, int(out.get("months_passed", 0))))
+    start_months = life.months
     before = ui.snapshot(life)
-    game.apply(life, out, lived, events)
-    ui.result(out["result"], before, ui.snapshot(life))
+    game.apply(life, out, months, events)
+    ui.result(out["result"], before, ui.snapshot(life), span=months)
+    # 수명은 게임이 정한다: 흐른 시간만큼 굴려서, 이 사이에 떠났으면 엔딩이 그 장면을 쓴다
+    cause = None if life.dead else game.death_roll(start_months, months, life.health, rng)
+    if cause:
+        life.dead, life.cause_of_death, life.offscreen_death = True, cause, True
+        life.scene, life.suggestions = "", []
     game.save(life)
 
 
@@ -112,7 +114,7 @@ def command(line: str, teller: Storyteller, life: game.Life, rng: random.Random)
         ui.chronicle(life)
     elif name == "넘기기":
         years = int(arg) if arg.strip().isdigit() else 1
-        play(teller, life, IDLE, max(1, min(10, years)), rng)
+        play(teller, life, IDLE, rng, skip_years=max(1, min(10, years)))
     elif name == "저장":
         game.save(life)
         print(ui.dim(f"저장했어요: {game.SAVE_PATH}"))
@@ -135,6 +137,8 @@ def finale(teller: Storyteller, life: game.Life) -> None:
     ui.rule("부고")
     ui.say(f"{life.name} ({life.birth_year}~{life.year}), {life.age}살에 {life.cause_of_death}(으)로 세상을 떠났습니다.")
     if ending:
+        print()
+        ui.say(ending["last_moment"])
         print()
         print(ui.bold(f"  「{ending['title']}」"))
         ui.say(f"\"{ending['epitaph']}\"", ui.dim)
@@ -160,9 +164,9 @@ def run(teller: Storyteller, rng: random.Random) -> bool:
 
     shown = None
     while not life.dead:
-        if life.age != shown:  # 명령만 쓴 뒤에는 같은 상황을 다시 보여 주지 않는다
+        if life.turns != shown:  # 명령만 쓴 뒤에는 같은 상황을 다시 보여 주지 않는다
             ui.scene(life)
-            shown = life.age
+            shown = life.turns
         try:
             line = ask("\n> ")
         except (EOFError, KeyboardInterrupt):
@@ -175,7 +179,7 @@ def run(teller: Storyteller, rng: random.Random) -> bool:
             if not command(line, teller, life, rng):
                 return False
             continue
-        play(teller, life, line, 1, rng)
+        play(teller, life, line, rng)
 
     finale(teller, life)
     return True

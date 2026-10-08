@@ -7,7 +7,7 @@ import threading
 import unicodedata
 from contextlib import contextmanager
 
-from .game import STATS, Life
+from .game import STATS, Life, span_text
 
 COLS = 72
 _COLOR = sys.stdout.isatty()
@@ -66,7 +66,7 @@ def bar(value: int, size: int = 10) -> str:
 
 
 def status(life: Life) -> None:
-    rule(f"{life.name} · {life.age}살 · {life.year}년")
+    rule(f"{life.name} · {life.age}살 · {life.when}")
     for key, label in STATS.items():
         print(f"  {label} {bar(getattr(life, key))} {getattr(life, key):>3}")
     print(f"  돈   {life.money:,}만원")
@@ -89,14 +89,16 @@ def chronicle(life: Life) -> None:
 
 def scene(life: Life) -> None:
     print()
-    rule(f"{life.age}살 · {life.year}년")
+    rule(f"{life.age}살 · {life.when}")
     say(life.scene)
     if life.suggestions:
         say("예: " + " / ".join(life.suggestions), dim)
 
 
-def result(text: str, before: dict | None = None, after: dict | None = None) -> None:
+def result(text: str, before: dict | None = None, after: dict | None = None, span: int | None = None) -> None:
     print()
+    if span is not None:
+        print(accent(span_text(span)))
     say(text)
     if before and after:
         labels = {**STATS, "money": "돈"}

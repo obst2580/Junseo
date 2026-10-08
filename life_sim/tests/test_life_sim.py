@@ -5,6 +5,7 @@ import random
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
@@ -16,7 +17,8 @@ from life_sim.storyteller import ENDING_SCHEMA, Storyteller, StoryError, describ
 
 def turn_out(**over):
     out = {
-        "result": "한 해가 흘렀다.",
+        "result": "시간이 흘렀다.",
+        "months_passed": 6,
         "summary": "평범한 한 해",
         "changes": {"health": 2, "happiness": -3, "smarts": 1, "looks": 0, "money": 50},
         "education": "초등학생",
@@ -45,7 +47,7 @@ class FakeClient:
         self.requests.append(kwargs)
         schema = kwargs["output_config"]["format"]["schema"]
         reply = self.replies.pop(0) if self.replies else (
-            {"title": "평범한 사람", "epitaph": "잘 살았다", "story": "끝."} if schema is ENDING_SCHEMA else turn_out()
+            {"last_moment": "조용히 눈을 감았다.", "story": "끝.", "title": "평범한 사람", "epitaph": "잘 살았다"} if schema is ENDING_SCHEMA else turn_out()
         )
         if isinstance(reply, SimpleNamespace):
             return reply
@@ -77,6 +79,18 @@ class GameTest(unittest.TestCase):
         self.assertIn(life.talent, game.TALENTS)
         self.assertEqual(life.background, "아버지는 조선소 용접공이다")
 
+    def test_calendar_and_span(self):
+        self.life.birth_year, self.life.birth_month, self.life.months = 2003, 11, 17
+        self.assertEqual(self.life.when, "2005년 4월")
+        self.assertEqual([game.span_text(m) for m in (0, 5, 12, 26)], ["며칠 사이", "5개월 뒤", "1년 뒤", "2년 2개월 뒤"])
+
+    def test_death_roll_scales_with_time(self):
+        rng = random.Random(0)
+        self.assertIsNone(game.death_roll(80 * 12, 0, 70, rng))  # 시간이 흐르지 않으면 떠나지 않는다
+        self.assertIsNotNone(game.death_roll(30 * 12, 1, 0, rng))  # 건강 0 이면 반드시
+        month = sum(game.death_roll(80 * 12, 1, 70, rng) is not None for _ in range(20000)) / 20000
+        self.assertAlmostEqual(month, 1 - (1 - game.death_chance(80, 70)) ** (1 / 12), delta=0.002)
+
     def test_death_chance_grows_with_age_and_frailty(self):
         self.assertLess(game.death_chance(20, 80), game.death_chance(80, 80))
         self.assertLess(game.death_chance(70, 90), game.death_chance(70, 20))
@@ -91,15 +105,18 @@ class GameTest(unittest.TestCase):
         self.assertNotEqual(game.roll_event(woman, 20, random.Random(0)), game.DRAFT_NOTICE)
 
     def test_apply_clamps_and_advances(self):
+        game.apply(self.life, turn_out(), 0)  # 태어나는 장면
         self.life.health, self.life.happiness, self.life.smarts = 95, 30, 70
         changes = {"health": 99, "happiness": -500, "smarts": -500, "looks": 0, "money": -30}
-        game.apply(self.life, turn_out(changes=changes), 3)
+        game.apply(self.life, turn_out(changes=changes), 40)
         self.assertEqual(self.life.health, 100)
         self.assertEqual(self.life.happiness, 0)
         self.assertEqual(self.life.smarts, 30)  # 한 턴 변화량은 ±40 까지
-        self.assertEqual(self.life.money, -30)
-        self.assertEqual(self.life.age, 3)
-        self.assertEqual(self.life.chronicle[-1], "0~2살: 평범한 한 해")
+        self.assertEqual(self.life.money, 20)
+        self.assertEqual((self.life.months, self.life.age, self.life.last_span), (40, 3, 40))
+        self.assertEqual(self.life.chronicle, ["출생: 평범한 한 해", "0~3살: 평범한 한 해"])
+        game.apply(self.life, turn_out(), 0)  # 며칠 사이의 일은 같은 나이로 남는다
+        self.assertEqual((self.life.age, self.life.chronicle[-1]), (3, "3살: 평범한 한 해"))
         self.assertEqual(self.life.scene, "새 학기가 시작됐다.")
 
     def test_apply_death_when_health_runs_out(self):
@@ -107,6 +124,13 @@ class GameTest(unittest.TestCase):
         game.apply(self.life, turn_out(changes={"health": -10, "happiness": 0, "smarts": 0, "looks": 0, "money": 0}), 1)
         self.assertTrue(self.life.dead)
         self.assertEqual(self.life.scene, "")
+
+    def test_load_old_yearly_save(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "save.json"
+            data = {k: v for k, v in asdict(self.life).items() if k not in ("months", "turns", "last_span")}
+            path.write_text(json.dumps({**data, "age": 7}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(game.load(path).months, 84)
 
     def test_save_and_load_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -130,7 +154,7 @@ class StorytellerTest(unittest.TestCase):
         client = FakeClient()
         teller = Storyteller(client, model="claude-opus-5-5", effort="low")
         life = game.new_life("준서", "남", random.Random(1))
-        out = teller.turn(life, "공부한다", 1, ["첫사랑이 찾아왔다"], fate=None)
+        out = teller.turn(life, "공부한다", ["첫사랑이 찾아왔다"])
         self.assertEqual(out["summary"], "평범한 한 해")
         request = client.requests[0]
         self.assertEqual(request["fallbacks"], "default")
@@ -138,6 +162,9 @@ class StorytellerTest(unittest.TestCase):
         prompt = request["messages"][0]["content"]
         self.assertIn("공부한다", prompt)
         self.assertIn("첫사랑이 찾아왔다", prompt)
+        self.assertIn("자연스럽게 걸리는 만큼", prompt)
+        teller.turn(life, "특별히 하는 일 없이", [], skip_years=3)
+        self.assertIn("months_passed는 정확히 36", client.requests[1]["messages"][0]["content"])
 
     def test_no_fallbacks_for_other_models(self):
         client = FakeClient()
@@ -167,7 +194,7 @@ class PlayTest(unittest.TestCase):
         client = FakeClient()
         self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/넘기기 3", "/상태", "/종료"], client)
         life = game.load()
-        self.assertEqual(life.age, 4)  # 태어남(0) → 1년 → 3년
+        self.assertEqual((life.months, life.age), (42, 3))  # 태어남 → 6개월 (이야기꾼이 정함) → 3년 넘기기
         self.assertEqual(len(life.chronicle), 3)
         self.assertIn("공부를 열심히 한다", client.requests[1]["messages"][0]["content"])
 

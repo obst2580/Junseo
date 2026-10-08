@@ -19,8 +19,9 @@ TALENTS = {
     "음악적 감각": None, "그림 솜씨": None, "말솜씨": None, "손재주": None, "끈기": None, "요리 감각": None,
 }
 
-# (사건, 최소 나이, 최대 나이, 가중치). 해마다 EVENT_CHANCE 확률로 하나가 일어난다.
-EVENT_CHANCE = 0.35
+# (사건, 최소 나이, 최대 나이, 가중치)
+EVENT_CHANCE = 0.35  # 「/넘기기」로 넘기는 해마다
+TURN_EVENT_CHANCE = 0.2  # 행동 한 번마다 (짧은 턴이 이어져도 사건이 넘치지 않게)
 EVENTS = [
     ("동생이 태어났다", 1, 10, 3),
     ("가족이 다른 도시로 이사를 가게 됐다", 1, 17, 2),
@@ -58,7 +59,9 @@ class Life:
     family: str
     talent: str
     background: str = ""  # 플레이어가 정한 출생 배경
-    age: int = 0
+    birth_month: int = 3
+    months: int = 0  # 태어나서 지금까지 흐른 개월 수. 한 턴에 흐르는 시간은 행동마다 다르다
+    age: int = 0  # months // 12
     health: int = 80
     happiness: int = 60
     smarts: int = 50
@@ -74,10 +77,29 @@ class Life:
     seen: list[str] = field(default_factory=list)  # 한 번만 일어나는 사건
     dead: bool = False
     cause_of_death: str = ""
+    offscreen_death: bool = False  # 이야기 밖에서(수명 판정으로) 떠났다 — 엔딩이 마지막 장면을 쓴다
+    last_span: int | None = None  # 직전 턴에 흐른 개월 수
+    turns: int = 0
 
     @property
     def year(self) -> int:
-        return self.birth_year + self.age
+        return self.birth_year + (self.birth_month - 1 + self.months) // 12
+
+    @property
+    def month(self) -> int:
+        return (self.birth_month - 1 + self.months) % 12 + 1
+
+    @property
+    def when(self) -> str:
+        return f"{self.year}년 {self.month}월"
+
+
+def span_text(months: int) -> str:
+    """흐른 시간을 말로: 0 → 며칠 사이, 5 → 5개월 뒤, 26 → 2년 2개월 뒤"""
+    if not months:
+        return "며칠 사이"
+    y, m = divmod(months, 12)
+    return " ".join(part for part in (f"{y}년" if y else "", f"{m}개월" if m else "") if part) + " 뒤"
 
 
 def new_life(
@@ -102,6 +124,7 @@ def new_life(
         family=family or rng.choices(list(FAMILIES), weights=list(FAMILIES.values()))[0],
         talent=talent,
         background=background,
+        birth_month=rng.randint(1, 12),
         health=rng.randint(60, 95),
         happiness=rng.randint(45, 80),
         smarts=rng.randint(30, 75),
@@ -112,12 +135,12 @@ def new_life(
     return life
 
 
-def roll_event(life: Life, age: int, rng: random.Random) -> str | None:
+def roll_event(life: Life, age: int, rng: random.Random, chance: float = TURN_EVENT_CHANCE) -> str | None:
     """이 나이에 일어나는 무작위 사건. 이야기꾼이 결과에 녹여 넣는다.
     상태는 바꾸지 않는다 — 턴이 끝까지 진행된 뒤에 apply 가 ONCE 사건을 seen 에 남긴다."""
-    if life.gender == "남" and age == 20 and DRAFT_NOTICE not in life.seen:
+    if life.gender == "남" and 20 <= age <= 28 and DRAFT_NOTICE not in life.seen:
         return DRAFT_NOTICE
-    if rng.random() >= EVENT_CHANCE:
+    if rng.random() >= chance:
         return None
     pool = [(text, weight) for text, lo, hi, weight in EVENTS if lo <= age <= hi]
     return rng.choices([t for t, _ in pool], weights=[w for _, w in pool])[0] if pool else None
@@ -140,12 +163,22 @@ def cause_of_death(age: int, health: int, rng: random.Random) -> str:
     return rng.choice(["갑작스러운 사고", "갑작스러운 병"])
 
 
+def death_roll(start_months: int, months: int, health: int, rng: random.Random) -> str | None:
+    """흐른 개월 수만큼 수명을 굴린다. 이 사이에 세상을 떠나면 사인, 아니면 None."""
+    for t in range(0, months, 12):
+        span = min(12, months - t)
+        age = (start_months + t) // 12
+        if rng.random() < 1 - (1 - death_chance(age, health)) ** (span / 12):
+            return cause_of_death(age, health, rng)
+    return None
+
+
 def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, value))
 
 
-def apply(life: Life, out: dict, years: int, events: Sequence[str] = ()) -> None:
-    """이야기꾼의 결과를 상태에 반영하고 나이를 먹인다. events 는 이번 턴에 굴린 무작위 사건."""
+def apply(life: Life, out: dict, months: int, events: Sequence[str] = ()) -> None:
+    """이야기꾼의 결과를 반영하고 months 만큼 시간을 흘린다. events 는 이번 턴에 굴린 무작위 사건."""
     changes = out["changes"]
     for key in STATS:
         delta = _clamp(int(changes.get(key, 0)), -40, 40)
@@ -158,11 +191,15 @@ def apply(life: Life, out: dict, years: int, events: Sequence[str] = ()) -> None
         for p in out["people"]
     ]
 
-    label = "출생" if years == 0 else (f"{life.age}살" if years == 1 else f"{life.age}~{life.age + years - 1}살")
+    start_age = life.age
+    life.months += months
+    life.age = life.months // 12
+    life.last_span = None if life.turns == 0 else months
+    label = "출생" if life.turns == 0 else (f"{start_age}살" if start_age == life.age else f"{start_age}~{life.age}살")
     life.chronicle.append(f"{label}: {out['summary']}")
     life.recent = (life.recent + [out["result"]])[-2:]
     life.seen += [e for e in events if e in ONCE]
-    life.age += years
+    life.turns += 1
 
     if out["died"] or life.health <= 0:
         life.dead = True
@@ -184,7 +221,10 @@ def save(life: Life, path: Path | None = None) -> None:
 def load(path: Path | None = None) -> Life | None:
     path = path or SAVE_PATH
     try:
-        return Life(**json.loads(path.read_text(encoding="utf-8")))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if "months" not in data:  # 해마다 한 턴이던 때의 저장본
+            data["months"] = data.get("age", 0) * 12
+        return Life(**data)
     except (FileNotFoundError, json.JSONDecodeError, TypeError):
         return None
 

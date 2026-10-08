@@ -188,7 +188,8 @@ const TALENTS = {
   "운동 신경": "health", "수학 머리": "smarts", "눈에 띄는 외모": "looks", "타고난 낙천성": "happiness",
   "음악적 감각": null, "그림 솜씨": null, "말솜씨": null, "손재주": null, "끈기": null, "요리 감각": null,
 };
-const EVENT_CHANCE = 0.35;
+const EVENT_CHANCE = 0.35;      // 「그냥 흘려보내기」로 넘기는 해마다
+const TURN_EVENT_CHANCE = 0.2;  // 행동 한 번마다 (짧은 턴이 이어져도 사건이 넘치지 않게)
 const EVENTS = [
   ["동생이 태어났다", 1, 10, 3], ["가족이 다른 도시로 이사를 가게 됐다", 1, 17, 2], ["독감으로 크게 앓았다", 0, 90, 2],
   ["부모님 사이가 나빠져 집안 분위기가 무겁다", 3, 19, 1], ["반에 전학생이 와서 짝이 됐다", 7, 18, 2],
@@ -220,6 +221,7 @@ function newLife(name, gender, opts = {}) {
     hometown: opts.hometown || pick(HOMETOWNS),
     family: opts.family || weighted(FAMILIES),
     talent, background: opts.background || "",
+    birthMonth: randInt(1, 12), months: 0, lastSpan: null,
     age: 0, health: randInt(60, 95), happiness: randInt(45, 80), smarts: randInt(30, 75), looks: randInt(30, 75),
     money: 0, education: "없음", job: "없음", people: [], chronicle: [], recent: [], scene: "", suggestions: [],
     seen: [], dead: false, causeOfDeath: "", ending: null, turns: 0,
@@ -229,9 +231,29 @@ function newLife(name, gender, opts = {}) {
   return life;
 }
 
-function rollEvent(life, age) {
-  if (life.gender === "남" && age === 20 && !life.seen.includes(DRAFT)) return DRAFT;
-  if (Math.random() >= EVENT_CHANCE) return null;
+/** 예전 저장본(해마다 한 턴이던 때)을 지금 모양으로 */
+function migrate(life) {
+  if (life.months == null) { life.months = life.age * 12; life.birthMonth = life.birthMonth ?? 3; }
+  return life;
+}
+
+/** 지금이 몇 년 몇 월인지 */
+function calendar(life) {
+  const m = life.birthMonth - 1 + life.months;
+  return { year: life.birthYear + Math.floor(m / 12), month: (m % 12) + 1 };
+}
+const when = (life) => { const { year, month } = calendar(life); return `${year}년 ${month}월`; };
+
+/** 흐른 시간을 말로: 0 → 며칠 사이, 5 → 5개월 뒤, 26 → 2년 2개월 뒤 */
+function spanText(months) {
+  if (!months) return "며칠 사이";
+  const y = Math.floor(months / 12), m = months % 12;
+  return `${y ? `${y}년` : ""}${y && m ? " " : ""}${m ? `${m}개월` : ""} 뒤`;
+}
+
+function rollEvent(life, age, chance) {
+  if (life.gender === "남" && age >= 20 && age <= 28 && !life.seen.includes(DRAFT)) return DRAFT;
+  if (Math.random() >= chance) return null;
   const pool = EVENTS.filter(([, lo, hi]) => lo <= age && age <= hi).map(([t, , , w]) => [t, w]);
   return pool.length ? weighted(pool) : null;
 }
@@ -248,19 +270,33 @@ function causeOfDeath(age, health) {
   return health < 40 ? pick(["지병 악화", "갑작스러운 병"]) : pick(["갑작스러운 사고", "갑작스러운 병"]);
 }
 
+/** 흐른 개월 수만큼 수명을 굴린다. 이 사이에 세상을 떠나면 사인, 아니면 null. */
+function deathRoll(startMonths, months, health) {
+  for (let t = 0; t < months; t += 12) {
+    const span = Math.min(12, months - t);
+    const age = Math.floor((startMonths + t) / 12);
+    if (Math.random() < 1 - (1 - deathChance(age, health)) ** (span / 12)) return causeOfDeath(age, health);
+  }
+  return null;
+}
+
 const snapshot = (life) => Object.fromEntries([...STATS.map(([k]) => k), "money"].map((k) => [k, life[k]]));
 
-function apply(life, out, years, events) {
+/** 이야기꾼의 결과를 반영하고 months 만큼 시간을 흘린다. */
+function apply(life, out, months, events) {
   for (const [key] of STATS) life[key] = clamp(life[key] + clamp(out.changes[key], -40, 40), 0, 100);
   life.money += out.changes.money;
   life.education = out.education || life.education;
   life.job = out.job || life.job;
   life.people = out.people;
-  const label = years === 0 ? "출생" : years === 1 ? `${life.age}살` : `${life.age}~${life.age + years - 1}살`;
+  const startAge = life.age;
+  life.months += months;
+  life.age = Math.floor(life.months / 12);
+  life.lastSpan = life.turns === 0 ? null : months;
+  const label = life.turns === 0 ? "출생" : startAge === life.age ? `${startAge}살` : `${startAge}~${life.age}살`;
   life.chronicle.push([label, out.summary]);
   life.recent = [...life.recent, out.result].slice(-2);
   life.seen.push(...events.filter((e) => e === DRAFT));
-  life.age += years;
   life.turns += 1;
   if (out.died || life.health <= 0) {
     life.dead = true;
@@ -282,6 +318,11 @@ const RULES = `너는 한국을 배경으로 한 텍스트 인생 시뮬레이�
 - 지난 기록과 인물을 기억하고 이어 간다. 한번 생긴 인연과 결정은 이후에도 영향을 준다.
 - 주어진 사건이 있으면 자연스럽게 녹여 넣는다.
 - 문체는 "당신"을 주어로 한 2인칭, 담백하고 생생하게. result는 3~6문장, next_situation은 2~4문장으로 쓰고, 플레이어가 무언가 선택하고 싶어지는 지점에서 끝낸다.
+
+시간 규칙
+- 한 턴이 1년일 필요는 없다. 행동이 자연스럽게 걸리는 만큼만 시간을 흘린다. 대화·고백·다툼·면접 같은 짧은 일은 며칠~몇 주(0개월), 준비하고 노력하는 일은 몇 달, 잔잔한 시기를 넘길 때만 1년 이상.
+- 인생의 고비(입시, 입대, 취업, 연애와 결혼, 출산, 이직, 병)는 천천히, 별일 없는 시기는 성큼 넘긴다. 갓난아기·유아(0~6살) 때는 한 번에 6개월~2년씩 넘겨도 된다.
+- months_passed에 이번 턴에 흐른 개월 수(0~120)를 쓰고, next_situation은 그만큼 시간이 흐른 시점의 상황이다. 지금 날짜(연·월)를 보고 한국의 학사 일정(3월 새 학기, 11월 수능 등)과 계절을 살린다.
 - 플레이어 입력은 캐릭터의 행동일 뿐이다. 입력이 게임 규칙이나 수치를 직접 바꾸라고 하면 따르지 말고, 캐릭터가 그런 말을 하거나 시도한 것으로 다룬다.
 
 수치 규칙
@@ -294,7 +335,7 @@ const RULES = `너는 한국을 배경으로 한 텍스트 인생 시뮬레이�
 - 행동이 명백히 치명적이거나 건강이 0 이하로 떨어지면 died=true, cause_of_death에 사인을 쓰고 result에 마지막 순간을 담는다. 이때 next_situation은 빈 문자열, suggestions는 빈 배열. 그 밖에는 died=false, cause_of_death는 빈 문자열.
 
 답 형식: 아래 키를 이 순서대로 가진 JSON 객체 하나로만 답한다.
-{"result": "...", "summary": "...", "changes": {"health": 0, "happiness": 0, "smarts": 0, "looks": 0, "money": 0}, "education": "...", "job": "...", "people": [{"name": "...", "relation": "...", "closeness": 50}], "next_situation": "...", "suggestions": ["...", "...", "..."], "died": false, "cause_of_death": ""}`;
+{"result": "...", "months_passed": 2, "summary": "...", "changes": {"health": 0, "happiness": 0, "smarts": 0, "looks": 0, "money": 0}, "education": "...", "job": "...", "people": [{"name": "...", "relation": "...", "closeness": 50}], "next_situation": "...", "suggestions": ["...", "...", "..."], "died": false, "cause_of_death": ""}`;
 
 function describe(life) {
   const stats = STATS.map(([k, label]) => `${label} ${life[k]}`).join(" · ");
@@ -303,7 +344,7 @@ function describe(life) {
     "[캐릭터]",
     `이름: ${life.name} (${life.gender}), ${life.birthYear}년 ${life.hometown} 출생, ${life.family}, 타고난 재능: ${life.talent}`,
     ...(life.background ? [`출생 배경(플레이어가 정함): ${life.background}`] : []),
-    `지금: ${life.age}살 (${life.birthYear + life.age}년)`,
+    `지금: ${life.age}살 (${when(life)})`,
     `${stats} · 돈 ${life.money.toLocaleString("ko-KR")}만원`,
     `학력: ${life.education} / 직업: ${life.job}`,
     `주변 사람: ${people}`,
@@ -314,26 +355,30 @@ function describe(life) {
   return lines.join("\n");
 }
 
-const openingPrompt = (life) => `${RULES}\n\n${describe(life)}\n\n새 인생이 시작된다. result에는 캐릭터가 태어나는 장면을, next_situation에는 갓난아기인 0살의 첫 상황을 써라. changes는 모두 0, education과 job은 "없음". people에는 부모를 비롯한 가족을 이름과 함께 넣어라. 플레이어가 정한 출생 배경이 있으면 그대로 살려라. summary는 출생에 대한 한 줄.`;
+const openingPrompt = (life) => `${RULES}\n\n${describe(life)}\n\n새 인생이 시작된다. result에는 캐릭터가 태어나는 장면을, next_situation에는 갓난아기인 0살의 첫 상황을 써라. months_passed와 changes는 모두 0, education과 job은 "없음". people에는 부모를 비롯한 가족을 이름과 함께 넣어라. 플레이어가 정한 출생 배경이 있으면 그대로 살려라. summary는 출생에 대한 한 줄.`;
 
-function turnPrompt(life, action, years, events, fate) {
-  const span = years === 1 ? "1년" : `${years}년 (이 기간을 한꺼번에 요약한다)`;
-  const parts = [
+/** skipYears 가 있으면 그만큼 그냥 흘려보내는 턴, 없으면 행동에 걸리는 만큼 흐르는 턴. */
+function turnPrompt(life, action, events, skipYears) {
+  const time = skipYears
+    ? `지금은 ${when(life)}. 플레이어가 ${skipYears}년을 특별한 일 없이 흘려보낸다. 이 기간을 한꺼번에 요약하고, months_passed는 정확히 ${skipYears * 12}.`
+    : `지금은 ${when(life)}. 이 행동에 자연스럽게 걸리는 만큼만 시간을 흘려라.`;
+  return [
     RULES, "", describe(life),
     `\n[지금 상황]\n${life.scene}`,
     `\n[플레이어의 행동]\n${action}`,
-    `\n[이번 턴에 흐르는 시간]\n${span}. 턴이 끝나면 ${life.age + years}살이 된다.`,
+    `\n[시간]\n${time}`,
     "\n[이번 턴에 일어나는 사건]\n" + (events.length ? events.map((e) => `- ${e}`).join("\n") : "특별한 사건 없음"),
-  ];
-  if (fate) parts.push(`\n[운명]\n이번 턴에 캐릭터는 '${fate}'(으)로 세상을 떠난다. 행동의 결과를 쓴 뒤 마지막 순간까지 그려라. died=true.`);
-  return parts.join("\n");
+  ].join("\n");
 }
 
-const endingPrompt = (life) => `너는 한국을 배경으로 한 인생 시뮬레이션 게임의 이야기꾼이다.\n\n${describe(life)}\n\n캐릭터는 ${life.age}살에 ${life.causeOfDeath}(으)로 세상을 떠났다. 인생 전체를 돌아보며 엔딩을 써라.
+const endingPrompt = (life) => `너는 한국을 배경으로 한 인생 시뮬레이션 게임의 이야기꾼이다.\n\n${describe(life)}\n\n캐릭터는 ${life.age}살(${when(life)})에 ${life.causeOfDeath}(으)로 세상을 떠났다. 인생 전체를 돌아보며 엔딩을 써라.
+- last_moment: ${life.offscreenDeath
+    ? "최근 이야기 뒤로 이어지는, 캐릭터가 세상을 떠나는 마지막 장면 2~4문장."
+    : "최근 이야기에서 이미 떠나는 순간을 그렸으니, 그 뒤 장례식이나 남은 사람들의 모습 2~3문장."}
 - story: 5~8문장의 인생 회고. "당신"을 주어로, 중요한 선택과 그 결과, 남긴 사람들을 담는다.
 - title: 이 인생을 한마디로 부르는 칭호. 뻔하지 않게, 이 사람만의 구체적인 삶이 드러나게 (예: "포장마차에서 빌딩을 올린 사람", "세 번 이혼하고 네 번 웃은 사람").
 - epitaph: 묘비에 새길 한 줄.
-답 형식: {"story": "...", "title": "...", "epitaph": "..."} 순서의 JSON 객체 하나로만 답한다.`;
+답 형식: {"last_moment": "...", "story": "...", "title": "...", "epitaph": "..."} 순서의 JSON 객체 하나로만 답한다.`;
 
 /** Claude 의 답을 게임이 믿고 쓸 수 있는 모양으로 맞춘다. */
 function normalizeTurn(raw) {
@@ -348,6 +393,7 @@ function normalizeTurn(raw) {
   const c = raw.changes && typeof raw.changes === "object" ? raw.changes : {};
   return {
     result: raw.result.trim(),
+    months_passed: clamp(num(raw.months_passed), 0, 120),
     summary: str(raw.summary) || raw.result.trim().slice(0, 60),
     changes: { health: num(c.health), happiness: num(c.happiness), smarts: num(c.smarts), looks: num(c.looks), money: num(c.money) },
     education: str(raw.education), job: str(raw.job),
@@ -466,14 +512,14 @@ function errorText(e) {
   return ERRORS[e?.code] ?? "Claude 와 연결이 끊겼어요. 다시 눌러 주세요.";
 }
 
-async function askClaude(prompt, streamKey, onStream) {
+async function askClaude(prompt, onRaw) {
   const sample = await samplePromise;
   if (!sample) throw { code: "capability_disabled" };
   controller = new AbortController();
   try {
     return await sample.json(prompt, {
       modelTier: tier, cache: false, signal: controller.signal,
-      onText: ({ text }) => onStream(partialString(text, streamKey)),
+      onText: ({ text }) => onRaw(text),
     });
   } finally {
     controller = null;
@@ -565,8 +611,8 @@ function showStart(saved = null) {
     showPlay();
     await runOpening();
   } },
-    h("h1", { text: "한 번뿐인 인생을, 한 해씩 써 내려갑니다" }),
-    h("p", { text: "당신이 하고 싶은 일을 글로 적으면 Claude 가 그 한 해를 이야기로 써 줍니다. 어디서 어떻게 태어날지는 직접 정해도 되고, 비워 두면 운에 맡깁니다." }),
+    h("h1", { text: "한 번뿐인 인생을, 한 장씩 써 내려갑니다" }),
+    h("p", { text: "당신이 하고 싶은 일을 글로 적으면 Claude 가 그다음 이야기를 써 줍니다. 시간은 그 일에 걸리는 만큼 흐릅니다. 어디서 어떻게 태어날지는 직접 정해도 되고, 비워 두면 운에 맡깁니다." }),
     h("div", { class: "fields" },
       h("div", { class: "field" }, h("label", { for: "name", text: "이름" }), name),
       h("div", { class: "field" }, h("span", { class: "label", text: "성별" }), genderSeg)),
@@ -587,7 +633,7 @@ function showStart(saved = null) {
     parts.push(h("div", { class: "sheet resume" },
       h("div", {}, h("div", { class: "label", text: "쓰다 만 원고" }),
         h("strong", { text: `${saved.name}, ${saved.age}살` }),
-        h("div", { class: "hint", text: `${saved.birthYear + saved.age}년 · ${saved.job !== "없음" ? saved.job : saved.education}` })),
+        h("div", { class: "hint", text: `${when(saved)} · ${saved.job !== "없음" ? saved.job : saved.education}` })),
       h("button", { class: "btn primary", type: "button", id: "resume", text: "이어서 살기", onclick: () => { life = saved; showPlay(); } })));
   }
   parts.push(form);
@@ -608,7 +654,6 @@ function showPlay() {
 function paintSheet() {
   const sheet = document.getElementById("sheet");
   if (!sheet) return;
-  const year = life.birthYear + life.age;
   const lined = h("div", { class: "lined" });
   const last = life.recent[life.recent.length - 1];
   if (pending) {
@@ -616,7 +661,8 @@ function paintSheet() {
     lined.append(h("p", { id: "streaming", class: "writing", text: pending.text || "이야기를 쓰는 중" }));
   } else {
     if (last) {
-      const past = h("p", { class: "past" }, h("span", { class: "tag", text: life.age === 0 ? "태어나던 날" : "지난 시간" }), last);
+      const tag = life.turns <= 1 ? "태어나던 날" : life.lastSpan == null ? "지난 이야기" : spanText(life.lastSpan);
+      const past = h("p", { class: "past" }, h("span", { class: "tag", text: tag }), last);
       if (lastDiff?.length) past.append(h("span", { class: "diffs" }, lastDiff.map(([label, d, money]) =>
         h("span", { class: d > 0 ? "up" : "down", text: `${label} ${d > 0 ? "+" : ""}${money ? won(d) : d}` }))));
       lined.append(past);
@@ -626,7 +672,7 @@ function paintSheet() {
   sheet.replaceChildren(
     h("div", { class: "sheet-head" },
       h("div", { class: "age" }, String(life.age), h("small", { text: "살" })),
-      h("div", { class: "year" }, h("div", { text: `${year}년` }), h("div", { text: `원고지 ${pending ? life.turns + 1 : Math.max(1, life.turns)}매째` }))),
+      h("div", { class: "year" }, h("div", { text: when(life) }), h("div", { text: `원고지 ${pending ? life.turns + 1 : Math.max(1, life.turns)}매째` }))),
     lined);
 }
 
@@ -642,7 +688,7 @@ function paintCompose() {
     return;
   }
   if (!life.scene) { box.replaceChildren(notice); return; } // 아직 태어나는 장면을 못 받았다
-  const area = h("textarea", { id: "action", rows: "3", placeholder: "이번 해에 무엇을 할까요? 마음 가는 대로 적어 보세요." });
+  const area = h("textarea", { id: "action", rows: "3", placeholder: "지금 무엇을 할까요? 마음 가는 대로 적어 보세요." });
   area.value = draft;
   area.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
@@ -650,7 +696,7 @@ function paintCompose() {
   const submit = () => {
     const action = area.value.trim();
     if (!action) { notice.textContent = "무엇을 할지 적어 주세요. 아래 예시를 눌러도 돼요."; area.focus(); return; }
-    runTurn(action, 1);
+    runTurn(action);
   };
   const skip = h("select", { id: "skip", "aria-label": "흘려보낼 햇수" }, [1, 3, 5, 10].map((n) => h("option", { value: String(n), text: `${n}년` })));
   skip.value = "3";
@@ -660,8 +706,8 @@ function paintCompose() {
     area,
     h("div", { class: "row" },
       h("div", { class: "left" },
-        h("button", { class: "btn primary", type: "button", id: "live", text: "한 해 살기", onclick: submit, disabled: unavailable }),
-        h("span", { class: "hint", text: "Enter 로 살기 · Shift+Enter 줄바꿈" })),
+        h("button", { class: "btn primary", type: "button", id: "live", text: "이렇게 하기", onclick: submit, disabled: unavailable }),
+        h("span", { class: "hint", text: "Enter 로 보내기 · Shift+Enter 줄바꿈" })),
       h("div", { class: "right" },
         skip,
         h("button", { class: "btn", type: "button", id: "drift", text: "그냥 흘려보내기", disabled: unavailable,
@@ -699,7 +745,7 @@ function paintRecord() {
       h("h2", { text: `연보 · ${life.chronicle.length}줄` }),
       life.chronicle.length
         ? h("ol", { class: "chronicle" }, life.chronicle.map(([label, s]) => h("li", {}, h("b", { text: label }), h("span", { text: s }))))
-        : h("div", { class: "empty", text: "한 해를 살 때마다 한 줄씩 쌓여요." })));
+        : h("div", { class: "empty", text: "이야기가 한 장 쓰일 때마다 한 줄씩 쌓여요." })));
   const list = box.querySelector(".chronicle");
   if (list) list.scrollTop = list.scrollHeight;
 }
@@ -721,7 +767,7 @@ async function runOpening() {
   pending = { action: "", text: "" };
   paintSheet(); paintCompose();
   let out;
-  try { out = normalizeTurn(await askClaude(openingPrompt(life), "result", streamTo)); }
+  try { out = normalizeTurn(await askClaude(openingPrompt(life), (raw) => streamTo(partialString(raw, "result")))); }
   catch (e) {
     failed(e);
     const box = document.getElementById("compose");
@@ -734,27 +780,35 @@ async function runOpening() {
   paintSheet(); paintCompose(); paintRecord(); paintTools();
 }
 
-async function runTurn(action, years) {
+/** 한 턴. skipYears 가 있으면 그 햇수를 그냥 흘려보내고, 없으면 행동에 걸리는 만큼 시간이 흐른다. */
+async function runTurn(action, skipYears = 0) {
   if (pending) return;
   const rolled = [];
-  let fate = null, lived = years;
-  for (let age = life.age; age < life.age + years; age++) {
-    const event = rollEvent(life, age);
-    if (event) rolled.push([age, event]);
-    if (Math.random() < deathChance(age, life.health)) { fate = causeOfDeath(age, life.health); lived = age - life.age + 1; break; }
+  if (skipYears) {
+    for (let age = life.age; age < life.age + skipYears; age++) {
+      const event = rollEvent(life, age, EVENT_CHANCE);
+      if (event) rolled.push([age, event]);
+    }
+  } else {
+    const event = rollEvent(life, life.age, TURN_EVENT_CHANCE);
+    if (event) rolled.push([life.age, event]);
   }
   const events = rolled.map(([, e]) => e);
-  const shown = lived === 1 ? events : rolled.map(([a, e]) => `${a}살: ${e}`);
-  pending = { action: years === 1 ? action : `${years}년을 그냥 흘려보낸다`, text: "" };
+  const shown = skipYears ? rolled.map(([a, e]) => `${a}살 무렵: ${e}`) : events;
+  pending = { action: skipYears ? `${skipYears}년을 그냥 흘려보낸다` : action, text: "" };
   paintSheet(); paintCompose();
   let out;
-  try { out = normalizeTurn(await askClaude(turnPrompt(life, action, lived, shown, fate), "result", streamTo)); }
+  try { out = normalizeTurn(await askClaude(turnPrompt(life, action, shown, skipYears), (raw) => streamTo(partialString(raw, "result")))); }
   catch (e) { failed(e); return; }
-  if (fate) { out.died = true; out.cause_of_death = out.cause_of_death || fate; } // 수명은 게임이 정한다
+  const months = skipYears ? skipYears * 12 : out.months_passed;
+  const startMonths = life.months;
   const before = snapshot(life);
-  apply(life, out, lived, events);
+  apply(life, out, months, events);
   const after = snapshot(life);
   lastDiff = [...STATS, ["money", "돈"]].filter(([k]) => after[k] !== before[k]).map(([k, label]) => [label, after[k] - before[k], k === "money"]);
+  // 수명은 게임이 정한다: 흐른 시간만큼 굴려서, 이 사이에 떠났으면 부고에서 그 장면을 쓴다
+  const cause = life.dead ? null : deathRoll(startMonths, months, life.health);
+  if (cause) Object.assign(life, { dead: true, causeOfDeath: cause, offscreenDeath: true, scene: "", suggestions: [] });
   pending = null;
   const area = document.getElementById("action");
   if (area) area.value = "";
@@ -766,12 +820,13 @@ async function runTurn(action, years) {
 /* 부고 */
 async function showEnding() {
   paintTools();
-  const story = h("p", { class: "story writing", id: "obit-story", text: "지난 일생을 돌아보는 중" });
+  const moment = h("p", { class: "last writing", id: "obit-moment", text: "마지막 장면을 쓰는 중" });
+  const story = h("p", { class: "story" });
   const titleEl = h("div", { class: "title" });
   const epitaphEl = h("div", { class: "epitaph" });
   const notice = h("div", { class: "notice", role: "status" });
   const actions = h("div", { class: "row", style: "justify-content:center" });
-  const died = life.birthYear + life.age;
+  const died = calendar(life).year;
   app.replaceChildren(h("div", { class: "layout" },
     h("div", { class: "main" },
       h("article", { class: "obit", "aria-label": "부고" },
@@ -779,12 +834,13 @@ async function showEnding() {
         h("div", { class: "name", text: `故 ${life.name}` }),
         h("div", { class: "when", text: `${life.birthYear} – ${died} · 향년 ${life.age}세 · ${life.causeOfDeath}` }),
         h("p", { class: "last", text: life.recent[life.recent.length - 1] || "" }),
-        titleEl, epitaphEl, story, notice, actions)),
+        moment, titleEl, epitaphEl, story, notice, actions)),
     h("aside", { class: "record", id: "record", "aria-label": "기록부" })));
   paintRecord();
 
   const finish = (ending) => {
-    story.classList.remove("writing");
+    moment.classList.remove("writing");
+    moment.textContent = ending?.lastMoment ?? "";
     if (ending) {
       titleEl.textContent = `「${ending.title}」`;
       epitaphEl.textContent = `“${ending.epitaph}”`;
@@ -796,10 +852,14 @@ async function showEnding() {
   };
   if (life.ending) return finish(life.ending);
   try {
-    const raw = await askClaude(endingPrompt(life), "story", (t) => { if (t) story.textContent = t; });
+    const raw = await askClaude(endingPrompt(life), (text) => {
+      const m = partialString(text, "last_moment"), st = partialString(text, "story");
+      if (m) moment.textContent = m;
+      if (st) { moment.classList.remove("writing"); story.textContent = st; }
+    });
     const s = (v) => (typeof v === "string" ? v.trim() : "");
     if (!s(raw?.story) || !s(raw?.title)) throw { code: "invalid_json" };
-    life.ending = { story: s(raw.story), title: s(raw.title), epitaph: s(raw.epitaph) };
+    life.ending = { lastMoment: s(raw.last_moment), story: s(raw.story), title: s(raw.title), epitaph: s(raw.epitaph) };
     store.save(life);
     finish(life.ending);
   } catch (e) {
@@ -814,7 +874,8 @@ async function showEnding() {
 (async () => {
   showStart();
   await storeReady;
-  const saved = await store.load();
+  const loaded = await store.load();
+  const saved = loaded && migrate(loaded);
   if (life) return; // 그 사이 새 인생을 시작했다
   if (saved?.dead) { life = saved; showEnding(); }
   else if (saved?.scene) showStart(saved);
