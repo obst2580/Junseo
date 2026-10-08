@@ -201,8 +201,10 @@ def roll_event(life: Life, age: int, rng: random.Random, chance: float = TURN_EV
 
 
 def death_chance(age: int, health: int) -> float:
-    """한 해 동안 세상을 떠날 확률. 40살 0.2% → 80살 약 6% → 100살 약 35%, 건강이 나쁘면 최대 3배.
-    건강이 바닥이어도 곧바로 죽지는 않는다 — 젊으면 위독한 채로 버틴다."""
+    """한 해 동안 세상을 떠날 확률. 서른 전에는 0, 30대 0.05%, 40살 0.2% → 80살 약 6% → 100살 약 35%,
+    건강이 나쁘면 최대 3배. 건강이 바닥이어도 곧바로 죽지는 않는다."""
+    if age < 30:
+        return 0.0
     base = 0.0005 if age < 40 else 0.002 * 1.09 ** (age - 40)
     frailty = 1 + max(0, 60 - health) / 30
     return min(0.95, base * frailty)

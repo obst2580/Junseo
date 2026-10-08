@@ -102,7 +102,13 @@ def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, 
     months = months_of(out)
     start_months = life.months
     before = ui.snapshot(life)
+    near_death = out["died"]  # 이야기꾼이 그래도 죽음으로 끝맺었으면 위독한 채로 살려 둔다
+    if near_death:
+        out = {**out, "died": False, "cause_of_death": "", "next_situation": out["next_situation"] or REVIVED_SCENE,
+               "suggestions": out["suggestions"] or REVIVED_SUGGESTIONS}
     game.apply(life, out, months, events)
+    if near_death:
+        life.health = min(life.health, game.CRITICAL - 10)
     ui.result(out["result"], before, ui.snapshot(life), span=months)
     # 수명은 게임이 정한다: 흐른 시간만큼 굴려서, 이 사이에 떠났으면 엔딩이 그 장면을 쓴다
     cause = None if life.dead else game.death_roll(start_months, months, life.health, rng)

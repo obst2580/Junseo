@@ -230,15 +230,17 @@ class PlayTest(unittest.TestCase):
         self.assertIn("공부를 열심히 한다", client.requests[1]["messages"][0]["content"])
 
         # 이어 하기: 이번 턴에 세상을 떠나면 엔딩을 보여 주고 저장을 지운다
-        client = FakeClient([turn_out(died=True, cause_of_death="사고")])
-        output = self.run_with(["", "번지점프를 한다", "n"], client)
+        client = FakeClient()
+        with mock.patch.object(game, "death_roll", return_value="갑작스러운 사고"):  # 수명 판정만 사람을 떠나보낸다
+            output = self.run_with(["", "번지점프를 한다", "n"], client)
         self.assertIn("부고", output)
         self.assertIn("평범한 사람", output)
         self.assertIsNone(game.load())
 
     def test_revive_from_obituary(self):
-        client = FakeClient([turn_out(), turn_out(died=True, cause_of_death="사고")])
-        output = self.run_with(["준서", "남", *[""] * 5, "번지점프를 한다", "y", "/종료"], client)
+        client = FakeClient()
+        with mock.patch.object(game, "death_roll", return_value="갑작스러운 사고"):
+            output = self.run_with(["준서", "남", *[""] * 5, "번지점프를 한다", "y", "/종료"], client)
         self.assertIn("부고", output)
         life = game.load()
         self.assertFalse(life.dead)
@@ -258,12 +260,29 @@ class PlayTest(unittest.TestCase):
 
     def test_revive_survives_a_dead_answer(self):
         dead_again = turn_out(died=True, cause_of_death="사고", next_situation="", suggestions=[])
-        client = FakeClient([turn_out(), turn_out(died=True, cause_of_death="사고"), {"last_moment": "끝", "story": "끝.", "title": "t", "epitaph": "e"}, dead_again])
-        self.run_with(["준서", "남", *[""] * 5, "번지점프를 한다", "y", "/종료"], client)
+        client = FakeClient([turn_out(), turn_out(), {"last_moment": "끝", "story": "끝.", "title": "t", "epitaph": "e"}, dead_again])
+        with mock.patch.object(game, "death_roll", return_value="갑작스러운 사고"):
+            self.run_with(["준서", "남", *[""] * 5, "번지점프를 한다", "y", "/종료"], client)
         life = game.load()
         self.assertFalse(life.dead)
         self.assertEqual(life.scene, app.REVIVED_SCENE)
         self.assertGreaterEqual(life.health, game.CRITICAL)
+
+    def test_storyteller_cannot_kill(self):
+        fatal = turn_out(died=True, cause_of_death="추락", next_situation="", suggestions=[],
+                         changes={"health": -60, "happiness": 0, "smarts": 0, "looks": 0, "money": 0})
+        output = self.run_with(["준서", "남", *[""] * 5, "옥상 난간에 올라간다", "/종료"], FakeClient([turn_out(), fatal]))
+        self.assertNotIn("부고", output)
+        life = game.load()
+        self.assertFalse(life.dead)
+        self.assertEqual(life.scene, app.REVIVED_SCENE)
+        self.assertLess(life.health, game.CRITICAL)  # 위독한 채로 살아 있다
+
+    def test_no_random_death_before_thirty(self):
+        rng = random.Random(0)
+        self.assertEqual(game.death_chance(29, 1), 0.0)
+        self.assertIsNone(game.death_roll(0, 29 * 12, 1, rng))
+        self.assertGreater(game.death_chance(30, 60), 0.0)
 
     def test_failed_turn_does_not_advance(self):
         client = FakeClient([turn_out(), SimpleNamespace(stop_reason="refusal", content=[])])
