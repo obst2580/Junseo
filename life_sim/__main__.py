@@ -50,7 +50,21 @@ def create(rng: random.Random) -> game.Life:
     gender = ""
     while gender not in ("남", "여"):
         gender = ask("성별 (남/여): ")
-    life = game.new_life(name, gender, rng)
+    print(ui.dim("태어날 조건을 정해 주세요. 비워 두고 Enter 를 누르면 운에 맡깁니다."))
+    while True:
+        year = ask("태어난 해 (1950~2025): ")
+        if not year or (year.isdigit() and 1950 <= int(year) <= 2025):
+            break
+    families = list(game.FAMILIES)
+    family = ask("집안 형편 (" + " / ".join(f"{i}. {f}" for i, f in enumerate(families, 1)) + "): ")
+    life = game.new_life(
+        name, gender, rng,
+        birth_year=int(year) if year else None,
+        hometown=ask("고향: "),
+        family=families[int(family) - 1] if family.isdigit() and 1 <= int(family) <= len(families) else family,
+        talent=ask("타고난 재능 (예: " + ", ".join(list(game.TALENTS)[:4]) + "): "),
+        background=ask("출생 배경 (예: 쌍둥이 중 동생으로 태어났다): "),
+    )
     ui.say(f"{life.birth_year}년 {life.hometown}, {life.family}의 아이로 태어납니다. 타고난 재능은 「{life.talent}」.")
     return life
 

@@ -131,7 +131,17 @@ select#skip { border: 1px solid var(--rule); border-radius: 3px; background: var
 .start p { margin: 0; font-family: var(--font-story); font-size: 1.04rem; line-height: 1.8; max-width: 34em; }
 .field { display: grid; gap: 6px; }
 .field label, .field .label { font-size: 13px; color: var(--ink-soft); }
-input#name { border: 1.5px solid var(--grid); border-radius: 3px; background: var(--sheet); padding: 9px 12px; font-family: var(--font-story); font-size: 1.1rem; width: 100%; max-width: 20rem; }
+.input { border: 1px solid var(--grid); border-radius: 3px; background: var(--sheet); padding: 8px 11px; font-family: var(--font-story); font-size: 1rem; width: 100%; min-width: 0; }
+#name { font-size: 1.1rem; max-width: 20rem; border-width: 1.5px; }
+textarea.input { resize: vertical; min-height: 3.6rem; line-height: 1.7; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr)); gap: 14px 16px; }
+.field.wide { grid-column: 1 / -1; }
+.field .seg { justify-self: start; }
+.group-title { margin: 6px 0 0; font-size: 12px; letter-spacing: .1em; font-weight: 600; color: var(--grid); }
+.group-title span { font-weight: 400; letter-spacing: 0; color: var(--ink-soft); margin-left: 6px; }
+details.custom-stats summary { cursor: pointer; color: var(--grid); font-size: 14px; }
+.sliders { display: grid; gap: 8px; margin-top: 12px; max-width: 26rem; }
+.sliders .stat input { width: 100%; accent-color: var(--grid); }
 .resume { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .resume strong { font-family: var(--font-display); font-size: 1.2rem; }
 
@@ -201,15 +211,21 @@ function weighted(pairs) {
   return pairs[pairs.length - 1][0];
 }
 
-function newLife(name, gender) {
-  const talent = pick(Object.keys(TALENTS));
+/** 새 인생. opts 에 정한 것은 그대로 쓰고, 비운 것은 운에 맡긴다. */
+function newLife(name, gender, opts = {}) {
+  const talent = opts.talent || pick(Object.keys(TALENTS));
   const life = {
-    name, gender, birthYear: randInt(1990, 2010), hometown: pick(HOMETOWNS), family: weighted(FAMILIES), talent,
+    name, gender,
+    birthYear: opts.birthYear ?? randInt(1990, 2010),
+    hometown: opts.hometown || pick(HOMETOWNS),
+    family: opts.family || weighted(FAMILIES),
+    talent, background: opts.background || "",
     age: 0, health: randInt(60, 95), happiness: randInt(45, 80), smarts: randInt(30, 75), looks: randInt(30, 75),
     money: 0, education: "없음", job: "없음", people: [], chronicle: [], recent: [], scene: "", suggestions: [],
     seen: [], dead: false, causeOfDeath: "", ending: null, turns: 0,
   };
-  if (TALENTS[talent]) life[TALENTS[talent]] = Math.min(100, life[TALENTS[talent]] + 20);
+  if (opts.stats) Object.assign(life, opts.stats); // 능력치를 직접 정했으면 재능 보너스 없이 그대로
+  else if (TALENTS[talent]) life[TALENTS[talent]] = Math.min(100, life[TALENTS[talent]] + 20);
   return life;
 }
 
@@ -286,6 +302,7 @@ function describe(life) {
   const lines = [
     "[캐릭터]",
     `이름: ${life.name} (${life.gender}), ${life.birthYear}년 ${life.hometown} 출생, ${life.family}, 타고난 재능: ${life.talent}`,
+    ...(life.background ? [`출생 배경(플레이어가 정함): ${life.background}`] : []),
     `지금: ${life.age}살 (${life.birthYear + life.age}년)`,
     `${stats} · 돈 ${life.money.toLocaleString("ko-KR")}만원`,
     `학력: ${life.education} / 직업: ${life.job}`,
@@ -297,7 +314,7 @@ function describe(life) {
   return lines.join("\n");
 }
 
-const openingPrompt = (life) => `${RULES}\n\n${describe(life)}\n\n새 인생이 시작된다. result에는 캐릭터가 태어나는 장면을, next_situation에는 갓난아기인 0살의 첫 상황을 써라. changes는 모두 0, education과 job은 "없음". people에는 부모를 비롯한 가족을 이름과 함께 넣어라. summary는 출생에 대한 한 줄.`;
+const openingPrompt = (life) => `${RULES}\n\n${describe(life)}\n\n새 인생이 시작된다. result에는 캐릭터가 태어나는 장면을, next_situation에는 갓난아기인 0살의 첫 상황을 써라. changes는 모두 0, education과 job은 "없음". people에는 부모를 비롯한 가족을 이름과 함께 넣어라. 플레이어가 정한 출생 배경이 있으면 그대로 살려라. summary는 출생에 대한 한 줄.`;
 
 function turnPrompt(life, action, years, events, fate) {
   const span = years === 1 ? "1년" : `${years}년 (이 기간을 한꺼번에 요약한다)`;
@@ -490,30 +507,80 @@ for (const b of document.querySelectorAll(".seg button")) {
 /* 시작 화면 */
 function showStart(saved = null) {
   paintTools();
-  const typed = document.getElementById("name")?.value ?? "";
+  // 저장본을 불러와 다시 그릴 때 이미 적은 값은 지키지 않으면 사라진다
+  const kept = Object.fromEntries(["name", "birth-year", "hometown", "family", "talent", "background"]
+    .map((id) => [id, document.getElementById(id)?.value ?? ""]));
   const notice = h("div", { class: "notice", role: "status" });
-  const name = h("input", { id: "name", type: "text", maxlength: "12", autocomplete: "off", placeholder: "예: 김준서" });
-  name.value = typed;
+  const input = (id, props) => { const el = h("input", { id, class: "input", type: "text", autocomplete: "off", ...props }); el.value = kept[id]; return el; };
+
+  const name = input("name", { maxlength: "12", placeholder: "예: 김준서" });
   let gender = "남";
   const genderSeg = h("div", { class: "seg", role: "group", "aria-label": "성별" },
     ["남", "여"].map((g) => h("button", { type: "button", id: `gender-${g === "남" ? "m" : "f"}`, "aria-pressed": String(g === gender), text: g, onclick: (e) => {
       gender = g;
       for (const b of genderSeg.children) b.setAttribute("aria-pressed", String(b === e.currentTarget));
     } })));
+
+  const year = input("birth-year", { type: "number", inputmode: "numeric", min: "1950", max: "2025", placeholder: "무작위 (1990~2010)" });
+  const hometown = input("hometown", { list: "hometown-list", maxlength: "20", placeholder: "무작위" });
+  const family = h("select", { id: "family", class: "input" }, h("option", { value: "", text: "무작위" }), FAMILIES.map(([f]) => h("option", { value: f, text: f })));
+  family.value = kept.family;
+  const talent = input("talent", { list: "talent-list", maxlength: "20", placeholder: "무작위" });
+  const background = h("textarea", { id: "background", class: "input", rows: "2", maxlength: "200",
+    placeholder: "선택 · 예: 쌍둥이 중 동생으로 태어났다. 아버지는 동네 철물점 주인이다." });
+  background.value = kept.background;
+
+  const sliders = STATS.map(([k, label]) => {
+    const out = h("span", { class: "num", text: "50" });
+    const range = h("input", { type: "range", id: `stat-${k}`, min: "10", max: "90", step: "1", value: "50", "aria-label": label,
+      oninput: (e) => { out.textContent = e.target.value; } });
+    return { k, range, row: h("div", { class: "stat" }, h("span", { text: label }), range, out) };
+  });
+  const customStats = h("details", { class: "custom-stats", id: "custom-stats" },
+    h("summary", { text: "타고난 능력치도 정하기" }),
+    h("div", { class: "sliders" }, sliders.map((sl) => sl.row),
+      h("div", { class: "hint", text: "열어 두면 이 값으로 태어나요. 닫으면 운에 맡기고, 재능에 맞는 능력치가 조금 오릅니다." })));
+
+  const luck = h("button", { class: "btn", type: "button", id: "luck", text: "운에 맡겨 채우기", onclick: () => {
+    const sample = newLife("", gender);
+    year.value = sample.birthYear; hometown.value = sample.hometown; family.value = sample.family; talent.value = sample.talent;
+    for (const sl of sliders) { sl.range.value = sample[sl.k]; sl.range.dispatchEvent(new Event("input")); }
+  } });
   const born = h("button", { class: "btn primary", type: "submit", id: "born", text: "태어나기" });
+
   const form = h("form", { class: "sheet", onsubmit: async (e) => {
     e.preventDefault();
+    notice.textContent = "";
     if (!name.value.trim()) { notice.textContent = "이름을 적어 주세요."; name.focus(); return; }
+    const y = year.value.trim() ? Number(year.value) : null;
+    if (y !== null && !(Number.isInteger(y) && y >= 1950 && y <= 2025)) {
+      notice.textContent = "태어난 해는 1950년부터 2025년 사이로 적어 주세요."; year.focus(); return;
+    }
     born.disabled = true;
-    life = newLife(name.value.trim(), gender);
+    life = newLife(name.value.trim(), gender, {
+      birthYear: y ?? undefined,
+      hometown: hometown.value.trim(), family: family.value, talent: talent.value.trim(), background: background.value.trim(),
+      stats: customStats.open ? Object.fromEntries(sliders.map((sl) => [sl.k, Number(sl.range.value)])) : null,
+    });
     showPlay();
     await runOpening();
   } },
     h("h1", { text: "한 번뿐인 인생을, 한 해씩 써 내려갑니다" }),
-    h("p", { text: "당신이 하고 싶은 일을 글로 적으면 Claude 가 그 한 해를 이야기로 써 줍니다. 태어난 해와 고향, 집안 형편, 타고난 재능은 운에 맡깁니다. 수능, 군대, 취업, 결혼, 내 집 마련까지, 그리고 언젠가 찾아오는 마지막까지." }),
-    h("div", { class: "field" }, h("label", { for: "name", text: "이름" }), name),
-    h("div", { class: "field" }, h("span", { class: "label", text: "성별" }), genderSeg),
-    h("div", { class: "row" }, h("div", { class: "left" }, born), notice),
+    h("p", { text: "당신이 하고 싶은 일을 글로 적으면 Claude 가 그 한 해를 이야기로 써 줍니다. 어디서 어떻게 태어날지는 직접 정해도 되고, 비워 두면 운에 맡깁니다." }),
+    h("div", { class: "fields" },
+      h("div", { class: "field" }, h("label", { for: "name", text: "이름" }), name),
+      h("div", { class: "field" }, h("span", { class: "label", text: "성별" }), genderSeg)),
+    h("div", { class: "group-title" }, "태어날 조건", h("span", { text: "비워 두면 운에 맡겨요" })),
+    h("div", { class: "fields" },
+      h("div", { class: "field" }, h("label", { for: "birth-year", text: "태어난 해" }), year),
+      h("div", { class: "field" }, h("label", { for: "hometown", text: "고향" }), hometown),
+      h("div", { class: "field" }, h("label", { for: "family", text: "집안 형편" }), family),
+      h("div", { class: "field" }, h("label", { for: "talent", text: "타고난 재능" }), talent),
+      h("div", { class: "field wide" }, h("label", { for: "background", text: "출생 배경" }), background)),
+    h("datalist", { id: "hometown-list" }, HOMETOWNS.map((t) => h("option", { value: t }))),
+    h("datalist", { id: "talent-list" }, Object.keys(TALENTS).map((t) => h("option", { value: t }))),
+    customStats,
+    h("div", { class: "row" }, h("div", { class: "left" }, born, luck), notice),
   );
   const parts = [];
   if (saved) {
@@ -525,7 +592,7 @@ function showStart(saved = null) {
   }
   parts.push(form);
   app.replaceChildren(h("section", { class: "start" }, parts));
-  if (!saved) name.focus({ preventScroll: true });
+  if (!saved && !kept.name) name.focus({ preventScroll: true });
 }
 
 /* 플레이 화면 */
@@ -613,6 +680,7 @@ function paintRecord() {
         h("dt", { text: "태어남" }), h("dd", { text: `${life.birthYear}년 · ${life.hometown}` }),
         h("dt", { text: "집안" }), h("dd", { text: life.family }),
         h("dt", { text: "재능" }), h("dd", { text: life.talent }),
+        life.background ? [h("dt", { text: "배경" }), h("dd", { text: life.background })] : [],
         h("dt", { text: "학력" }), h("dd", { text: life.education }),
         h("dt", { text: "직업" }), h("dd", { text: life.job }),
         h("dt", { text: "돈" }), h("dd", { text: won(life.money) }))),

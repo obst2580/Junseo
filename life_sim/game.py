@@ -57,6 +57,7 @@ class Life:
     hometown: str
     family: str
     talent: str
+    background: str = ""  # 플레이어가 정한 출생 배경
     age: int = 0
     health: int = 80
     happiness: int = 60
@@ -79,22 +80,34 @@ class Life:
         return self.birth_year + self.age
 
 
-def new_life(name: str, gender: str, rng: random.Random | None = None) -> Life:
+def new_life(
+    name: str,
+    gender: str,
+    rng: random.Random | None = None,
+    *,
+    birth_year: int | None = None,
+    hometown: str = "",
+    family: str = "",
+    talent: str = "",
+    background: str = "",
+) -> Life:
+    """새 인생. 정한 것은 그대로 쓰고, 비운 것은 운에 맡긴다."""
     rng = rng or random.Random()
-    talent = rng.choice(list(TALENTS))
+    talent = talent or rng.choice(list(TALENTS))
     life = Life(
         name=name,
         gender=gender,
-        birth_year=rng.randint(1990, 2010),
-        hometown=rng.choice(HOMETOWNS),
-        family=rng.choices(list(FAMILIES), weights=list(FAMILIES.values()))[0],
+        birth_year=birth_year or rng.randint(1990, 2010),
+        hometown=hometown or rng.choice(HOMETOWNS),
+        family=family or rng.choices(list(FAMILIES), weights=list(FAMILIES.values()))[0],
         talent=talent,
+        background=background,
         health=rng.randint(60, 95),
         happiness=rng.randint(45, 80),
         smarts=rng.randint(30, 75),
         looks=rng.randint(30, 75),
     )
-    if TALENTS[talent]:
+    if TALENTS.get(talent):
         setattr(life, TALENTS[talent], min(100, getattr(life, TALENTS[talent]) + 20))
     return life
 

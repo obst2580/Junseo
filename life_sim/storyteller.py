@@ -83,6 +83,7 @@ def describe(life: Life) -> str:
     lines = [
         "[캐릭터]",
         f"이름: {life.name} ({life.gender}), {life.birth_year}년 {life.hometown} 출생, {life.family}, 타고난 재능: {life.talent}",
+        *([f"출생 배경(플레이어가 정함): {life.background}"] if life.background else []),
         f"지금: {life.age}살 ({life.year}년)",
         f"{stats} · 돈 {life.money:,}만원",
         f"학력: {life.education} / 직업: {life.job}",
@@ -106,7 +107,8 @@ class Storyteller:
         prompt = (
             f"{describe(life)}\n\n새 인생이 시작된다. result에는 캐릭터가 태어나는 장면을, "
             "next_situation에는 갓난아기인 0살의 첫 상황을 써라. changes는 모두 0, education과 job은 \"없음\". "
-            "people에는 부모를 비롯한 가족을 이름과 함께 넣어라. summary는 출생에 대한 한 줄."
+            "people에는 부모를 비롯한 가족을 이름과 함께 넣어라. 플레이어가 정한 출생 배경이 있으면 그대로 살려라. "
+            "summary는 출생에 대한 한 줄."
         )
         return self._ask(prompt, TURN_SCHEMA)
 

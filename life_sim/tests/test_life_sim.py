@@ -11,7 +11,7 @@ from unittest import mock
 
 from life_sim import __main__ as app
 from life_sim import game, ui
-from life_sim.storyteller import ENDING_SCHEMA, Storyteller, StoryError
+from life_sim.storyteller import ENDING_SCHEMA, Storyteller, StoryError, describe
 
 
 def turn_out(**over):
@@ -62,6 +62,20 @@ class GameTest(unittest.TestCase):
             for key in game.STATS:
                 self.assertTrue(0 <= getattr(life, key) <= 100)
             self.assertTrue(1990 <= life.birth_year <= 2010)
+
+    def test_new_life_keeps_chosen_conditions(self):
+        life = game.new_life("a", "여", random.Random(0), birth_year=1975, hometown="목포",
+                             family="부유한 집안", talent="바둑", background="쌍둥이 동생")
+        self.assertEqual((life.birth_year, life.hometown, life.family, life.talent), (1975, "목포", "부유한 집안", "바둑"))
+        self.assertIn("출생 배경(플레이어가 정함): 쌍둥이 동생", describe(life))
+
+    def test_custom_start_in_cli(self):
+        inputs = ["준서", "남", "3000", "1988", "4", "울산", "", "아버지는 조선소 용접공이다"]
+        with mock.patch("builtins.input", side_effect=inputs), redirect_stdout(io.StringIO()):
+            life = app.create(random.Random(0))
+        self.assertEqual((life.birth_year, life.family, life.hometown), (1988, "부유한 집안", "울산"))
+        self.assertIn(life.talent, game.TALENTS)
+        self.assertEqual(life.background, "아버지는 조선소 용접공이다")
 
     def test_death_chance_grows_with_age_and_frailty(self):
         self.assertLess(game.death_chance(20, 80), game.death_chance(80, 80))
@@ -151,7 +165,7 @@ class PlayTest(unittest.TestCase):
 
     def test_play_save_resume_and_die(self):
         client = FakeClient()
-        self.run_with(["준서", "남", "공부를 열심히 한다", "/넘기기 3", "/상태", "/종료"], client)
+        self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/넘기기 3", "/상태", "/종료"], client)
         life = game.load()
         self.assertEqual(life.age, 4)  # 태어남(0) → 1년 → 3년
         self.assertEqual(len(life.chronicle), 3)
@@ -166,7 +180,7 @@ class PlayTest(unittest.TestCase):
 
     def test_failed_turn_does_not_advance(self):
         client = FakeClient([turn_out(), SimpleNamespace(stop_reason="refusal", content=[])])
-        self.run_with(["준서", "여", "무언가 한다", "/종료"], client)
+        self.run_with(["준서", "여", *[""] * 5, "무언가 한다", "/종료"], client)
         self.assertEqual(game.load().age, 0)
 
 
