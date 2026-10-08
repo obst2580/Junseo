@@ -87,6 +87,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 @keyframes blink { 50% { opacity: 0; } }
 .diffs { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--font-ui); font-size: 13px; font-variant-numeric: tabular-nums; }
 .up { color: var(--up); } .down { color: var(--down); }
+.critical { color: var(--seal); font-weight: 600; }
 
 /* 행동 적기 */
 .compose { display: grid; gap: 10px; }
@@ -190,7 +191,9 @@ const TALENTS = {
 };
 const YEAR_EVENT_CHANCE = 0.4;  // 「1년 넘기기」마다
 const TURN_EVENT_CHANCE = 0.07; // 행동 한 번마다 (한 해에 여러 번 행동해도 사건이 넘치지 않게)
-const MAX_TURN_MONTHS = 3;      // 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
+const MAX_TURN_MONTHS = 3;
+const MAX_DROP = 20;            // 한 턴에 능력치가 깎이는 최대치 (건강이 한 번에 곤두박질치지 않게)
+const CRITICAL = 20;            // 건강이 이보다 낮으면 위독      // 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
 const EVENTS = [
   ["동생이 태어났다", 1, 10, 3], ["가족이 다른 도시로 이사를 가게 됐다", 1, 17, 2], ["독감으로 크게 앓았다", 0, 90, 2],
   ["부모님 사이가 나빠져 집안 분위기가 무겁다", 3, 19, 1], ["반에 전학생이 와서 짝이 됐다", 7, 18, 2],
@@ -298,9 +301,9 @@ function rollEvent(life, age, chance) {
   return pool.length ? weighted(pool) : null;
 }
 
-/** 한 해 동안 세상을 떠날 확률. 40살 0.2% → 80살 약 6% → 100살 약 35%, 건강이 나쁘면 최대 3배. */
+/** 한 해 동안 세상을 떠날 확률. 40살 0.2% → 80살 약 6% → 100살 약 35%, 건강이 나쁘면 최대 3배.
+ *  건강이 바닥이어도 곧바로 죽지는 않는다 — 젊으면 위독한 채로 버틴다. */
 function deathChance(age, health) {
-  if (health <= 0) return 1;
   const base = age < 40 ? 0.0005 : 0.002 * 1.09 ** (age - 40);
   return Math.min(0.95, base * (1 + Math.max(0, 60 - health) / 30));
 }
@@ -327,7 +330,8 @@ const diffOf = (before, after) => [...STATS, ["money", "돈"]]
 
 /** 이야기꾼의 결과를 반영하고 months 만큼 시간을 흘린다. */
 function apply(life, out, months, events) {
-  for (const [key] of STATS) life[key] = clamp(life[key] + clamp(out.changes[key], -40, 40), 0, 100);
+  for (const [key] of STATS) life[key] = clamp(life[key] + clamp(out.changes[key], -MAX_DROP, 40), 0, 100);
+  if (!out.died) life.health = Math.max(1, life.health); // 건강이 바닥나도 위독할 뿐, 죽음은 게임이 정한다
   life.money += out.changes.money;
   life.education = out.education || life.education;
   life.job = out.job || life.job;
@@ -341,7 +345,7 @@ function apply(life, out, months, events) {
   life.recent = [...life.recent, out.result].slice(-2);
   life.seen.push(...events.filter((e) => e === DRAFT));
   life.turns += 1;
-  if (out.died || life.health <= 0) {
+  if (out.died) {
     life.dead = true;
     life.causeOfDeath = out.cause_of_death || life.causeOfDeath || "건강 악화";
     life.scene = ""; life.suggestions = [];
@@ -380,7 +384,8 @@ const RULES = `너는 한국을 배경으로 한 텍스트 인생 시뮬레이�
 - people은 턴이 끝난 뒤 주변 인물 전체 목록이다. 새 인물은 이름을 지어 넣고, 떠나거나 세상을 뜬 사람은 빼거나 관계를 바꾼다. closeness는 0~100. 중요한 사람 10명 이하.
 - summary는 인생 기록에 남길 이번 턴 한 줄 요약이다.
 - suggestions는 다음 상황에서 해 볼 만한 행동 예시 3개, 각각 짧게.
-- 행동이 명백히 치명적이거나 건강이 0 이하로 떨어지면 died=true, cause_of_death에 사인을 쓰고 result에 마지막 순간을 담는다. 이때 next_situation은 빈 문자열, suggestions는 빈 배열. 그 밖에는 died=false, cause_of_death는 빈 문자열.
+- 언제 세상을 떠날지는 게임이 정한다. 병·과로·스트레스·사고로 몸이 상하면 건강을 깎고 쓰러지거나 입원하는 데서 멈추며, 캐릭터를 죽이지 않는다. 건강이 20 아래면 위독한 상태이니 몸의 신호와 회복할 기회를 이야기에 드러내고, 쉬거나 치료받는 행동에는 건강을 올린다.
+- died=true는 플레이어가 스스로 목숨을 거는 행동을 해서 도저히 살아날 수 없을 때만 쓴다. 그때 cause_of_death에 사인을 쓰고 result에 마지막 순간을 담으며, next_situation은 빈 문자열, suggestions는 빈 배열. 그 밖에는 언제나 died=false, cause_of_death는 빈 문자열.
 
 답 형식: 아래 키를 이 순서대로 가진 JSON 객체 하나로만 답한다.
 {"result": "...", "months_passed": 2, "summary": "...", "changes": {"health": 0, "happiness": 0, "smarts": 0, "looks": 0, "money": 0}, "education": "...", "job": "...", "people": [{"name": "...", "relation": "...", "closeness": 50}], "next_situation": "...", "suggestions": ["...", "...", "..."], "died": false, "cause_of_death": ""}`;
@@ -434,6 +439,9 @@ const endingPrompt = (life) => `너는 한국을 배경으로 한 인생 시뮬�
 - title: 이 인생을 한마디로 부르는 칭호. 뻔하지 않게, 이 사람만의 구체적인 삶이 드러나게 (예: "포장마차에서 빌딩을 올린 사람", "세 번 이혼하고 네 번 웃은 사람").
 - epitaph: 묘비에 새길 한 줄.
 답 형식: {"last_moment": "...", "story": "...", "title": "...", "epitaph": "..."} 순서의 JSON 객체 하나로만 답한다.`;
+
+const REVIVED_SCENE = "당신은 병원 침대에서 눈을 떴다. 몸은 아직 무겁지만 살아 있다. 곁에는 밤새 당신을 지킨 가족이 있다.";
+const REVIVED_SUGGESTIONS = ["몸을 추스르며 푹 쉰다", "가족에게 그동안의 일을 털어놓는다", "앞으로의 계획을 다시 세운다"];
 
 /** 부고에서 「되살리기」: 죽음의 문턱에서 살아나는 장면. life 는 건강을 바닥에서 조금 올려 둔 사본이다. */
 function revivePrompt(life) {
@@ -755,6 +763,7 @@ function paintCompose() {
     return;
   }
   if (!life.scene) { box.replaceChildren(notice); return; } // 아직 태어나는 장면을 못 받았다
+  if (life.health < CRITICAL) notice.textContent = `건강이 ${life.health}로 위독해요. 쉬거나 병원에 가는 등 몸을 돌보면 회복할 수 있어요.`;
   const area = h("textarea", { id: "action", rows: "3", placeholder: "지금 무엇을 할까요? 마음 가는 대로 적어 보세요." });
   area.value = draft;
   area.addEventListener("keydown", (e) => {
@@ -801,7 +810,7 @@ function paintRecord() {
     h("section", {}, STATS.map(([k, label]) => h("div", { class: "stat" },
       h("span", { text: label }),
       h("div", { class: "track", role: "img", "aria-label": `${label} ${life[k]}` }, h("i", { style: `width:${life[k]}%` })),
-      h("span", { class: "num", text: String(life[k]) })))),
+      h("span", { class: k === "health" && life[k] < CRITICAL ? "num critical" : "num", text: String(life[k]) })))),
     h("section", {},
       h("h2", { text: "사람들" }),
       life.people.length
@@ -955,24 +964,24 @@ async function showEnding() {
     const alive = { ...life, health: Math.max(life.health, 25) };
     let out;
     try {
-      out = normalizeTurn(await askClaude(revivePrompt(alive), (raw) => {
-        const t = partialString(raw, "result");
+      const raw = await askClaude(revivePrompt(alive), (text) => {
+        const t = partialString(text, "result");
         if (t) revival.textContent = t;
-      }));
-      if (!out.next_situation) throw { code: "invalid_json" };
+      });
+      // 이야기꾼이 또 죽음으로 끝맺거나 다음 장면을 비워 와도 되살리기는 되살리기다
+      out = normalizeTurn({ ...raw, died: false, cause_of_death: "",
+        next_situation: (typeof raw?.next_situation === "string" && raw.next_situation.trim()) || REVIVED_SCENE,
+        suggestions: Array.isArray(raw?.suggestions) && raw.suggestions.length ? raw.suggestions : REVIVED_SUGGESTIONS });
     } catch (e) {
       revival.hidden = true;
       notice.textContent = e?.code === "cancelled" ? "" : errorText(e);
       busy(false);
       return;
     }
-    out.died = false;
     Object.assign(life, { dead: false, causeOfDeath: "", offscreenDeath: false, ending: null, health: alive.health, revivals: (life.revivals ?? 0) + 1 });
     const before = snapshot(life);
     apply(life, out, Math.min(out.months_passed, MAX_TURN_MONTHS), []);
-    if (life.dead) { // 이야기꾼이 건강을 0 까지 깎았어도 되살리기는 되살리기다
-      Object.assign(life, { dead: false, causeOfDeath: "", health: 10, scene: out.next_situation, suggestions: out.suggestions });
-    }
+    life.health = Math.max(life.health, CRITICAL); // 막 살아난 몸이 바로 다시 위독하지 않게
     lastDiff = diffOf(before, snapshot(life));
     store.save(life);
     showPlay();

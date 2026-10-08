@@ -7,7 +7,7 @@ import threading
 import unicodedata
 from contextlib import contextmanager
 
-from .game import STATS, Life, span_text
+from .game import CRITICAL, STATS, Life, span_text
 
 COLS = 72
 _COLOR = sys.stdout.isatty()
@@ -93,6 +93,8 @@ def scene(life: Life) -> None:
     say(life.scene)
     if life.suggestions:
         say("예: " + " / ".join(life.suggestions), dim)
+    if life.health < CRITICAL:
+        say(f"건강이 {life.health}로 위독해요. 쉬거나 병원에 가는 등 몸을 돌보면 회복할 수 있어요.", warn)
 
 
 def result(text: str, before: dict | None = None, after: dict | None = None, span: int | None = None) -> None:

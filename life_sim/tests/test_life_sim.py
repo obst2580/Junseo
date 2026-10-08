@@ -108,14 +108,14 @@ class GameTest(unittest.TestCase):
     def test_death_roll_scales_with_time(self):
         rng = random.Random(0)
         self.assertIsNone(game.death_roll(80 * 12, 0, 70, rng))  # 시간이 흐르지 않으면 떠나지 않는다
-        self.assertIsNotNone(game.death_roll(30 * 12, 1, 0, rng))  # 건강 0 이면 반드시
+        self.assertIsNotNone(game.death_roll(95 * 12, 120, 10, rng))  # 아흔다섯에 쇠약하면 10년 안에는
         month = sum(game.death_roll(80 * 12, 1, 70, rng) is not None for _ in range(20000)) / 20000
         self.assertAlmostEqual(month, 1 - (1 - game.death_chance(80, 70)) ** (1 / 12), delta=0.002)
 
     def test_death_chance_grows_with_age_and_frailty(self):
         self.assertLess(game.death_chance(20, 80), game.death_chance(80, 80))
         self.assertLess(game.death_chance(70, 90), game.death_chance(70, 20))
-        self.assertEqual(game.death_chance(30, 0), 1.0)
+        self.assertLess(game.death_chance(30, 0), 0.01)  # 건강이 바닥이어도 곧바로 죽지 않는다
 
     def test_draft_notice_once_for_men_at_20(self):
         rng = random.Random(0)
@@ -131,8 +131,8 @@ class GameTest(unittest.TestCase):
         changes = {"health": 99, "happiness": -500, "smarts": -500, "looks": 0, "money": -30}
         game.apply(self.life, turn_out(changes=changes), 40)
         self.assertEqual(self.life.health, 100)
-        self.assertEqual(self.life.happiness, 0)
-        self.assertEqual(self.life.smarts, 30)  # 한 턴 변화량은 ±40 까지
+        self.assertEqual(self.life.happiness, 10)  # 한 턴에 깎이는 건 20 까지
+        self.assertEqual(self.life.smarts, 50)
         self.assertEqual(self.life.money, 20)
         self.assertEqual((self.life.months, self.life.age, self.life.last_span), (40, 3, 40))
         self.assertEqual(self.life.chronicle, ["출생: 평범한 한 해", "0~3살: 평범한 한 해"])
@@ -140,11 +140,18 @@ class GameTest(unittest.TestCase):
         self.assertEqual((self.life.age, self.life.chronicle[-1]), (3, "3살: 평범한 한 해"))
         self.assertEqual(self.life.scene, "새 학기가 시작됐다.")
 
-    def test_apply_death_when_health_runs_out(self):
-        self.life.health = 5
-        game.apply(self.life, turn_out(changes={"health": -10, "happiness": 0, "smarts": 0, "looks": 0, "money": 0}), 1)
+    def test_health_running_out_is_critical_not_death(self):
+        self.life.health = 30
+        for _ in range(3):
+            game.apply(self.life, turn_out(changes={"health": -90, "happiness": 0, "smarts": 0, "looks": 0, "money": 0}), 1)
+        self.assertFalse(self.life.dead)
+        self.assertEqual(self.life.health, 1)  # 한 턴에 최대 20씩, 바닥은 1
+        self.assertLess(game.death_chance(19, 1), 0.01)  # 젊으면 위독해도 버틴다
+
+    def test_storyteller_death_still_counts(self):
+        game.apply(self.life, turn_out(died=True, cause_of_death="추락", next_situation=""), 1)
         self.assertTrue(self.life.dead)
-        self.assertEqual(self.life.scene, "")
+        self.assertEqual(self.life.cause_of_death, "추락")
 
     def test_load_old_yearly_save(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -248,6 +255,15 @@ class PlayTest(unittest.TestCase):
         self.assertIn("[고쳐 쓰기]", client.requests[-1]["messages"][0]["content"])
         self.assertEqual(life.education, life.peer_grade)
         self.assertEqual(life.scene, f"당신은 {life.peer_grade}이다.")
+
+    def test_revive_survives_a_dead_answer(self):
+        dead_again = turn_out(died=True, cause_of_death="사고", next_situation="", suggestions=[])
+        client = FakeClient([turn_out(), turn_out(died=True, cause_of_death="사고"), {"last_moment": "끝", "story": "끝.", "title": "t", "epitaph": "e"}, dead_again])
+        self.run_with(["준서", "남", *[""] * 5, "번지점프를 한다", "y", "/종료"], client)
+        life = game.load()
+        self.assertFalse(life.dead)
+        self.assertEqual(life.scene, app.REVIVED_SCENE)
+        self.assertGreaterEqual(life.health, game.CRITICAL)
 
     def test_failed_turn_does_not_advance(self):
         client = FakeClient([turn_out(), SimpleNamespace(stop_reason="refusal", content=[])])

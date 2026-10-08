@@ -24,6 +24,8 @@ TALENTS = {
 YEAR_EVENT_CHANCE = 0.4  # 「/넘기기」로 넘기는 해마다
 TURN_EVENT_CHANCE = 0.07  # 행동 한 번마다 (한 해에 여러 번 행동해도 사건이 넘치지 않게)
 MAX_TURN_MONTHS = 3  # 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
+MAX_DROP = 20  # 한 턴에 능력치가 깎이는 최대치 (건강이 한 번에 곤두박질치지 않게)
+CRITICAL = 20  # 건강이 이보다 낮으면 위독
 EVENTS = [
     ("동생이 태어났다", 1, 10, 3),
     ("가족이 다른 도시로 이사를 가게 됐다", 1, 17, 2),
@@ -199,9 +201,8 @@ def roll_event(life: Life, age: int, rng: random.Random, chance: float = TURN_EV
 
 
 def death_chance(age: int, health: int) -> float:
-    """한 해 동안 세상을 떠날 확률. 40살 0.2% → 80살 약 6% → 100살 약 35%, 건강이 나쁘면 최대 3배."""
-    if health <= 0:
-        return 1.0
+    """한 해 동안 세상을 떠날 확률. 40살 0.2% → 80살 약 6% → 100살 약 35%, 건강이 나쁘면 최대 3배.
+    건강이 바닥이어도 곧바로 죽지는 않는다 — 젊으면 위독한 채로 버틴다."""
     base = 0.0005 if age < 40 else 0.002 * 1.09 ** (age - 40)
     frailty = 1 + max(0, 60 - health) / 30
     return min(0.95, base * frailty)
@@ -233,8 +234,10 @@ def apply(life: Life, out: dict, months: int, events: Sequence[str] = ()) -> Non
     """이야기꾼의 결과를 반영하고 months 만큼 시간을 흘린다. events 는 이번 턴에 굴린 무작위 사건."""
     changes = out["changes"]
     for key in STATS:
-        delta = _clamp(int(changes.get(key, 0)), -40, 40)
+        delta = _clamp(int(changes.get(key, 0)), -MAX_DROP, 40)
         setattr(life, key, _clamp(getattr(life, key) + delta, 0, 100))
+    if not out["died"]:
+        life.health = max(1, life.health)  # 건강이 바닥나도 위독할 뿐, 죽음은 게임이 정한다
     life.money += int(changes.get("money", 0))
     life.education = out["education"] or life.education
     life.job = out["job"] or life.job
@@ -253,7 +256,7 @@ def apply(life: Life, out: dict, months: int, events: Sequence[str] = ()) -> Non
     life.seen += [e for e in events if e in ONCE]
     life.turns += 1
 
-    if out["died"] or life.health <= 0:
+    if out["died"]:
         life.dead = True
         life.cause_of_death = out["cause_of_death"] or life.cause_of_death or "건강 악화"
         life.scene, life.suggestions = "", []

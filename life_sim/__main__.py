@@ -174,21 +174,26 @@ def finale(teller: Storyteller, life: game.Life) -> str:
     return ending["last_moment"] if ending else ""
 
 
+REVIVED_SCENE = "당신은 병원 침대에서 눈을 떴다. 몸은 아직 무겁지만 살아 있다. 곁에는 밤새 당신을 지킨 가족이 있다."
+REVIVED_SUGGESTIONS = ["몸을 추스르며 푹 쉰다", "가족에게 그동안의 일을 털어놓는다", "앞으로의 계획을 다시 세운다"]
+
+
 def revive(teller: Storyteller, life: game.Life, last_moment: str) -> bool:
     """죽음의 문턱에서 살아나는 장면을 받아 같은 인생을 이어 간다. 실패하면 False."""
     alive = dataclasses.replace(life, health=max(life.health, 25))
     out = call(teller.revive, alive, last_moment)
-    if out is None or not out.get("next_situation"):
+    if out is None:
         return False
-    out["died"] = False
+    # 이야기꾼이 또 죽음으로 끝맺거나 다음 장면을 비워 와도 되살리기는 되살리기다
+    out = {**out, "died": False, "cause_of_death": "",
+           "next_situation": out.get("next_situation") or REVIVED_SCENE,
+           "suggestions": out.get("suggestions") or REVIVED_SUGGESTIONS}
     life.dead, life.cause_of_death, life.offscreen_death = False, "", False
     life.health = alive.health
     life.revivals += 1
     before = ui.snapshot(life)
     game.apply(life, out, max(0, min(game.MAX_TURN_MONTHS, int(out.get("months_passed", 0)))))
-    if life.dead:  # 이야기꾼이 건강을 0 까지 깎았어도 되살리기는 되살리기다
-        life.dead, life.cause_of_death, life.health = False, "", 10
-        life.scene, life.suggestions = out["next_situation"], list(out["suggestions"])[:3]
+    life.health = max(life.health, game.CRITICAL)  # 막 살아난 몸이 바로 다시 위독하지 않게
     ui.result(out["result"], before, ui.snapshot(life), span=life.last_span)
     game.save(life)
     return True
