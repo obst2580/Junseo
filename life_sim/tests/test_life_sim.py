@@ -200,10 +200,21 @@ class PlayTest(unittest.TestCase):
 
         # 이어 하기: 이번 턴에 세상을 떠나면 엔딩을 보여 주고 저장을 지운다
         client = FakeClient([turn_out(died=True, cause_of_death="사고")])
-        output = self.run_with(["", "번지점프를 한다"], client)
+        output = self.run_with(["", "번지점프를 한다", "n"], client)
         self.assertIn("부고", output)
         self.assertIn("평범한 사람", output)
         self.assertIsNone(game.load())
+
+    def test_revive_from_obituary(self):
+        client = FakeClient([turn_out(), turn_out(died=True, cause_of_death="사고")])
+        output = self.run_with(["준서", "남", *[""] * 5, "번지점프를 한다", "y", "/종료"], client)
+        self.assertIn("부고", output)
+        life = game.load()
+        self.assertFalse(life.dead)
+        self.assertEqual((life.revivals, life.cause_of_death, life.scene), (1, "", "새 학기가 시작됐다."))
+        prompt = client.requests[-1]["messages"][0]["content"]
+        self.assertIn("[되살리기]", prompt)
+        self.assertIn("조용히 눈을 감았다.", prompt)  # 부고의 떠나던 장면을 이어서 쓴다
 
     def test_failed_turn_does_not_advance(self):
         client = FakeClient([turn_out(), SimpleNamespace(stop_reason="refusal", content=[])])

@@ -137,6 +137,19 @@ class Storyteller:
         ]
         return self._ask("\n".join(parts), TURN_SCHEMA)
 
+    def revive(self, life: Life, last_moment: str = "") -> dict:
+        """부고에서 「되살리기」: 죽음의 문턱에서 살아나는 장면. life 는 건강을 바닥에서 조금 올려 둔 사본이다."""
+        parts = [describe(life)]
+        if last_moment:
+            parts.append(f"\n[떠나던 장면]\n{last_moment}")
+        parts.append(
+            f"\n[되살리기]\n캐릭터는 {life.when}에 {life.cause_of_death}(으)로 세상을 떠날 뻔했다. 플레이어가 이 인생을 되살리기로 했다. "
+            "바로 앞 이야기와 이어지게, 캐릭터가 죽음의 문턱에서 살아나는 장면을 result에 써라. 기적보다는 그럴듯한 이유로 "
+            "(누군가 발견해 병원으로 옮겼다, 고비를 넘기고 의식을 되찾았다 등). 몸은 크게 상해 있으니 health는 더 올리지 말고, "
+            f"died=false, months_passed는 0~{MAX_TURN_MONTHS}. next_situation은 살아난 직후의 상황, summary는 살아난 일을 한 줄로."
+        )
+        return self._ask("\n".join(parts), TURN_SCHEMA)
+
     def ending(self, life: Life) -> dict:
         last = ("최근 이야기 뒤로 이어지는, 캐릭터가 세상을 떠나는 마지막 장면 2~4문장." if life.offscreen_death
                 else "최근 이야기에서 이미 떠나는 순간을 그렸으니, 그 뒤 장례식이나 남은 사람들의 모습 2~3문장.")

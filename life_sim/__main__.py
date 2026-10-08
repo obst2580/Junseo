@@ -1,6 +1,7 @@
 """인생 시뮬레이션. 실행: python3 -m life_sim"""
 from __future__ import annotations
 
+import dataclasses
 import random
 import sys
 
@@ -17,6 +18,9 @@ HELP = """명령어
   /종료        저장하고 끝내기
 그 밖의 글은 모두 캐릭터의 행동이에요.
   예: 공부를 열심히 한다 / 짝사랑에게 고백한다 / 회사를 그만두고 창업한다"""
+
+
+YES = ("y", "yes", "응", "네", "ㅇ")
 
 
 def ask(prompt: str) -> str:
@@ -120,7 +124,8 @@ def command(line: str, teller: Storyteller, life: game.Life, rng: random.Random)
     return True
 
 
-def finale(teller: Storyteller, life: game.Life) -> None:
+def finale(teller: Storyteller, life: game.Life) -> str:
+    """부고를 보여 준다. 떠나던 장면을 돌려준다 (되살리기가 이어 쓰도록)."""
     ending = None
     while ending is None:
         ending = call(teller.ending, life)
@@ -139,7 +144,27 @@ def finale(teller: Storyteller, life: game.Life) -> None:
         ui.say(ending["story"])
     print()
     ui.status(life)
-    game.delete_save()
+    return ending["last_moment"] if ending else ""
+
+
+def revive(teller: Storyteller, life: game.Life, last_moment: str) -> bool:
+    """죽음의 문턱에서 살아나는 장면을 받아 같은 인생을 이어 간다. 실패하면 False."""
+    alive = dataclasses.replace(life, health=max(life.health, 25))
+    out = call(teller.revive, alive, last_moment)
+    if out is None or not out.get("next_situation"):
+        return False
+    out["died"] = False
+    life.dead, life.cause_of_death, life.offscreen_death = False, "", False
+    life.health = alive.health
+    life.revivals += 1
+    before = ui.snapshot(life)
+    game.apply(life, out, max(0, min(game.MAX_TURN_MONTHS, int(out.get("months_passed", 0)))))
+    if life.dead:  # 이야기꾼이 건강을 0 까지 깎았어도 되살리기는 되살리기다
+        life.dead, life.cause_of_death, life.health = False, "", 10
+        life.scene, life.suggestions = out["next_situation"], list(out["suggestions"])[:3]
+    ui.result(out["result"], before, ui.snapshot(life), span=life.last_span)
+    game.save(life)
+    return True
 
 
 def run(teller: Storyteller, rng: random.Random) -> bool:
@@ -155,27 +180,33 @@ def run(teller: Storyteller, rng: random.Random) -> bool:
         game.save(life)
         print(ui.dim("\n/도움 으로 명령어를 볼 수 있어요. 하고 싶은 행동을 자유롭게 적어 보세요."))
 
-    shown = None
-    while not life.dead:
-        if life.turns != shown:  # 명령만 쓴 뒤에는 같은 상황을 다시 보여 주지 않는다
-            ui.scene(life)
-            shown = life.turns
-        try:
-            line = ask("\n> ")
-        except (EOFError, KeyboardInterrupt):
-            game.save(life)
-            print(ui.dim("\n저장했어요. 다음에 이어서 할 수 있어요."))
-            return False
-        if not line:
-            continue
-        if line.startswith("/"):
-            if not command(line, teller, life, rng):
+    while True:
+        shown = None
+        while not life.dead:
+            if life.turns != shown:  # 명령만 쓴 뒤에는 같은 상황을 다시 보여 주지 않는다
+                ui.scene(life)
+                shown = life.turns
+            try:
+                line = ask("\n> ")
+            except (EOFError, KeyboardInterrupt):
+                game.save(life)
+                print(ui.dim("\n저장했어요. 다음에 이어서 할 수 있어요."))
                 return False
-            continue
-        play(teller, life, line, rng)
+            if not line:
+                continue
+            if line.startswith("/"):
+                if not command(line, teller, life, rng):
+                    return False
+                continue
+            play(teller, life, line, rng)
 
-    finale(teller, life)
-    return True
+        last_moment = finale(teller, life)
+        while ask("\n되살릴까요? (y/N) ").lower() in YES:
+            if revive(teller, life, last_moment):
+                break
+        else:
+            game.delete_save()
+            return True
 
 
 def main() -> int:
@@ -188,7 +219,7 @@ def main() -> int:
     rng = random.Random()
     try:
         while run(teller, rng):
-            if ask("\n새 인생을 시작할까요? (y/N) ").lower() not in ("y", "yes", "응", "네", "ㅇ"):
+            if ask("\n새 인생을 시작할까요? (y/N) ").lower() not in YES:
                 return 0
     except (EOFError, KeyboardInterrupt):
         print()

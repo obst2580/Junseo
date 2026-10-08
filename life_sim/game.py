@@ -81,6 +81,7 @@ class Life:
     offscreen_death: bool = False  # 이야기 밖에서(수명 판정으로) 떠났다 — 엔딩이 마지막 장면을 쓴다
     last_span: int | None = None  # 직전 턴에 흐른 개월 수
     turns: int = 0
+    revivals: int = 0  # 부고에서 되살린 횟수
 
     @property
     def year(self) -> int:

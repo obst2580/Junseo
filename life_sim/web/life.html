@@ -281,6 +281,9 @@ function deathRoll(startMonths, months, health) {
 }
 
 const snapshot = (life) => Object.fromEntries([...STATS.map(([k]) => k), "money"].map((k) => [k, life[k]]));
+/** 두 스냅샷 사이에 바뀐 능력치: [이름, 변화량, 돈인가] */
+const diffOf = (before, after) => [...STATS, ["money", "돈"]]
+  .filter(([k]) => after[k] !== before[k]).map(([k, label]) => [label, after[k] - before[k], k === "money"]);
 
 /** 이야기꾼의 결과를 반영하고 months 만큼 시간을 흘린다. */
 function apply(life, out, months, events) {
@@ -379,6 +382,18 @@ const endingPrompt = (life) => `너는 한국을 배경으로 한 인생 시뮬�
 - title: 이 인생을 한마디로 부르는 칭호. 뻔하지 않게, 이 사람만의 구체적인 삶이 드러나게 (예: "포장마차에서 빌딩을 올린 사람", "세 번 이혼하고 네 번 웃은 사람").
 - epitaph: 묘비에 새길 한 줄.
 답 형식: {"last_moment": "...", "story": "...", "title": "...", "epitaph": "..."} 순서의 JSON 객체 하나로만 답한다.`;
+
+/** 부고에서 「되살리기」: 죽음의 문턱에서 살아나는 장면. life 는 건강을 바닥에서 조금 올려 둔 사본이다. */
+function revivePrompt(life) {
+  return [
+    RULES, "", describe(life),
+    life.ending?.lastMoment ? `\n[떠나던 장면]\n${life.ending.lastMoment}` : "",
+    `\n[되살리기]\n캐릭터는 ${when(life)}에 ${life.causeOfDeath}(으)로 세상을 떠날 뻔했다. 플레이어가 이 인생을 되살리기로 했다. `
+      + "바로 앞 이야기와 이어지게, 캐릭터가 죽음의 문턱에서 살아나는 장면을 result에 써라. 기적보다는 그럴듯한 이유로 "
+      + "(누군가 발견해 병원으로 옮겼다, 고비를 넘기고 의식을 되찾았다 등). 몸은 크게 상해 있으니 health는 더 올리지 말고, "
+      + `died=false, months_passed는 0~${MAX_TURN_MONTHS}. next_situation은 살아난 직후의 상황, summary는 살아난 일을 한 줄로.`,
+  ].join("\n");
+}
 
 /** Claude 의 답을 게임이 믿고 쓸 수 있는 모양으로 맞춘다. */
 function normalizeTurn(raw) {
@@ -791,8 +806,7 @@ async function runTurn(action, yearSkip = false) {
   const startMonths = life.months;
   const before = snapshot(life);
   apply(life, out, months, events);
-  const after = snapshot(life);
-  lastDiff = [...STATS, ["money", "돈"]].filter(([k]) => after[k] !== before[k]).map(([k, label]) => [label, after[k] - before[k], k === "money"]);
+  lastDiff = diffOf(before, snapshot(life));
   // 수명은 게임이 정한다: 흐른 시간만큼 굴려서, 이 사이에 떠났으면 부고에서 그 장면을 쓴다
   const cause = life.dead ? null : deathRoll(startMonths, months, life.health);
   if (cause) Object.assign(life, { dead: true, causeOfDeath: cause, offscreenDeath: true, scene: "", suggestions: [] });
@@ -811,6 +825,7 @@ async function showEnding() {
   const story = h("p", { class: "story" });
   const titleEl = h("div", { class: "title" });
   const epitaphEl = h("div", { class: "epitaph" });
+  const revival = h("p", { class: "story writing", hidden: true });
   const notice = h("div", { class: "notice", role: "status" });
   const actions = h("div", { class: "row", style: "justify-content:center" });
   const died = calendar(life).year;
@@ -821,7 +836,7 @@ async function showEnding() {
         h("div", { class: "name", text: `故 ${life.name}` }),
         h("div", { class: "when", text: `${life.birthYear} – ${died} · 향년 ${life.age}세 · ${life.causeOfDeath}` }),
         h("p", { class: "last", text: life.recent[life.recent.length - 1] || "" }),
-        moment, titleEl, epitaphEl, story, notice, actions)),
+        moment, titleEl, epitaphEl, story, revival, notice, actions)),
     h("aside", { class: "record", id: "record", "aria-label": "기록부" })));
   paintRecord();
 
@@ -833,10 +848,46 @@ async function showEnding() {
       epitaphEl.textContent = `“${ending.epitaph}”`;
       story.textContent = ending.story;
     }
-    actions.replaceChildren(h("button", { class: "btn primary", type: "button", id: "again", text: "새 인생 시작", onclick: () => {
-      store.clear(); life = null; lastDiff = null; showStart();
-    } }));
+    actions.replaceChildren(
+      h("button", { class: "btn", type: "button", id: "revive", text: "되살리기", disabled: unavailable, onclick: revive }),
+      h("button", { class: "btn primary", type: "button", id: "again", text: "새 인생 시작", onclick: () => {
+        store.clear(); life = null; lastDiff = null; showStart();
+      } }));
   };
+
+  // 죽음의 문턱에서 살아나는 장면을 받아 같은 인생을 이어 간다
+  async function revive() {
+    const busy = (on) => { for (const b of actions.querySelectorAll("button")) b.disabled = on || (b.id === "revive" && unavailable); };
+    busy(true);
+    notice.textContent = "";
+    revival.hidden = false;
+    revival.classList.add("writing");
+    revival.textContent = "되살아나는 중";
+    const alive = { ...life, health: Math.max(life.health, 25) };
+    let out;
+    try {
+      out = normalizeTurn(await askClaude(revivePrompt(alive), (raw) => {
+        const t = partialString(raw, "result");
+        if (t) revival.textContent = t;
+      }));
+      if (!out.next_situation) throw { code: "invalid_json" };
+    } catch (e) {
+      revival.hidden = true;
+      notice.textContent = e?.code === "cancelled" ? "" : errorText(e);
+      busy(false);
+      return;
+    }
+    out.died = false;
+    Object.assign(life, { dead: false, causeOfDeath: "", offscreenDeath: false, ending: null, health: alive.health, revivals: (life.revivals ?? 0) + 1 });
+    const before = snapshot(life);
+    apply(life, out, Math.min(out.months_passed, MAX_TURN_MONTHS), []);
+    if (life.dead) { // 이야기꾼이 건강을 0 까지 깎았어도 되살리기는 되살리기다
+      Object.assign(life, { dead: false, causeOfDeath: "", health: 10, scene: out.next_situation, suggestions: out.suggestions });
+    }
+    lastDiff = diffOf(before, snapshot(life));
+    store.save(life);
+    showPlay();
+  }
   if (life.ending) return finish(life.ending);
   try {
     const raw = await askClaude(endingPrompt(life), (text) => {
