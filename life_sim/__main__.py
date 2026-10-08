@@ -13,7 +13,7 @@ from .storyteller import StoryError, Storyteller
 HELP = """명령어
   /상태        능력치와 주변 사람
   /기록        지금까지의 인생 기록
-  /1년        1년 넘기기 (그 밖의 행동은 같은 시기 안에서 이어져요)
+  /넘기기 N    N년 넘기기, N 을 빼면 1년 (그 밖의 행동은 같은 시기 안에서 이어져요)
   /저장        저장 (매 턴 자동으로도 저장돼요)
   /종료        저장하고 끝내기
 그 밖의 글은 모두 캐릭터의 행동이에요.
@@ -81,15 +81,20 @@ def start(rng: random.Random) -> game.Life:
     return create(rng)
 
 
-def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, year_skip: bool = False) -> None:
+def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, skip_years: int = 0) -> None:
     """한 턴: 사건을 굴리고, 이야기꾼이 결과를 쓰고, 흐른 시간만큼 수명을 굴린다.
-    행동 턴은 시간이 조금만(최대 MAX_TURN_MONTHS) 흐르고, year_skip 이면 정확히 1년이 흐른다."""
-    chance = game.YEAR_EVENT_CHANCE if year_skip else game.TURN_EVENT_CHANCE
-    events = [e] if (e := game.roll_event(life, life.age, rng, chance)) else []
-    out = call(teller.turn, life, action, events, year_skip)
+    행동 턴은 시간이 조금만(최대 MAX_TURN_MONTHS) 흐르고, skip_years 가 있으면 그 햇수가 흐른다."""
+    rolled: list[tuple[int, str]] = []
+    for age in range(life.age, life.age + skip_years) if skip_years else [life.age]:
+        e = game.roll_event(life, age, rng, game.YEAR_EVENT_CHANCE if skip_years else game.TURN_EVENT_CHANCE)
+        if e and not (e in game.ONCE and any(x == e for _, x in rolled)):
+            rolled.append((age, e))
+    events = [e for _, e in rolled]
+    shown = [f"만 {age}살 무렵: {e}" for age, e in rolled] if skip_years > 1 else events
+    out = call(teller.turn, life, action, shown, skip_years)
     if out is None:
         return
-    months = 12 if year_skip else max(0, min(game.MAX_TURN_MONTHS, int(out.get("months_passed", 0))))
+    months = skip_years * 12 if skip_years else max(0, min(game.MAX_TURN_MONTHS, int(out.get("months_passed", 0))))
     start_months = life.months
     before = ui.snapshot(life)
     game.apply(life, out, months, events)
@@ -104,14 +109,15 @@ def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, 
 
 def command(line: str, teller: Storyteller, life: game.Life, rng: random.Random) -> bool:
     """/명령을 처리한다. 게임을 끝내야 하면 False."""
-    name = line[1:].split(" ")[0]
+    name, _, arg = line[1:].partition(" ")
     if name == "상태":
         ui.status(life)
         ui.people(life)
     elif name == "기록":
         ui.chronicle(life)
-    elif name in ("1년", "넘기기"):
-        play(teller, life, "", rng, year_skip=True)
+    elif name == "넘기기":
+        years = int(arg) if arg.strip().isdigit() else 1
+        play(teller, life, "", rng, skip_years=max(1, min(10, years)))
     elif name == "저장":
         game.save(life)
         print(ui.dim(f"저장했어요: {game.SAVE_PATH}"))

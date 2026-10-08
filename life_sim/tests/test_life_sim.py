@@ -79,6 +79,17 @@ class GameTest(unittest.TestCase):
         self.assertIn(life.talent, game.TALENTS)
         self.assertEqual(life.background, "아버지는 조선소 용접공이다")
 
+    def test_peer_grade_follows_korean_school_years(self):
+        self.life.birth_year, self.life.birth_month = 2009, 6
+        grades = {}
+        for year, month in [(2016, 2), (2016, 3), (2022, 3), (2024, 12), (2025, 3), (2028, 3), (2040, 3)]:
+            self.life.months = (year - 2009) * 12 + (month - 6)
+            grades[(year, month)] = self.life.peer_grade
+        self.assertEqual(grades, {
+            (2016, 2): "미취학", (2016, 3): "초등학교 1학년", (2022, 3): "중학교 1학년", (2024, 12): "중학교 3학년",
+            (2025, 3): "고등학교 1학년", (2028, 3): "고등학교 졸업 1년차 (2028년 2월 졸업 또래)", (2040, 3): None,
+        })
+
     def test_calendar_and_span(self):
         self.life.birth_year, self.life.birth_month, self.life.months = 2003, 11, 17
         self.assertEqual(self.life.when, "2005년 4월")
@@ -163,8 +174,11 @@ class StorytellerTest(unittest.TestCase):
         self.assertIn("공부한다", prompt)
         self.assertIn("첫사랑이 찾아왔다", prompt)
         self.assertIn("길어야 3개월", prompt)
-        teller.turn(life, "", [], year_skip=True)
-        self.assertIn("months_passed는 정확히 12", client.requests[1]["messages"][0]["content"])
+        teller.turn(life, "", [], skip_years=3)
+        skip = client.requests[1]["messages"][0]["content"]
+        self.assertIn("3년을 넘긴다", skip)
+        self.assertIn("months_passed는 정확히 36", skip)
+        self.assertIn("만 3살의 상황", skip)
 
     def test_no_fallbacks_for_other_models(self):
         client = FakeClient()
@@ -192,9 +206,9 @@ class PlayTest(unittest.TestCase):
 
     def test_play_save_resume_and_die(self):
         client = FakeClient()
-        self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/1년", "/상태", "/종료"], client)
+        self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/넘기기 2", "/상태", "/종료"], client)
         life = game.load()
-        self.assertEqual((life.months, life.age), (15, 1))  # 태어남 → 행동(6개월이라 했어도 최대 3개월) → 1년 넘기기
+        self.assertEqual((life.months, life.age), (27, 2))  # 태어남 → 행동(6개월이라 했어도 최대 3개월) → 2년 넘기기
         self.assertEqual(len(life.chronicle), 3)
         self.assertIn("공부를 열심히 한다", client.requests[1]["messages"][0]["content"])
 

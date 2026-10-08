@@ -20,7 +20,7 @@ TALENTS = {
 }
 
 # (사건, 최소 나이, 최대 나이, 가중치)
-YEAR_EVENT_CHANCE = 0.4  # 「/1년」으로 해를 넘길 때마다
+YEAR_EVENT_CHANCE = 0.4  # 「/넘기기」로 넘기는 해마다
 TURN_EVENT_CHANCE = 0.07  # 행동 한 번마다 (한 해에 여러 번 행동해도 사건이 넘치지 않게)
 MAX_TURN_MONTHS = 3  # 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
 EVENTS = [
@@ -61,7 +61,7 @@ class Life:
     talent: str
     background: str = ""  # 플레이어가 정한 출생 배경
     birth_month: int = 3
-    months: int = 0  # 태어나서 지금까지 흐른 개월 수. 행동은 조금씩, 「/1년」은 12개월
+    months: int = 0  # 태어나서 지금까지 흐른 개월 수. 행동은 조금씩, 「/넘기기 N」은 N×12개월
     age: int = 0  # months // 12
     health: int = 80
     happiness: int = 60
@@ -94,6 +94,23 @@ class Life:
     @property
     def when(self) -> str:
         return f"{self.year}년 {self.month}월"
+
+    @property
+    def peer_grade(self) -> str | None:
+        """같은 해에 태어난 또래의 학년 (한국 학제: 3월 새 학년, 태어난 해 + 7년의 3월에 초등학교 입학).
+        이야기꾼이 학년을 지어내지 않도록 게임이 계산해 넘긴다. 서른 무렵부터는 None."""
+        g = (self.year if self.month >= 3 else self.year - 1) - (self.birth_year + 7) + 1  # 이번 학년도의 학년
+        if g < 1:
+            return "미취학"
+        if g <= 6:
+            return f"초등학교 {g}학년"
+        if g <= 9:
+            return f"중학교 {g - 6}학년"
+        if g <= 12:
+            return f"고등학교 {g - 9}학년"
+        if g > 22:
+            return None
+        return f"고등학교 졸업 {g - 12}년차 ({self.birth_year + 19}년 2월 졸업 또래)"
 
 
 def span_text(months: int) -> str:
