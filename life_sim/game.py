@@ -20,8 +20,9 @@ TALENTS = {
 }
 
 # (사건, 최소 나이, 최대 나이, 가중치)
-EVENT_CHANCE = 0.35  # 「/넘기기」로 넘기는 해마다
-TURN_EVENT_CHANCE = 0.2  # 행동 한 번마다 (짧은 턴이 이어져도 사건이 넘치지 않게)
+YEAR_EVENT_CHANCE = 0.4  # 「/1년」으로 해를 넘길 때마다
+TURN_EVENT_CHANCE = 0.07  # 행동 한 번마다 (한 해에 여러 번 행동해도 사건이 넘치지 않게)
+MAX_TURN_MONTHS = 3  # 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
 EVENTS = [
     ("동생이 태어났다", 1, 10, 3),
     ("가족이 다른 도시로 이사를 가게 됐다", 1, 17, 2),
@@ -60,7 +61,7 @@ class Life:
     talent: str
     background: str = ""  # 플레이어가 정한 출생 배경
     birth_month: int = 3
-    months: int = 0  # 태어나서 지금까지 흐른 개월 수. 한 턴에 흐르는 시간은 행동마다 다르다
+    months: int = 0  # 태어나서 지금까지 흐른 개월 수. 행동은 조금씩, 「/1년」은 12개월
     age: int = 0  # months // 12
     health: int = 80
     happiness: int = 60

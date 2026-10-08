@@ -162,9 +162,9 @@ class StorytellerTest(unittest.TestCase):
         prompt = request["messages"][0]["content"]
         self.assertIn("공부한다", prompt)
         self.assertIn("첫사랑이 찾아왔다", prompt)
-        self.assertIn("자연스럽게 걸리는 만큼", prompt)
-        teller.turn(life, "특별히 하는 일 없이", [], skip_years=3)
-        self.assertIn("months_passed는 정확히 36", client.requests[1]["messages"][0]["content"])
+        self.assertIn("길어야 3개월", prompt)
+        teller.turn(life, "", [], year_skip=True)
+        self.assertIn("months_passed는 정확히 12", client.requests[1]["messages"][0]["content"])
 
     def test_no_fallbacks_for_other_models(self):
         client = FakeClient()
@@ -192,9 +192,9 @@ class PlayTest(unittest.TestCase):
 
     def test_play_save_resume_and_die(self):
         client = FakeClient()
-        self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/넘기기 3", "/상태", "/종료"], client)
+        self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/1년", "/상태", "/종료"], client)
         life = game.load()
-        self.assertEqual((life.months, life.age), (42, 3))  # 태어남 → 6개월 (이야기꾼이 정함) → 3년 넘기기
+        self.assertEqual((life.months, life.age), (15, 1))  # 태어남 → 행동(6개월이라 했어도 최대 3개월) → 1년 넘기기
         self.assertEqual(len(life.chronicle), 3)
         self.assertIn("공부를 열심히 한다", client.requests[1]["messages"][0]["content"])
 
