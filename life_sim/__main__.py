@@ -96,7 +96,10 @@ def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, 
         return
 
     def months_of(o: dict) -> int:
-        return skip_years * 12 if skip_years else max(0, min(game.MAX_TURN_MONTHS, int(o.get("months_passed", 0))))
+        """넘기기는 정확히 그 햇수, 기간을 적은 행동은 최대 3개월, 그 밖의 행동은 결정일 뿐이라 시간이 흐르지 않는다."""
+        if skip_years:
+            return skip_years * 12
+        return max(0, min(game.MAX_TURN_MONTHS, int(o.get("months_passed", 0)))) if game.takes_time(action) else 0
 
     out = regrade(life, out, months_of, lambda note: call(teller.turn, life, action, shown, skip_years, note))
     months = months_of(out)

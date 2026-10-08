@@ -196,9 +196,11 @@ class StorytellerTest(unittest.TestCase):
         prompt = request["messages"][0]["content"]
         self.assertIn("공부한다", prompt)
         self.assertIn("첫사랑이 찾아왔다", prompt)
-        self.assertIn("길어야 3개월", prompt)
+        self.assertIn("결정의 순간", prompt)  # 기간이 없는 행동
+        teller.turn(life, "한 달 동안 아르바이트한다", [])
+        self.assertIn("길어야 3개월", client.requests[-1]["messages"][0]["content"])
         teller.turn(life, "", [], skip_years=3)
-        skip = client.requests[1]["messages"][0]["content"]
+        skip = client.requests[-1]["messages"][0]["content"]
         self.assertIn("3년을 넘긴다", skip)
         self.assertIn("months_passed는 정확히 36", skip)
         self.assertIn("만 3살의 상황", skip)
@@ -231,7 +233,7 @@ class PlayTest(unittest.TestCase):
         client = FakeClient()
         self.run_with(["준서", "남", *[""] * 5, "공부를 열심히 한다", "/넘기기 2", "/상태", "/종료"], client)
         life = game.load()
-        self.assertEqual((life.months, life.age), (27, 2))  # 태어남 → 행동(6개월이라 했어도 최대 3개월) → 2년 넘기기
+        self.assertEqual((life.months, life.age), (24, 2))  # 태어남 → 행동(기간이 없으니 6개월이라 해도 0) → 2년 넘기기
         self.assertEqual(len(life.chronicle), 3)
         self.assertIn("공부를 열심히 한다", client.requests[1]["messages"][0]["content"])
 
@@ -289,6 +291,14 @@ class PlayTest(unittest.TestCase):
         self.assertEqual(game.death_chance(29, 1), 0.0)
         self.assertIsNone(game.death_roll(0, 29 * 12, 1, rng))
         self.assertGreater(game.death_chance(30, 60), 0.0)
+
+    def test_only_actions_with_a_span_take_time(self):
+        self.assertFalse(game.takes_time("민지에게 고백한다"))
+        self.assertTrue(game.takes_time("한 달 동안 편의점 알바를 한다"))
+        self.assertTrue(game.takes_time("방학 내내 수학 공부"))
+        client = FakeClient()  # 이야기꾼은 매번 6개월이 흘렀다고 답한다
+        self.run_with(["준서", "남", *[""] * 5, "민지에게 고백한다", "3주 동안 시험 공부를 한다", "/종료"], client)
+        self.assertEqual(game.load().months, 3)  # 고백은 0개월, 기간을 적은 공부는 최대 3개월
 
     def test_failed_turn_does_not_advance(self):
         client = FakeClient([turn_out(), SimpleNamespace(stop_reason="refusal", content=[])])

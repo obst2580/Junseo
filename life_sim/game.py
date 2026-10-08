@@ -23,7 +23,13 @@ TALENTS = {
 # (사건, 최소 나이, 최대 나이, 가중치)
 YEAR_EVENT_CHANCE = 0.4  # 「/넘기기」로 넘기는 해마다
 TURN_EVENT_CHANCE = 0.07  # 행동 한 번마다 (한 해에 여러 번 행동해도 사건이 넘치지 않게)
-MAX_TURN_MONTHS = 3  # 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
+MAX_TURN_MONTHS = 3  # 기간을 적은 행동 한 번에 흐를 수 있는 최대 개월 수. 해를 넘기는 건 플레이어가 정한다
+# 행동에 기간이 들어 있는가 (「한 달 동안」, 「방학 내내」, 「매일」…). 없으면 그 행동은 결정일 뿐 시간이 흐르지 않는다
+DURATION_RE = re.compile(r"(\d+|한|두|세|네|몇|여러)\s*(시간|일|주|주일|달|개월|년|학기)|동안|내내|방학|매일|꾸준히|계속")
+
+
+def takes_time(action: str) -> bool:
+    return bool(DURATION_RE.search(action))
 MAX_DROP = 20  # 한 턴에 능력치가 깎이는 최대치 (건강이 한 번에 곤두박질치지 않게)
 CRITICAL = 20  # 건강이 이보다 낮으면 위독
 EVENTS = [
