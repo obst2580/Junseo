@@ -100,6 +100,7 @@ def describe(life: Life) -> str:
         f"이름: {life.name} ({life.gender}), {life.birth_year}년 {life.hometown} 출생, {life.family}, 타고난 재능: {life.talent}",
         *([f"출생 배경(플레이어가 정함): {life.background}"] if life.background else []),
         f"지금: 만 {life.age}살 ({life.when})" + (f" · 또래 학년: {life.peer_grade}" if life.peer_grade else ""),
+        *([f"학교 일정(또래 기준): {life.school_dates}"] if life.age < 22 else []),
         f"{stats} · 돈 {life.money:,}만원",
         f"학력: {life.education} / 직업: {life.job}",
         f"주변 사람: {people}",
@@ -127,8 +128,9 @@ class Storyteller:
         )
         return self._ask(prompt, TURN_SCHEMA)
 
-    def turn(self, life: Life, action: str, events: list[str], skip_years: int = 0) -> dict:
-        """skip_years 가 있으면 그 햇수를 넘기는 턴, 아니면 행동 턴(시간이 조금만 흐른다)."""
+    def turn(self, life: Life, action: str, events: list[str], skip_years: int = 0, correction: str = "") -> dict:
+        """skip_years 가 있으면 그 햇수를 넘기는 턴, 아니면 행동 턴(시간이 조금만 흐른다).
+        correction 은 앞선 답을 고쳐 쓰게 할 때 덧붙이는 말."""
         if skip_years:
             later = dataclasses.replace(life, months=life.months + skip_years * 12)
             time = (f"지금은 {life.when}. 플레이어가 {skip_years}년을 넘긴다. 지금까지의 흐름대로 그 {skip_years}년이 "
@@ -145,6 +147,8 @@ class Storyteller:
             f"\n[시간]\n{time}",
             "\n[이번 턴에 일어나는 사건]\n" + ("\n".join(f"- {e}" for e in events) if events else "특별한 사건 없음"),
         ]
+        if correction:
+            parts.append(f"\n[고쳐 쓰기]\n{correction}")
         return self._ask("\n".join(parts), TURN_SCHEMA)
 
     def revive(self, life: Life, last_moment: str = "") -> dict:

@@ -90,6 +90,16 @@ class GameTest(unittest.TestCase):
             (2025, 3): "고등학교 1학년", (2028, 3): "고등학교 졸업 1년차 (2028년 2월 졸업 또래)", (2040, 3): None,
         })
 
+    def test_grade_slip_only_for_own_grade(self):
+        self.life.birth_year, self.life.education = 2009, "유치원"
+        out = turn_out(education="초등학교 2학년", next_situation="당신은 만 7살 초등학교 2학년이다. 동생은 초등학교 3학년이다.")
+        slip = game.grade_slip(self.life, out, "초등학교 1학년")
+        self.assertEqual(slip, ("초등학교 2학년", "초등학교 1학년"))
+        self.assertEqual(game.fix_grade(out, slip)["next_situation"], "당신은 만 7살 초등학교 1학년이다. 동생은 초등학교 3학년이다.")
+        sibling = turn_out(education="○○초등학교 1학년", next_situation="동생은 초등학교 2학년이다. 당신은 집에 있다.")
+        self.assertIsNone(game.grade_slip(self.life, sibling, "초등학교 1학년"))
+        self.assertIsNone(game.grade_slip(self.life, {**out, "result": "당신은 유급했다."}, "초등학교 1학년"))
+
     def test_calendar_and_span(self):
         self.life.birth_year, self.life.birth_month, self.life.months = 2003, 11, 17
         self.assertEqual(self.life.when, "2005년 4월")
@@ -229,6 +239,15 @@ class PlayTest(unittest.TestCase):
         prompt = client.requests[-1]["messages"][0]["content"]
         self.assertIn("[되살리기]", prompt)
         self.assertIn("조용히 눈을 감았다.", prompt)  # 부고의 떠나던 장면을 이어서 쓴다
+
+    def test_wrong_grade_is_rewritten_then_fixed(self):
+        wrong = turn_out(education="초등학교 5학년", next_situation="당신은 초등학교 5학년이다.")
+        client = FakeClient([turn_out(), wrong, wrong])  # 다시 써도 틀리면 게임이 표기를 바로잡는다
+        self.run_with(["준서", "남", "2009", *[""] * 4, "/넘기기 8", "/종료"], client)
+        life = game.load()
+        self.assertIn("[고쳐 쓰기]", client.requests[-1]["messages"][0]["content"])
+        self.assertEqual(life.education, life.peer_grade)
+        self.assertEqual(life.scene, f"당신은 {life.peer_grade}이다.")
 
     def test_failed_turn_does_not_advance(self):
         client = FakeClient([turn_out(), SimpleNamespace(stop_reason="refusal", content=[])])

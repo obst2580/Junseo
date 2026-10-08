@@ -94,7 +94,12 @@ def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, 
     out = call(teller.turn, life, action, shown, skip_years)
     if out is None:
         return
-    months = skip_years * 12 if skip_years else max(0, min(game.MAX_TURN_MONTHS, int(out.get("months_passed", 0))))
+
+    def months_of(o: dict) -> int:
+        return skip_years * 12 if skip_years else max(0, min(game.MAX_TURN_MONTHS, int(o.get("months_passed", 0))))
+
+    out = regrade(life, out, months_of, lambda note: call(teller.turn, life, action, shown, skip_years, note))
+    months = months_of(out)
     start_months = life.months
     before = ui.snapshot(life)
     game.apply(life, out, months, events)
@@ -105,6 +110,22 @@ def play(teller: Storyteller, life: game.Life, action: str, rng: random.Random, 
         life.dead, life.cause_of_death, life.offscreen_death = True, cause, True
         life.scene, life.suggestions = "", []
     game.save(life)
+
+
+def regrade(life: game.Life, out: dict, months_of, ask_again) -> dict:
+    """캐릭터의 학년을 또래 학년과 다르게 썼으면 한 번 고쳐 쓰게 하고, 그래도 틀리면 표기만 바로잡는다."""
+    def slip_of(o: dict):
+        return game.grade_slip(life, o, dataclasses.replace(life, months=life.months + months_of(o)).peer_grade)
+
+    slip = slip_of(out)
+    if not slip:
+        return out
+    again = ask_again(f"앞선 답에서 당신의 학년을 \"{slip[0]}\"(이)라고 썼는데 틀렸다. 그 시점의 또래 학년은 {slip[1]}이고, "
+                      f"학교 일정은 {life.school_dates}이다. 학년과 입학·졸업 시기를 이에 맞게 고쳐 다시 써라.")
+    if again is None:
+        return game.fix_grade(out, slip)
+    still = slip_of(again)
+    return game.fix_grade(again, still) if still else again
 
 
 def command(line: str, teller: Storyteller, life: game.Life, rng: random.Random) -> bool:

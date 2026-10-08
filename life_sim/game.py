@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -111,6 +112,38 @@ class Life:
         if g > 22:
             return None
         return f"고등학교 졸업 {g - 12}년차 ({self.birth_year + 19}년 2월 졸업 또래)"
+
+    @property
+    def school_dates(self) -> str:
+        """또래의 학교 일정. 학년을 셈하지 않고 그대로 옮겨 쓰도록 이야기꾼에게 날짜로 준다."""
+        y = self.birth_year
+        return (f"초등학교 입학 {y + 7}년 3월 · 중학교 입학 {y + 13}년 3월 · "
+                f"고등학교 입학 {y + 16}년 3월 · 고등학교 졸업 {y + 19}년 2월")
+
+
+GRADE_RE = re.compile(r"(초등학교|중학교|고등학교)\s?(\d)\s?학년")
+OFF_TRACK = re.compile(r"유급|휴학|자퇴|검정고시|조기\s?(입학|진학)|월반|(입학|취학)\s?유예")  # 또래와 학년이 달라질 만한 일
+
+
+def grade_slip(life: Life, out: dict, expected: str | None) -> tuple[str, str] | None:
+    """이야기꾼이 캐릭터 자신의 학년을 또래 학년과 다르게 썼으면 (틀린 표기, 맞는 학년), 아니면 None.
+    학력 칸과 「당신」으로 시작하는 다음 상황의 문장만 본다 (동생·친구의 학년은 건드리지 않는다)."""
+    if not re.fullmatch(r"(초등학교|중학교|고등학교) \d학년", expected or ""):
+        return None
+    story = " ".join([life.education, *life.chronicle, out["result"], out["education"], out["next_situation"]])
+    if OFF_TRACK.search(story):
+        return None
+    for text in [out["education"], *re.findall(r"당신[^.!?]*", out["next_situation"])]:
+        m = GRADE_RE.search(text)
+        if m and f"{m[1]} {m[2]}학년" != expected:
+            return m[0], expected
+    return None
+
+
+def fix_grade(out: dict, slip: tuple[str, str]) -> dict:
+    """틀린 학년 표기를 맞는 학년으로 바꾼다 (다시 써도 틀렸을 때의 마지막 수단)."""
+    wrong, right = slip
+    return {**out, **{k: out[k].replace(wrong, right) for k in ("result", "education", "next_situation")}}
 
 
 def span_text(months: int) -> str:
