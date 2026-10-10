@@ -1,11 +1,10 @@
-// 국가의 시대 — 화면과 진행.
-// 엔진(engine.js)이 판정과 기록을, 프롬프트(prompt.js)가 Claude에게 보낼 글을, 사관(llm.js)이 연결을 맡는다.
+// 화면과 진행. 국가의 시대와 기업의 시대가 함께 쓴다.
+// 엔진(engine.js)이 판정과 기록을, 프롬프트(prompt.js)가 Claude에게 보낼 글을, llm.js가 연결을 맡는다.
+// 문구와 무대는 boot(MODE)로 받은 모드(modes/)가 정한다.
 
 import {
-  DIFFICULTY,
   TIERS,
   PENDING_POLICY,
-  STATUS_LABEL,
   createGame,
   validateSetup,
   computePressure,
@@ -31,11 +30,11 @@ import {
   deserialize,
   MAX_SKIP_MONTHS,
 } from './engine.js';
-import { SCENARIOS, buildPrompt } from './prompt.js';
+import { buildPrompt } from './prompt.js';
 import { detectBackend, errorMessage, LlmError } from './llm.js';
 
-const SAVE_KEY = 'gukga.save.v1';
-const PREFS_KEY = 'gukga.prefs.v1';
+let MODE = null; // boot()에서 정해진다
+let UI = null;
 
 const app = {
   state: null,
@@ -45,7 +44,7 @@ const app = {
   lastFailed: null, // 실패한 요청 (같은 판정으로 다시 시도)
   rollCache: null, // 같은 턴에 같은 명령을 다시 내려도 주사위를 다시 굴리지 않는다
   tab: 'people',
-  selectedScenario: SCENARIOS[1].id,
+  selectedScenario: null,
 };
 
 // ── DOM 도구 ───────────────────────────────────────────────
@@ -75,7 +74,7 @@ const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce
 // ── 저장 ───────────────────────────────────────────────────
 function save() {
   try {
-    if (app.state) localStorage.setItem(SAVE_KEY, serialize(app.state));
+    if (app.state) localStorage.setItem(MODE.saveKey, serialize(app.state));
   } catch {
     // 저장소를 쓸 수 없는 환경: 이번 접속 동안만 이어진다
   }
@@ -83,8 +82,8 @@ function save() {
 
 function loadSaved() {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    return raw ? deserialize(raw) : null;
+    const raw = localStorage.getItem(MODE.saveKey);
+    return raw ? deserialize(raw, MODE.id) : null;
   } catch {
     return null;
   }
@@ -92,7 +91,7 @@ function loadSaved() {
 
 function clearSaved() {
   try {
-    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(MODE.saveKey);
   } catch {
     // 무시
   }
@@ -100,7 +99,7 @@ function clearSaved() {
 
 function loadPrefs() {
   try {
-    return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {};
+    return JSON.parse(localStorage.getItem(MODE.prefsKey) || '{}') || {};
   } catch {
     return {};
   }
@@ -108,7 +107,7 @@ function loadPrefs() {
 
 function savePrefs(p) {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ ...loadPrefs(), ...p }));
+    localStorage.setItem(MODE.prefsKey, JSON.stringify({ ...loadPrefs(), ...p }));
   } catch {
     // 무시
   }
@@ -118,7 +117,7 @@ function savePrefs(p) {
 function renderScenarios() {
   const grid = $('scenarioGrid');
   grid.replaceChildren(
-    ...SCENARIOS.map((s) =>
+    ...MODE.scenarios.map((s) =>
       h(
         'button',
         {
@@ -144,16 +143,16 @@ function renderScenarios() {
         onclick: () => selectScenario('custom'),
       },
       h('span', { class: 'sc-year', text: '????' }),
-      h('span', { class: 'sc-country', text: '직접 설정' }),
-      h('span', { class: 'sc-title', text: '나만의 나라' }),
-      h('span', { class: 'sc-blurb', text: '국가, 시기, 제도를 직접 적어 어느 시대의 어느 나라든 다스립니다.' })
+      h('span', { class: 'sc-country', text: UI.customCountry }),
+      h('span', { class: 'sc-title', text: UI.customTitle }),
+      h('span', { class: 'sc-blurb', text: UI.customBlurb })
     )
   );
 }
 
 function selectScenario(id) {
   app.selectedScenario = id;
-  const s = SCENARIOS.find((x) => x.id === id);
+  const s = MODE.scenarios.find((x) => x.id === id);
   $('fCountry').value = s ? s.country : '';
   $('fRuler').value = s ? s.ruler : '';
   $('fYear').value = s ? s.startYear : '';
@@ -181,7 +180,7 @@ function renderSegments(containerId, name, options, selected) {
 function readSetup() {
   const form = $('setupForm');
   const data = Object.fromEntries(new FormData(form).entries());
-  return { ...data, scenarioId: app.selectedScenario };
+  return { ...data, mode: MODE.id, scenarioId: app.selectedScenario };
 }
 
 function renderResume() {
@@ -199,25 +198,24 @@ function renderBackendStatus() {
   const btn = $('startBtn');
   const b = app.backend;
   if (!app.backendChecked) {
-    el.textContent = '사관 연결을 확인하는 중…';
+    el.textContent = UI.backendChecking;
     el.dataset.state = 'wait';
     btn.disabled = true;
     return;
   }
   if (!b) {
-    el.textContent =
-      '사관이 연결되어 있지 않습니다. claude.ai에서 이 페이지를 열거나, 저장소의 서버(npm start)로 실행하십시오.';
+    el.textContent = UI.backendOff;
     el.dataset.state = 'off';
     btn.disabled = true;
     return;
   }
   if (b.ready === false) {
-    el.textContent = '서버에 ANTHROPIC_API_KEY가 없어 사관이 기록할 수 없습니다. 키를 설정하고 서버를 다시 시작하십시오.';
+    el.textContent = UI.backendNoKey;
     el.dataset.state = 'off';
     btn.disabled = true;
     return;
   }
-  el.textContent = `사관: ${b.label}`;
+  el.textContent = `${UI.scribe}: ${b.label}`;
   el.dataset.state = 'on';
   btn.disabled = false;
 }
@@ -259,6 +257,7 @@ function gauge(v) {
 
 function statusGrid(status, deltas, units, date, eraLabel, months, days) {
   const d = deltas || {};
+  const STATUS_LABEL = MODE.statusLabels;
   const signedInt = (n) => (n ? `${n > 0 ? '▲' : '▼'} ${Math.abs(n)}` : '');
   const item = (key, label, value, ...extra) =>
     h('div', { class: `stat stat-${key}` }, h('dt', { text: label }), h('dd', null, h('span', { class: 'stat-value' }, value), ...extra));
@@ -274,7 +273,7 @@ function statusGrid(status, deltas, units, date, eraLabel, months, days) {
     item('gdp', STATUS_LABEL.gdp, formatAmount(status.gdp, units?.gdp), deltaSpan(d.gdp)),
     item(
       'year',
-      '년도',
+      STATUS_LABEL.date,
       `${formatDate(date)}${eraLabel ? ` · ${eraLabel}` : ''}`,
       months || days ? h('span', { class: 'delta neutral', text: `+${formatSpan(months, days)}` }) : null
     )
@@ -291,7 +290,7 @@ const SEAL_CLASS = {
 };
 
 function turnHeading(t) {
-  if (t.kind === 'opening') return '첫 조회';
+  if (t.kind === 'opening') return UI.openingHeading;
   if (t.kind === 'time') return `${formatSpan(t.months, t.days)}이 흐름`;
   if (t.kind === 'resync') return '기록 대조';
   return null;
@@ -305,11 +304,11 @@ function turnCard(t, state) {
     h(
       'header',
       { class: 'turn-head' },
-      h('span', { class: 'turn-no', text: `제${t.n}조` }),
+      h('span', { class: 'turn-no', text: UI.turnNo(t.n) }),
       h('span', { class: 'turn-date', text: `${formatDate(t.date)}${t.eraLabel ? ` · ${t.eraLabel}` : ''}` })
     ),
     t.kind === 'command'
-      ? h('p', { class: 'turn-command' }, h('span', { class: 'cmd-label', text: '왕명' }), h('span', { class: 'cmd-text', text: t.command }))
+      ? h('p', { class: 'turn-command' }, h('span', { class: 'cmd-label', text: UI.commandTag }), h('span', { class: 'cmd-text', text: t.command }))
       : h('p', { class: 'turn-command system' }, h('span', { class: 'cmd-label', text: heading })),
     h('p', { class: 'turn-opening', text: t.opening }),
     h(
@@ -332,7 +331,7 @@ function turnCard(t, state) {
       h(
         'div',
         { class: 'verdict' },
-        h('span', { class: `seal ${SEAL_CLASS[t.execution.status] || ''}`, text: t.execution.status }),
+        h('span', { class: `seal ${SEAL_CLASS[t.execution.status] || ''}`, text: MODE.execDisplay[t.execution.status] || t.execution.status }),
         t.execution.note ? h('p', { class: 'verdict-note', text: t.execution.note }) : null
       )
     );
@@ -355,7 +354,7 @@ function turnCard(t, state) {
       h(
         'aside',
         { class: 'audit' },
-        h('h4', { text: '사관 검증' }),
+        h('h4', { text: UI.auditTitle }),
         h('ul', null, ...t.issues.map((i) => h('li', { class: i.level, text: i.text })))
       )
     );
@@ -369,10 +368,10 @@ function renderSide() {
   const st = s.status;
   const last = s.turns[s.turns.length - 1];
   $('sideStatus').replaceChildren(
-    st ? statusGrid(st, last?.deltas, s.units, s.date, s.eraLabel, last?.months, last?.days) : h('p', { class: 'muted', text: '첫 조회가 끝나면 상태창이 열립니다.' })
+    st ? statusGrid(st, last?.deltas, s.units, s.date, s.eraLabel, last?.months, last?.days) : h('p', { class: 'muted', text: UI.statusPending })
   );
   const p = computePressure(s);
-  $('sidePeek').textContent = st ? `여론 ${st.opinion} · 재정 ${formatBig(st.treasury)} · 성사 ${p.chance}%` : '';
+  $('sidePeek').textContent = st ? UI.peek(st, p.chance, formatBig) : '';
 
   $('mood').replaceChildren(
     h(
@@ -381,14 +380,14 @@ function renderSide() {
       h('span', { class: 'mood-label', text: p.label }),
       h('span', { class: 'mood-scale', 'aria-hidden': 'true' }, ...['우호적', '평온', '긴장', '험악'].map((l) => h('span', { class: l === p.label ? 'on' : '' })))
     ),
-    h('p', { class: 'mood-chance' }, '왕명이 받아들여질 가능성 ', h('b', { text: `약 ${p.chance}%` })),
+    h('p', { class: 'mood-chance' }, UI.acceptLine, h('b', { text: `약 ${p.chance}%` })),
     h(
       'p',
       { class: 'mood-why' },
-      p.reasons.length ? p.reasons.join(' · ') : '조정에 특별한 기류가 없습니다.',
-      ` (협조 성향: ${DIFFICULTY[s.setup.difficulty].label})`
+      p.reasons.length ? p.reasons.join(' · ') : UI.moodNone,
+      ` (협조 성향: ${(MODE.difficulty[s.setup.difficulty] || MODE.difficulty.standard).label})`
     ),
-    h('p', { class: 'mood-tip', text: `막힌 안건은 정책 탭에서 재론하면 가능성이 ${REVISIT_BONUS}%p 오릅니다. 여론을 높이고 국고를 채워도 조정이 순해집니다.` })
+    h('p', { class: 'mood-tip', text: UI.moodTip(REVISIT_BONUS) })
   );
 
   for (const btn of document.querySelectorAll('.tabs [role=tab]')) {
@@ -407,7 +406,7 @@ function emptyNote(text) {
 }
 
 function peopleList(s) {
-  if (!s.characters.length) return emptyNote('아직 기록된 인물이 없습니다.');
+  if (!s.characters.length) return emptyNote(UI.peopleEmpty);
   const active = s.characters.filter((c) => !c.status || c.status === '재직');
   const others = s.characters.filter((c) => c.status && c.status !== '재직');
   const row = (c) =>
@@ -424,11 +423,11 @@ function peopleList(s) {
       c.disposition ? h('p', { class: 'person-trait', text: c.disposition }) : null,
       c.quotes?.length ? h('p', { class: 'person-quote', text: `“${c.quotes[c.quotes.length - 1].text}”` }) : null
     );
-  return h('div', null, h('ul', { class: 'people' }, ...active.map(row)), others.length ? h('h5', { class: 'sub', text: '물러난 인물' }) : null, others.length ? h('ul', { class: 'people' }, ...others.map(row)) : null);
+  return h('div', null, h('ul', { class: 'people' }, ...active.map(row)), others.length ? h('h5', { class: 'sub', text: UI.peopleRetired }) : null, others.length ? h('ul', { class: 'people' }, ...others.map(row)) : null);
 }
 
 function policyList(s) {
-  if (!s.policies.length) return emptyNote('아직 논의된 정책이 없습니다.');
+  if (!s.policies.length) return emptyNote(UI.policyEmpty);
   const pending = s.policies.filter((p) => PENDING_POLICY.has(p.status));
   const settled = s.policies.filter((p) => !PENDING_POLICY.has(p.status));
   const row = (p, isPending) =>
@@ -452,8 +451,8 @@ function policyList(s) {
           ? h('button', {
               type: 'button',
               class: 'linkish',
-              text: `재론하기 (+${REVISIT_BONUS}%p)`,
-              onclick: () => prefill(`${p.name} 안건을 다시 논의하라`),
+              text: `${UI.revisitButton} (+${REVISIT_BONUS}%p)`,
+              onclick: () => prefill(UI.revisitCommand(p.name)),
             })
           : null
       )
@@ -463,13 +462,13 @@ function policyList(s) {
     null,
     h('h5', { class: 'sub', text: `미결 안건 ${pending.length}` }),
     pending.length ? h('ul', { class: 'policies' }, ...pending.map((p) => row(p, true))) : emptyNote('밀린 안건이 없습니다.'),
-    settled.length ? h('h5', { class: 'sub', text: '시행·결정된 정책' }) : null,
+    settled.length ? h('h5', { class: 'sub', text: UI.policySettled }) : null,
     settled.length ? h('ul', { class: 'policies' }, ...settled.map((p) => row(p, false))) : null
   );
 }
 
 function factionList(s) {
-  if (!s.factions.length) return emptyNote('아직 기록된 세력이 없습니다.');
+  if (!s.factions.length) return emptyNote(UI.factionEmpty);
   return h(
     'ul',
     { class: 'factions' },
@@ -486,7 +485,7 @@ function factionList(s) {
 }
 
 function annalsList(s) {
-  if (!s.chronicle.length) return emptyNote('연대기가 비어 있습니다.');
+  if (!s.chronicle.length) return emptyNote(UI.annalsEmpty);
   return h(
     'ol',
     { class: 'annals' },
@@ -520,8 +519,8 @@ function renderLog() {
       h(
         'div',
         { class: 'notice' },
-        h('p', { text: '첫 조회가 아직 열리지 않았습니다.' }),
-        h('button', { type: 'button', class: 'btn primary', text: '첫 조회 열기', onclick: () => runTurn({ kind: 'opening' }) })
+        h('p', { text: UI.openingNotice }),
+        h('button', { type: 'button', class: 'btn primary', text: UI.openingButton, onclick: () => runTurn({ kind: 'opening' }) })
       )
     );
   }
@@ -553,9 +552,9 @@ function scrollToEl(el) {
 
 // ── 진행 중 카드 ───────────────────────────────────────────
 function pendingCard(label) {
-  const progress = h('p', { class: 'pending-progress', text: '사관이 붓을 드는 중…' });
+  const progress = h('p', { class: 'pending-progress', text: UI.pendingStart });
   const preview = h('p', { class: 'pending-preview' });
-  const stop = h('button', { type: 'button', class: 'btn ghost', text: '기록 중단', onclick: () => app.busy?.abort() });
+  const stop = h('button', { type: 'button', class: 'btn ghost', text: UI.stopButton, onclick: () => app.busy?.abort() });
   const card = h(
     'div',
     { class: 'pending', role: 'status' },
@@ -569,7 +568,7 @@ function pendingCard(label) {
     update(text, note) {
       const speakers = [...text.matchAll(/"speaker"\s*:\s*"([^"]+)"/g)];
       const who = speakers.length ? speakers[speakers.length - 1][1] : '';
-      progress.textContent = `${note || '사관이 기록하는 중'} · ${text.length.toLocaleString('ko-KR')}자${who ? ` · ${who} 발언` : ''}`;
+      progress.textContent = `${note || UI.pendingWriting} · ${text.length.toLocaleString('ko-KR')}자${who ? ` · ${who} 발언` : ''}`;
       const op = text.match(/"opening"\s*:\s*"((?:[^"\\]|\\.)*)/);
       if (op) preview.textContent = op[1].replace(/\\n/g, ' ');
     },
@@ -581,7 +580,7 @@ function errorCard(message, retry) {
     'div',
     { class: 'notice error', role: 'alert' },
     h('p', { text: message }),
-    retry ? h('button', { type: 'button', class: 'btn primary', text: '다시 하명', onclick: retry }) : null
+    retry ? h('button', { type: 'button', class: 'btn primary', text: UI.retryButton, onclick: retry }) : null
   );
 }
 
@@ -598,7 +597,7 @@ function conflictCard(conflict, onChoose) {
       h('button', { type: 'button', class: 'btn', onclick: () => onChoose('keep') }, h('b', { text: '(1)' }), ' 기존 설정을 기준으로 진행'),
       h('button', { type: 'button', class: 'btn', onclick: () => onChoose('override') }, h('b', { text: '(2)' }), ' 현재 지시를 우선하여 세계관 일부 덮어쓰기'),
       h('button', { type: 'button', class: 'btn', onclick: () => onChoose('resync') }, h('b', { text: '(3)' }), ' 세계관 요약을 정리해 재동기화'),
-      h('button', { type: 'button', class: 'btn ghost', onclick: () => onChoose('cancel'), text: '명령 거두기' })
+      h('button', { type: 'button', class: 'btn ghost', onclick: () => onChoose('cancel'), text: UI.conflictCancel })
     )
   );
 }
@@ -663,10 +662,10 @@ async function runTurn(req) {
   if (app.busy || !app.backend) return;
   const ctx = buildContext(req);
   const labels = {
-    opening: '첫 조회를 엽니다',
-    command: `왕명을 내렸습니다 — 「${req.command}」`,
+    opening: UI.openingLabel,
+    command: UI.commandLabel(req.command),
     time: `${formatSpan(ctx.months, ctx.days)}의 시간을 흘려보냅니다`,
-    resync: '사관이 기록을 대조합니다',
+    resync: UI.resyncLabel,
   };
   app.busy = new AbortController();
   app.lastFailed = null;
@@ -679,7 +678,7 @@ async function runTurn(req) {
   try {
     let resp = await generateOnce(ctx, ui);
     if (resp.conflict && (ctx.kind !== 'command' || ctx.resolution)) {
-      resp = await generateOnce({ ...ctx, correction: ['이번 턴에는 conflict를 쓰지 말고 기록을 진행한다.'] }, ui, '사관이 기록을 고쳐 쓰는 중');
+      resp = await generateOnce({ ...ctx, correction: ['이번 턴에는 conflict를 쓰지 말고 기록을 진행한다.'] }, ui, UI.pendingRewrite);
     }
     if (resp.conflict) {
       ui.card.remove();
@@ -693,7 +692,7 @@ async function runTurn(req) {
     let issues = validateResponse(app.state, resp);
     let high = issues.filter((i) => i.level === 'high');
     if (high.length) {
-      const retry = await generateOnce({ ...ctx, correction: high.map((i) => i.text) }, ui, '사관이 기록을 고쳐 쓰는 중');
+      const retry = await generateOnce({ ...ctx, correction: high.map((i) => i.text) }, ui, UI.pendingRewrite);
       if (!retry.conflict) {
         const retryIssues = validateResponse(app.state, retry);
         resp = retry;
@@ -729,7 +728,7 @@ async function runTurn(req) {
     }
     app.lastFailed = req;
     const hideRetry = ['not_granted', 'sampling_disabled', 'auth', 'prompt_too_large'].includes(err.code);
-    const card = errorCard(errorMessage(err), hideRetry ? null : () => runTurn(req));
+    const card = errorCard(errorMessage(err, UI.scribe), hideRetry ? null : () => runTurn(req));
     renderLog();
     $('log').append(card);
     scrollToEl(card);
@@ -822,7 +821,7 @@ function openRecords() {
   const copyBtn = h('button', { type: 'button', class: 'btn', text: '저장 기록 복사' });
   copyBtn.addEventListener('click', () => copyText(json, copyBtn));
   const fileBtn = h('button', { type: 'button', class: 'btn', text: '파일로 저장' });
-  fileBtn.addEventListener('click', () => offerFile(`gukga-${s.setup.country}-${s.date.year}.json`, json, fileBtn));
+  fileBtn.addEventListener('click', () => offerFile(`${MODE.filePrefix}-${s.setup.country}-${s.date.year}.json`, json, fileBtn));
 
   const input = h('textarea', { class: 'mono', rows: 4, id: 'importText', placeholder: '저장 기록(JSON)을 붙여 넣으십시오' });
   const importMsg = h('p', { class: 'form-error', hidden: true, role: 'alert' });
@@ -832,7 +831,7 @@ function openRecords() {
     text: '불러오기',
     onclick: () => {
       try {
-        app.state = deserialize(input.value.trim());
+        app.state = deserialize(input.value.trim(), MODE.id);
         save();
         closeModal();
         showGame();
@@ -868,7 +867,7 @@ function openRecords() {
   }
 
   const diffBox = h('div', { class: 'seg-options' });
-  for (const [value, o] of Object.entries(DIFFICULTY)) {
+  for (const [value, o] of Object.entries(MODE.difficulty)) {
     diffBox.append(
       h(
         'label',
@@ -894,25 +893,25 @@ function openRecords() {
   }
 
   const confirmRow = h('div', { class: 'confirm-row', hidden: true },
-    h('p', { text: '지금의 나라를 지우고 시나리오 선택으로 돌아갑니다. 저장 기록을 먼저 복사해 두십시오.' }),
+    h('p', { text: UI.newGameConfirm }),
     h('button', { type: 'button', class: 'btn danger', text: '지우고 새로 시작', onclick: () => { clearSaved(); app.state = null; closeModal(); showSetup(); } }),
     h('button', { type: 'button', class: 'btn ghost', text: '그만두기', onclick: () => { confirmRow.hidden = true; } })
   );
 
   openModal(
     '기록 관리',
-    h('section', { class: 'modal-sec' }, h('h3', { text: '조정의 협조 (난이도)' }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: '조정의 협조' }), diffBox)),
-    h('section', { class: 'modal-sec' }, h('h3', { text: '사관의 깊이' }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: '사관의 깊이' }), tierBox)),
+    h('section', { class: 'modal-sec' }, h('h3', { text: UI.difficultyHeading }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: UI.difficultyLegend }), diffBox)),
+    h('section', { class: 'modal-sec' }, h('h3', { text: UI.tierHeading }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: UI.tierLegend }), tierBox)),
     h('section', { class: 'modal-sec' },
-      h('h3', { text: '세계관 요약' }),
+      h('h3', { text: UI.summaryHeading }),
       h('pre', { class: 'summary', text: summary }),
       h('button', { type: 'button', class: 'btn', text: '기록 대조(재동기화)…', onclick: () => openResync('') })
     ),
     h('section', { class: 'modal-sec' }, h('h3', { text: '내보내기' }), out, h('div', { class: 'btn-row' }, copyBtn, fileBtn)),
     h('section', { class: 'modal-sec' }, h('h3', { text: '불러오기' }), input, importMsg, h('div', { class: 'btn-row' }, importBtn)),
     h('section', { class: 'modal-sec' },
-      h('h3', { text: '새 시나리오' }),
-      h('button', { type: 'button', class: 'btn danger', text: '세계관 초기화…', onclick: () => { confirmRow.hidden = false; } }),
+      h('h3', { text: UI.newGameHeading }),
+      h('button', { type: 'button', class: 'btn danger', text: UI.newGameButton, onclick: () => { confirmRow.hidden = false; } }),
       confirmRow
     )
   );
@@ -923,7 +922,7 @@ function openResync(pendingCommand) {
   area.value = worldSummary(app.state);
   openModal(
     '기록 대조',
-    h('p', { class: 'form-hint', text: '사관이 알고 있는 세계관입니다. 틀린 곳을 고치거나 빠진 사실을 적은 뒤 대조를 청하십시오. 시간은 흐르지 않습니다.' }),
+    h('p', { class: 'form-hint', text: UI.resyncHint }),
     area,
     h('div', { class: 'btn-row' },
       h('button', {
@@ -954,7 +953,7 @@ function closeSideOnMobile() {
 // ── 시작 ───────────────────────────────────────────────────
 function wire() {
   const prefs = loadPrefs();
-  renderSegments('difficultyOptions', 'difficulty', DIFFICULTY, prefs.difficulty || 'standard');
+  renderSegments('difficultyOptions', 'difficulty', MODE.difficulty, prefs.difficulty || 'standard');
   renderSegments('tierOptions', 'tier', TIERS, prefs.tier || 'default');
   selectScenario(app.selectedScenario);
 
@@ -1029,7 +1028,7 @@ function wire() {
 
 async function start(hotData) {
   wire();
-  const restored = hotData?.state ? (() => { try { return deserialize(hotData.state); } catch { return null; } })() : null;
+  const restored = hotData?.state ? (() => { try { return deserialize(hotData.state, MODE.id); } catch { return null; } })() : null;
   if (restored) {
     app.state = restored;
     showGame();
@@ -1042,9 +1041,14 @@ async function start(hotData) {
   renderBackendStatus();
 }
 
-// 아티팩트가 다시 게시되어도 진행 중인 나라를 잃지 않도록 한다
-const hot = window.claude?.hot;
-hot?.snapshot?.(() => ({ state: app.state ? serialize(app.state) : null }));
-if (hot?.ready) hot.ready(start);
-else start(hot?.data ?? {});
+export function boot(mode) {
+  MODE = mode;
+  UI = mode.ui;
+  app.selectedScenario = mode.defaultScenario;
+  // 아티팩트가 다시 게시되어도 진행 중인 게임을 잃지 않도록 한다
+  const hot = window.claude?.hot;
+  hot?.snapshot?.(() => ({ state: app.state ? serialize(app.state) : null }));
+  if (hot?.ready) hot.ready(start);
+  else start(hot?.data ?? {});
+}
 

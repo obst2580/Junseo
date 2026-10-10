@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, applyResponse, normalizeResponse, advanceDate, OUTCOMES } from '../src/engine.js';
-import { buildPrompt, SCENARIOS } from '../src/prompt.js';
+import { createGame, applyResponse, normalizeResponse, advanceDate } from '../src/engine.js';
+import { buildPrompt } from '../src/prompt.js';
+import kingdom from '../src/modes/kingdom.js';
+
+const { outcomes: OUTCOMES, scenarios: SCENARIOS } = kingdom;
 import { mockResponse } from '../src/llm.js';
 
 function game() {
@@ -67,7 +70,7 @@ test('시간 경과와 재동기화 프롬프트', () => {
     events: [],
   });
   assert.match(p, /1400년 11월 1일부터 1402년 11월 1일까지 2년이 흐른다/);
-  assert.match(p, /기존 정책들의 진척 판정: 지연/);
+  assert.match(p, /기존 안건들의 진척 판정: 지연/);
   const r = buildPrompt(s, { kind: 'resync', resyncText: '하경복은 좌의정이다' });
   assert.match(r, /\[플레이어의 세계관 요약\]\n하경복은 좌의정이다/);
 });

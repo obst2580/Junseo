@@ -1,5 +1,5 @@
-// 국가의 시대 — 로컬 서버.
-// dist/index.html을 내주고, /api/turn에서 Anthropic SDK로 Claude를 불러 사관의 기록을 스트리밍한다.
+// 국가의 시대·기업의 시대 — 로컬 서버.
+// dist/의 게임 화면(/, /business)을 내주고, /api/turn에서 Anthropic SDK로 Claude를 불러 기록을 스트리밍한다.
 // API 키는 서버에만 있고 브라우저로 나가지 않는다.
 //
 //   ANTHROPIC_API_KEY=sk-ant-... npm start
@@ -15,6 +15,14 @@ const PORT = Number(process.env.PORT) || 8787;
 const HOST = process.env.HOST || '127.0.0.1';
 const MODEL = process.env.GUKGA_MODEL || 'claude-opus-5-5';
 const MAX_BODY = 512 * 1024;
+
+// 주소 → 게임 화면 (국가의 시대는 /, 기업의 시대는 /business)
+const PAGES = {
+  '/': 'index.html',
+  '/index.html': 'index.html',
+  '/business': 'business.html',
+  '/business.html': 'business.html',
+};
 
 // 화면의 '사관의 깊이' → 생각의 깊이(effort)
 const EFFORT = { quick: 'low', default: 'medium', complex: 'high' };
@@ -137,14 +145,15 @@ const server = http.createServer(async (req, res) => {
       await handleTurn(req, res);
       return;
     }
-    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+    const page = PAGES[url.pathname];
+    if (req.method === 'GET' && page) {
       try {
-        const html = await readFile(path.join(root, 'dist', 'index.html'));
+        const html = await readFile(path.join(root, 'dist', page));
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
         res.end(html);
       } catch {
         res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-        res.end('dist/index.html이 없습니다. 먼저 npm run build를 실행하십시오.');
+        res.end(`dist/${page}이 없습니다. 먼저 npm run build를 실행하십시오.`);
       }
       return;
     }
@@ -158,5 +167,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`국가의 시대: http://${HOST}:${PORT}  (모델 ${MODEL}${client ? '' : ', API 키 없음'})`);
+  console.log(`국가의 시대: http://${HOST}:${PORT}/`);
+  console.log(`기업의 시대: http://${HOST}:${PORT}/business`);
+  console.log(`모델 ${MODEL}${client ? '' : ' (API 키 없음)'}`);
 });

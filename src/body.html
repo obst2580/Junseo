@@ -1,8 +1,8 @@
 <div id="app">
   <header class="topbar">
     <div class="brand">
-      <span class="brand-mark" aria-hidden="true">國</span>
-      <span class="brand-name">국가의 시대</span>
+      <span class="brand-mark" aria-hidden="true">{{brandMark}}</span>
+      <span class="brand-name">{{title}}</span>
     </div>
     <div class="realm" id="realm" hidden>
       <span id="realmName"></span>
@@ -16,9 +16,9 @@
   <!-- 시나리오 설정 -->
   <main id="setup" class="setup">
     <section class="hero">
-      <p class="eyebrow">역사 기반 텍스트 통치 시뮬레이션</p>
-      <h1 class="hero-title">국가의 시대</h1>
-      <p class="hero-lede">명을 내리되, 조정은 쉽게 따르지 않습니다. 관료는 이견을 내고, 국고는 모자라고, 지방은 버팁니다. 그 사이에서 나라를 이끄십시오.</p>
+      <p class="eyebrow">{{eyebrow}}</p>
+      <h1 class="hero-title">{{title}}</h1>
+      <p class="hero-lede">{{lede}}</p>
     </section>
 
     <section class="resume" id="resume" hidden>
@@ -26,24 +26,24 @@
         <p class="resume-label">이어하기</p>
         <p class="resume-meta" id="resumeMeta"></p>
       </div>
-      <button type="button" class="btn primary" id="resumeBtn">이어서 통치하기</button>
+      <button type="button" class="btn primary" id="resumeBtn">{{resumeButton}}</button>
     </section>
 
     <section class="pick">
-      <h2 class="section-title">시대를 고르십시오</h2>
-      <div class="scenario-grid" id="scenarioGrid" role="radiogroup" aria-label="시나리오"></div>
+      <h2 class="section-title">{{pickTitle}}</h2>
+      <div class="scenario-grid" id="scenarioGrid" role="radiogroup" aria-label="{{pickAria}}"></div>
     </section>
 
     <form class="setup-form" id="setupForm" novalidate>
-      <h2 class="section-title">세계관</h2>
-      <p class="form-hint">고른 시대가 채워집니다. 국가·시기·제도를 바꾸면 그 세계로 시작합니다. 한 번 정한 설정은 게임 도중 바뀌지 않습니다.</p>
+      <h2 class="section-title">{{worldTitle}}</h2>
+      <p class="form-hint">{{formHint}}</p>
       <div class="field-grid">
         <label class="field">
-          <span>국가</span>
+          <span>{{fieldCountry}}</span>
           <input id="fCountry" name="country" type="text" maxlength="40" required>
         </label>
         <label class="field">
-          <span>군주 (플레이어)</span>
+          <span>{{fieldRuler}}</span>
           <input id="fRuler" name="ruler" type="text" maxlength="40" required>
         </label>
         <label class="field narrow">
@@ -55,28 +55,28 @@
           <input id="fMonth" name="startMonth" type="number" min="1" max="12" inputmode="numeric" required>
         </label>
         <label class="field wide">
-          <span>제도</span>
+          <span>{{fieldInstitution}}</span>
           <textarea id="fInstitution" name="institution" rows="2" maxlength="400" required></textarea>
         </label>
         <label class="field wide">
           <span>특이사항 <em>선택</em></span>
-          <textarea id="fNotes" name="notes" rows="2" maxlength="400" placeholder="예: 왕비의 외척이 병권을 쥐고 있다"></textarea>
+          <textarea id="fNotes" name="notes" rows="2" maxlength="400" placeholder="{{notesPlaceholder}}"></textarea>
         </label>
       </div>
       <div class="option-row">
         <fieldset class="seg">
-          <legend>조정의 협조</legend>
+          <legend>{{difficultyLegend}}</legend>
           <div class="seg-options" id="difficultyOptions"></div>
         </fieldset>
         <fieldset class="seg">
-          <legend>사관의 깊이</legend>
+          <legend>{{tierLegend}}</legend>
           <div class="seg-options" id="tierOptions"></div>
         </fieldset>
       </div>
       <p class="form-error" id="setupError" role="alert" hidden></p>
       <div class="start-row">
-        <button type="submit" class="btn primary large" id="startBtn">즉위하기</button>
-        <p class="backend" id="backendStatus">사관 연결을 확인하는 중…</p>
+        <button type="submit" class="btn primary large" id="startBtn">{{startButton}}</button>
+        <p class="backend" id="backendStatus">{{backendChecking}}</p>
       </div>
     </form>
   </main>
@@ -86,11 +86,11 @@
     <div class="court">
       <div class="log" id="log" aria-live="polite"></div>
       <form class="dock" id="dock">
-        <div class="chips" id="suggest" aria-label="명령 후보"></div>
+        <div class="chips" id="suggest" aria-label="{{suggestAria}}"></div>
         <div class="dock-main">
-          <label class="sr-only" for="cmd">왕명</label>
-          <textarea id="cmd" rows="2" maxlength="600" placeholder="왕명을 내리십시오. 예: 북방에 진을 설치하라"></textarea>
-          <button type="submit" class="btn primary" id="sendBtn">하명</button>
+          <label class="sr-only" for="cmd">{{commandAria}}</label>
+          <textarea id="cmd" rows="2" maxlength="600" placeholder="{{commandPlaceholder}}"></textarea>
+          <button type="submit" class="btn primary" id="sendBtn">{{sendButton}}</button>
         </div>
         <div class="dock-time">
           <span class="dock-label">시간 경과</span>
@@ -109,7 +109,7 @@
 
     <aside class="side" id="side">
       <button type="button" class="side-toggle" id="sideToggle" aria-expanded="false" aria-controls="sideBody">
-        <span>국정 현황</span>
+        <span>{{sideTitle}}</span>
         <span class="side-peek" id="sidePeek"></span>
       </button>
       <div class="side-body" id="sideBody">
@@ -118,15 +118,15 @@
           <div id="sideStatus"></div>
         </section>
         <section class="panel">
-          <h3 class="panel-title">조정 기류</h3>
+          <h3 class="panel-title">{{moodTitle}}</h3>
           <div id="mood"></div>
         </section>
         <section class="panel">
-          <div class="tabs" role="tablist" aria-label="세계 기록">
-            <button type="button" role="tab" id="tab-people" aria-controls="tabBody" aria-selected="true" data-tab="people">인물</button>
-            <button type="button" role="tab" id="tab-policy" aria-controls="tabBody" aria-selected="false" data-tab="policy">정책</button>
-            <button type="button" role="tab" id="tab-faction" aria-controls="tabBody" aria-selected="false" data-tab="faction">세력</button>
-            <button type="button" role="tab" id="tab-annals" aria-controls="tabBody" aria-selected="false" data-tab="annals">연대기</button>
+          <div class="tabs" role="tablist" aria-label="{{worldAria}}">
+            <button type="button" role="tab" id="tab-people" aria-controls="tabBody" aria-selected="true" data-tab="people">{{tabPeople}}</button>
+            <button type="button" role="tab" id="tab-policy" aria-controls="tabBody" aria-selected="false" data-tab="policy">{{tabPolicy}}</button>
+            <button type="button" role="tab" id="tab-faction" aria-controls="tabBody" aria-selected="false" data-tab="faction">{{tabFaction}}</button>
+            <button type="button" role="tab" id="tab-annals" aria-controls="tabBody" aria-selected="false" data-tab="annals">{{tabAnnals}}</button>
           </div>
           <div class="tab-body" id="tabBody" role="tabpanel"></div>
         </section>

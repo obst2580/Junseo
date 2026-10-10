@@ -1,50 +1,29 @@
-// 국가의 시대 — 게임 엔진.
+// 국가의 시대·기업의 시대 — 게임 엔진.
 // DOM도 Claude 호출도 모르는 순수 로직만 둔다: 판정 주사위, 돌발 사건, 시간 계산,
 // 응답 정규화·검증, 세계 기록 병합. 서술은 Claude가, 규칙과 기억은 엔진이 맡는다.
+// 무대(문구, 상태창 항목, 사건 종류, 변동 폭)는 modes/의 모드 파일이 정한다.
+
+import { MODES, getMode } from './modes/index.js';
 
 export const SAVE_VERSION = 1;
+
+export function modeOf(state) {
+  return getMode(state?.setup?.mode);
+}
 
 // ── 실행 판정 ──────────────────────────────────────────────
 // 플레이어 명령이 그대로 관철되지 않도록 엔진이 먼저 결과의 등급을 정한다.
 // Claude는 이 등급을 어떤 사정으로 그렇게 되었는지 서사로 풀어낼 뿐 바꾸지 못한다.
-export const OUTCOMES = {
-  smooth: {
-    label: '순조',
-    directive:
-      '순조 — 명령은 큰 저항 없이 시행된다. 그래도 소수 의견이나 현실적 우려 한 가지는 기록한다.',
-  },
-  conditional: {
-    label: '조건부',
-    directive:
-      '조건부 — 관료들이 수정안·단계적 시행·예외 조항·시범 지역 같은 조건을 붙여 일부만, 또는 범위를 줄여 시행된다. 어떤 조건이 붙었는지 구체적으로 쓴다.',
-  },
-  delayed: {
-    label: '지연',
-    directive:
-      '지연 — 논의가 결론나지 않거나 재원·인력·시기 문제로 시행이 미뤄진다. 정책은 논의중 또는 보류 상태로 남고, 다시 논의하려면 무엇이 필요한지(재론 조건)를 관료의 입으로 밝힌다.',
-  },
-  backlash: {
-    label: '반발',
-    directive:
-      '반발 — 명령은 시행되지만 특정 계층이나 세력이 강하게 반발한다(연명 상소, 집단 사직, 지방의 불복, 민심 악화 등). 해당 세력의 지지도나 국민 여론이 떨어진다.',
-  },
-  blocked: {
-    label: '좌초',
-    directive:
-      '좌초 — 강한 반대나 현실적 불가능 때문에 명령이 반려되거나 시행 직후 무력화된다. 그 이유는 역사적·제도적으로 설득력이 있어야 한다.',
-  },
-};
+// 등급별 지시문은 모드의 outcomes에 있다.
+export const TIER_KEYS = ['smooth', 'conditional', 'delayed', 'backlash', 'blocked'];
 
 // Claude가 돌려주는 실행 결과 표기. 화면의 결재 도장과 연속 판정 기록에 쓰인다.
 export const EXEC_STATUS = ['시행', '조건부 시행', '보류', '시행 후 반발', '반려', '해당없음'];
 const GOOD_EXEC = new Set(['시행', '조건부 시행']);
 const BAD_EXEC = new Set(['보류', '시행 후 반발', '반려']);
 
-export const DIFFICULTY = {
-  mild: { label: '온건', mod: -15, desc: '관료들이 대체로 협조합니다' },
-  standard: { label: '표준', mod: 0, desc: '사안마다 이견과 견제가 따릅니다' },
-  harsh: { label: '혹독', mod: 15, desc: '조정이 사사건건 제동을 겁니다' },
-};
+// 조정(임원진)의 협조 정도에 따른 판정 보정. 이름과 설명은 모드의 difficulty에 있다.
+export const DIFFICULTY_MOD = { mild: -15, standard: 0, harsh: 15 };
 
 export const TIERS = {
   quick: { label: '신속', desc: '빠르지만 기록이 짧습니다' },
@@ -206,6 +185,7 @@ export function createGame(setup, now = Date.now()) {
     id: `g${now.toString(36)}`,
     createdAt: now,
     setup: {
+      mode: MODES[setup.mode] ? setup.mode : 'kingdom',
       scenarioId: str(setup.scenarioId) || 'custom',
       country: str(setup.country),
       ruler: str(setup.ruler),
@@ -213,7 +193,7 @@ export function createGame(setup, now = Date.now()) {
       startMonth: month,
       institution: str(setup.institution),
       notes: str(setup.notes),
-      difficulty: DIFFICULTY[setup.difficulty] ? setup.difficulty : 'standard',
+      difficulty: setup.difficulty in DIFFICULTY_MOD ? setup.difficulty : 'standard',
       tier: TIERS[setup.tier] ? setup.tier : 'default',
     },
     units: null,
@@ -232,12 +212,13 @@ export function createGame(setup, now = Date.now()) {
 }
 
 export function validateSetup(setup) {
+  const msg = getMode(setup.mode).ui.setupErrors;
   const errors = [];
-  if (!str(setup.country)) errors.push('국가를 입력하십시오.');
-  if (!str(setup.ruler)) errors.push('군주(플레이어)의 칭호를 입력하십시오.');
+  if (!str(setup.country)) errors.push(msg.country);
+  if (!str(setup.ruler)) errors.push(msg.ruler);
   const y = num(setup.startYear);
   if (!Number.isFinite(y) || Math.abs(y) > 3000) errors.push('시작 연도를 숫자로 입력하십시오.');
-  if (!str(setup.institution)) errors.push('제도를 한 줄 이상 적어 주십시오.');
+  if (!str(setup.institution)) errors.push(msg.institution);
   return errors;
 }
 
@@ -250,48 +231,49 @@ function factionAverage(state) {
 
 // 주사위를 빼고 남는 보정치. 화면의 '조정 기류'와 판정이 같은 근거를 쓴다.
 export function computePressure(state) {
+  const R = modeOf(state).pressureReasons;
   const reasons = [];
   let mod = 0;
   const s = state.status;
   if (s) {
     if (s.opinion < 25) {
       mod += 12;
-      reasons.push('민심 이반');
+      reasons.push(R.opinionLow);
     } else if (s.opinion < 40) {
       mod += 5;
-      reasons.push('민심 동요');
+      reasons.push(R.opinionMid);
     } else if (s.opinion >= 70) {
       mod -= 5;
-      reasons.push('민심의 지지');
+      reasons.push(R.opinionHigh);
     }
     if (s.treasury < 0) {
       mod += 8;
-      reasons.push('국고 고갈');
+      reasons.push(R.broke);
     }
   }
   const avg = factionAverage(state);
   if (avg !== null) {
     if (avg < 35) {
       mod += 8;
-      reasons.push('조정 불신');
+      reasons.push(R.distrust);
     } else if (avg >= 65) {
       mod -= 5;
-      reasons.push('조정의 결속');
+      reasons.push(R.unity);
     }
   }
   // 연이어 성사되면 견제가 붙지만 두 번째부터, 그리고 완만하게
   const good = Math.min(state.streak?.good || 0, 4);
   if (good >= 2) {
     mod += (good - 1) * 3;
-    reasons.push('연이은 성사에 대한 견제');
+    reasons.push(R.streakGood);
   }
   // 막히고 나면 조정도 타협을 찾는다
   const bad = Math.min(state.streak?.bad || 0, 3);
   if (bad >= 1) {
     mod -= bad * 8;
-    reasons.push('앞선 차질 뒤의 타협 분위기');
+    reasons.push(R.streakBad);
   }
-  mod += DIFFICULTY[state.setup.difficulty]?.mod || 0;
+  mod += DIFFICULTY_MOD[state.setup.difficulty] || 0;
 
   let label = '평온';
   if (mod <= -8) label = '우호적';
@@ -335,41 +317,21 @@ export function rollFriction(state, rng = Math.random, command = '') {
   const revisit = revisitedAgenda(state, command);
   if (revisit) {
     mod -= REVISIT_BONUS;
-    reasons = [...reasons, `재론된 안건(${revisit.name})이라 논의가 무르익음`];
+    reasons = [...reasons, modeOf(state).pressureReasons.revisit(revisit.name)];
   }
   const score = clamp(base + mod, 1, 120);
   return { base, mod, score, tier: tierForScore(score), reasons };
 }
 
 // ── 돌발 사건 ──────────────────────────────────────────────
-export const EVENT_CATEGORIES = [
-  { id: 'disaster', label: '자연재해', hint: '가뭄·홍수·냉해·병충해·지진 가운데 시대와 지역에 맞는 것', weight: () => 3 },
-  { id: 'plague', label: '역병', hint: '도성이나 특정 지방에 번지는 돌림병', weight: () => 1.5 },
-  { id: 'diplomacy', label: '외교', hint: '사신 내방, 국서, 책봉·조공·통상 요구, 혼인 동맹 제안 등', weight: () => 2 },
-  {
-    id: 'border',
-    label: '국경·군사',
-    hint: '변경 침입, 해적, 국경 분쟁, 군량 부족',
-    weight: (s) => 1.5 + (s.status?.enemies?.length ? 1.5 : 0),
-  },
-  {
-    id: 'politics',
-    label: '정치',
-    hint: '탄핵 상소, 붕당·파벌 대립, 역모 고변, 대신의 사직 소동',
-    weight: (s) => {
-      const avg = factionAverage(s);
-      return 2 + (avg !== null && avg < 45 ? 1 : 0);
-    },
-  },
-  {
-    id: 'economy',
-    label: '민생·경제',
-    hint: '흉년, 물가 급등, 도적 횡행, 민란 조짐, 화폐·조세 문제',
-    weight: (s) => 2 + (s.status && s.status.happiness < 35 ? 2 : 0),
-  },
-  { id: 'people', label: '인물', hint: '원로 대신의 와병·사망·은퇴, 뜻밖의 인재 등장', weight: () => 1 },
-  { id: 'fortune', label: '길보', hint: '풍년, 새 기술·서적, 외국 사절의 호의 같은 좋은 소식', weight: () => 1.5 },
-];
+// 사건 가중치가 보는 지금의 사정
+function eventContext(state) {
+  return {
+    happiness: state.status?.happiness ?? 50,
+    enemies: state.status?.enemies?.length || 0,
+    factionAvg: factionAverage(state),
+  };
+}
 
 function pickWeighted(items, weights, rng) {
   const total = weights.reduce((a, b) => a + b, 0);
@@ -396,11 +358,13 @@ export function rollEvents(state, kind, months, rng = Math.random) {
     else if (months < 36) count = 1 + (rng() < 0.5 ? 1 : 0);
     else count = 2 + (rng() < 0.5 ? 1 : 0);
   }
+  const categories = modeOf(state).events;
+  const ctx = eventContext(state);
   const events = [];
   const used = new Set();
   for (let i = 0; i < count; i++) {
-    const pool = EVENT_CATEGORIES.filter((c) => !used.has(c.id));
-    const pick = pickWeighted(pool, pool.map((c) => c.weight(state)), rng);
+    const pool = categories.filter((c) => !used.has(c.id));
+    const pick = pickWeighted(pool, pool.map((c) => c.weight(ctx)), rng);
     used.add(pick.id);
     events.push({ id: pick.id, label: pick.label, hint: pick.hint });
   }
@@ -544,22 +508,13 @@ export function validateResponse(state, resp) {
   if (!state.status) {
     for (const k of ['population', 'opinion', 'happiness', 'treasury', 'gdp']) {
       if (!Number.isFinite(resp.status[k])) {
-        issues.push({ level: 'high', text: `첫 상태창에 ${STATUS_LABEL[k]} 수치가 없습니다.` });
+        issues.push({ level: 'high', text: `첫 상태창에 ${modeOf(state).statusLabels[k]} 수치가 없습니다.` });
       }
     }
   }
   return issues;
 }
 
-export const STATUS_LABEL = {
-  population: '인구',
-  allies: '동맹국',
-  enemies: '적대국',
-  opinion: '국민 여론',
-  happiness: '국민 행복도',
-  treasury: '재정',
-  gdp: 'GDP',
-};
 
 // ── 상태창 보정 ────────────────────────────────────────────
 // 한 턴 사이 수치가 기간에 비해 터무니없이 움직이면 상한까지만 반영하고 그 사실을 남긴다.
@@ -577,7 +532,9 @@ function signed(n, digits = 0) {
   return `${r > 0 ? '+' : r < 0 ? '−' : '±'}${Math.abs(r).toLocaleString('ko-KR')}`;
 }
 
-export function guardStatus(prev, next, months, periodLabel) {
+export function guardStatus(prev, next, months, periodLabel, mode = getMode()) {
+  const LBL = mode.statusLabels;
+  const { population: popCap, gdp: gdpCap } = mode.caps;
   const notes = [];
   const s = {};
   if (!prev) {
@@ -595,25 +552,25 @@ export function guardStatus(prev, next, months, periodLabel) {
       const r = capDelta(prev[k], next[k], sway, sway);
       s[k] = clamp(Math.round(r.value), 0, 100);
       if (r.capped) {
-        notes.push(`${STATUS_LABEL[k]} 변동(${signed(r.asked)})이 ${periodLabel}에 비해 과도하여 ${signed(s[k] - prev[k])}로 보정`);
+        notes.push(`${LBL[k]} 변동(${signed(r.asked)})이 ${periodLabel}에 비해 과도하여 ${signed(s[k] - prev[k])}로 보정`);
       }
     }
     const pop = capDelta(
       prev.population > 0 ? prev.population : NaN,
       next.population,
-      prev.population * (0.02 + 0.02 * years),
-      prev.population * Math.min(0.5, 0.06 + 0.05 * years)
+      prev.population * (popCap.up[0] + popCap.up[1] * years),
+      prev.population * Math.min(popCap.down[2], popCap.down[0] + popCap.down[1] * years)
     );
     s.population = Math.max(0, Math.round(Number.isFinite(pop.value) ? pop.value : prev.population || 0));
-    if (pop.capped) notes.push(`인구 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
+    if (pop.capped) notes.push(`${LBL.population} 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
     const gdp = capDelta(
       prev.gdp > 0 ? prev.gdp : NaN,
       next.gdp,
-      prev.gdp * (0.08 + 0.08 * years),
-      prev.gdp * Math.min(0.6, 0.15 + 0.08 * years)
+      prev.gdp * (gdpCap.up[0] + gdpCap.up[1] * years),
+      prev.gdp * Math.min(gdpCap.down[2], gdpCap.down[0] + gdpCap.down[1] * years)
     );
     s.gdp = Math.max(0, Math.round(Number.isFinite(gdp.value) ? gdp.value : prev.gdp || 0));
-    if (gdp.capped) notes.push(`GDP 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
+    if (gdp.capped) notes.push(`${LBL.gdp} 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
     s.treasury = Math.round(Number.isFinite(next.treasury) ? next.treasury : prev.treasury);
     s.allies = next.allies ?? prev.allies;
     s.enemies = next.enemies ?? prev.enemies;
@@ -623,7 +580,7 @@ export function guardStatus(prev, next, months, periodLabel) {
   const both = s.allies.filter((a) => s.enemies.includes(a));
   if (both.length) {
     s.allies = s.allies.filter((a) => !both.includes(a));
-    notes.push(`${both.join(', ')}이(가) 동맹국과 적대국에 함께 올라 있어 적대국으로 정리`);
+    notes.push(`${both.join(', ')}이(가) ${LBL.allies}과 ${LBL.enemies}에 함께 올라 있어 ${LBL.enemies}으로 정리`);
   }
   return { status: s, notes };
 }
@@ -749,7 +706,8 @@ export function applyResponse(state, resp, ctx) {
   const prev = s.status;
   const span = spanInMonths(months, days);
   const period = months || days ? formatSpan(months, days) : '한 차례 회의';
-  const { status, notes } = guardStatus(prev, resp.status, span, period);
+  const mode = modeOf(s);
+  const { status, notes } = guardStatus(prev, resp.status, span, period, mode);
   s.status = status;
   const deltas = statusDeltas(prev, status);
 
@@ -774,7 +732,7 @@ export function applyResponse(state, resp, ctx) {
     resp.opening ||
     (ctx.kind === 'time'
       ? `${formatDate(state.date)}부터 ${formatDate(s.date)}까지의 국정을 정리합니다...`
-      : `${s.setup.country} 조정에서 논의가 시작됩니다...`);
+      : mode.ui.fallbackOpening(s.setup.country));
 
   s.turns = [
     ...s.turns,
@@ -805,36 +763,39 @@ export function applyResponse(state, resp, ctx) {
 
 // ── 세계관 요약 (재동기화·내보내기용) ───────────────────────
 export function worldSummary(state, fmt = formatAmount) {
+  const mode = modeOf(state);
+  const S = mode.summary;
+  const LBL = mode.statusLabels;
   const L = [];
   const st = state.status;
-  L.push(`국가: ${state.setup.country} / 군주: ${state.setup.ruler}`);
-  L.push(`제도: ${state.setup.institution}`);
+  L.push(`${S.country}: ${state.setup.country} / ${S.ruler}: ${state.setup.ruler}`);
+  L.push(`${S.institution}: ${state.setup.institution}`);
   if (state.setup.notes) L.push(`특이사항: ${state.setup.notes}`);
   L.push(`현재: ${formatDate(state.date)}${state.eraLabel ? ` (${state.eraLabel})` : ''} · ${state.turnCount}번째 기록`);
   if (st) {
     L.push(
-      `상태: 인구 ${fmt(st.population, '명')}, 여론 ${st.opinion}, 행복도 ${st.happiness}, 재정 ${fmt(st.treasury, state.units?.treasury)}, GDP ${fmt(st.gdp, state.units?.gdp)}`
+      `상태: ${LBL.population} ${fmt(st.population, '명')}, ${LBL.opinion} ${st.opinion}, ${LBL.happiness} ${st.happiness}, ${LBL.treasury} ${fmt(st.treasury, state.units?.treasury)}, ${LBL.gdp} ${fmt(st.gdp, state.units?.gdp)}`
     );
-    L.push(`동맹국: ${st.allies.join(', ') || '없음'} / 적대국: ${st.enemies.join(', ') || '없음'}`);
+    L.push(`${LBL.allies}: ${st.allies.join(', ') || '없음'} / ${LBL.enemies}: ${st.enemies.join(', ') || '없음'}`);
   }
   if (state.characters.length) {
-    L.push('', '[인물]');
+    L.push('', `[${S.people}]`);
     for (const c of state.characters) {
       L.push(`- ${c.name} · ${c.title || '직책 미상'} · ${c.status || '재직'}${c.faction ? ` · ${c.faction}` : ''}${c.disposition ? ` · ${c.disposition}` : ''}`);
     }
   }
   if (state.policies.length) {
-    L.push('', '[정책·제도]');
+    L.push('', `[${S.policies}]`);
     for (const p of state.policies) {
       L.push(`- ${p.name} · ${p.status}${p.since ? ` (${formatDate(p.since)}~)` : ''}${p.summary ? ` · ${p.summary}` : ''}`);
     }
   }
   if (state.factions.length) {
-    L.push('', '[세력·계층]');
+    L.push('', `[${S.factions}]`);
     for (const f of state.factions) L.push(`- ${f.name} 지지 ${f.support}${f.note ? ` · ${f.note}` : ''}`);
   }
   if (state.chronicle.length) {
-    L.push('', '[최근 연대기]');
+    L.push('', `[${S.annals}]`);
     for (const c of state.chronicle.slice(-10)) L.push(`- ${formatDate(c.date)} ${c.text}`);
   }
   return L.join('\n');
@@ -866,10 +827,16 @@ export function serialize(state) {
   return JSON.stringify(state);
 }
 
-export function deserialize(text) {
+// expectMode를 주면 다른 게임의 저장 기록을 거절한다 (국가의 시대 기록을 기업의 시대에 불러오는 일 등)
+export function deserialize(text, expectMode) {
   const data = typeof text === 'string' ? JSON.parse(text) : text;
+  const wanted = expectMode ? getMode(expectMode).title : '국가의 시대·기업의 시대';
   if (!data || typeof data !== 'object' || data.version !== SAVE_VERSION || !data.setup || !data.date) {
-    throw new Error('국가의 시대 저장 기록이 아닙니다.');
+    throw new Error(`${wanted} 저장 기록이 아닙니다.`);
+  }
+  data.setup.mode = MODES[data.setup.mode] ? data.setup.mode : 'kingdom';
+  if (expectMode && data.setup.mode !== expectMode) {
+    throw new Error(`${getMode(data.setup.mode).title}의 저장 기록입니다. ${wanted}에서는 불러올 수 없습니다.`);
   }
   for (const k of ['characters', 'policies', 'factions', 'regions', 'chronicle', 'turns']) {
     if (!Array.isArray(data[k])) data[k] = [];
