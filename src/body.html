@@ -94,10 +94,7 @@
         </div>
         <div class="dock-time">
           <span class="dock-label">시간 경과</span>
-          <button type="button" class="btn chip" data-days="15">보름 후</button>
-          <button type="button" class="btn chip" data-months="1">다음 달</button>
-          <button type="button" class="btn chip" data-months="12">1년 후</button>
-          <button type="button" class="btn chip" data-months="60">5년 후</button>
+          <span class="time-chips" id="timeChips"></span>
           <span class="skip-custom">
             <label class="sr-only" for="skipYears">경과할 햇수</label>
             <input id="skipYears" type="number" min="1" max="20" value="3" inputmode="numeric">
@@ -126,6 +123,7 @@
             <button type="button" role="tab" id="tab-people" aria-controls="tabBody" aria-selected="true" data-tab="people">{{tabPeople}}</button>
             <button type="button" role="tab" id="tab-policy" aria-controls="tabBody" aria-selected="false" data-tab="policy">{{tabPolicy}}</button>
             <button type="button" role="tab" id="tab-faction" aria-controls="tabBody" aria-selected="false" data-tab="faction">{{tabFaction}}</button>
+            <button type="button" role="tab" id="tab-ledger" aria-controls="tabBody" aria-selected="false" data-tab="ledger" hidden>{{tabLedger}}</button>
             <button type="button" role="tab" id="tab-annals" aria-controls="tabBody" aria-selected="false" data-tab="annals">{{tabAnnals}}</button>
           </div>
           <div class="tab-body" id="tabBody" role="tabpanel"></div>

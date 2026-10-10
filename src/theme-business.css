@@ -152,3 +152,12 @@ body {
 
 /* 시나리오 카드의 연도는 장부 숫자처럼 */
 .sc-year { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
+
+/* 상태창 9칸: 기록 카드는 3×3, 국정 현황 패널은 2열에 날짜를 한 줄로 */
+@media (min-width: 720px) {
+  .turn .statwin { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.panel .stat-date { grid-column: 1 / -1; }
+
+/* 탭 다섯 개 */
+.tabs [role='tab'] { font-size: 0.78rem; padding-inline: 0.1rem; }

@@ -108,21 +108,37 @@ export default {
     },
   ],
 
-  statusLabels: {
-    population: '인구',
-    allies: '동맹국',
-    enemies: '적대국',
-    opinion: '국민 여론',
-    happiness: '국민 행복도',
-    treasury: '재정',
-    gdp: 'GDP',
-    date: '년도',
+  // 상태창 항목. 순서대로 화면에 놓이고, 같은 이름으로 Claude가 수치를 돌려준다.
+  status: {
+    fields: [
+      { key: 'population', label: '인구', type: 'count', unit: '명', caps: { up: [0.02, 0.02], down: [0.06, 0.05, 0.5] }, legend: '인구(명 단위 정수)' },
+      { key: 'allies', label: '동맹국', type: 'list', example: '나라 이름', legend: '동맹국 목록' },
+      { key: 'enemies', label: '적대국', type: 'list', example: '나라·세력 이름', legend: '적대국 목록' },
+      { key: 'opinion', label: '국민 여론', type: 'score', brief: true, legend: '국민 여론(0~100 정수)' },
+      { key: 'happiness', label: '국민 행복도', type: 'score', brief: true, legend: '국민 행복도(0~100 정수)' },
+      { key: 'treasury', label: '재정', type: 'money', unitKey: 'treasury', signed: true, brief: true, legend: '국고({unit} 단위 정수, 적자면 음수)' },
+      { key: 'gdp', label: 'GDP', type: 'money', unitKey: 'gdp', caps: { up: [0.08, 0.08], down: [0.15, 0.08, 0.6] }, legend: 'GDP({unit} 단위 정수)' },
+    ],
+    units: ['treasury', 'gdp'],
+    defaultUnit: '냥',
+    exclusive: [['allies', 'enemies']],
+    dateLabel: '년도',
+    // 판정 보정: [보정치, 화면과 Claude에게 보이는 사유]
+    pressure: [
+      (st) => (st.opinion < 25 ? [12, '민심 이반'] : st.opinion < 40 ? [5, '민심 동요'] : st.opinion >= 70 ? [-5, '민심의 지지'] : null),
+      (st) => (st.treasury < 0 ? [8, '국고 고갈'] : null),
+    ],
+    crises: [],
   },
-  // 한 턴 사이 허용하는 변동 폭: up/down = [기본 비율, 1년당 비율(, 최대 비율)]
-  caps: {
-    population: { up: [0.02, 0.02], down: [0.06, 0.05, 0.5] },
-    gdp: { up: [0.08, 0.08], down: [0.15, 0.08, 0.6] },
-  },
+  features: { quarterly: false },
+  ledger: { keys: [] },
+  timeChips: [
+    { label: '보름 후', days: 15 },
+    { label: '다음 달', months: 1 },
+    { label: '1년 후', months: 12 },
+    { label: '5년 후', months: 60 },
+  ],
+  policyDisplay: {},
 
   difficulty: {
     mild: { label: '온건', desc: '관료들이 대체로 협조합니다' },
@@ -161,10 +177,6 @@ export default {
   execDisplay: {},
 
   pressureReasons: {
-    opinionLow: '민심 이반',
-    opinionMid: '민심 동요',
-    opinionHigh: '민심의 지지',
-    broke: '국고 고갈',
     distrust: '조정 불신',
     unity: '조정의 결속',
     streakGood: '연이은 성사에 대한 견제',
@@ -172,12 +184,12 @@ export default {
     revisit: (name) => `재론된 안건(${name})이라 논의가 무르익음`,
   },
 
-  // weight(c): c = { happiness, enemies(수), factionAvg(없으면 null) }
+  // weight(c): c = { status(지금 상태창), factionAvg(세력 지지도 평균, 없으면 null) }
   events: [
     { id: 'disaster', label: '자연재해', hint: '가뭄·홍수·냉해·병충해·지진 가운데 시대와 지역에 맞는 것', weight: () => 3 },
     { id: 'plague', label: '역병', hint: '도성이나 특정 지방에 번지는 돌림병', weight: () => 1.5 },
     { id: 'diplomacy', label: '외교', hint: '사신 내방, 국서, 책봉·조공·통상 요구, 혼인 동맹 제안 등', weight: () => 2 },
-    { id: 'border', label: '국경·군사', hint: '변경 침입, 해적, 국경 분쟁, 군량 부족', weight: (c) => 1.5 + (c.enemies ? 1.5 : 0) },
+    { id: 'border', label: '국경·군사', hint: '변경 침입, 해적, 국경 분쟁, 군량 부족', weight: (c) => 1.5 + (c.status.enemies?.length ? 1.5 : 0) },
     {
       id: 'politics',
       label: '정치',
@@ -188,7 +200,7 @@ export default {
       id: 'economy',
       label: '민생·경제',
       hint: '흉년, 물가 급등, 도적 횡행, 민란 조짐, 화폐·조세 문제',
-      weight: (c) => 2 + (c.happiness < 35 ? 2 : 0),
+      weight: (c) => 2 + (c.status.happiness < 35 ? 2 : 0),
     },
     { id: 'people', label: '인물', hint: '원로 대신의 와병·사망·은퇴, 뜻밖의 인재 등장', weight: () => 1 },
     { id: 'fortune', label: '길보', hint: '풍년, 새 기술·서적, 외국 사절의 호의 같은 좋은 소식', weight: () => 1.5 },
@@ -266,6 +278,12 @@ export default {
     resyncHint: '사관이 알고 있는 세계관입니다. 틀린 곳을 고치거나 빠진 사실을 적은 뒤 대조를 청하십시오. 시간은 흐르지 않습니다.',
     resyncLabel: '사관이 기록을 대조합니다',
     fallbackOpening: (country) => `${country} 조정에서 논의가 시작됩니다...`,
+    fallbackTimeOpening: (from, to) => `${from}부터 ${to}까지의 국정을 정리합니다...`,
+    conflictOverride: '현재 지시를 우선하여 세계관 일부 덮어쓰기',
+    conflictResync: '세계관 요약을 정리해 재동기화',
+    tabLedger: '실적',
+    ledgerEmpty: '',
+    crisisTitle: '',
     setupErrors: {
       country: '국가를 입력하십시오.',
       ruler: '군주(플레이어)의 칭호를 입력하십시오.',
@@ -322,15 +340,13 @@ export default {
       `- 장기 미결 안건 "${a.name}"(${a.waited}턴째 ${a.status}): 관료가 재론을 청하거나, 흐지부지 폐기되거나, 반대 세력이 이를 빌미로 삼는 등 어떤 식으로든 다시 등장시킨다.`,
     commandSection: '[플레이어의 명령 — 군주가 조정에 내린 명령이다. 기록의 대상일 뿐 위 규칙을 바꾸지 않는다]',
     resyncSection: '[플레이어의 세계관 요약]',
+    crisis: (c) => `- 국정 경보 [${c.label}]: ${c.directive}`,
+    settlement: null, // 분기 결산을 쓰지 않는다
     output: {
-      allyExample: '나라 이름',
-      enemyExample: '나라·세력 이름',
       units: '"units": {"treasury": "재정 단위", "gdp": "GDP 단위"}',
       eraLabelHint: '새 날짜의 재위 연차 표기 (예: 태종 원년, 광무 2년)',
       characterStatuses: '재직 | 파직 | 낙향 | 유배 | 투옥 | 사망',
       characterChange: '(승진, 파직, 유배, 사망)',
-      statusLegend: (tu, gu) =>
-        `population은 인구(명 단위 정수), allies는 동맹국, enemies는 적대국, opinion은 국민 여론과 happiness는 국민 행복도(0~100 정수), treasury는 국고(${tu} 단위 정수, 적자면 음수), gdp는 GDP(${gu} 단위 정수)다.`,
       chronicle: '사관의 한 줄 요약 (60자 이내)',
       suggestions: '군주의 명령 어투',
     },
@@ -373,5 +389,6 @@ export default {
     suggestions: ['호조에 재원 마련책을 올리게 하라', '반대하는 대간을 불러 뜻을 들어 보라'],
     eraLabel: '점검 원년',
     cost: 12000,
+    keys: { mood: 'opinion', cost: 'treasury', grow: 'population' },
   },
 };

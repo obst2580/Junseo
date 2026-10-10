@@ -2,13 +2,21 @@
 // Claude는 대화를 기억하지 않으므로 매 턴 규칙, 세계 기록, 엔진 지시, 명령을 한 번에 보낸다.
 // 문구는 모드(modes/)가 정하고, 이 파일은 순서와 틀을 맞춘다.
 
-import { modeOf, formatDate, formatSpan, formatAmount, PENDING_POLICY } from './engine.js';
+import { modeOf, formatDate, formatSpan, formatField, PENDING_POLICY } from './engine.js';
+
+// 상태창 예시와 설명을 모드의 항목 정의에서 만든다
+function statusShape(state) {
+  const fields = modeOf(state).status.fields;
+  const example = Object.fromEntries(fields.map((f) => [f.key, f.type === 'list' ? [f.example] : 0]));
+  const unitOf = (f) => state.units?.[f.unitKey] || '(units에서 정한 단위)';
+  const legend = fields.map((f) => `${f.key}는 ${f.legend.replace('{unit}', unitOf(f))}`).join(', ');
+  return { example: JSON.stringify(example).replace(/,"/g, ', "').replace(/":/g, '": '), legend };
+}
 
 function outputSpec(state, kind) {
   const P = modeOf(state).prompt;
   const O = P.output;
-  const tu = state.units?.treasury || '(units에서 정한 단위)';
-  const gu = state.units?.gdp || '(units에서 정한 단위)';
+  const shape = statusShape(state);
   const unitsLine = kind === 'opening' ? `\n  ${O.units},` : '';
   const conflictRule =
     kind === 'command'
@@ -25,7 +33,7 @@ JSON 객체 하나만 출력한다. 코드 블록이나 설명 문장을 붙이�
   ],
   "execution": {"status": "시행 | 조건부 시행 | 보류 | 시행 후 반발 | 반려 | 해당없음", "note": "결과를 한 줄로"},
   "news": ["헤드라인", "헤드라인", "헤드라인"],
-  "status": {"population": 0, "allies": ["${O.allyExample}"], "enemies": ["${O.enemyExample}"], "opinion": 0, "happiness": 0, "treasury": 0, "gdp": 0},${unitsLine}
+  "status": ${shape.example},${unitsLine}
   "eraLabel": "${O.eraLabelHint}",
   "updates": {
     "characters": [{"name": "", "title": "", "faction": "", "disposition": "성향", "status": "${O.characterStatuses}", "note": ""}],
@@ -39,7 +47,7 @@ JSON 객체 하나만 출력한다. 코드 블록이나 설명 문장을 붙이�
 규칙:
 ${conflictRule}
 - record는 4~8개 항목이다. 발언은 1~3문장. 서술 항목은 speaker와 title을 빈 문자열로 둔다.
-- ${O.statusLegend(tu, gu)} 숫자에 단위나 쉼표를 넣지 않는다.
+- 상태창 항목: ${shape.legend}. 숫자에 단위나 쉼표를 넣지 않는다.
 - 상태창은 매번 모든 항목을 쓴다. 바뀌지 않은 항목은 이전 값을 그대로 쓴다.
 - updates에는 이번 턴에 새로 등장했거나 바뀐 항목만 넣는다. 없으면 빈 배열.
 - 발언한 실명 인물이 인물 명부에 없으면 updates.characters에 반드시 추가한다. 인물의 신상이 바뀌면${O.characterChange} 반영한다.
@@ -71,7 +79,6 @@ function policyLine(p, turnCount) {
 export function turnText(t, state) {
   const mode = modeOf(state);
   const T = mode.prompt.turnText;
-  const LBL = mode.statusLabels;
   const head =
     t.kind === 'opening'
       ? T.opening
@@ -86,10 +93,10 @@ export function turnText(t, state) {
     L.push(`결과: ${t.execution.status}${t.execution.note ? ` — ${t.execution.note}` : ''}`);
   }
   if (t.news.length) L.push(`뉴스: ${t.news.join(' / ')}`);
+  if (t.settlement) L.push(`분기 결산: ${t.settlement}`);
   if (t.status && state.units) {
-    L.push(
-      `상태: ${LBL.opinion} ${t.status.opinion}, ${LBL.happiness} ${t.status.happiness}, ${LBL.treasury} ${formatAmount(t.status.treasury, state.units.treasury)}`
-    );
+    const brief = mode.status.fields.filter((f) => f.brief);
+    L.push(`상태: ${brief.map((f) => `${f.label} ${formatField(f, t.status[f.key], state.units)}`).join(', ')}`);
   }
   return L.join('\n');
 }
@@ -167,6 +174,8 @@ function directiveSection(state, ctx) {
   if (ctx.kind === 'resync') {
     L.push(P.resync, '- 시간은 흐르지 않는다. execution.status는 "해당없음".');
   }
+  for (const c of ctx.crises || []) L.push(P.crisis(c));
+  if (ctx.settlement && P.settlement) L.push(P.settlement(ctx.settlement));
   for (const e of ctx.events || []) L.push(P.event(e));
   if (ctx.agenda) L.push(P.agenda(ctx.agenda));
   if (ctx.correction?.length) {

@@ -145,7 +145,7 @@ export const MAX_SKIP_MONTHS = 240;
 // 시간 경과를 뜻하는 꼬리말: "후", "뒤", "이 흐른다", "가 지났다", "동안"
 const ELAPSE = '(?:후|뒤|이\\s*(?:흐른다|흘렀다|흐르다|흘러|지난다|지났다|지나다|지나서|경과|경과한다|경과했다)|가\\s*(?:흐른다|흘렀다|지난다|지났다|경과|경과한다)|동안)';
 const SKIP_RE = new RegExp(
-  `^(\\d+|${Object.keys(KO_NUM).join('|')})\\s*(년|해|개월|달|주|일)\\s*${ELAPSE}$`
+  `^(\\d+|${Object.keys(KO_NUM).join('|')})\\s*(년|해|분기|개월|달|주|일)\\s*${ELAPSE}$`
 );
 const DAY_WORDS = { 일주일: 7, 열흘: 10, 보름: 15, 한주: 7 };
 
@@ -161,6 +161,8 @@ export function parseTimeSkip(text) {
   if (/^(다음\s*달|한\s*달\s*(후|뒤))$/.test(t)) return { months: 1, days: 0 };
   if (/^(내년|이듬해|다음\s*해)$/.test(t)) return { months: 12, days: 0 };
   if (/^반\s*년\s*(후|뒤)$/.test(t)) return { months: 6, days: 0 };
+  if (/^다음\s*분기$/.test(t)) return { months: 3, days: 0 };
+  if (/^다음\s*주$/.test(t)) return { months: 0, days: 7 };
   const word = t.match(new RegExp(`^(${Object.keys(DAY_WORDS).join('|')}|한\\s*주)\\s*${ELAPSE}$`));
   if (word) return { months: 0, days: DAY_WORDS[word[1].replace(/\s+/g, '')] };
   const m = t.match(SKIP_RE);
@@ -168,6 +170,7 @@ export function parseTimeSkip(text) {
   const n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : KO_NUM[m[1]];
   if (!n || n <= 0) return null;
   if (m[2] === '년' || m[2] === '해') return { months: Math.min(n * 12, MAX_SKIP_MONTHS), days: 0 };
+  if (m[2] === '분기') return { months: Math.min(n * 3, MAX_SKIP_MONTHS), days: 0 };
   if (m[2] === '개월' || m[2] === '달') return { months: Math.min(n, MAX_SKIP_MONTHS), days: 0 };
   const days = m[2] === '주' ? n * 7 : n;
   if (days >= DAYS_PER_MONTH) {
@@ -205,6 +208,7 @@ export function createGame(setup, now = Date.now()) {
     factions: [],
     regions: [],
     chronicle: [],
+    ledger: [],
     turns: [],
     streak: { good: 0, bad: 0 },
     turnCount: 0,
@@ -235,20 +239,14 @@ export function computePressure(state) {
   const reasons = [];
   let mod = 0;
   const s = state.status;
+  // 모드의 규칙: 상태창을 보고 [보정치, 사유]를 돌려준다 (민심, 국고, 직원 사기, 현금, 적자 등)
   if (s) {
-    if (s.opinion < 25) {
-      mod += 12;
-      reasons.push(R.opinionLow);
-    } else if (s.opinion < 40) {
-      mod += 5;
-      reasons.push(R.opinionMid);
-    } else if (s.opinion >= 70) {
-      mod -= 5;
-      reasons.push(R.opinionHigh);
-    }
-    if (s.treasury < 0) {
-      mod += 8;
-      reasons.push(R.broke);
+    for (const rule of modeOf(state).status.pressure) {
+      const hit = rule(s);
+      if (hit) {
+        mod += hit[0];
+        reasons.push(hit[1]);
+      }
     }
   }
   const avg = factionAverage(state);
@@ -326,11 +324,14 @@ export function rollFriction(state, rng = Math.random, command = '') {
 // ── 돌발 사건 ──────────────────────────────────────────────
 // 사건 가중치가 보는 지금의 사정
 function eventContext(state) {
-  return {
-    happiness: state.status?.happiness ?? 50,
-    enemies: state.status?.enemies?.length || 0,
-    factionAvg: factionAverage(state),
-  };
+  return { status: state.status || {}, factionAvg: factionAverage(state) };
+}
+
+// 지금 상태에서 터진 위기들 (기업의 시대: 자금 경색, 조직 이탈, 고객 이탈 등). 매 턴 기록에 반드시 드러난다.
+export function activeCrises(state) {
+  const st = state.status;
+  if (!st) return [];
+  return modeOf(state).status.crises.filter((c) => c.test(st)).map(({ id, label, directive }) => ({ id, label, directive }));
 }
 
 function pickWeighted(items, weights, rng) {
@@ -420,6 +421,20 @@ export function normalizeExecStatus(v) {
   return '해당없음';
 }
 
+// 상태창은 모드마다 항목이 다르므로 이름 그대로 읽는다: 배열은 목록, 숫자로 읽히면 수치, 아니면 목록 문자열
+function readStatus(st) {
+  const out = {};
+  for (const [k, v] of Object.entries(st)) {
+    if (Array.isArray(v)) out[k] = v.map(str).filter(Boolean);
+    else if (v === null || v === undefined) continue;
+    else {
+      const n = num(v);
+      out[k] = Number.isFinite(n) ? n : arr(v).map(str).filter(Boolean);
+    }
+  }
+  return out;
+}
+
 export function normalizeResponse(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new ParseError('응답이 JSON 객체가 아닙니다.', raw);
@@ -453,17 +468,9 @@ export function normalizeResponse(raw) {
     record,
     execution: { status: normalizeExecStatus(ex.status), note: str(ex.note) },
     news: arr(raw.news).map(str).filter(Boolean).slice(0, 3),
-    status: {
-      population: num(st.population),
-      allies: st.allies === undefined ? null : arr(st.allies).map(str).filter(Boolean),
-      enemies: st.enemies === undefined ? null : arr(st.enemies).map(str).filter(Boolean),
-      opinion: num(st.opinion),
-      happiness: num(st.happiness),
-      treasury: num(st.treasury),
-      gdp: num(st.gdp),
-    },
+    status: readStatus(st),
     eraLabel: str(raw.eraLabel),
-    units: units ? { treasury: str(units.treasury), gdp: str(units.gdp) } : null,
+    units: units ? Object.fromEntries(Object.entries(units).map(([k, v]) => [k, str(v)])) : null,
     updates: {
       characters: arr(u.characters).filter((x) => x && typeof x === 'object' && str(x.name)),
       policies: arr(u.policies).filter((x) => x && typeof x === 'object' && str(x.name)),
@@ -506,9 +513,9 @@ export function validateResponse(state, resp) {
   }
 
   if (!state.status) {
-    for (const k of ['population', 'opinion', 'happiness', 'treasury', 'gdp']) {
-      if (!Number.isFinite(resp.status[k])) {
-        issues.push({ level: 'high', text: `첫 상태창에 ${modeOf(state).statusLabels[k]} 수치가 없습니다.` });
+    for (const f of modeOf(state).status.fields) {
+      if (f.type !== 'list' && !Number.isFinite(resp.status[f.key])) {
+        issues.push({ level: 'high', text: `첫 상태창에 ${f.label} 수치가 없습니다.` });
       }
     }
   }
@@ -532,67 +539,76 @@ function signed(n, digits = 0) {
   return `${r > 0 ? '+' : r < 0 ? '−' : '±'}${Math.abs(r).toLocaleString('ko-KR')}`;
 }
 
+// 항목 종류: count(사람 수 등, 비율 상한), money(금액, caps가 있으면 비율 상한), score(0~100, 절대 폭 상한),
+// percent(0~100 소수, cap이 있으면 %p 상한), list(이름 목록)
 export function guardStatus(prev, next, months, periodLabel, mode = getMode()) {
-  const LBL = mode.statusLabels;
-  const { population: popCap, gdp: gdpCap } = mode.caps;
   const notes = [];
   const s = {};
-  if (!prev) {
-    s.population = Math.max(0, Math.round(next.population || 0));
-    s.allies = next.allies || [];
-    s.enemies = next.enemies || [];
-    s.opinion = clamp(Math.round(Number.isFinite(next.opinion) ? next.opinion : 50), 0, 100);
-    s.happiness = clamp(Math.round(Number.isFinite(next.happiness) ? next.happiness : 50), 0, 100);
-    s.treasury = Math.round(Number.isFinite(next.treasury) ? next.treasury : 0);
-    s.gdp = Math.max(0, Math.round(Number.isFinite(next.gdp) ? next.gdp : 0));
-  } else {
-    const years = months / 12;
-    const sway = Math.min(40, 12 + 2 * months);
-    for (const k of ['opinion', 'happiness']) {
-      const r = capDelta(prev[k], next[k], sway, sway);
-      s[k] = clamp(Math.round(r.value), 0, 100);
-      if (r.capped) {
-        notes.push(`${LBL[k]} 변동(${signed(r.asked)})이 ${periodLabel}에 비해 과도하여 ${signed(s[k] - prev[k])}로 보정`);
-      }
+  const years = months / 12;
+  const sway = Math.min(40, 12 + 2 * months);
+  const val = (k) => (typeof next[k] === 'number' ? next[k] : NaN);
+  for (const f of mode.status.fields) {
+    const k = f.key;
+    if (f.type === 'list') {
+      s[k] = [...new Set(Array.isArray(next[k]) ? next[k] : prev?.[k] || [])];
+      continue;
     }
-    const pop = capDelta(
-      prev.population > 0 ? prev.population : NaN,
-      next.population,
-      prev.population * (popCap.up[0] + popCap.up[1] * years),
-      prev.population * Math.min(popCap.down[2], popCap.down[0] + popCap.down[1] * years)
-    );
-    s.population = Math.max(0, Math.round(Number.isFinite(pop.value) ? pop.value : prev.population || 0));
-    if (pop.capped) notes.push(`${LBL.population} 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
-    const gdp = capDelta(
-      prev.gdp > 0 ? prev.gdp : NaN,
-      next.gdp,
-      prev.gdp * (gdpCap.up[0] + gdpCap.up[1] * years),
-      prev.gdp * Math.min(gdpCap.down[2], gdpCap.down[0] + gdpCap.down[1] * years)
-    );
-    s.gdp = Math.max(0, Math.round(Number.isFinite(gdp.value) ? gdp.value : prev.gdp || 0));
-    if (gdp.capped) notes.push(`${LBL.gdp} 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
-    s.treasury = Math.round(Number.isFinite(next.treasury) ? next.treasury : prev.treasury);
-    s.allies = next.allies ?? prev.allies;
-    s.enemies = next.enemies ?? prev.enemies;
+    const v = val(k);
+    if (!prev) {
+      if (f.type === 'score') s[k] = clamp(Math.round(Number.isFinite(v) ? v : 50), 0, 100);
+      else if (f.type === 'percent') s[k] = clamp(Math.round((Number.isFinite(v) ? v : 0) * 10) / 10, 0, 100);
+      else s[k] = f.signed ? Math.round(Number.isFinite(v) ? v : 0) : Math.max(0, Math.round(Number.isFinite(v) ? v : 0));
+      continue;
+    }
+    if (f.type === 'score') {
+      const r = capDelta(prev[k], v, sway, sway);
+      s[k] = clamp(Math.round(r.value), 0, 100);
+      if (r.capped) notes.push(`${f.label} 변동(${signed(r.asked)})이 ${periodLabel}에 비해 과도하여 ${signed(s[k] - prev[k])}로 보정`);
+    } else if (f.type === 'percent') {
+      const cap = f.cap ? f.cap[0] + f.cap[1] * years : Infinity;
+      const r = capDelta(prev[k], v, cap, cap);
+      s[k] = clamp(Math.round((Number.isFinite(r.value) ? r.value : prev[k]) * 10) / 10, 0, 100);
+      if (r.capped) notes.push(`${f.label} 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
+    } else if (f.caps) {
+      const r = capDelta(
+        prev[k] > 0 ? prev[k] : NaN,
+        v,
+        prev[k] * (f.caps.up[0] + f.caps.up[1] * years),
+        prev[k] * Math.min(f.caps.down[2], f.caps.down[0] + f.caps.down[1] * years)
+      );
+      s[k] = Math.max(0, Math.round(Number.isFinite(r.value) ? r.value : prev[k] || 0));
+      if (r.capped) notes.push(`${f.label} 변동 폭이 ${periodLabel}에 비해 과도하여 보정`);
+    } else {
+      const n = Math.round(Number.isFinite(v) ? v : prev[k]);
+      s[k] = f.signed ? n : Math.max(0, n);
+    }
   }
-  s.allies = [...new Set(s.allies)];
-  s.enemies = [...new Set(s.enemies)];
-  const both = s.allies.filter((a) => s.enemies.includes(a));
-  if (both.length) {
-    s.allies = s.allies.filter((a) => !both.includes(a));
-    notes.push(`${both.join(', ')}이(가) ${LBL.allies}과 ${LBL.enemies}에 함께 올라 있어 ${LBL.enemies}으로 정리`);
+  // 동시에 오를 수 없는 목록 (동맹국과 적대국 등): 앞 목록에서 뺀다
+  for (const [a, b] of mode.status.exclusive || []) {
+    const both = s[a].filter((x) => s[b].includes(x));
+    if (both.length) {
+      s[a] = s[a].filter((x) => !both.includes(x));
+      const la = mode.status.fields.find((f) => f.key === a).label;
+      const lb = mode.status.fields.find((f) => f.key === b).label;
+      notes.push(`${both.join(', ')}이(가) ${la}과 ${lb}에 함께 올라 있어 ${lb}으로 정리`);
+    }
   }
   return { status: s, notes };
 }
 
-export function statusDeltas(prev, next) {
+export function statusDeltas(prev, next, mode = getMode()) {
   if (!prev) return null;
   const d = {};
-  for (const k of ['population', 'opinion', 'happiness', 'treasury', 'gdp']) d[k] = next[k] - prev[k];
-  d.alliesAdded = next.allies.filter((x) => !prev.allies.includes(x));
-  d.alliesRemoved = prev.allies.filter((x) => !next.allies.includes(x));
-  d.enemiesAdded = next.enemies.filter((x) => !prev.enemies.includes(x));
-  d.enemiesRemoved = prev.enemies.filter((x) => !next.enemies.includes(x));
+  for (const f of mode.status.fields) {
+    const k = f.key;
+    if (f.type === 'list') {
+      const before = prev[k] || [];
+      d[`${k}Added`] = next[k].filter((x) => !before.includes(x));
+      d[`${k}Removed`] = before.filter((x) => !next[k].includes(x));
+    } else if (Number.isFinite(prev[k])) {
+      d[k] = f.type === 'percent' ? Math.round((next[k] - prev[k]) * 10) / 10 : next[k] - prev[k];
+    }
+  }
   return d;
 }
 
@@ -696,20 +712,26 @@ export function applyResponse(state, resp, ctx) {
   s.date = advanceDate(s.date, months, days);
   if (resp.eraLabel) s.eraLabel = resp.eraLabel;
 
+  const mode = modeOf(s);
+  // 단위는 첫 기록에서 정하고 바꾸지 않는다. 빠진 단위는 앞서 정한 단위나 모드 기본값으로 채운다.
   if (!s.units) {
-    s.units = {
-      treasury: resp.units?.treasury || '냥',
-      gdp: resp.units?.gdp || resp.units?.treasury || '냥',
-    };
+    const given = mode.status.units.map((k) => resp.units?.[k]).find(Boolean);
+    s.units = Object.fromEntries(mode.status.units.map((k) => [k, resp.units?.[k] || given || mode.status.defaultUnit]));
   }
 
   const prev = s.status;
   const span = spanInMonths(months, days);
   const period = months || days ? formatSpan(months, days) : '한 차례 회의';
-  const mode = modeOf(s);
   const { status, notes } = guardStatus(prev, resp.status, span, period, mode);
   s.status = status;
-  const deltas = statusDeltas(prev, status);
+  const deltas = statusDeltas(prev, status, mode);
+
+  // 분기 결산: 이번 턴에 분기가 넘어갔으면 마감한 분기의 숫자를 장부에 남긴다
+  const settlement = mode.features?.quarterly ? settlementLabel(state.date, s.date) : '';
+  if (settlement) {
+    const values = Object.fromEntries(mode.ledger.keys.map((k) => [k, status[k]]));
+    s.ledger = [...(s.ledger || []), { turn, label: settlement, date: s.date, values }].slice(-80);
+  }
 
   const mctx = { turn, date: s.date };
   s.characters = mergeCharacters(s.characters, resp.updates.characters, resp.record, mctx);
@@ -731,7 +753,7 @@ export function applyResponse(state, resp, ctx) {
   const opening =
     resp.opening ||
     (ctx.kind === 'time'
-      ? `${formatDate(state.date)}부터 ${formatDate(s.date)}까지의 국정을 정리합니다...`
+      ? mode.ui.fallbackTimeOpening(formatDate(state.date), formatDate(s.date))
       : mode.ui.fallbackOpening(s.setup.country));
 
   s.turns = [
@@ -752,6 +774,7 @@ export function applyResponse(state, resp, ctx) {
       status,
       deltas,
       issues,
+      settlement,
       roll: ctx.roll || null,
       events: ctx.events || [],
       suggestions: resp.suggestions,
@@ -765,7 +788,6 @@ export function applyResponse(state, resp, ctx) {
 export function worldSummary(state, fmt = formatAmount) {
   const mode = modeOf(state);
   const S = mode.summary;
-  const LBL = mode.statusLabels;
   const L = [];
   const st = state.status;
   L.push(`${S.country}: ${state.setup.country} / ${S.ruler}: ${state.setup.ruler}`);
@@ -773,10 +795,11 @@ export function worldSummary(state, fmt = formatAmount) {
   if (state.setup.notes) L.push(`특이사항: ${state.setup.notes}`);
   L.push(`현재: ${formatDate(state.date)}${state.eraLabel ? ` (${state.eraLabel})` : ''} · ${state.turnCount}번째 기록`);
   if (st) {
-    L.push(
-      `상태: ${LBL.population} ${fmt(st.population, '명')}, ${LBL.opinion} ${st.opinion}, ${LBL.happiness} ${st.happiness}, ${LBL.treasury} ${fmt(st.treasury, state.units?.treasury)}, ${LBL.gdp} ${fmt(st.gdp, state.units?.gdp)}`
-    );
-    L.push(`${LBL.allies}: ${st.allies.join(', ') || '없음'} / ${LBL.enemies}: ${st.enemies.join(', ') || '없음'}`);
+    const fields = mode.status.fields;
+    const nums = fields.filter((f) => f.type !== 'list');
+    const lists = fields.filter((f) => f.type === 'list');
+    L.push(`상태: ${nums.map((f) => `${f.label} ${formatField(f, st[f.key], state.units, fmt)}`).join(', ')}`);
+    if (lists.length) L.push(lists.map((f) => `${f.label}: ${formatField(f, st[f.key])}`).join(' / '));
   }
   if (state.characters.length) {
     L.push('', `[${S.people}]`);
@@ -799,6 +822,45 @@ export function worldSummary(state, fmt = formatAmount) {
     for (const c of state.chronicle.slice(-10)) L.push(`- ${formatDate(c.date)} ${c.text}`);
   }
   return L.join('\n');
+}
+
+// ── 분기 ───────────────────────────────────────────────────
+export function quarterOf(date) {
+  return Math.floor((date.month - 1) / 3) + 1;
+}
+
+function quarterIndex(date) {
+  return date.year * 4 + quarterOf(date) - 1;
+}
+
+export function quarterLabel(index) {
+  return `${Math.floor(index / 4)}년 ${(index % 4) + 1}분기`;
+}
+
+// from에서 to로 넘어가며 마감한 분기의 이름. 없으면 ''. 여러 분기를 건너면 "2020년 2분기~2021년 1분기".
+export function settlementLabel(from, to) {
+  const a = quarterIndex(from);
+  const b = quarterIndex(to);
+  if (b <= a) return '';
+  return b - a === 1 ? quarterLabel(a) : `${quarterLabel(a)}~${quarterLabel(b - 1)}`;
+}
+
+// 다음 분기 첫날까지 남은 기간 ("분기 마감까지" 버튼)
+export function spanToNextQuarter(date) {
+  const day = (date.day || 1) - 1;
+  const nextQuarterMonth = quarterOf(date) * 3; // 0부터 센 다음 분기 첫 달
+  const total = (nextQuarterMonth - (date.month - 1)) * DAYS_PER_MONTH - day;
+  return { months: Math.floor(total / DAYS_PER_MONTH), days: total % DAYS_PER_MONTH };
+}
+
+// 상태창 항목 하나를 글로 쓴다
+export function formatField(f, v, units, fmt = formatAmount) {
+  if (f.type === 'list') return v?.length ? v.join(', ') : '없음';
+  if (!Number.isFinite(v)) return '—';
+  if (f.type === 'score') return `${v}`;
+  if (f.type === 'percent') return `${v}%`;
+  if (f.type === 'money') return fmt(v, units?.[f.unitKey]);
+  return fmt(v, f.unit);
 }
 
 // ── 수치 표기 ──────────────────────────────────────────────
@@ -838,7 +900,8 @@ export function deserialize(text, expectMode) {
   if (expectMode && data.setup.mode !== expectMode) {
     throw new Error(`${getMode(data.setup.mode).title}의 저장 기록입니다. ${wanted}에서는 불러올 수 없습니다.`);
   }
-  for (const k of ['characters', 'policies', 'factions', 'regions', 'chronicle', 'turns']) {
+  getMode(data.setup.mode).migrate?.(data);
+  for (const k of ['characters', 'policies', 'factions', 'regions', 'chronicle', 'ledger', 'turns']) {
     if (!Array.isArray(data[k])) data[k] = [];
   }
   if (!data.date.day) data.date = { ...data.date, day: 1 };

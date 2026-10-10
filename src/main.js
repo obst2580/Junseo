@@ -8,6 +8,10 @@ import {
   createGame,
   validateSetup,
   computePressure,
+  activeCrises,
+  settlementLabel,
+  spanToNextQuarter,
+  formatField,
   rollFriction,
   REVISIT_BONUS,
   rollEvents,
@@ -257,23 +261,25 @@ function gauge(v) {
 
 function statusGrid(status, deltas, units, date, eraLabel, months, days) {
   const d = deltas || {};
-  const STATUS_LABEL = MODE.statusLabels;
   const signedInt = (n) => (n ? `${n > 0 ? '▲' : '▼'} ${Math.abs(n)}` : '');
+  const signedPp = (n) => (n ? `${n > 0 ? '▲' : '▼'} ${Math.abs(n)}%p` : '');
   const item = (key, label, value, ...extra) =>
     h('div', { class: `stat stat-${key}` }, h('dt', { text: label }), h('dd', null, h('span', { class: 'stat-value' }, value), ...extra));
+  const cells = MODE.status.fields.map((f) => {
+    const v = status[f.key];
+    if (f.type === 'list') return item(f.key, f.label, formatField(f, v), ...nationDelta(d[`${f.key}Added`], d[`${f.key}Removed`]));
+    if (f.type === 'score') return item(f.key, f.label, `${v} / 100`, deltaSpan(d[f.key], signedInt), gauge(v));
+    if (f.type === 'percent') return item(f.key, f.label, formatField(f, v), deltaSpan(d[f.key], signedPp));
+    const note = f.note?.(status);
+    return item(f.key, f.label, formatField(f, v, units), deltaSpan(d[f.key]), note ? h('span', { class: 'stat-note', text: note }) : null);
+  });
   return h(
     'dl',
     { class: 'statwin' },
-    item('population', STATUS_LABEL.population, formatAmount(status.population, '명'), deltaSpan(d.population)),
-    item('allies', STATUS_LABEL.allies, status.allies.join(', ') || '없음', ...nationDelta(d.alliesAdded, d.alliesRemoved)),
-    item('enemies', STATUS_LABEL.enemies, status.enemies.join(', ') || '없음', ...nationDelta(d.enemiesAdded, d.enemiesRemoved)),
-    item('opinion', STATUS_LABEL.opinion, `${status.opinion} / 100`, deltaSpan(d.opinion, signedInt), gauge(status.opinion)),
-    item('happiness', STATUS_LABEL.happiness, `${status.happiness} / 100`, deltaSpan(d.happiness, signedInt), gauge(status.happiness)),
-    item('treasury', STATUS_LABEL.treasury, formatAmount(status.treasury, units?.treasury), deltaSpan(d.treasury)),
-    item('gdp', STATUS_LABEL.gdp, formatAmount(status.gdp, units?.gdp), deltaSpan(d.gdp)),
+    ...cells,
     item(
-      'year',
-      STATUS_LABEL.date,
+      'date',
+      MODE.status.dateLabel,
       `${formatDate(date)}${eraLabel ? ` · ${eraLabel}` : ''}`,
       months || days ? h('span', { class: 'delta neutral', text: `+${formatSpan(months, days)}` }) : null
     )
@@ -305,6 +311,7 @@ function turnCard(t, state) {
       'header',
       { class: 'turn-head' },
       h('span', { class: 'turn-no', text: UI.turnNo(t.n) }),
+      t.settlement ? h('span', { class: 'pill settle', text: `${t.settlement} 결산` }) : null,
       h('span', { class: 'turn-date', text: `${formatDate(t.date)}${t.eraLabel ? ` · ${t.eraLabel}` : ''}` })
     ),
     t.kind === 'command'
@@ -380,6 +387,7 @@ function renderSide() {
       h('span', { class: 'mood-label', text: p.label }),
       h('span', { class: 'mood-scale', 'aria-hidden': 'true' }, ...['우호적', '평온', '긴장', '험악'].map((l) => h('span', { class: l === p.label ? 'on' : '' })))
     ),
+    ...[crisisBox(s)].filter(Boolean),
     h('p', { class: 'mood-chance' }, UI.acceptLine, h('b', { text: `약 ${p.chance}%` })),
     h(
       'p',
@@ -398,7 +406,19 @@ function renderSide() {
   if (app.tab === 'people') body.replaceChildren(peopleList(s));
   else if (app.tab === 'policy') body.replaceChildren(policyList(s));
   else if (app.tab === 'faction') body.replaceChildren(factionList(s));
+  else if (app.tab === 'ledger') body.replaceChildren(ledgerList(s));
   else body.replaceChildren(annalsList(s));
+}
+
+function crisisBox(s) {
+  const crises = activeCrises(s);
+  if (!crises.length) return null;
+  return h(
+    'div',
+    { class: 'crisis', role: 'status' },
+    h('p', { class: 'crisis-title', text: UI.crisisTitle }),
+    h('ul', null, ...crises.map((c) => h('li', { text: c.label })))
+  );
 }
 
 function emptyNote(text) {
@@ -438,7 +458,7 @@ function policyList(s) {
         'p',
         { class: 'policy-head' },
         h('b', { text: p.name }),
-        h('span', { class: `pill ${isPending ? 'pending' : ''}`, text: p.status }),
+        h('span', { class: `pill ${isPending ? 'pending' : ''}`, text: MODE.policyDisplay[p.status] || p.status }),
         isPending ? h('span', { class: 'wait', text: `${s.turnCount - (p.updatedTurn ?? 0)}턴째` }) : null
       ),
       p.summary ? h('p', { class: 'policy-sum', text: p.summary }) : null,
@@ -479,6 +499,43 @@ function factionList(s) {
         h('p', { class: 'faction-head' }, h('b', { text: f.name }), h('span', { class: 'num', text: String(f.support) })),
         gauge(f.support),
         f.note ? h('p', { class: 'faction-note', text: f.note }) : null
+      )
+    )
+  );
+}
+
+// 분기 장부: 최근 분기가 위, 지난 분기보다 오른 숫자는 ▲
+function ledgerList(s) {
+  const rows = s.ledger || [];
+  if (!rows.length) return emptyNote(UI.ledgerEmpty);
+  const fields = MODE.ledger.keys.map((k) => MODE.status.fields.find((f) => f.key === k));
+  const arrow = (now, before) => (!Number.isFinite(before) || now === before ? '' : now > before ? ' ▲' : ' ▼');
+  return h(
+    'div',
+    { class: 'ledger-wrap' },
+    h(
+      'table',
+      { class: 'ledger' },
+      h('thead', null, h('tr', null, h('th', { text: '분기' }), ...fields.map((f) => h('th', { text: f.label })))),
+      h(
+        'tbody',
+        null,
+        ...[...rows].reverse().map((r, i, list) => {
+          const older = list[i + 1]?.values || {};
+          return h(
+            'tr',
+            null,
+            h('th', { text: r.label }),
+            ...fields.map((f) =>
+              h(
+                'td',
+                { class: f.signed && r.values[f.key] < 0 ? 'neg' : '' },
+                formatField(f, r.values[f.key], s.units, (v) => formatBig(v)),
+                h('span', { class: r.values[f.key] > older[f.key] ? 'up' : 'down', text: arrow(r.values[f.key], older[f.key]) })
+              )
+            )
+          );
+        })
       )
     )
   );
@@ -595,8 +652,8 @@ function conflictCard(conflict, onChoose) {
       'div',
       { class: 'conflict-options' },
       h('button', { type: 'button', class: 'btn', onclick: () => onChoose('keep') }, h('b', { text: '(1)' }), ' 기존 설정을 기준으로 진행'),
-      h('button', { type: 'button', class: 'btn', onclick: () => onChoose('override') }, h('b', { text: '(2)' }), ' 현재 지시를 우선하여 세계관 일부 덮어쓰기'),
-      h('button', { type: 'button', class: 'btn', onclick: () => onChoose('resync') }, h('b', { text: '(3)' }), ' 세계관 요약을 정리해 재동기화'),
+      h('button', { type: 'button', class: 'btn', onclick: () => onChoose('override') }, h('b', { text: '(2)' }), ` ${UI.conflictOverride}`),
+      h('button', { type: 'button', class: 'btn', onclick: () => onChoose('resync') }, h('b', { text: '(3)' }), ` ${UI.conflictResync}`),
       h('button', { type: 'button', class: 'btn ghost', onclick: () => onChoose('cancel'), text: UI.conflictCancel })
     )
   );
@@ -613,14 +670,17 @@ function buildContext(req) {
     }
     const roll = rollFriction(s, Math.random, req.command);
     const days = rollDecisionDays(roll.tier);
+    const target = advanceDate(s.date, 0, days);
     const ctx = {
       kind: 'command',
       command: req.command,
       roll,
       days,
-      target: advanceDate(s.date, 0, days),
+      target,
       events: rollEvents(s, 'command', 0),
       agenda: pickStaleAgenda(s),
+      crises: activeCrises(s),
+      settlement: MODE.features?.quarterly ? settlementLabel(s.date, target) : '',
     };
     app.rollCache = { turn: s.turnCount, command: req.command, ctx };
     return { ...ctx, resolution: req.resolution };
@@ -631,14 +691,17 @@ function buildContext(req) {
     const days = req.days || 0;
     const key = `${months}:${days}`;
     if (cached && cached.turn === s.turnCount && cached.span === key) return cached.ctx;
+    const target = advanceDate(s.date, months, days);
     const ctx = {
       kind: 'time',
       months,
       days,
-      target: advanceDate(s.date, months, days),
+      target,
       roll: rollFriction(s),
       events: rollEvents(s, 'time', spanInMonths(months, days)),
       agenda: pickStaleAgenda(s),
+      crises: activeCrises(s),
+      settlement: MODE.features?.quarterly ? settlementLabel(s.date, target) : '',
     };
     app.rollCache = { turn: s.turnCount, span: key, ctx };
     return ctx;
@@ -995,11 +1058,20 @@ function wire() {
       submitCommand($('cmd').value);
     }
   });
-  for (const b of document.querySelectorAll('#dock [data-months], #dock [data-days]')) {
-    b.addEventListener('click', () =>
-      runTurn({ kind: 'time', months: Number(b.dataset.months || 0), days: Number(b.dataset.days || 0) })
-    );
-  }
+  $('timeChips').replaceChildren(
+    ...MODE.timeChips.map((c) =>
+      h('button', {
+        type: 'button',
+        class: 'btn chip',
+        text: c.label,
+        onclick: () => {
+          const span = c.toQuarterEnd ? spanToNextQuarter(app.state.date) : { months: c.months || 0, days: c.days || 0 };
+          runTurn({ kind: 'time', ...span });
+        },
+      })
+    )
+  );
+  $('tab-ledger').hidden = !MODE.features?.quarterly;
   $('skipGo').addEventListener('click', () => {
     const years = Math.round(Number($('skipYears').value));
     if (!years || years < 1) return;

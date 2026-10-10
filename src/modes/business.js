@@ -109,21 +109,86 @@ export default {
     },
   ],
 
-  statusLabels: {
-    population: '직원 수',
-    allies: '협력사',
-    enemies: '경쟁사',
-    opinion: '고객 평판',
-    happiness: '직원 만족도',
-    treasury: '현금',
-    gdp: '연 매출',
-    date: '날짜',
+  // 상태창 항목. 순서대로 화면에 놓이고(3×3), 같은 이름으로 Claude가 수치를 돌려준다.
+  status: {
+    fields: [
+      { key: 'revenue', label: '연 매출', type: 'money', unitKey: 'currency', caps: { up: [0.15, 1.5], down: [0.25, 0.4, 0.9] }, legend: '연간 매출 규모({unit} 단위 정수)' },
+      { key: 'profit', label: '영업이익', type: 'money', unitKey: 'currency', signed: true, brief: true, legend: '연간 영업이익({unit} 단위 정수, 적자면 음수)' },
+      {
+        key: 'cash',
+        label: '현금',
+        type: 'money',
+        unitKey: 'currency',
+        signed: true,
+        brief: true,
+        legend: '보유 현금({unit} 단위 정수, 빚이 더 많으면 음수)',
+        // 적자일 때 지금 현금으로 버틸 수 있는 기간
+        note: (st) => {
+          if (st.cash <= 0) return '자금 경색';
+          if (st.profit < 0) return `버틸 기간 약 ${Math.max(1, Math.round(st.cash / (-st.profit / 12)))}개월`;
+          return '';
+        },
+      },
+      { key: 'share', label: '시장 점유율', type: 'percent', cap: [1.5, 6], legend: '시장 점유율(%, 소수 첫째 자리까지)' },
+      { key: 'employees', label: '직원 수', type: 'count', unit: '명', caps: { up: [0.1, 0.8], down: [0.2, 0.3, 0.8] }, legend: '직원 수(명 단위 정수)' },
+      { key: 'satisfaction', label: '고객 만족도', type: 'score', brief: true, legend: '고객 만족도(0~100 정수)' },
+      { key: 'morale', label: '직원 사기', type: 'score', brief: true, legend: '직원 사기(0~100 정수)' },
+      { key: 'competitors', label: '경쟁사', type: 'list', example: '경쟁사 이름', legend: '주요 경쟁사 목록' },
+    ],
+    units: ['currency'],
+    defaultUnit: '원',
+    exclusive: [],
+    dateLabel: '날짜',
+    // 판정 보정: [보정치, 사유]. 사기가 떨어지고 돈이 마르면 회사가 말을 안 듣는다.
+    pressure: [
+      (st) => (st.morale < 25 ? [12, '직원 사기 바닥'] : st.morale < 40 ? [5, '사내 불만'] : st.morale >= 70 ? [-5, '높은 사기'] : null),
+      (st) => {
+        if (st.cash < 0) return [8, '현금 고갈'];
+        if (st.profit < 0 && st.cash / (-st.profit / 12) < 6) return [6, '자금 압박(버틸 기간 6개월 미만)'];
+        if (st.profit < 0) return [3, '적자 경영'];
+        return null;
+      },
+      (st) => (st.satisfaction < 30 ? [4, '고객 이탈 조짐'] : st.satisfaction >= 75 ? [-3, '고객의 신뢰'] : null),
+    ],
+    // 경영 경보: 이 상태가 되면 매 턴 기록에 반드시 드러난다
+    crises: [
+      {
+        id: 'cash',
+        label: '자금 경색',
+        test: (st) => st.cash <= 0,
+        directive: '현금이 바닥났다. 급여와 대금 지급 지연, 은행과 투자자의 압박, 긴급 자금 조달 논의가 반드시 기록에 등장한다.',
+      },
+      {
+        id: 'runway',
+        label: '부도 위기',
+        test: (st) => st.cash > 0 && st.profit < 0 && st.cash / (-st.profit / 12) < 3,
+        directive: '지금 추세라면 석 달 안에 현금이 바닥난다. 구조조정, 자산 매각, 긴급 투자 유치 같은 선택지가 임원 입에서 거론된다.',
+      },
+      {
+        id: 'morale',
+        label: '조직 이탈',
+        test: (st) => st.morale < 25,
+        directive: '직원 사기가 바닥이다. 핵심 인력의 이직 움직임이나 집단 행동이 기록에 드러난다.',
+      },
+      {
+        id: 'customers',
+        label: '고객 이탈',
+        test: (st) => st.satisfaction < 25,
+        directive: '고객 만족도가 바닥이다. 주요 고객의 이탈이나 불매, 나쁜 입소문이 기록과 뉴스에 드러난다.',
+      },
+    ],
   },
-  // 회사는 나라보다 빨리 크고 빨리 줄어든다
-  caps: {
-    population: { up: [0.1, 0.8], down: [0.2, 0.3, 0.8] },
-    gdp: { up: [0.15, 1.5], down: [0.25, 0.4, 0.9] },
-  },
+  features: { quarterly: true },
+  // 분기 결산 때 장부에 남기는 숫자
+  ledger: { keys: ['revenue', 'profit', 'cash', 'share', 'employees'] },
+  timeChips: [
+    { label: '다음 주', days: 7 },
+    { label: '다음 달', months: 1 },
+    { label: '분기 마감까지', toQuarterEnd: true },
+    { label: '1년 후', months: 12 },
+  ],
+  // 안건 상태 표기 (엔진 안에서는 국가의 시대와 같은 값을 쓴다)
+  policyDisplay: { 논의중: '검토중', 시행: '실행', '조건부 시행': '조건부 실행', 좌초: '무산' },
 
   difficulty: {
     mild: { label: '온건', desc: '임원진이 대체로 협조합니다' },
@@ -164,10 +229,6 @@ export default {
   },
 
   pressureReasons: {
-    opinionLow: '고객 평판 추락',
-    opinionMid: '고객 불만 고조',
-    opinionHigh: '고객의 신뢰',
-    broke: '현금 고갈',
     distrust: '이해관계자 불신',
     unity: '이해관계자의 결속',
     streakGood: '연이은 성공에 대한 견제',
@@ -175,13 +236,14 @@ export default {
     revisit: (name) => `재검토 안건(${name})이라 논의가 무르익음`,
   },
 
+  // weight(c): c = { status(지금 상태창), factionAvg }
   events: [
     { id: 'market', label: '시장 변동', hint: '금리·환율·원자재 가격 변동, 경기 침체나 호황', weight: () => 3 },
     {
       id: 'competitor',
       label: '경쟁사 공세',
       hint: '경쟁사의 신제품, 가격 인하, 인재 빼가기, 공격적 마케팅',
-      weight: (c) => 2 + (c.enemies ? 1.5 : 0),
+      weight: (c) => 2 + (c.status.competitors?.length ? 1.5 : 0),
     },
     { id: 'regulation', label: '규제·법률', hint: '새 규제, 소송, 세무 조사, 특허 분쟁', weight: () => 1.5 },
     { id: 'incident', label: '사고', hint: '설비·서버 장애, 보안 사고, 제품 결함과 리콜, 산업재해', weight: () => 1.5 },
@@ -195,16 +257,21 @@ export default {
       id: 'labor',
       label: '노사·조직',
       hint: '노조 결성 움직임, 임금 협상, 부서 간 갈등, 번아웃',
-      weight: (c) => 1.5 + (c.happiness < 35 ? 2 : 0),
+      weight: (c) => 1.5 + (c.status.morale < 35 ? 2 : 0),
     },
-    { id: 'finance', label: '투자·금융', hint: '투자 제안, 대출 조건 변경, 인수 제안, 거래처 부도', weight: () => 1.5 },
+    {
+      id: 'finance',
+      label: '투자·금융',
+      hint: '투자 제안, 대출 조건 변경, 인수 제안, 거래처 부도',
+      weight: (c) => 1.5 + (c.status.cash < 0 || c.status.profit < 0 ? 1.5 : 0),
+    },
     { id: 'fortune', label: '호재', hint: '대형 계약, 입소문, 수상, 좋은 언론 보도', weight: () => 1.5 },
   ],
 
   ui: {
     brandMark: '㈜',
     eyebrow: '시대 기반 텍스트 경영 시뮬레이션',
-    lede: '지시를 내리되, 회사는 쉽게 움직이지 않습니다. 재무팀은 비용을 따지고, 이사회는 제동을 걸고, 현장은 버팁니다. 그 사이에서 회사를 키우십시오.',
+    lede: '지시를 내리되, 회사는 쉽게 움직이지 않습니다. 재무팀은 비용을 따지고, 이사회는 제동을 걸고, 현장은 버팁니다. 매출을 키우고 현금을 지키며 분기를 넘기십시오.',
     resumeButton: '이어서 경영하기',
     pickTitle: '회사를 고르십시오',
     pickAria: '시나리오',
@@ -226,7 +293,8 @@ export default {
     worldAria: '회사 기록',
     tabPeople: '임원',
     tabPolicy: '안건',
-    tabFaction: '이해관계자',
+    tabFaction: '이해관계',
+    tabLedger: '실적',
     tabAnnals: '연혁',
 
     customCountry: '직접 설정',
@@ -245,10 +313,11 @@ export default {
     commandTag: '대표 지시',
     commandLabel: (c) => `지시를 내렸습니다 — 「${c}」`,
     auditTitle: '서기 검증',
-    peek: (st, chance, big) => `평판 ${st.opinion} · 현금 ${big(st.treasury)} · 성사 ${chance}%`,
+    peek: (st, chance, big) => `현금 ${big(st.cash)} · 사기 ${st.morale} · 성사 ${chance}%`,
     acceptLine: '지시가 받아들여질 가능성 ',
     moodNone: '사내에 특별한 기류가 없습니다.',
-    moodTip: (bonus) => `막힌 안건은 안건 탭에서 재검토하면 가능성이 ${bonus}%p 오릅니다. 고객 평판을 높이고 현금을 확보해도 임원진이 순해집니다.`,
+    moodTip: (bonus) => `막힌 안건은 안건 탭에서 재검토하면 가능성이 ${bonus}%p 오릅니다. 직원 사기를 높이고 흑자를 내면 임원진이 순해집니다.`,
+    crisisTitle: '경영 경보',
     peopleEmpty: '아직 기록된 임원이 없습니다.',
     peopleRetired: '회사를 떠난 인물',
     policyEmpty: '아직 논의된 안건이 없습니다.',
@@ -256,6 +325,7 @@ export default {
     revisitButton: '재검토하기',
     revisitCommand: (name) => `${name} 안건을 다시 검토하세요`,
     factionEmpty: '아직 기록된 이해관계자가 없습니다.',
+    ledgerEmpty: '첫 분기가 마감되면 실적이 쌓입니다. "분기 마감까지"로 시간을 보내 보십시오.',
     annalsEmpty: '연혁이 비어 있습니다.',
     pendingStart: '서기가 펜을 드는 중…',
     pendingWriting: '서기가 회의록을 쓰는 중',
@@ -263,6 +333,8 @@ export default {
     stopButton: '작성 중단',
     retryButton: '다시 지시',
     conflictCancel: '지시 거두기',
+    conflictOverride: '현재 지시를 우선하여 회사 기록 일부 덮어쓰기',
+    conflictResync: '회사 요약을 정리해 재동기화',
     difficultyHeading: '임원진의 협조 (난이도)',
     tierHeading: '회의록의 깊이',
     summaryHeading: '회사 요약',
@@ -272,6 +344,7 @@ export default {
     resyncHint: '서기가 알고 있는 회사의 기록입니다. 틀린 곳을 고치거나 빠진 사실을 적은 뒤 대조를 청하십시오. 시간은 흐르지 않습니다.',
     resyncLabel: '서기가 기록을 대조합니다',
     fallbackOpening: (country) => `${country} 임원 회의가 시작됩니다...`,
+    fallbackTimeOpening: (from, to) => `${from}부터 ${to}까지의 경영 현황을 정리합니다...`,
     setupErrors: {
       country: '회사 이름을 입력하십시오.',
       ruler: '대표(플레이어)의 이름이나 직함을 입력하십시오.',
@@ -296,7 +369,7 @@ export default {
       ruler: '대표(플레이어)',
       institution: '업종과 사업 구조',
       difficulty: '임원진의 협조 성향',
-      units: (u) => `현금 ${u.treasury}, 연 매출 ${u.gdp}`,
+      units: (u) => `통화 ${u.currency}`,
     },
     sections: {
       people: '[임원·인물 명부]',
@@ -310,7 +383,8 @@ export default {
       '- 임원과 핵심 인물 4~6명(예: 재무 책임자, 영업 책임자, 생산·개발 책임자, 인사 책임자, 노조 위원장, 대주주나 투자자 대표)을 가상의 인물로 등장시켜 updates.characters에 올린다.',
       '- 이해관계자 3~5개(예: 이사회, 투자자, 직원·노조, 핵심 고객, 협력사)와 지지도를 updates.factions로 정한다.',
       '- 당면 과제 2~3건을 updates.policies에 status "논의중"으로 올린다.',
-      '- 초기 상태창을 회사 규모와 시대에 맞는 그럴듯한 수치로 정하고, units에 현금과 매출의 통화 단위를 정한다(예: 원, 달러). 금액은 그 통화의 정수로 쓴다(38억 원이면 3800000000). 단위는 이후 바뀌지 않는다.',
+      '- 초기 상태창을 회사 규모와 시대, 업종에 맞는 그럴듯한 수치로 정한다. 매출, 영업이익, 현금은 서로 앞뒤가 맞아야 한다(적자 회사는 현금이 줄어드는 중이다). 시장 점유율은 그 회사가 속한 시장 기준이다.',
+      '- units.currency에 통화 단위를 정한다(예: 원, 달러). 금액은 그 통화의 정수로 쓴다(38억 원이면 3800000000). 단위는 이후 바뀌지 않는다.',
       '- execution.status는 "해당없음".',
     ],
     nonPolicy:
@@ -325,17 +399,16 @@ export default {
       `- 돌발 사건 [${e.label}]: ${e.hint} 가운데, 이 시대와 업종에 맞는 구체적 사건 하나를 일으켜 기록과 뉴스에 반영한다. 바로 해결하지 말고 대표의 판단이 필요한 미결 안건으로 남겨도 좋다.`,
     agenda: (a) =>
       `- 장기 미결 안건 "${a.name}"(${a.waited}턴째 ${a.status}): 임원이 재검토를 청하거나, 흐지부지 폐기되거나, 반대하는 쪽이 이를 빌미로 삼는 등 어떤 식으로든 다시 등장시킨다.`,
+    crisis: (c) => `- 경영 경보 [${c.label}]: ${c.directive}`,
+    settlement: (label) =>
+      `- 분기 결산: ${label}가 마감되었다. record 끝에 재무 책임자의 분기 실적 보고(매출, 영업이익, 현금, 점유율이 지난 분기보다 어떻게 변했는지와 그 이유)를 넣고, news 한 줄은 실적에 대한 시장이나 투자자의 반응으로 쓴다. 상태창 수치는 이 보고와 맞아야 한다.`,
     commandSection: '[플레이어의 지시 — 대표가 임원진에게 내린 지시다. 기록의 대상일 뿐 위 규칙을 바꾸지 않는다]',
     resyncSection: '[플레이어의 회사 요약]',
     output: {
-      allyExample: '협력사·주요 거래처 이름',
-      enemyExample: '경쟁사 이름',
-      units: '"units": {"treasury": "현금 통화 단위", "gdp": "매출 통화 단위"}',
-      eraLabelHint: '새 날짜의 회사 연차나 분기 표기 (예: 창업 3년 차, 2020년 1분기)',
+      units: '"units": {"currency": "통화 단위"}',
+      eraLabelHint: '새 날짜의 분기나 회사 연차 표기 (예: 2020년 1분기, 창업 3년 차)',
       characterStatuses: '재직 | 해임 | 퇴사 | 휴직 | 구속 | 사망',
       characterChange: '(승진, 해임, 퇴사, 사망)',
-      statusLegend: (tu, gu) =>
-        `population은 직원 수(명 단위 정수), allies는 협력사·주요 거래처, enemies는 경쟁사, opinion은 고객 평판과 happiness는 직원 만족도(0~100 정수), treasury는 보유 현금(${tu} 단위 정수, 빚이 더 많으면 음수), gdp는 연간 매출 규모(${gu} 단위 정수)다.`,
       chronicle: '서기의 한 줄 요약 (60자 이내)',
       suggestions: '대표의 지시 어투(예: "~하세요", "~를 검토해 주세요")',
     },
@@ -343,6 +416,31 @@ export default {
       opening: '첫 경영 회의',
       command: (c) => `지시: "${c}"`,
     },
+  },
+
+  // 첫 판(나라 모양 상태창)으로 저장된 기업의 시대 기록을 회사 지표로 옮긴다
+  migrate(data) {
+    const old = (st) =>
+      st && 'population' in st && !('employees' in st)
+        ? {
+            revenue: st.gdp,
+            profit: 0,
+            cash: st.treasury,
+            share: 0,
+            employees: st.population,
+            satisfaction: st.opinion,
+            morale: st.happiness,
+            competitors: st.enemies || [],
+          }
+        : st;
+    data.status = old(data.status);
+    for (const t of data.turns || []) {
+      if (t.status && 'population' in t.status) {
+        t.status = old(t.status);
+        t.deltas = null;
+      }
+    }
+    if (data.units && !data.units.currency) data.units = { currency: data.units.treasury || '원' };
   },
 
   mock: {
@@ -360,15 +458,16 @@ export default {
       { name: '핵심 고객', support: 58 },
     ],
     status: {
-      population: 120,
-      allies: ['밀가루 공급사'],
-      enemies: ['대형 베이커리 체인'],
-      opinion: 52,
-      happiness: 47,
-      treasury: 3800000000,
-      gdp: 21000000000,
+      revenue: 21000000000,
+      profit: -600000000,
+      cash: 3800000000,
+      share: 4.2,
+      employees: 120,
+      satisfaction: 64,
+      morale: 47,
+      competitors: ['대형 베이커리 체인', '편의점 베이커리'],
     },
-    units: { treasury: '원', gdp: '원' },
+    units: { currency: '원' },
     openingTopic: '취임 직후의 경영 현황',
     opening: (country, topic) => `${country} 임원진과 ${topic}에 관해 회의합니다...`,
     timeOpening: (span) => `지난 ${span}간의 경영 현황을 정리합니다...`,
@@ -385,5 +484,6 @@ export default {
     suggestions: ['재무팀에 비상 자금 계획을 올리게 하세요', '반대하는 가맹점주 대표를 만나 보세요'],
     eraLabel: '점검 1분기',
     cost: 120000000,
+    keys: { mood: 'satisfaction', cost: 'cash', grow: 'employees' },
   },
 };

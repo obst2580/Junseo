@@ -546,3 +546,34 @@ textarea { resize: vertical; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* 모드가 정하는 시간 버튼은 시간 경과 줄에 그대로 놓인다 */
+.time-chips { display: contents; }
+
+/* 상태창 칸의 보조 설명 (예: 버틸 기간) */
+.stat-note { flex-basis: 100%; font-size: 0.72rem; color: var(--ink-soft); }
+
+/* 분기 결산 표시 */
+.pill.settle { border-color: var(--accent); color: var(--accent); font-family: var(--font-ui); }
+
+/* 경영(국정) 경보 */
+.crisis {
+  margin-top: 0.6rem; padding: 0.5rem 0.65rem;
+  border: 1px solid var(--seal); border-radius: var(--radius);
+  background: color-mix(in srgb, var(--seal) 8%, transparent);
+  font-family: var(--font-ui);
+}
+.crisis-title { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; color: var(--seal); }
+.crisis ul { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
+.crisis li { font-size: var(--step--1); font-weight: 600; color: var(--seal); }
+.crisis li::before { content: '● '; font-size: 0.6em; vertical-align: 0.2em; }
+
+/* 분기 장부 */
+.ledger-wrap { overflow-x: auto; }
+.ledger { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 0.75rem; white-space: nowrap; }
+.ledger th, .ledger td { padding: 0.35rem 0.4rem; border-bottom: 1px solid var(--rule-soft); text-align: right; }
+.ledger thead th { font-weight: 600; color: var(--ink-soft); border-bottom-color: var(--rule); }
+.ledger tbody th { text-align: left; font-weight: 600; }
+.ledger td.neg { color: var(--down); }
+.ledger td .up { color: var(--up); }
+.ledger td .down { color: var(--down); }

@@ -152,6 +152,7 @@ const EXEC_BY_TIER = {
 export function mockResponse(meta) {
   const s = meta.state;
   const M = modeOf(s).mock;
+  const K = M.keys; // 판정에 따라 움직일 항목: 평판(mood), 비용이 빠지는 돈(cost), 시간에 따라 느는 수(grow)
   const st = s.status || M.status;
   if (meta.kind === 'command' && !meta.resolution && /재도입|다시 시행|다시 도입/.test(meta.command)) {
     return {
@@ -182,11 +183,10 @@ export function mockResponse(meta) {
     news: M.news,
     status: {
       ...st,
-      opinion: Math.max(0, Math.min(100, st.opinion + (meta.kind === 'command' ? opinionShift : 0))),
-      treasury: st.treasury - (meta.kind === 'command' ? M.cost : 0),
-      population:
-        st.population +
-        (meta.kind === 'time' ? Math.round(st.population * 0.004 * ((meta.months || 0) + (meta.days || 0) / 30)) : 0),
+      [K.mood]: Math.max(0, Math.min(100, st[K.mood] + (meta.kind === 'command' ? opinionShift : 0))),
+      [K.cost]: st[K.cost] - (meta.kind === 'command' ? M.cost : 0),
+      [K.grow]:
+        st[K.grow] + (meta.kind === 'time' ? Math.round(st[K.grow] * 0.004 * ((meta.months || 0) + (meta.days || 0) / 30)) : 0),
     },
     units: s.units ? undefined : M.units,
     eraLabel: M.eraLabel,
