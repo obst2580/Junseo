@@ -6,7 +6,7 @@ import { modeOf, formatDate, formatSpan, formatField, PENDING_POLICY } from './e
 
 // 상태창 예시와 설명을 모드의 항목 정의에서 만든다
 function statusShape(state) {
-  const fields = modeOf(state).status.fields;
+  const fields = modeOf(state).status.fields.filter((f) => !f.derived);
   const example = Object.fromEntries(fields.map((f) => [f.key, f.type === 'list' ? [f.example] : 0]));
   const unitOf = (f) => state.units?.[f.unitKey] || '(units에서 정한 단위)';
   const legend = fields.map((f) => `${f.key}는 ${f.legend.replace('{unit}', unitOf(f))}`).join(', ');
@@ -17,7 +17,7 @@ function outputSpec(state, kind) {
   const P = modeOf(state).prompt;
   const O = P.output;
   const shape = statusShape(state);
-  const unitsLine = kind === 'opening' ? `\n  ${O.units},` : '';
+  const unitsLine = (kind === 'opening' ? `\n  ${O.units},` : '') + (O.extra ? `\n  ${O.extra}` : '');
   const conflictRule =
     kind === 'command'
       ? '- 명령이 [세계 기록]과 충돌하면 {"conflict": {"summary": "무엇이 어떻게 충돌하는지", "question": "플레이어에게 확인할 질문"}} 만 출력한다. 충돌이 없으면 conflict는 null.'
@@ -47,7 +47,7 @@ JSON 객체 하나만 출력한다. 코드 블록이나 설명 문장을 붙이�
 규칙:
 ${conflictRule}
 - record는 4~8개 항목이다. 발언은 1~3문장. 서술 항목은 speaker와 title을 빈 문자열로 둔다.
-- 상태창 항목: ${shape.legend}. 숫자에 단위나 쉼표를 넣지 않는다.
+- 상태창 항목: ${shape.legend}. 숫자에 단위나 쉼표를 넣지 않는다.${O.extraRule ? `\n${O.extraRule}` : ''}
 - 상태창은 매번 모든 항목을 쓴다. 바뀌지 않은 항목은 이전 값을 그대로 쓴다.
 - updates에는 이번 턴에 새로 등장했거나 바뀐 항목만 넣는다. 없으면 빈 배열.
 - 발언한 실명 인물이 인물 명부에 없으면 updates.characters에 반드시 추가한다. 인물의 신상이 바뀌면${O.characterChange} 반영한다.
@@ -119,6 +119,7 @@ function worldSection(state) {
   L.push('', '[현재 상태]');
   L.push(`날짜: ${formatDate(state.date)}${state.eraLabel ? ` (${state.eraLabel})` : ''} · 지금까지 ${state.turnCount}번의 기록`);
   if (state.status) L.push(`상태창: ${JSON.stringify(state.status)}`);
+  if (state.status && mode.prompt.stageLine) L.push(mode.prompt.stageLine(state.status));
 
   if (state.characters.length) {
     const list = [...state.characters].sort((a, b) => (b.updatedTurn ?? 0) - (a.updatedTurn ?? 0)).slice(0, 60);

@@ -184,6 +184,10 @@ function renderSegments(containerId, name, options, selected) {
 function readSetup() {
   const form = $('setupForm');
   const data = Object.fromEntries(new FormData(form).entries());
+  if (!MODE.setupOptions) {
+    data.difficulty = 'standard';
+    data.tier = 'default';
+  }
   return { ...data, mode: MODE.id, scenarioId: app.selectedScenario };
 }
 
@@ -242,10 +246,11 @@ function showGame() {
 }
 
 // ── 상태창 ─────────────────────────────────────────────────
-function deltaSpan(n, fmt = formatSignedBig) {
+// invert: 오르면 나쁜 항목 (월 비용 등)
+function deltaSpan(n, fmt = formatSignedBig, invert = false) {
   const t = fmt(n);
   if (!t) return null;
-  return h('span', { class: `delta ${n > 0 ? 'up' : 'down'}`, text: t });
+  return h('span', { class: `delta ${n > 0 !== invert ? 'up' : 'down'}`, text: t });
 }
 
 function nationDelta(added, removed) {
@@ -264,14 +269,14 @@ function statusGrid(status, deltas, units, date, eraLabel, months, days) {
   const signedInt = (n) => (n ? `${n > 0 ? '▲' : '▼'} ${Math.abs(n)}` : '');
   const signedPp = (n) => (n ? `${n > 0 ? '▲' : '▼'} ${Math.abs(n)}%p` : '');
   const item = (key, label, value, ...extra) =>
-    h('div', { class: `stat stat-${key}` }, h('dt', { text: label }), h('dd', null, h('span', { class: 'stat-value' }, value), ...extra));
+    h('div', { class: `stat stat-${key}${status[key] < 0 ? ' neg' : ''}` }, h('dt', { text: label }), h('dd', null, h('span', { class: 'stat-value' }, value), ...extra));
   const cells = MODE.status.fields.map((f) => {
     const v = status[f.key];
     if (f.type === 'list') return item(f.key, f.label, formatField(f, v), ...nationDelta(d[`${f.key}Added`], d[`${f.key}Removed`]));
     if (f.type === 'score') return item(f.key, f.label, `${v} / 100`, deltaSpan(d[f.key], signedInt), gauge(v));
     if (f.type === 'percent') return item(f.key, f.label, formatField(f, v), deltaSpan(d[f.key], signedPp));
     const note = f.note?.(status);
-    return item(f.key, f.label, formatField(f, v, units), deltaSpan(d[f.key]), note ? h('span', { class: 'stat-note', text: note }) : null);
+    return item(f.key, f.label, formatField(f, v, units), deltaSpan(d[f.key], formatSignedBig, f.invert), note ? h('span', { class: 'stat-note', text: note }) : null);
   });
   return h(
     'dl',
@@ -283,6 +288,41 @@ function statusGrid(status, deltas, units, date, eraLabel, months, days) {
       `${formatDate(date)}${eraLabel ? ` · ${eraLabel}` : ''}`,
       months || days ? h('span', { class: 'delta neutral', text: `+${formatSpan(months, days)}` }) : null
     )
+  );
+}
+
+// 기록마다 바뀐 것만: "현금 ▼ 52만 · 고객 ▲ 18 · 팀 사기 ▼ 2"
+function changeList(t, state) {
+  const d = t.deltas || {};
+  const items = [];
+  for (const f of MODE.status.fields) {
+    if (f.type === 'list') {
+      for (const x of d[`${f.key}Added`] || []) items.push([`${f.label} +${x}`, 'up']);
+      for (const x of d[`${f.key}Removed`] || []) items.push([`${f.label} −${x}`, 'down']);
+      continue;
+    }
+    const v = d[f.key];
+    if (!v) continue;
+    const size = f.type === 'money' || f.type === 'count' ? formatBig(Math.abs(v)) : f.type === 'percent' ? `${Math.abs(v)}%p` : Math.abs(v);
+    items.push([`${f.label} ${v > 0 ? '▲' : '▼'} ${size}`, v > 0 !== Boolean(f.invert) ? 'up' : 'down']);
+  }
+  if (t.cashFlow) items.push([`목돈 ${t.cashFlow > 0 ? '들어옴' : '나감'} ${formatBig(Math.abs(t.cashFlow))}`, t.cashFlow > 0 ? 'up' : 'down']);
+  const span = t.months || t.days ? `+${formatSpan(t.months, t.days)}` : '';
+  if (!t.deltas) {
+    // 첫 기록은 출발선을 보여 준다
+    return h(
+      'ul',
+      { class: 'changes' },
+      ...MODE.status.fields
+        .filter((f) => f.brief)
+        .map((f) => h('li', { text: `${f.label} ${formatField(f, t.status[f.key], state.units, (v, u) => formatAmount(v, u))}` }))
+    );
+  }
+  return h(
+    'ul',
+    { class: 'changes' },
+    ...(items.length ? items.map(([text, cls]) => h('li', { class: cls, text })) : [h('li', { text: '큰 변화 없음' })]),
+    span ? h('li', { class: 'span', text: span }) : null
   );
 }
 
@@ -345,15 +385,15 @@ function turnCard(t, state) {
   }
   if (t.news.length) {
     card.append(
-      h('section', { class: 'news' }, h('h4', { text: '오늘의 뉴스:' }), h('ul', null, ...t.news.map((n) => h('li', { text: n }))))
+      h('section', { class: 'news' }, h('h4', { text: UI.newsTitle }), h('ul', null, ...t.news.map((n) => h('li', { text: n }))))
     );
   }
   card.append(
     h(
       'section',
       { class: 'turn-status' },
-      h('h4', { text: '상태창:' }),
-      statusGrid(t.status, t.deltas, state.units, t.date, t.eraLabel, t.months, t.days)
+      h('h4', { text: UI.turnStatusTitle }),
+      UI.turnStatus === 'changes' ? changeList(t, state) : statusGrid(t.status, t.deltas, state.units, t.date, t.eraLabel, t.months, t.days)
     )
   );
   if (t.issues?.length) {
@@ -531,7 +571,7 @@ function ledgerList(s) {
                 'td',
                 { class: f.signed && r.values[f.key] < 0 ? 'neg' : '' },
                 formatField(f, r.values[f.key], s.units, (v) => formatBig(v)),
-                h('span', { class: r.values[f.key] > older[f.key] ? 'up' : 'down', text: arrow(r.values[f.key], older[f.key]) })
+                h('span', { class: r.values[f.key] > older[f.key] !== Boolean(f.invert) ? 'up' : 'down', text: arrow(r.values[f.key], older[f.key]) })
               )
             )
           );
@@ -568,9 +608,30 @@ function renderSuggestions() {
   );
 }
 
+function overCard(s) {
+  return h(
+    'div',
+    { class: 'over', role: 'status' },
+    h('p', { class: 'over-title', text: `${UI.overTitle} · ${formatDate(s.over.date)}` }),
+    h('p', { class: 'over-reason', text: s.over.reason }),
+    h('p', { class: 'over-stats', text: UI.overStats(s, formatBig) }),
+    h('button', {
+      type: 'button',
+      class: 'btn primary',
+      text: UI.overButton,
+      onclick: () => {
+        clearSaved();
+        app.state = null;
+        showSetup();
+      },
+    })
+  );
+}
+
 function renderLog() {
   const log = $('log');
   log.replaceChildren(...app.state.turns.map((t) => turnCard(t, app.state)));
+  if (app.state.over) log.append(overCard(app.state));
   if (!app.state.status && !app.busy && !app.lastFailed) {
     log.append(
       h(
@@ -592,7 +653,7 @@ function renderAll() {
 }
 
 function updateDock() {
-  const ready = Boolean(app.state?.status) && !app.busy && app.backend && app.backend.ready !== false;
+  const ready = Boolean(app.state?.status) && !app.state.over && !app.busy && app.backend && app.backend.ready !== false;
   for (const el of document.querySelectorAll('#dock button, #dock textarea, #dock input')) el.disabled = !ready;
 }
 
@@ -722,7 +783,7 @@ async function generateOnce(ctx, ui, note) {
 }
 
 async function runTurn(req) {
-  if (app.busy || !app.backend) return;
+  if (app.busy || !app.backend || app.state?.over) return;
   const ctx = buildContext(req);
   const labels = {
     opening: UI.openingLabel,
@@ -778,7 +839,7 @@ async function runTurn(req) {
     renderAll();
     if (req.kind === 'command') $('cmd').value = '';
     const last = app.state.turns[app.state.turns.length - 1];
-    scrollToEl($(`turn-${last.n}`));
+    scrollToEl(app.state.over ? document.querySelector('#log > .over') : $(`turn-${last.n}`));
   } catch (e) {
     const err = e?.code ? e : new LlmError('upstream_error', e?.message);
     app.busy = null;
@@ -831,7 +892,7 @@ let lastFocus = null;
 function openModal(title, ...content) {
   lastFocus = document.activeElement;
   $('modalTitle').textContent = title;
-  $('modalBody').replaceChildren(...content);
+  $('modalBody').replaceChildren(...content.filter(Boolean));
   $('modal').hidden = false;
   $('modalClose').focus();
 }
@@ -963,8 +1024,8 @@ function openRecords() {
 
   openModal(
     '기록 관리',
-    h('section', { class: 'modal-sec' }, h('h3', { text: UI.difficultyHeading }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: UI.difficultyLegend }), diffBox)),
-    h('section', { class: 'modal-sec' }, h('h3', { text: UI.tierHeading }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: UI.tierLegend }), tierBox)),
+    MODE.setupOptions ? h('section', { class: 'modal-sec' }, h('h3', { text: UI.difficultyHeading }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: UI.difficultyLegend }), diffBox)) : null,
+    MODE.setupOptions ? h('section', { class: 'modal-sec' }, h('h3', { text: UI.tierHeading }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: UI.tierLegend }), tierBox)) : null,
     h('section', { class: 'modal-sec' },
       h('h3', { text: UI.summaryHeading }),
       h('pre', { class: 'summary', text: summary }),
@@ -1016,6 +1077,7 @@ function closeSideOnMobile() {
 // ── 시작 ───────────────────────────────────────────────────
 function wire() {
   const prefs = loadPrefs();
+  $('setupForm').querySelector('.option-row').hidden = !MODE.setupOptions;
   renderSegments('difficultyOptions', 'difficulty', MODE.difficulty, prefs.difficulty || 'standard');
   renderSegments('tierOptions', 'tier', TIERS, prefs.tier || 'default');
   selectScenario(app.selectedScenario);

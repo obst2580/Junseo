@@ -209,6 +209,8 @@ export function createGame(setup, now = Date.now()) {
     regions: [],
     chronicle: [],
     ledger: [],
+    best: {},
+    over: null,
     turns: [],
     streak: { good: 0, bad: 0 },
     turnCount: 0,
@@ -470,6 +472,7 @@ export function normalizeResponse(raw) {
     news: arr(raw.news).map(str).filter(Boolean).slice(0, 3),
     status: readStatus(st),
     eraLabel: str(raw.eraLabel),
+    cashFlow: num(raw.cashFlow),
     units: units ? Object.fromEntries(Object.entries(units).map(([k, v]) => [k, str(v)])) : null,
     updates: {
       characters: arr(u.characters).filter((x) => x && typeof x === 'object' && str(x.name)),
@@ -514,7 +517,7 @@ export function validateResponse(state, resp) {
 
   if (!state.status) {
     for (const f of modeOf(state).status.fields) {
-      if (f.type !== 'list' && !Number.isFinite(resp.status[f.key])) {
+      if (f.type !== 'list' && !f.derived && !Number.isFinite(resp.status[f.key])) {
         issues.push({ level: 'high', text: `첫 상태창에 ${f.label} 수치가 없습니다.` });
       }
     }
@@ -549,6 +552,7 @@ export function guardStatus(prev, next, months, periodLabel, mode = getMode()) {
   const val = (k) => (typeof next[k] === 'number' ? next[k] : NaN);
   for (const f of mode.status.fields) {
     const k = f.key;
+    if (f.derived) continue; // 엔진의 돈 계산(economy)이 채운다
     if (f.type === 'list') {
       s[k] = [...new Set(Array.isArray(next[k]) ? next[k] : prev?.[k] || [])];
       continue;
@@ -723,8 +727,17 @@ export function applyResponse(state, resp, ctx) {
   const span = spanInMonths(months, days);
   const period = months || days ? formatSpan(months, days) : '한 차례 회의';
   const { status, notes } = guardStatus(prev, resp.status, span, period, mode);
+  // 돈 계산이 있는 모드(기업의 시대)는 손익과 현금을 엔진이 정한다
+  const money = mode.status.economy?.({ prev, next: status, resp, months: span, notes }) || {};
   s.status = status;
   const deltas = statusDeltas(prev, status, mode);
+  s.best = { ...(s.best || {}) };
+  for (const f of mode.status.fields) {
+    if (f.type !== 'list' && Number.isFinite(status[f.key])) s.best[f.key] = Math.max(s.best[f.key] ?? -Infinity, status[f.key]);
+  }
+  // 끝나는 조건이 있는 모드(기업의 시대: 폐업)
+  const ending = mode.status.gameOver?.(prev, status);
+  if (ending) s.over = { turn, date: s.date, reason: ending };
 
   // 분기 결산: 이번 턴에 분기가 넘어갔으면 마감한 분기의 숫자를 장부에 남긴다
   const settlement = mode.features?.quarterly ? settlementLabel(state.date, s.date) : '';
@@ -775,6 +788,7 @@ export function applyResponse(state, resp, ctx) {
       deltas,
       issues,
       settlement,
+      cashFlow: money.cashFlow || 0,
       roll: ctx.roll || null,
       events: ctx.events || [],
       suggestions: resp.suggestions,
@@ -874,9 +888,11 @@ export function formatBig(n) {
   return `${sign}${Math.round(a).toLocaleString('ko-KR')}`;
 }
 
+// "2명", "950원"처럼 숫자 바로 뒤의 한 글자 단위는 붙이고, "552만 명", "38억 원"은 띄운다
 export function formatAmount(n, unit) {
   const b = formatBig(n);
-  return unit ? `${b} ${unit}` : b;
+  if (!unit) return b;
+  return /\d$/.test(b) && unit.length === 1 ? `${b}${unit}` : `${b} ${unit}`;
 }
 
 export function formatSignedBig(n) {
@@ -906,6 +922,8 @@ export function deserialize(text, expectMode) {
   }
   if (!data.date.day) data.date = { ...data.date, day: 1 };
   data.streak = data.streak || { good: 0, bad: 0 };
+  data.best = data.best || {};
+  data.over = data.over || null;
   data.turnCount = Number(data.turnCount) || data.turns.length;
   return data;
 }

@@ -1,4 +1,4 @@
-/* 기업의 시대 — 모눈 업무 수첩 위의 회의록 서식.
+/* 기업의 시대 — 창업자의 모눈 업무 수첩.
    레이아웃은 국가의 시대와 같고, 바탕·서체·결재 도장만 바꾼다.
    빛깔: 서늘한 회색 책상과 흰 서식지, 파란 볼펜 잉크를 조작색으로, 빨간 인주는 둥근 직인에만 쓴다. */
 :root {
@@ -83,20 +83,20 @@ body {
 .brand-name { letter-spacing: -0.01em; }
 .sc-year { font-weight: 800; }
 
-/* 브랜드: 둥근 법인 직인 */
+/* 브랜드: 둥근 도장 */
 .brand-mark {
   border-radius: 50%;
   border-width: 2px;
-  font-family: var(--font-ui);
+  font-family: var(--font-body);
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* 서식지는 이중선 대신 한 줄 테두리 */
 .resume, .setup-form, .dock-main, .modal { border: 1px solid var(--rule); }
 .setup-form, .resume { box-shadow: var(--shadow); }
 
-/* 회의록 서식: 머리칸에 '회의록' 표시를 둔 표 */
+/* 창업 일지: 머리칸에 '일지' 표시를 둔 수첩 칸 */
 .turn {
   border: 1px solid var(--rule);
   padding: 0 1.25rem 1.25rem;
@@ -109,7 +109,7 @@ body {
   align-items: center;
 }
 .turn-head::before {
-  content: '회의록';
+  content: '일지';
   order: -1;
   padding: 0.05rem 0.5rem;
   border: 1px solid var(--ink-soft);
@@ -153,11 +153,10 @@ body {
 /* 시나리오 카드의 연도는 장부 숫자처럼 */
 .sc-year { font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
 
-/* 상태창 9칸: 기록 카드는 3×3, 국정 현황 패널은 2열에 날짜를 한 줄로 */
-@media (min-width: 720px) {
-  .turn .statwin { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-.panel .stat-date { grid-column: 1 / -1; }
+/* 회사 현황판: 현금과 월 손익은 한 줄씩 크게, 나머지는 두 칸씩 */
+.panel .stat-cash, .panel .stat-profit, .panel .stat-competitors, .panel .stat-date { grid-column: 1 / -1; }
+.panel .stat-cash .stat-value, .panel .stat-profit .stat-value { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+.panel .stat-cash .stat-note { font-size: 0.78rem; }
 
 /* 탭 다섯 개 */
 .tabs [role='tab'] { font-size: 0.78rem; padding-inline: 0.1rem; }

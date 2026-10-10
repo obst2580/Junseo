@@ -577,3 +577,20 @@ textarea { resize: vertical; }
 .ledger td.neg { color: var(--down); }
 .ledger td .up { color: var(--up); }
 .ledger td .down { color: var(--down); }
+
+/* 기록마다 바뀐 것만 보여 주는 칩 (기업의 시대) */
+.changes { display: flex; flex-wrap: wrap; gap: 6px; font-family: var(--font-ui); font-size: var(--step--1); font-variant-numeric: tabular-nums; }
+.changes li { padding: 0.15rem 0.6rem; border: 1px solid var(--rule); border-radius: 999px; background: var(--sheet-2); }
+.changes li.up { color: var(--up); border-color: color-mix(in srgb, var(--up) 45%, var(--rule)); }
+.changes li.down { color: var(--down); border-color: color-mix(in srgb, var(--down) 45%, var(--rule)); }
+.changes li.span { color: var(--ink-soft); border-style: dashed; }
+
+/* 끝 (폐업) */
+.over {
+  display: grid; gap: 0.5rem; justify-items: start;
+  padding: 1.25rem; border: 2px solid var(--seal); background: var(--sheet);
+}
+.over-title { font-family: var(--font-display); font-weight: 700; font-size: var(--step-2); color: var(--seal); }
+.over-reason { font-size: var(--step-1); }
+.over-stats { font-family: var(--font-ui); font-size: var(--step--1); color: var(--ink-soft); }
+.stat.neg .stat-value { color: var(--down); }

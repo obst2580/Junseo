@@ -42,6 +42,7 @@ export default {
   fontsUrl:
     'https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Song+Myung&display=swap',
   defaultScenario: 'joseon-taejong',
+  setupOptions: true, // 설정 화면에서 난이도·기록 깊이를 고른다
 
   scenarios: [
     {
@@ -129,6 +130,8 @@ export default {
       (st) => (st.treasury < 0 ? [8, '국고 고갈'] : null),
     ],
     crises: [],
+    economy: null, // 돈 계산 없음: Claude가 정한 수치를 보정만 한다
+    gameOver: null, // 끝이 없다
   },
   features: { quarterly: false },
   ledger: { keys: [] },
@@ -228,6 +231,10 @@ export default {
     sendButton: '하명',
     suggestAria: '명령 후보',
     sideTitle: '국정 현황',
+    statusTitle: '상태창',
+    newsTitle: '오늘의 뉴스:',
+    turnStatusTitle: '상태창:',
+    turnStatus: 'grid', // 기록마다 전체 상태창
     moodTitle: '조정 기류',
     worldAria: '세계 기록',
     tabPeople: '인물',
@@ -284,6 +291,9 @@ export default {
     tabLedger: '실적',
     ledgerEmpty: '',
     crisisTitle: '',
+    overTitle: '',
+    overStats: () => '',
+    overButton: '',
     setupErrors: {
       country: '국가를 입력하십시오.',
       ruler: '군주(플레이어)의 칭호를 입력하십시오.',
@@ -311,6 +321,7 @@ export default {
       difficulty: '조정의 협조 성향',
       units: (u) => `재정 ${u.treasury}, GDP ${u.gdp}`,
     },
+    stageLine: null,
     sections: {
       people: '[인물 명부]',
       policies: '[정책·제도 기록]',
@@ -344,6 +355,8 @@ export default {
     settlement: null, // 분기 결산을 쓰지 않는다
     output: {
       units: '"units": {"treasury": "재정 단위", "gdp": "GDP 단위"}',
+      extra: '',
+      extraRule: '',
       eraLabelHint: '새 날짜의 재위 연차 표기 (예: 태종 원년, 광무 2년)',
       characterStatuses: '재직 | 파직 | 낙향 | 유배 | 투옥 | 사망',
       characterChange: '(승진, 파직, 유배, 사망)',
