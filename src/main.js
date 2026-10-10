@@ -10,6 +10,7 @@ import {
   validateSetup,
   computePressure,
   rollFriction,
+  REVISIT_BONUS,
   rollEvents,
   pickStaleAgenda,
   advanceDate,
@@ -370,9 +371,9 @@ function renderSide() {
   $('sideStatus').replaceChildren(
     st ? statusGrid(st, last?.deltas, s.units, s.date, s.eraLabel, last?.months, last?.days) : h('p', { class: 'muted', text: '첫 조회가 끝나면 상태창이 열립니다.' })
   );
-  $('sidePeek').textContent = st ? `여론 ${st.opinion} · 재정 ${formatBig(st.treasury)}` : '';
-
   const p = computePressure(s);
+  $('sidePeek').textContent = st ? `여론 ${st.opinion} · 재정 ${formatBig(st.treasury)} · 성사 ${p.chance}%` : '';
+
   $('mood').replaceChildren(
     h(
       'div',
@@ -380,12 +381,14 @@ function renderSide() {
       h('span', { class: 'mood-label', text: p.label }),
       h('span', { class: 'mood-scale', 'aria-hidden': 'true' }, ...['우호적', '평온', '긴장', '험악'].map((l) => h('span', { class: l === p.label ? 'on' : '' })))
     ),
+    h('p', { class: 'mood-chance' }, '왕명이 받아들여질 가능성 ', h('b', { text: `약 ${p.chance}%` })),
     h(
       'p',
       { class: 'mood-why' },
       p.reasons.length ? p.reasons.join(' · ') : '조정에 특별한 기류가 없습니다.',
       ` (협조 성향: ${DIFFICULTY[s.setup.difficulty].label})`
-    )
+    ),
+    h('p', { class: 'mood-tip', text: `막힌 안건은 정책 탭에서 재론하면 가능성이 ${REVISIT_BONUS}%p 오릅니다. 여론을 높이고 국고를 채워도 조정이 순해집니다.` })
   );
 
   for (const btn of document.querySelectorAll('.tabs [role=tab]')) {
@@ -446,7 +449,12 @@ function policyList(s) {
         { class: 'policy-meta' },
         p.since ? `${formatDate(p.since)} 제기` : '',
         isPending
-          ? h('button', { type: 'button', class: 'linkish', text: '재론하기', onclick: () => prefill(`${p.name} 안건을 다시 논의하라`) })
+          ? h('button', {
+              type: 'button',
+              class: 'linkish',
+              text: `재론하기 (+${REVISIT_BONUS}%p)`,
+              onclick: () => prefill(`${p.name} 안건을 다시 논의하라`),
+            })
           : null
       )
     );
@@ -604,7 +612,7 @@ function buildContext(req) {
     if (cached && cached.turn === s.turnCount && cached.command === req.command) {
       return { ...cached.ctx, resolution: req.resolution };
     }
-    const roll = rollFriction(s);
+    const roll = rollFriction(s, Math.random, req.command);
     const days = rollDecisionDays(roll.tier);
     const ctx = {
       kind: 'command',
@@ -859,6 +867,32 @@ function openRecords() {
     );
   }
 
+  const diffBox = h('div', { class: 'seg-options' });
+  for (const [value, o] of Object.entries(DIFFICULTY)) {
+    diffBox.append(
+      h(
+        'label',
+        { class: 'seg-option' },
+        h('input', {
+          type: 'radio',
+          name: 'difficultyLive',
+          value,
+          checked: s.setup.difficulty === value,
+          id: `difficultyLive-${value}`,
+          onchange: () => {
+            app.state.setup.difficulty = value;
+            app.rollCache = null;
+            savePrefs({ difficulty: value });
+            save();
+            renderSide();
+          },
+        }),
+        h('span', { class: 'seg-label', text: o.label }),
+        h('span', { class: 'seg-desc', text: o.desc })
+      )
+    );
+  }
+
   const confirmRow = h('div', { class: 'confirm-row', hidden: true },
     h('p', { text: '지금의 나라를 지우고 시나리오 선택으로 돌아갑니다. 저장 기록을 먼저 복사해 두십시오.' }),
     h('button', { type: 'button', class: 'btn danger', text: '지우고 새로 시작', onclick: () => { clearSaved(); app.state = null; closeModal(); showSetup(); } }),
@@ -867,6 +901,7 @@ function openRecords() {
 
   openModal(
     '기록 관리',
+    h('section', { class: 'modal-sec' }, h('h3', { text: '조정의 협조 (난이도)' }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: '조정의 협조' }), diffBox)),
     h('section', { class: 'modal-sec' }, h('h3', { text: '사관의 깊이' }), h('fieldset', { class: 'seg' }, h('legend', { class: 'sr-only', text: '사관의 깊이' }), tierBox)),
     h('section', { class: 'modal-sec' },
       h('h3', { text: '세계관 요약' }),

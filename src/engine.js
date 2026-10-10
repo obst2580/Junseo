@@ -41,7 +41,7 @@ const GOOD_EXEC = new Set(['시행', '조건부 시행']);
 const BAD_EXEC = new Set(['보류', '시행 후 반발', '반려']);
 
 export const DIFFICULTY = {
-  mild: { label: '온건', mod: -10, desc: '관료들이 대체로 협조합니다' },
+  mild: { label: '온건', mod: -15, desc: '관료들이 대체로 협조합니다' },
   standard: { label: '표준', mod: 0, desc: '사안마다 이견과 견제가 따릅니다' },
   harsh: { label: '혹독', mod: 15, desc: '조정이 사사건건 제동을 겁니다' },
 };
@@ -254,57 +254,89 @@ export function computePressure(state) {
   let mod = 0;
   const s = state.status;
   if (s) {
-    if (s.opinion < 30) {
-      mod += 15;
+    if (s.opinion < 25) {
+      mod += 12;
       reasons.push('민심 이반');
-    } else if (s.opinion < 50) {
-      mod += 7;
+    } else if (s.opinion < 40) {
+      mod += 5;
       reasons.push('민심 동요');
-    } else if (s.opinion >= 75) {
+    } else if (s.opinion >= 70) {
       mod -= 5;
       reasons.push('민심의 지지');
     }
     if (s.treasury < 0) {
-      mod += 10;
+      mod += 8;
       reasons.push('국고 고갈');
     }
   }
   const avg = factionAverage(state);
   if (avg !== null) {
-    if (avg < 40) {
-      mod += 10;
+    if (avg < 35) {
+      mod += 8;
       reasons.push('조정 불신');
-    } else if (avg >= 70) {
+    } else if (avg >= 65) {
       mod -= 5;
       reasons.push('조정의 결속');
     }
   }
-  const good = Math.min(state.streak?.good || 0, 5);
-  if (good >= 2) reasons.push('연이은 성사에 대한 견제');
-  mod += good * 4;
+  // 연이어 성사되면 견제가 붙지만 두 번째부터, 그리고 완만하게
+  const good = Math.min(state.streak?.good || 0, 4);
+  if (good >= 2) {
+    mod += (good - 1) * 3;
+    reasons.push('연이은 성사에 대한 견제');
+  }
+  // 막히고 나면 조정도 타협을 찾는다
   const bad = Math.min(state.streak?.bad || 0, 3);
-  if (bad >= 2) reasons.push('거듭된 차질 뒤의 타협 분위기');
-  mod -= bad * 6;
+  if (bad >= 1) {
+    mod -= bad * 8;
+    reasons.push('앞선 차질 뒤의 타협 분위기');
+  }
   mod += DIFFICULTY[state.setup.difficulty]?.mod || 0;
 
   let label = '평온';
   if (mod <= -8) label = '우호적';
   else if (mod >= 15) label = '험악';
   else if (mod >= 5) label = '긴장';
-  return { mod, reasons, label };
+  return { mod, reasons, label, chance: acceptChance(mod) };
 }
 
+// 판정 점수 경계. 시행(순조·조건부)까지가 ACCEPT_MAX.
+const TIER_MAX = { smooth: 30, conditional: 65, delayed: 80, backlash: 93 };
+export const ACCEPT_MAX = TIER_MAX.conditional;
+
 export function tierForScore(score) {
-  if (score <= 22) return 'smooth';
-  if (score <= 52) return 'conditional';
-  if (score <= 72) return 'delayed';
-  if (score <= 90) return 'backlash';
+  if (score <= TIER_MAX.smooth) return 'smooth';
+  if (score <= TIER_MAX.conditional) return 'conditional';
+  if (score <= TIER_MAX.delayed) return 'delayed';
+  if (score <= TIER_MAX.backlash) return 'backlash';
   return 'blocked';
 }
 
-export function rollFriction(state, rng = Math.random) {
+// 보정치가 mod일 때 왕명이 시행(순조·조건부)될 확률(%)
+export function acceptChance(mod) {
+  return clamp(ACCEPT_MAX - mod, 1, 99);
+}
+
+// 미결 안건을 다시 꺼내면 논의가 무르익어 받아들여지기 쉽다
+export const REVISIT_BONUS = 10;
+
+export function revisitedAgenda(state, command) {
+  const k = nameKey(command);
+  if (!k) return null;
+  return (
+    (state.policies || []).find((p) => PENDING_POLICY.has(p.status) && nameKey(p.name).length >= 2 && k.includes(nameKey(p.name))) ||
+    null
+  );
+}
+
+export function rollFriction(state, rng = Math.random, command = '') {
   const base = Math.floor(rng() * 100) + 1;
-  const { mod, reasons } = computePressure(state);
+  let { mod, reasons } = computePressure(state);
+  const revisit = revisitedAgenda(state, command);
+  if (revisit) {
+    mod -= REVISIT_BONUS;
+    reasons = [...reasons, `재론된 안건(${revisit.name})이라 논의가 무르익음`];
+  }
   const score = clamp(base + mod, 1, 120);
   return { base, mod, score, tier: tierForScore(score), reasons };
 }

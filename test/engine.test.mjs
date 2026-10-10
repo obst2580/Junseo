@@ -13,6 +13,7 @@ import {
   computePressure,
   rollFriction,
   tierForScore,
+  acceptChance,
   rollEvents,
   pickStaleAgenda,
   seededRandom,
@@ -114,12 +115,15 @@ test('validateSetup은 빈 칸을 막는다', () => {
 
 test('판정 등급 경계', () => {
   assert.equal(tierForScore(1), 'smooth');
-  assert.equal(tierForScore(22), 'smooth');
-  assert.equal(tierForScore(23), 'conditional');
-  assert.equal(tierForScore(52), 'conditional');
-  assert.equal(tierForScore(72), 'delayed');
-  assert.equal(tierForScore(90), 'backlash');
-  assert.equal(tierForScore(91), 'blocked');
+  assert.equal(tierForScore(30), 'smooth');
+  assert.equal(tierForScore(31), 'conditional');
+  assert.equal(tierForScore(65), 'conditional');
+  assert.equal(tierForScore(80), 'delayed');
+  assert.equal(tierForScore(93), 'backlash');
+  assert.equal(tierForScore(94), 'blocked');
+  assert.equal(acceptChance(0), 65);
+  assert.equal(acceptChance(-15), 80);
+  assert.equal(acceptChance(200), 1);
 });
 
 test('민심과 국고, 연이은 성사가 조정 기류를 험하게 만든다', () => {
@@ -139,14 +143,32 @@ test('민심과 국고, 연이은 성사가 조정 기류를 험하게 만든다
   assert.equal(harsh.mod - calm.mod, 15);
 });
 
-test('표준 난이도에서 명령의 절반 가까이는 순조롭지 않다', () => {
+test('표준 난이도에서 왕명은 셋 중 둘쯤 받아들여지고 나머지는 막힌다', () => {
   const s = openedGame();
   const rng = seededRandom(42);
   const counts = { smooth: 0, conditional: 0, delayed: 0, backlash: 0, blocked: 0 };
   for (let i = 0; i < 5000; i++) counts[rollFriction(s, rng).tier]++;
   const rough = (counts.delayed + counts.backlash + counts.blocked) / 5000;
-  assert.ok(rough > 0.35 && rough < 0.65, `차질 비율 ${rough}`);
-  assert.ok(counts.smooth > 0 && counts.blocked > 0);
+  assert.ok(rough > 0.28 && rough < 0.42, `차질 비율 ${rough}`);
+  assert.ok(counts.smooth > 0 && counts.blocked > 0, '순조와 좌초가 모두 나온다');
+  assert.equal(computePressure(s).chance, 65);
+});
+
+test('막힌 뒤에는 타협 분위기, 미결 안건 재론에는 가산점', () => {
+  const s = openedGame();
+  const base = computePressure(s).mod;
+  assert.equal(computePressure({ ...s, streak: { good: 0, bad: 1 } }).mod, base - 8);
+  assert.equal(computePressure({ ...s, streak: { good: 1, bad: 0 } }).mod, base, '한 번 성사로는 견제가 붙지 않는다');
+  assert.equal(computePressure({ ...s, streak: { good: 2, bad: 0 } }).mod, base + 3);
+
+  const fixed = () => 0.5;
+  const plain = rollFriction(s, fixed, '과거를 실시하라');
+  const revisit = rollFriction(s, fixed, '변경 방비 강화 안건을 다시 논의하라');
+  assert.equal(plain.mod - revisit.mod, 10);
+  assert.ok(revisit.reasons.some((r) => r.includes('변경 방비 강화')));
+  // 이미 결정된 정책은 재론 가산점이 없다
+  const done = { ...s, policies: s.policies.map((p) => ({ ...p, status: '시행' })) };
+  assert.equal(rollFriction(done, fixed, '변경 방비 강화 안건을 다시 논의하라').mod, plain.mod);
 });
 
 test('시간 경과가 길수록 돌발 사건이 많다', () => {
