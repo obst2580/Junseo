@@ -32,8 +32,11 @@ test('명령 프롬프트는 판정, 사건, 명령, 충돌 규칙을 담는다'
     events: [{ id: 'plague', label: '역병', hint: '돌림병' }],
     agenda: { name: '변경 방비 강화', waited: 6, status: '논의중' },
   };
-  const p = buildPrompt(s, ctx);
+  const p = buildPrompt(s, { ...ctx, days: 4, target: advanceDate(s.date, 0, 4) });
   assert.ok(p.includes(OUTCOMES.backlash.directive));
+  assert.match(p, /1400년 11월 1일부터 1400년 11월 5일까지 4일 사이의 일이다/);
+  assert.match(p, /앞당겨 쓰지 않는다/);
+  assert.doesNotMatch(p, /elapsedMonths/, '흐르는 시간은 Claude가 정하지 않는다');
   assert.match(p, /판정의 배경으로 드러낼 사정: 민심 동요/);
   assert.match(p, /돌발 사건 \[역병\]/);
   assert.match(p, /장기 미결 안건 "변경 방비 강화"\(6턴째 논의중\)/);
@@ -58,11 +61,12 @@ test('시간 경과와 재동기화 프롬프트', () => {
   const p = buildPrompt(s, {
     kind: 'time',
     months: 24,
+    days: 0,
     target: advanceDate(s.date, 24),
     roll: { tier: 'delayed', reasons: [] },
     events: [],
   });
-  assert.match(p, /1400년 11월부터 1402년 11월까지 24개월이 흐른다/);
+  assert.match(p, /1400년 11월 1일부터 1402년 11월 1일까지 2년이 흐른다/);
   assert.match(p, /기존 정책들의 진척 판정: 지연/);
   const r = buildPrompt(s, { kind: 'resync', resyncText: '하경복은 좌의정이다' });
   assert.match(r, /\[플레이어의 세계관 요약\]\n하경복은 좌의정이다/);

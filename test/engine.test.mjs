@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import {
   num,
   advanceDate,
+  formatDate,
+  formatSpan,
+  rollDecisionDays,
+  DECISION_DAYS,
   parseTimeSkip,
   createGame,
   validateSetup,
@@ -52,24 +56,53 @@ test('num은 한국어 수 표기를 읽는다', () => {
   assert.ok(Number.isNaN(num(null)));
 });
 
-test('advanceDate는 해를 넘긴다', () => {
-  assert.deepEqual(advanceDate({ year: 1400, month: 11 }, 3), { year: 1401, month: 2 });
-  assert.deepEqual(advanceDate({ year: 1400, month: 1 }, 0), { year: 1400, month: 1 });
-  assert.deepEqual(advanceDate({ year: 1400, month: 12 }, 12), { year: 1401, month: 12 });
+test('advanceDate는 30일 달력으로 해를 넘긴다', () => {
+  assert.deepEqual(advanceDate({ year: 1400, month: 11, day: 1 }, 3), { year: 1401, month: 2, day: 1 });
+  assert.deepEqual(advanceDate({ year: 1400, month: 1 }, 0), { year: 1400, month: 1, day: 1 }, '일이 없던 옛 날짜는 1일');
+  assert.deepEqual(advanceDate({ year: 1400, month: 12, day: 20 }, 12), { year: 1401, month: 12, day: 20 });
+  assert.deepEqual(advanceDate({ year: 1400, month: 12, day: 28 }, 0, 5), { year: 1401, month: 1, day: 3 });
+  assert.equal(formatDate({ year: 1400, month: 11, day: 3 }), '1400년 11월 3일');
+  assert.equal(formatDate({ year: 1400, month: 11 }), '1400년 11월');
+});
+
+test('formatSpan은 경과 기간을 읽기 좋게 쓴다', () => {
+  assert.equal(formatSpan(0, 4), '4일');
+  assert.equal(formatSpan(1, 0), '1개월');
+  assert.equal(formatSpan(15, 0), '1년 3개월');
+  assert.equal(formatSpan(24, 0), '2년');
+  assert.equal(formatSpan(0, 0), '같은 날');
+});
+
+test('왕명 한 번은 며칠 사이의 일이다', () => {
+  const rng = seededRandom(3);
+  for (const [tier, [lo, hi]] of Object.entries(DECISION_DAYS)) {
+    for (let i = 0; i < 200; i++) {
+      const d = rollDecisionDays(tier, rng);
+      assert.ok(d >= lo && d <= hi, `${tier}: ${d}`);
+    }
+  }
+  assert.ok(DECISION_DAYS.delayed[1] > DECISION_DAYS.smooth[1], '지연되면 논의가 길어진다');
 });
 
 test('parseTimeSkip은 시간 경과 명령만 알아본다', () => {
-  assert.equal(parseTimeSkip('다음 달'), 1);
-  assert.equal(parseTimeSkip('1년 후'), 12);
-  assert.equal(parseTimeSkip('3년이 흐른다'), 36);
-  assert.equal(parseTimeSkip('두 달 뒤'), 2);
-  assert.equal(parseTimeSkip('석 달 후'), 3);
-  assert.equal(parseTimeSkip('6개월 후'), 6);
-  assert.equal(parseTimeSkip('내년'), 12);
-  assert.equal(parseTimeSkip('100년 후'), 240);
+  const M = (months, days = 0) => ({ months, days });
+  assert.deepEqual(parseTimeSkip('다음 달'), M(1));
+  assert.deepEqual(parseTimeSkip('1년 후'), M(12));
+  assert.deepEqual(parseTimeSkip('3년이 흐른다'), M(36));
+  assert.deepEqual(parseTimeSkip('두 달 뒤'), M(2));
+  assert.deepEqual(parseTimeSkip('석 달 후'), M(3));
+  assert.deepEqual(parseTimeSkip('6개월 후'), M(6));
+  assert.deepEqual(parseTimeSkip('내년'), M(12));
+  assert.deepEqual(parseTimeSkip('100년 후'), M(240));
+  assert.deepEqual(parseTimeSkip('5년 후로 넘어가자'), M(60));
+  assert.deepEqual(parseTimeSkip('1년이 지났다.'), M(12));
+  assert.deepEqual(parseTimeSkip('보름 후'), M(0, 15));
+  assert.deepEqual(parseTimeSkip('열흘 뒤'), M(0, 10));
+  assert.deepEqual(parseTimeSkip('일주일 후'), M(0, 7));
+  assert.deepEqual(parseTimeSkip('3일 후'), M(0, 3));
+  assert.deepEqual(parseTimeSkip('2주 뒤'), M(0, 14));
+  assert.deepEqual(parseTimeSkip('45일 후'), M(1, 15));
   assert.equal(parseTimeSkip('북방에 진을 설치하라'), null);
-  assert.equal(parseTimeSkip('5년 후로 넘어가자'), 60);
-  assert.equal(parseTimeSkip('1년이 지났다.'), 12);
   assert.equal(parseTimeSkip('1년 후에 세금을 올려라'), null);
   assert.equal(parseTimeSkip('호패법을 1년 후 시행하라'), null);
 });
@@ -211,24 +244,26 @@ test('applyResponse는 기록을 쌓고 연속 판정을 센다', () => {
   assert.ok(s.factions.length >= 3);
   assert.equal(s.policies[0].status, '논의중');
 
-  const ctx = { kind: 'command', command: '사병을 혁파하라', roll: { tier: 'smooth', reasons: [] }, events: [] };
+  const ctx = { kind: 'command', command: '사병을 혁파하라', roll: { tier: 'smooth', reasons: [] }, days: 2, events: [] };
   s = applyResponse(s, normalizeResponse(mockResponse({ ...ctx, state: s })), ctx);
   assert.equal(s.streak.good, 1);
-  assert.deepEqual(s.date, { year: 1400, month: 12 });
+  assert.deepEqual(s.date, { year: 1400, month: 11, day: 3 }, '왕명은 엔진이 정한 날수만큼만 흐른다');
   const t = s.turns[s.turns.length - 1];
   assert.equal(t.execution.status, '시행');
   assert.ok(t.deltas, '두 번째 기록부터 변동이 있다');
   assert.ok(s.characters.find((c) => c.name === '하경복').quotes.length > 0, '발언을 인물 기억에 남긴다');
 
-  const bad = { ...ctx, command: '세금을 두 배로 올려라', roll: { tier: 'blocked', reasons: [] } };
+  const bad = { ...ctx, command: '세금을 두 배로 올려라', roll: { tier: 'blocked', reasons: [] }, days: 3 };
   s = applyResponse(s, normalizeResponse(mockResponse({ ...bad, state: s })), bad);
   assert.deepEqual(s.streak, { good: 0, bad: 1 });
   const policy = s.policies.find((p) => p.name === '세금을 두 배로 올려라');
   assert.equal(policy.status, '좌초');
 
-  const time = { kind: 'time', months: 24, roll: { tier: 'conditional', reasons: [] }, events: [] };
+  assert.deepEqual(s.date, { year: 1400, month: 11, day: 6 });
+  const time = { kind: 'time', months: 24, days: 0, roll: { tier: 'conditional', reasons: [] }, events: [] };
   s = applyResponse(s, normalizeResponse(mockResponse({ ...time, state: s })), time);
-  assert.deepEqual(s.date, { year: 1403, month: 1 });
+  assert.deepEqual(s.date, { year: 1402, month: 11, day: 6 });
+  assert.equal(s.turns[s.turns.length - 1].months, 24);
   assert.deepEqual(s.streak, { good: 0, bad: 1 }, '시간 경과는 연속 판정에 들지 않는다');
   assert.equal(s.chronicle.length, 4);
 });
@@ -258,4 +293,25 @@ test('수치 표기', () => {
   assert.equal(formatBig(123456789), '1.23억');
   assert.equal(formatBig(-38000), '−3.8만');
   assert.equal(formatBig(950), '950');
+});
+
+test('Claude가 몇 달을 흘려보내려 해도 왕명 열 번에 두 달이 넘지 않는다', () => {
+  let s = openedGame();
+  const start = s.date;
+  const rng = seededRandom(11);
+  for (let i = 0; i < 10; i++) {
+    const roll = rollFriction(s, rng);
+    const ctx = { kind: 'command', command: `명령 ${i}`, roll, days: rollDecisionDays(roll.tier, rng), events: [] };
+    const raw = { ...mockResponse({ ...ctx, state: s }), elapsedMonths: 3 };
+    s = applyResponse(s, normalizeResponse(raw), ctx);
+  }
+  const elapsed = (s.date.year - start.year) * 360 + (s.date.month - start.month) * 30 + (s.date.day - start.day);
+  assert.ok(elapsed >= 10 && elapsed <= 60, `${elapsed}일`);
+});
+
+test('일이 없는 옛 저장 기록도 불러온다', () => {
+  const s = openedGame();
+  const old = JSON.parse(serialize(s));
+  old.date = { year: 1400, month: 11 };
+  assert.deepEqual(deserialize(JSON.stringify(old)).date, { year: 1400, month: 11, day: 1 });
 });

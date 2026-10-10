@@ -1,7 +1,7 @@
 // 국가의 시대 — Claude에게 보내는 프롬프트.
 // Claude는 대화를 기억하지 않으므로 매 턴 규칙, 세계 기록, 엔진 지시, 명령을 한 번에 보낸다.
 
-import { OUTCOMES, DIFFICULTY, formatDate, formatAmount, PENDING_POLICY } from './engine.js';
+import { OUTCOMES, DIFFICULTY, formatDate, formatSpan, formatAmount, PENDING_POLICY } from './engine.js';
 
 export const SCENARIOS = [
   {
@@ -120,7 +120,6 @@ JSON 객체 하나만 출력한다. 코드 블록이나 설명 문장을 붙이�
   "news": ["헤드라인", "헤드라인", "헤드라인"],
   "status": {"population": 0, "allies": ["나라 이름"], "enemies": ["나라·세력 이름"], "opinion": 0, "happiness": 0, "treasury": 0, "gdp": 0},${unitsLine}
   "eraLabel": "새 날짜의 재위 연차 표기 (예: 태종 원년, 광무 2년)",
-  "elapsedMonths": 0,
   "updates": {
     "characters": [{"name": "", "title": "", "faction": "", "disposition": "성향", "status": "재직 | 파직 | 낙향 | 유배 | 투옥 | 사망", "note": ""}],
     "policies": [{"name": "", "status": "논의중 | 시행 | 조건부 시행 | 보류 | 철회 | 좌초", "summary": "", "backlash": ""}],
@@ -139,7 +138,6 @@ ${conflictRule}
 - 발언한 실명 인물이 [인물 명부]에 없으면 updates.characters에 반드시 추가한다. 인물의 신상이 바뀌면(승진, 파직, 유배, 사망) 반영한다.
 - 이번 턴에 논의된 정책은 updates.policies에 판정에 맞는 status로 넣는다. 이름은 기존 기록의 이름을 그대로 쓴다.
 - 세력 지지도(support)는 0~100 정수다.
-- elapsedMonths는 이번 논의와 시행에 걸린 개월 수(0~3)다.
 - suggestions는 2~3개, 각 30자 이내, 군주의 명령 어투로 쓴다.`;
 }
 
@@ -168,7 +166,7 @@ export function turnText(t, units) {
     t.kind === 'opening'
       ? '첫 조회'
       : t.kind === 'time'
-        ? `시간 경과 ${t.months}개월`
+        ? `시간 경과 ${formatSpan(t.months, t.days)}`
         : t.kind === 'resync'
           ? '기록 재동기화'
           : `왕명: "${t.command}"`;
@@ -234,11 +232,14 @@ function directiveSection(state, ctx) {
       '- 세력·계층 3~5개(예: 공신, 종친, 지방 세력, 백성, 상인)와 지지도를 updates.factions로 정한다.',
       '- 당면 과제 2~3건을 updates.policies에 status "논의중"으로 올린다.',
       '- 초기 상태창을 역사적으로 그럴듯한 수치로 정하고, units에 재정과 GDP 단위를 정한다(예: 석, 냥, 리브르, 원). 단위는 이후 바뀌지 않는다.',
-      '- execution.status는 "해당없음", elapsedMonths는 0.'
+      '- execution.status는 "해당없음".'
     );
   }
   if (ctx.kind === 'command') {
     L.push(`- 실행 판정: ${OUTCOMES[ctx.roll.tier].directive}`);
+    L.push(
+      `- 경과 시간: 이번 논의와 결정은 ${formatDate(state.date)}부터 ${formatDate(ctx.target)}까지 ${ctx.days}일 사이의 일이다. 그 뒤의 일(몇 달 뒤의 성과, 결말, 계절이 바뀐 뒤의 상황)을 앞당겨 쓰지 않는다. 결정, 시행 착수, 즉각적인 반응까지만 기록하고, 오래 걸리는 결과는 시간이 흐른 뒤에 드러나도록 남겨 둔다. 상태창 수치도 며칠 사이에 있을 법한 만큼만 바꾼다.`
+    );
     if (ctx.roll.reasons.length) L.push(`- 판정의 배경으로 드러낼 사정: ${ctx.roll.reasons.join(', ')}`);
     L.push(
       '- 명령이 정책 시행이 아니라 질문, 보고 요청, 인물 면담이라면 execution.status는 "해당없음"으로 하되, 판정의 분위기는 관료들의 이견과 긴장에 반영한다.'
@@ -251,7 +252,7 @@ function directiveSection(state, ctx) {
   }
   if (ctx.kind === 'time') {
     L.push(
-      `- 시간 경과: ${formatDate(state.date)}부터 ${formatDate(ctx.target)}까지 ${ctx.months}개월이 흐른다. 이 기간 군주는 새 명령을 내리지 않았고, 조정은 기존 방침대로 움직였다.`,
+      `- 시간 경과: ${formatDate(state.date)}부터 ${formatDate(ctx.target)}까지 ${formatSpan(ctx.months, ctx.days)}이 흐른다. 이 기간 군주는 새 명령을 내리지 않았고, 조정은 기존 방침대로 움직였다.`,
       '- opening은 이 기간을 정리하는 문장으로 쓰고, record에는 기간 중 정책 변화, 미결 안건의 귀결, 민심 이동, 외교 상황을 시간 순으로 간결하게 요약한다. 관료의 보고 형식을 섞어도 좋다.',
       `- 기존 정책들의 진척 판정: ${OUTCOMES[ctx.roll.tier].label} — 이 기간 정책과 미결 안건이 대체로 이 등급만큼 풀리거나 막힌다.`,
       '- 상태창 수치는 기간에 비례해 현실적으로 바꾼다. eraLabel은 새 날짜에 맞춘다.',
@@ -261,7 +262,7 @@ function directiveSection(state, ctx) {
   if (ctx.kind === 'resync') {
     L.push(
       '- 기록 재동기화: 아래 [플레이어의 세계관 요약]을 기준으로 기록을 대조하고 정정한다. 정정한 사항을 사관이 보고하는 형식으로 record에 쓰고, 바뀐 인물·정책·세력을 updates에 반영한다.',
-      '- 시간은 흐르지 않는다(elapsedMonths 0). execution.status는 "해당없음".'
+      '- 시간은 흐르지 않는다. execution.status는 "해당없음".'
     );
   }
   for (const e of ctx.events || []) {

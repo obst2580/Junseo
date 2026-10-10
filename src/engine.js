@@ -109,15 +109,55 @@ export function seededRandom(seed) {
 }
 
 // ── 날짜 ───────────────────────────────────────────────────
-export function advanceDate(date, months) {
-  const total = date.year * 12 + (date.month - 1) + Math.max(0, Math.round(months));
-  return { year: Math.floor(total / 12), month: (total % 12) + 1 };
+// 게임 달력은 한 달을 30일로 센다. 왕명 한 번은 조정 회의 며칠의 일이고,
+// 몇 달·몇 년은 시간 경과 명령으로만 흐른다.
+export const DAYS_PER_MONTH = 30;
+
+export function advanceDate(date, months, days = 0) {
+  const start = (date.year * 12 + (date.month - 1)) * DAYS_PER_MONTH + ((date.day || 1) - 1);
+  const total = start + Math.max(0, Math.round(months)) * DAYS_PER_MONTH + Math.max(0, Math.round(days));
+  const monthIndex = Math.floor(total / DAYS_PER_MONTH);
+  return {
+    year: Math.floor(monthIndex / 12),
+    month: (((monthIndex % 12) + 12) % 12) + 1,
+    day: (total % DAYS_PER_MONTH) + 1,
+  };
 }
 
 export function formatDate(date) {
   if (!date) return '';
   const y = date.year < 0 ? `기원전 ${-date.year}년` : `${date.year}년`;
-  return `${y} ${date.month}월`;
+  return `${y} ${date.month}월${date.day ? ` ${date.day}일` : ''}`;
+}
+
+// 경과 기간 표기: "4일", "보름"이 아니라 "15일", "3개월", "1년 3개월"
+export function formatSpan(months = 0, days = 0) {
+  const parts = [];
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y) parts.push(`${y}년`);
+  if (m) parts.push(`${m}개월`);
+  if (days) parts.push(`${days}일`);
+  return parts.join(' ') || '같은 날';
+}
+
+// 상태창 보정과 사건 확률에 쓰는 개월 수 (며칠은 소수로)
+export function spanInMonths(months = 0, days = 0) {
+  return months + days / DAYS_PER_MONTH;
+}
+
+// 판정에 따라 논의가 며칠 걸렸는지. 순조로우면 금방, 지연되면 열흘 남짓 끈다.
+export const DECISION_DAYS = {
+  smooth: [1, 3],
+  conditional: [2, 6],
+  delayed: [5, 12],
+  backlash: [2, 7],
+  blocked: [1, 4],
+};
+
+export function rollDecisionDays(tier, rng = Math.random) {
+  const [lo, hi] = DECISION_DAYS[tier] || DECISION_DAYS.conditional;
+  return lo + Math.floor(rng() * (hi - lo + 1));
 }
 
 const KO_NUM = { 한: 1, 두: 2, 세: 3, 석: 3, 네: 4, 넉: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
@@ -126,26 +166,35 @@ export const MAX_SKIP_MONTHS = 240;
 // 시간 경과를 뜻하는 꼬리말: "후", "뒤", "이 흐른다", "가 지났다", "동안"
 const ELAPSE = '(?:후|뒤|이\\s*(?:흐른다|흘렀다|흐르다|흘러|지난다|지났다|지나다|지나서|경과|경과한다|경과했다)|가\\s*(?:흐른다|흘렀다|지난다|지났다|경과|경과한다)|동안)';
 const SKIP_RE = new RegExp(
-  `^(\\d+|${Object.keys(KO_NUM).join('|')})\\s*(년|해|개월|달)\\s*${ELAPSE}$`
+  `^(\\d+|${Object.keys(KO_NUM).join('|')})\\s*(년|해|개월|달|주|일)\\s*${ELAPSE}$`
 );
+const DAY_WORDS = { 일주일: 7, 열흘: 10, 보름: 15, 한주: 7 };
 
-// "1년 후", "다음 달", "석 달 뒤", "3년이 흐른다", "5년 후로 넘어가자" 같은 시간 경과 명령을 개월 수로 읽는다.
-// 명령 전체가 시간 경과일 때만 알아본다. "1년 후에 세금을 올려라"는 왕명이므로 null.
+// "1년 후", "다음 달", "보름 후", "열흘 뒤", "3년이 흐른다", "5년 후로 넘어가자" 같은
+// 시간 경과 명령을 {months, days}로 읽는다. 명령 전체가 시간 경과일 때만 알아본다.
+// "1년 후에 세금을 올려라"는 왕명이므로 null.
 export function parseTimeSkip(text) {
   const t = str(text)
     .replace(/[.!?…。]+$/, '')
     .replace(/\s*(로|까지|에)?\s*(넘어가(자|라|다)?|진행(하라|한다|해)?|흘려보내(라|자|다)?|건너뛰(어라|자|다)?)?$/, '')
     .trim();
   if (!t) return null;
-  if (/^(다음\s*달|한\s*달\s*(후|뒤))$/.test(t)) return 1;
-  if (/^(내년|이듬해|다음\s*해)$/.test(t)) return 12;
-  if (/^반\s*년\s*(후|뒤)$/.test(t)) return 6;
+  if (/^(다음\s*달|한\s*달\s*(후|뒤))$/.test(t)) return { months: 1, days: 0 };
+  if (/^(내년|이듬해|다음\s*해)$/.test(t)) return { months: 12, days: 0 };
+  if (/^반\s*년\s*(후|뒤)$/.test(t)) return { months: 6, days: 0 };
+  const word = t.match(new RegExp(`^(${Object.keys(DAY_WORDS).join('|')}|한\\s*주)\\s*${ELAPSE}$`));
+  if (word) return { months: 0, days: DAY_WORDS[word[1].replace(/\s+/g, '')] };
   const m = t.match(SKIP_RE);
   if (!m) return null;
   const n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : KO_NUM[m[1]];
   if (!n || n <= 0) return null;
-  const months = m[2] === '년' || m[2] === '해' ? n * 12 : n;
-  return Math.min(months, MAX_SKIP_MONTHS);
+  if (m[2] === '년' || m[2] === '해') return { months: Math.min(n * 12, MAX_SKIP_MONTHS), days: 0 };
+  if (m[2] === '개월' || m[2] === '달') return { months: Math.min(n, MAX_SKIP_MONTHS), days: 0 };
+  const days = m[2] === '주' ? n * 7 : n;
+  if (days >= DAYS_PER_MONTH) {
+    return { months: Math.min(Math.floor(days / DAYS_PER_MONTH), MAX_SKIP_MONTHS), days: days % DAYS_PER_MONTH };
+  }
+  return { months: 0, days };
 }
 
 // ── 새 게임 ────────────────────────────────────────────────
@@ -168,7 +217,7 @@ export function createGame(setup, now = Date.now()) {
       tier: TIERS[setup.tier] ? setup.tier : 'default',
     },
     units: null,
-    date: { year, month },
+    date: { year, month, day: 1 },
     eraLabel: '',
     status: null,
     characters: [],
@@ -300,7 +349,7 @@ function pickWeighted(items, weights, rng) {
   return items[items.length - 1];
 }
 
-// 명령 턴에는 가끔, 시간 경과에는 기간에 비례해 돌발 사건이 끼어든다.
+// 명령 턴에는 가끔, 시간 경과에는 기간에 비례해 돌발 사건이 끼어든다. months는 소수일 수 있다(보름 = 0.5).
 export function rollEvents(state, kind, months, rng = Math.random) {
   let count = 0;
   if (kind === 'command') {
@@ -309,7 +358,8 @@ export function rollEvents(state, kind, months, rng = Math.random) {
     if (state.status?.enemies?.length) chance += 0.05;
     if (rng() < chance) count = 1;
   } else if (kind === 'time') {
-    if (months <= 2) count = rng() < 0.35 ? 1 : 0;
+    if (months < 1) count = rng() < 0.2 ? 1 : 0;
+    else if (months <= 2) count = rng() < 0.35 ? 1 : 0;
     else if (months < 12) count = rng() < 0.7 ? 1 : 0;
     else if (months < 36) count = 1 + (rng() < 0.5 ? 1 : 0);
     else count = 2 + (rng() < 0.5 ? 1 : 0);
@@ -417,7 +467,6 @@ export function normalizeResponse(raw) {
       gdp: num(st.gdp),
     },
     eraLabel: str(raw.eraLabel),
-    elapsedMonths: num(raw.elapsedMonths),
     units: units ? { treasury: str(units.treasury), gdp: str(units.gdp) } : null,
     updates: {
       characters: arr(u.characters).filter((x) => x && typeof x === 'object' && str(x.name)),
@@ -642,14 +691,20 @@ export function mergeRegions(list, updates) {
 export const MAX_TURN_LOG = 200;
 export const MAX_CHRONICLE = 400;
 
-// ctx: { kind: 'opening'|'command'|'time'|'resync', command, months, roll, events, issues }
+// ctx: { kind: 'opening'|'command'|'time'|'resync', command, months, days, roll, events, issues }
+// 흐르는 시간은 엔진이 정한다: 왕명은 ctx.days(판정에 따른 며칠), 시간 경과는 ctx.months·ctx.days.
 export function applyResponse(state, resp, ctx) {
   const s = structuredClone(state);
   const turn = s.turnCount + 1;
   let months = 0;
-  if (ctx.kind === 'time') months = ctx.months;
-  else if (ctx.kind === 'command') months = clamp(Math.round(Number.isFinite(resp.elapsedMonths) ? resp.elapsedMonths : 0), 0, 3);
-  s.date = advanceDate(s.date, months);
+  let days = 0;
+  if (ctx.kind === 'time') {
+    months = Math.max(0, Math.round(ctx.months || 0));
+    days = Math.max(0, Math.round(ctx.days || 0));
+  } else if (ctx.kind === 'command') {
+    days = clamp(Math.round(ctx.days ?? 1), 0, DAYS_PER_MONTH - 1);
+  }
+  s.date = advanceDate(s.date, months, days);
   if (resp.eraLabel) s.eraLabel = resp.eraLabel;
 
   if (!s.units) {
@@ -660,15 +715,16 @@ export function applyResponse(state, resp, ctx) {
   }
 
   const prev = s.status;
-  const period = months === 0 ? '한 차례 회의' : months % 12 === 0 ? `${months / 12}년` : `${months}개월`;
-  const { status, notes } = guardStatus(prev, resp.status, months, period);
+  const span = spanInMonths(months, days);
+  const period = months || days ? formatSpan(months, days) : '한 차례 회의';
+  const { status, notes } = guardStatus(prev, resp.status, span, period);
   s.status = status;
   const deltas = statusDeltas(prev, status);
 
   const mctx = { turn, date: s.date };
   s.characters = mergeCharacters(s.characters, resp.updates.characters, resp.record, mctx);
   s.policies = mergePolicies(s.policies, resp.updates.policies, mctx);
-  s.factions = mergeFactions(s.factions, resp.updates.factions, months);
+  s.factions = mergeFactions(s.factions, resp.updates.factions, span);
   s.regions = mergeRegions(s.regions, resp.updates.regions);
 
   if (ctx.kind === 'command') {
@@ -695,6 +751,7 @@ export function applyResponse(state, resp, ctx) {
       kind: ctx.kind,
       command: ctx.command || '',
       months,
+      days,
       from: state.date,
       date: s.date,
       eraLabel: s.eraLabel,
@@ -785,6 +842,7 @@ export function deserialize(text) {
   for (const k of ['characters', 'policies', 'factions', 'regions', 'chronicle', 'turns']) {
     if (!Array.isArray(data[k])) data[k] = [];
   }
+  if (!data.date.day) data.date = { ...data.date, day: 1 };
   data.streak = data.streak || { good: 0, bad: 0 };
   data.turnCount = Number(data.turnCount) || data.turns.length;
   return data;

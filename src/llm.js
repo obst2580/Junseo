@@ -174,7 +174,7 @@ export function mockResponse(meta) {
     conflict: null,
     opening:
       meta.kind === 'time'
-        ? `${meta.months}개월간의 국정을 정리합니다...`
+        ? `지난 ${meta.months ? `${meta.months}개월` : `${meta.days}일`}간의 국정을 정리합니다...`
         : `${country} 관리들과 ${topic}에 관해 의논합니다...`,
     record: [
       { speaker: '', title: '', text: '편전에 대신들이 모여 왕명을 받들었다.' },
@@ -189,11 +189,10 @@ export function mockResponse(meta) {
       ...st,
       opinion: Math.max(0, Math.min(100, st.opinion + (meta.kind === 'command' ? opinionShift : 0))),
       treasury: st.treasury - (meta.kind === 'command' ? 12000 : 0),
-      population: st.population + (meta.kind === 'time' ? Math.round(st.population * 0.004 * meta.months) : 0),
+      population: st.population + (meta.kind === 'time' ? Math.round(st.population * 0.004 * ((meta.months || 0) + (meta.days || 0) / 30)) : 0),
     },
     units: s.units ? undefined : { treasury: '석', gdp: '석' },
-    eraLabel: `점검 ${s.turnCount + 1}년차`,
-    elapsedMonths: meta.kind === 'command' ? 1 : 0,
+    eraLabel: "점검 원년",
     updates: {
       characters: MOCK_PEOPLE.map(([name, title, faction, disposition]) => ({ name, title, faction, disposition, status: '재직' })),
       policies:

@@ -13,6 +13,9 @@ import {
   rollEvents,
   pickStaleAgenda,
   advanceDate,
+  formatSpan,
+  spanInMonths,
+  rollDecisionDays,
   parseTimeSkip,
   parseJsonLoose,
   normalizeResponse,
@@ -253,7 +256,7 @@ function gauge(v) {
   return h('span', { class: 'gauge', 'aria-hidden': 'true' }, h('span', { style: `width:${Math.max(0, Math.min(100, v))}%` }));
 }
 
-function statusGrid(status, deltas, units, date, eraLabel, months) {
+function statusGrid(status, deltas, units, date, eraLabel, months, days) {
   const d = deltas || {};
   const signedInt = (n) => (n ? `${n > 0 ? '▲' : '▼'} ${Math.abs(n)}` : '');
   const item = (key, label, value, ...extra) =>
@@ -272,7 +275,7 @@ function statusGrid(status, deltas, units, date, eraLabel, months) {
       'year',
       '년도',
       `${formatDate(date)}${eraLabel ? ` · ${eraLabel}` : ''}`,
-      months ? h('span', { class: 'delta neutral', text: months % 12 === 0 ? `+${months / 12}년` : `+${months}개월` }) : null
+      months || days ? h('span', { class: 'delta neutral', text: `+${formatSpan(months, days)}` }) : null
     )
   );
 }
@@ -288,7 +291,7 @@ const SEAL_CLASS = {
 
 function turnHeading(t) {
   if (t.kind === 'opening') return '첫 조회';
-  if (t.kind === 'time') return t.months % 12 === 0 ? `${t.months / 12}년이 흐름` : `${t.months}개월이 흐름`;
+  if (t.kind === 'time') return `${formatSpan(t.months, t.days)}이 흐름`;
   if (t.kind === 'resync') return '기록 대조';
   return null;
 }
@@ -343,7 +346,7 @@ function turnCard(t, state) {
       'section',
       { class: 'turn-status' },
       h('h4', { text: '상태창:' }),
-      statusGrid(t.status, t.deltas, state.units, t.date, t.eraLabel, t.months)
+      statusGrid(t.status, t.deltas, state.units, t.date, t.eraLabel, t.months, t.days)
     )
   );
   if (t.issues?.length) {
@@ -365,7 +368,7 @@ function renderSide() {
   const st = s.status;
   const last = s.turns[s.turns.length - 1];
   $('sideStatus').replaceChildren(
-    st ? statusGrid(st, last?.deltas, s.units, s.date, s.eraLabel, last?.months) : h('p', { class: 'muted', text: '첫 조회가 끝나면 상태창이 열립니다.' })
+    st ? statusGrid(st, last?.deltas, s.units, s.date, s.eraLabel, last?.months, last?.days) : h('p', { class: 'muted', text: '첫 조회가 끝나면 상태창이 열립니다.' })
   );
   $('sidePeek').textContent = st ? `여론 ${st.opinion} · 재정 ${formatBig(st.treasury)}` : '';
 
@@ -593,7 +596,7 @@ function conflictCard(conflict, onChoose) {
 }
 
 // ── 턴 진행 ────────────────────────────────────────────────
-// req: { kind: 'opening'|'command'|'time'|'resync', command?, months?, resolution?, resyncText? }
+// req: { kind: 'opening'|'command'|'time'|'resync', command?, months?, days?, resolution?, resyncText? }
 function buildContext(req) {
   const s = app.state;
   if (req.kind === 'command') {
@@ -601,10 +604,14 @@ function buildContext(req) {
     if (cached && cached.turn === s.turnCount && cached.command === req.command) {
       return { ...cached.ctx, resolution: req.resolution };
     }
+    const roll = rollFriction(s);
+    const days = rollDecisionDays(roll.tier);
     const ctx = {
       kind: 'command',
       command: req.command,
-      roll: rollFriction(s),
+      roll,
+      days,
+      target: advanceDate(s.date, 0, days),
       events: rollEvents(s, 'command', 0),
       agenda: pickStaleAgenda(s),
     };
@@ -613,16 +620,20 @@ function buildContext(req) {
   }
   if (req.kind === 'time') {
     const cached = app.rollCache;
-    if (cached && cached.turn === s.turnCount && cached.months === req.months) return cached.ctx;
+    const months = req.months || 0;
+    const days = req.days || 0;
+    const key = `${months}:${days}`;
+    if (cached && cached.turn === s.turnCount && cached.span === key) return cached.ctx;
     const ctx = {
       kind: 'time',
-      months: req.months,
-      target: advanceDate(s.date, req.months),
+      months,
+      days,
+      target: advanceDate(s.date, months, days),
       roll: rollFriction(s),
-      events: rollEvents(s, 'time', req.months),
+      events: rollEvents(s, 'time', spanInMonths(months, days)),
       agenda: pickStaleAgenda(s),
     };
-    app.rollCache = { turn: s.turnCount, months: req.months, ctx };
+    app.rollCache = { turn: s.turnCount, span: key, ctx };
     return ctx;
   }
   if (req.kind === 'resync') return { kind: 'resync', resyncText: req.resyncText };
@@ -646,7 +657,7 @@ async function runTurn(req) {
   const labels = {
     opening: '첫 조회를 엽니다',
     command: `왕명을 내렸습니다 — 「${req.command}」`,
-    time: `${ctx.months % 12 === 0 ? `${ctx.months / 12}년` : `${ctx.months}개월`}의 시간을 흘려보냅니다`,
+    time: `${formatSpan(ctx.months, ctx.days)}의 시간을 흘려보냅니다`,
     resync: '사관이 기록을 대조합니다',
   };
   app.busy = new AbortController();
@@ -735,10 +746,10 @@ function resolveConflict(choice, req, card) {
 function submitCommand(text) {
   const command = text.trim();
   if (!command || app.busy) return;
-  const months = parseTimeSkip(command);
-  if (months) {
+  const skip = parseTimeSkip(command);
+  if (skip) {
     $('cmd').value = '';
-    runTurn({ kind: 'time', months });
+    runTurn({ kind: 'time', ...skip });
     return;
   }
   runTurn({ kind: 'command', command });
@@ -950,8 +961,10 @@ function wire() {
       submitCommand($('cmd').value);
     }
   });
-  for (const b of document.querySelectorAll('#dock [data-months]')) {
-    b.addEventListener('click', () => runTurn({ kind: 'time', months: Number(b.dataset.months) }));
+  for (const b of document.querySelectorAll('#dock [data-months], #dock [data-days]')) {
+    b.addEventListener('click', () =>
+      runTurn({ kind: 'time', months: Number(b.dataset.months || 0), days: Number(b.dataset.days || 0) })
+    );
   }
   $('skipGo').addEventListener('click', () => {
     const years = Math.round(Number($('skipYears').value));
