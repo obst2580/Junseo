@@ -35,6 +35,7 @@ unset STUDIO_FIXTURES
 
 ## 공통
 
+0. 저장소 루트에서 `git pull origin claude/jolly-cerf-jlj0fw && uv sync`로 최신 작업자 코드를 받습니다.
 1. `ArtifactData get` — `requests/<요청 ID>`를 읽고 `kind`·`status`를 확인합니다. 이미 `done`이면 아무것도 하지 않습니다.
 2. `ArtifactData update` — `{status: "working", note: "…"}`(읽은 `version`으로 `if_version`).
 3. 끝나면 `{status: "done", note: "한 줄 요약", done_at}`, 실패하면 `{status: "error", error: "쉬운 말로 이유와 할 일"}`.

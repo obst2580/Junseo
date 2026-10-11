@@ -109,7 +109,7 @@ async def test_youtube_source_excludes_blocked(monkeypatch, tmp_path):
                     {"id": {"videoId": "a1"}, "snippet": {"title": "본회의", "channelTitle": "YTN"}},
                     {
                         "id": {"videoId": "b2"},
-                        "snippet": {"title": "본회의 표결", "channelTitle": "KTV 국민방송"},
+                        "snippet": {"title": "본회의 &quot;표결&quot;", "channelTitle": "KTV 국민방송"},
                     },
                 ]
             },
@@ -129,6 +129,7 @@ async def test_youtube_source_excludes_blocked(monkeypatch, tmp_path):
         and got[0].clip_start_sec == 60
     )
     assert videos.calls[0].request.url.params["id"] == "b2"
+    assert got[0].title == '본회의 "표결"'  # API 제목의 HTML 엔티티는 풀어 둔다
 
 
 @respx.mock

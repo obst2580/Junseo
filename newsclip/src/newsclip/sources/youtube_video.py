@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import html
 import os
 import re
 
@@ -107,7 +108,7 @@ class YouTubeVideoSource(Source):
                 Asset(
                     source="youtube_video",
                     id=asset_id("youtube_video", url),
-                    title=sn.get("title", ""),
+                    title=html.unescape(sn.get("title", "")),
                     url=url,
                     source_page_url=url,
                     source_domain="youtube.com",
@@ -115,7 +116,7 @@ class YouTubeVideoSource(Source):
                     width=1920 if hd else 640,
                     height=1080 if hd else 360,
                     duration_sec=dur,
-                    author_or_channel=sn.get("channelTitle", ""),
+                    author_or_channel=html.unescape(sn.get("channelTitle", "")),
                     clip_start_sec=default_clip_start(dur),
                     media="video",
                 )
