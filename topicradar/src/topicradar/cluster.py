@@ -180,7 +180,12 @@ CATEGORY_LEXICON: dict[str, list[str]] = {
 
 _FUTURE_VERB = (
     r"(예정|열린다|연다|개최한다|개최할|진행한다|진행할|표결한다|표결할|표결에 부친다|선고한다|선고할|"
-    r"발표한다|발표할|상정한다|상정할|처리한다|처리할|앞두고|할 계획|가질 예정)"
+    r"발표한다|발표할|상정한다|상정할|처리한다|처리할|앞두고|할 계획|가질 예정|열릴|잡혔|잡혀|부쳐진다|상정된다)"
+)
+# 제목형 일정: "…8일 본회의 표결", "…8일 1심 선고" (명사로 끝나는 예고 제목)
+_TITLE_SCHEDULE_RE = re.compile(
+    r"(?P<when>오늘|내일|모레|(?P<day>\d{1,2})일)\s*(?:(?P<ampm>오전|오후)\s*(?P<hour>\d{1,2})시(?:\s*(?P<min>\d{1,2})분)?)?"
+    r"[^.…]{0,20}?(표결|선고|상정|본회의|국무회의|발표|투표|청문회|개최)\s*(?:…|$)"
 )
 _SCHEDULE_RE = re.compile(
     r"(?P<when>오늘|이날|내일|모레|(?P<day>\d{1,2})일)\s*(?:\((?:월|화|수|목|금|토|일)\)\s*)?"
@@ -248,39 +253,54 @@ def categorize(texts: Iterable[str], hints: Iterable[str] = (), categories: list
     return max(score, key=lambda c: score[c])
 
 
+def _match_to_dt(m: re.Match[str], base: date) -> tuple[datetime, bool] | None:
+    when = m.group("when")
+    if when in ("오늘", "이날"):
+        d = base
+    elif when == "내일":
+        d = base + timedelta(days=1)
+    elif when == "모레":
+        d = base + timedelta(days=2)
+    else:
+        day = int(m.group("day"))
+        if not 1 <= day <= 31:
+            return None
+        month, year = base.month, base.year
+        if day < base.day - 10:  # 다음 달로 넘어가는 일정
+            month, year = (1, year + 1) if month == 12 else (month + 1, year)
+        try:
+            d = date(year, month, day)
+        except ValueError:
+            return None
+    has_time = bool(m.group("hour"))
+    hh = int(m.group("hour")) if has_time else 0
+    if m.group("ampm") == "오후" and hh < 12:
+        hh += 12
+    mm = int(m.group("min")) if m.group("min") else 0
+    return datetime.combine(d, time(min(hh, 23), min(mm, 59)), tzinfo=KST), has_time
+
+
 def find_schedule(sig: Signal) -> datetime | None:
-    """신호 속 '앞으로의 일정' 시각(KST)."""
+    """신호 속 '앞으로의 일정' 시각(KST). 같은 날짜면 시각이 적힌 언급을 우선한다."""
     if sig.kind == "schedule" and sig.metric.get("scheduled_at"):
         return datetime.fromisoformat(sig.metric["scheduled_at"]).astimezone(KST)
     base = sig.published_at.astimezone(KST).date()
-    for text in (sig.title, sig.summary):
-        m = _SCHEDULE_RE.search(text)
-        if not m:
-            continue
-        when = m.group("when")
-        if when in ("오늘", "이날"):
-            d = base
-        elif when == "내일":
-            d = base + timedelta(days=1)
-        elif when == "모레":
-            d = base + timedelta(days=2)
-        else:
-            day = int(m.group("day"))
-            if not 1 <= day <= 31:
-                continue
-            month, year = base.month, base.year
-            if day < base.day - 10:  # 다음 달로 넘어가는 일정
-                month, year = (1, year + 1) if month == 12 else (month + 1, year)
-            try:
-                d = date(year, month, day)
-            except ValueError:
-                continue
-        hh = int(m.group("hour")) if m.group("hour") else 0
-        if m.group("ampm") == "오후" and hh < 12:
-            hh += 12
-        mm = int(m.group("min")) if m.group("min") else 0
-        return datetime.combine(d, time(min(hh, 23), min(mm, 59)), tzinfo=KST)
-    return None
+    found: list[tuple[datetime, bool]] = []
+    for text, pattern in (
+        (sig.title, _SCHEDULE_RE),
+        (sig.title, _TITLE_SCHEDULE_RE),
+        (sig.summary, _SCHEDULE_RE),
+    ):
+        m = pattern.search(text)
+        if m:
+            got = _match_to_dt(m, base)
+            if got is not None:
+                found.append(got)
+    if not found:
+        return None
+    first_day = found[0][0].date()
+    timed = [dt for dt, has_time in found if has_time and dt.date() == first_day]
+    return timed[0] if timed else found[0][0]
 
 
 def find_follow_up(signals: list[Signal]) -> str | None:
@@ -429,6 +449,9 @@ GENERIC_TOKENS: set[str] = {
 }
 
 
+IDF_PRIOR = 50  # 작은 윈도우에서도 '희귀어 2개 공유'가 연결 근거가 되도록
+
+
 def _weight(tok: str, idf: dict[str, float], generic: set[str]) -> float:
     w = idf.get(tok, 3.0)
     return min(w, 0.5) if tok in generic else w
@@ -461,7 +484,7 @@ def heuristic_groups(
     ]
     toks = [signal_tokens(s) for s in signals]
     old_toks = [signal_tokens(s) for s, _ in old_sigs]
-    idf = idf_table(toks + old_toks)
+    idf = idf_table(toks + old_toks, prior=IDF_PRIOR)
     parent = list(range(len(signals)))
 
     def find(i: int) -> int:
@@ -518,14 +541,16 @@ def attach_competitors(topics: list[Topic], competitor_signals: list[Signal]) ->
         set(t.keywords) | set(tokenize(t.name)) | {x for s in t.signals for x in signal_tokens(s)}
         for t in topics
     ]
-    idf = idf_table(docs + [signal_tokens(s) for s in competitor_signals])
+    idf = idf_table(docs + [signal_tokens(s) for s in competitor_signals], prior=IDF_PRIOR)
     for sig in competitor_signals:
         st = signal_tokens(sig)
         best: tuple[float, Topic] | None = None
         for d, t in zip(docs, topics, strict=True):
             shared = st & d
             w = sum(_weight(x, idf, GENERIC_TOKENS) for x in shared)
-            if len(shared) >= 2 and (shared - GENERIC_TOKENS) and w >= 2.5 and (best is None or w > best[0]):
+            distinct = shared - GENERIC_TOKENS
+            strong = len(distinct) >= 2 or (len(shared) >= 2 and distinct and w >= 2.5)
+            if strong and (best is None or w > best[0]):
                 best = (w, t)
         if best is not None and all(s.id != sig.id for s in best[1].signals):
             best[1].signals.append(sig)

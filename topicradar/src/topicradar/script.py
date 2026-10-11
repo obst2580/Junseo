@@ -32,7 +32,9 @@ LINE_LIMIT = 25
 BANNED = ["충격", "경악", "난리", "대박", "소름", "어이없", "한심"]
 HEDGES = ["로 보입니다", "것 같습니다", "듯합니다", "아닐까"]
 _CAUSE_RE = re.compile(r"(때문|이유|배경|책임|탓|반발|여파|원인|면서|따른 것)")
-_NEXT_RE = re.compile(r"(예정|전망|방침|계획|다음 달|다음 주|내주|내달|후속|수순|할 것으로|되면|하면)")
+_NEXT_RE = re.compile(
+    r"(예정|전망|방침|계획|다음 달|다음 주|내주|내달|후속|수순|할 것으로|되면|하면|시행된다|준비에 들어|검토하겠다|검토한다)"
+)
 _ORDINALS = ["첫째", "둘째", "셋째", "넷째"]
 
 
@@ -162,6 +164,12 @@ def _morning(plan: SlotPlan) -> list[str]:
     return lines
 
 
+def _result_signals(it: SlotItem, plan: SlotPlan) -> list[Signal]:
+    """회수 항목의 결과 기사(저녁 윈도우 안)."""
+    start, end = plan.window_start, plan.window_end
+    return [s for s in _ranked_signals(it, plan) if start and end and start <= s.published_at < end]
+
+
 def _recall_lines(it: SlotItem, plan: SlotPlan) -> list[str]:
     name = short_name(it.topic.name, 16)
     lines = [f"## 아침 포인트 회수: {name}"]
@@ -169,7 +177,7 @@ def _recall_lines(it: SlotItem, plan: SlotPlan) -> list[str]:
         lines += _cited(it.actual, it, prefix="아침에 말씀드린 대로, ")
     elif it.hit == "miss" and it.actual:
         lines += _cited(it.actual, it, prefix="아침 예상과 달리, ")
-        why = _pick(_ranked_signals(it, plan), _CAUSE_RE, set(), 1)
+        why = _pick(_result_signals(it, plan), _CAUSE_RE, set(), 1)
         lines += _sentence_lines(*why[0]) if why else ["#TODO: 예상과 달라진 이유 보강"]
     elif it.actual:
         lines += _cited(it.actual, it)
@@ -177,8 +185,9 @@ def _recall_lines(it: SlotItem, plan: SlotPlan) -> list[str]:
     else:
         lines += wrap_subtitle(f"{name} 결과는 아직 나오지 않았습니다.", LINE_LIMIT)
         return lines
-    nxt = _pick(_ranked_signals(it, plan), _NEXT_RE, set(), 1)
-    follow = nxt[0][0] if nxt else it.topic.follow_up
+    # '그래서 다음은'은 결과가 나온 뒤의 기사에서만 찾는다(표결 전 '가결 전망' 같은 문장 배제).
+    nxt = _pick(_result_signals(it, plan), _NEXT_RE, {re.sub(r"\s+", "", it.actual or "")}, 1)
+    follow = nxt[0][0] if nxt else None
     if follow:
         lines += _cited(follow, it, prefix="그래서 다음은, ")
     else:

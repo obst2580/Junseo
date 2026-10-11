@@ -87,7 +87,8 @@ def heuristic_judge(t: Topic) -> tuple[ScoreDetail, ScoreDetail]:
     """지속성·적합도 휴리스틱(오프라인)."""
     text = _text(t)
     inst = bool(_INSTITUTIONAL.search(text))
-    happening = bool(_HAPPENING.search(text))
+    # 주제명 자체가 설전·막말이면 국감 같은 제도 맥락이 있어도 해프닝으로 본다.
+    happening = bool(_HAPPENING.search(t.name)) or (bool(_HAPPENING.search(text)) and not inst)
     days = {s.published_at.astimezone(KST).date() for s in t.signals if s.kind != "competitor"}
     has_next = t.scheduled_at is not None or t.follow_up is not None
 
@@ -95,13 +96,13 @@ def heuristic_judge(t: Topic) -> tuple[ScoreDetail, ScoreDetail]:
     if has_next:
         p += 20
         p_why.append("후속 일정 있음")
-    if inst:
+    if inst and not happening:
         p += 15
         p_why.append("제도·정책 사안")
     if len(days) >= 2:
         p += 10
         p_why.append(f"{len(days)}일째 보도")
-    if happening and not inst:
+    if happening:
         p -= 30
         p_why.append("단발 해프닝 성격")
     persistence = ScoreDetail(score=clamp(p), reason=", ".join(p_why) or "흐름 판단 근거 부족")
@@ -119,7 +120,7 @@ def heuristic_judge(t: Topic) -> tuple[ScoreDetail, ScoreDetail]:
     if _AGENDA.search(text):
         f += 10
         f_why.append("진보 의제와 직결")
-    if happening and not inst:
+    if happening:
         f -= 20
         f_why.append("단순 발언·설전")
     if t.category in ("경제", "노동", "복지") and not _POLITICAL.search(text):

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 
@@ -18,27 +17,12 @@ import httpx
 
 from studio_core.config import KST, now_kst
 from studio_core.http import get_json
+from studio_core.keys import naver_base, naver_headers
 from studio_core.text import extract_keywords, normalize_title, strip_html
-from topicradar.collectors.base import Collector, CollectorDisabled
+from topicradar.collectors.base import Collector
 from topicradar.models import Signal
 
 log = logging.getLogger("topicradar.naver")
-
-
-def naver_headers() -> dict[str, str]:
-    """네이버 인증 헤더. 키가 없으면 CollectorDisabled."""
-    cid, secret = os.environ.get("NAVER_CLIENT_ID", ""), os.environ.get("NAVER_CLIENT_SECRET", "")
-    if not cid or not secret:
-        raise CollectorDisabled("NAVER_CLIENT_ID/NAVER_CLIENT_SECRET 미설정")
-    return {
-        os.environ.get("NAVER_HEADER_ID", "X-Naver-Client-Id"): cid,
-        os.environ.get("NAVER_HEADER_SECRET", "X-Naver-Client-Secret"): secret,
-    }
-
-
-def naver_base() -> str:
-    """API 기본 호스트."""
-    return os.environ.get("NAVER_API_BASE", "https://openapi.naver.com").rstrip("/")
 
 
 def parse_news(payload: dict, query: str, fetched_at: datetime) -> list[Signal]:

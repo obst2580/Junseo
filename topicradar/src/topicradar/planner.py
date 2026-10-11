@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from datetime import datetime
 from typing import Literal
 
@@ -17,7 +18,7 @@ from studio_core.config import KST
 from studio_core.llm import ClaudeLLM, LLMError
 from studio_core.text import idf_table, josa, short_name, split_sentences, to_polite, tokenize
 from topicradar import prompts
-from topicradar.cluster import GENERIC_TOKENS, signal_tokens, window_title
+from topicradar.cluster import GENERIC_TOKENS, IDF_PRIOR, signal_tokens, window_title
 from topicradar.models import Chain, Signal, SlotItem, SlotPlan, Topic
 from topicradar.risk import title_problems
 
@@ -185,15 +186,18 @@ def heuristic_chains(
         | {x for sg in t.signals if sg.kind != "competitor" for x in signal_tokens(sg)}
         for t in topics
     }
-    idf = idf_table(list(docs.values()))
+    idf = idf_table(list(docs.values()), prior=IDF_PRIOR)
     persist = {
         t.id: t.scores.get("persistence").score if t.scores.get("persistence") else 50.0 for t in topics
     }
-    pool = sorted(topics, key=lambda t: (-persist[t.id], -t.total))
+    # 정치 중심: 경제 주제는 사슬의 축으로는 마지막 순위(구성원으로는 들어갈 수 있음)
+    pool = sorted(topics, key=lambda t: (t.category == "경제", -persist[t.id], -t.total))
     used: set[str] = set()
     chains: list[Chain] = []
     for anchor in pool:
         if len(chains) >= max_chains or anchor.id in used or persist[anchor.id] < 55:
+            continue
+        if anchor.category == "경제" and chains:  # 경제 사슬은 정치 사슬이 하나도 없을 때만
             continue
         members = [anchor]
         for t in pool:
@@ -204,6 +208,32 @@ def heuristic_chains(
             if len(distinct) >= 2 and sum(idf.get(x, 0) for x in distinct) >= 3.0:
                 members.append(t)
         if len(members) < 2:
+            # 한 주제가 여러 날에 걸쳐 전개됐다면 그 자체가 사슬(예: 선고 예고 → 연기 → 기일 재지정)
+            days = sorted(
+                {sg.published_at.date() for sg in anchor.signals if sg.kind not in ("competitor", "schedule")}
+            )
+            if anchor.category != "경제" and len(days) >= 3 and persist[anchor.id] >= 70:
+                used.add(anchor.id)
+                firsts: list[list[str]] = []
+                for d in days[:4]:
+                    first = min(
+                        (
+                            sg
+                            for sg in anchor.signals
+                            if sg.published_at.date() == d and sg.kind not in ("competitor", "schedule")
+                        ),
+                        key=lambda sg: sg.published_at,
+                    )
+                    firsts.append(re.sub(r"[,…·\"'“”—]", " ", first.title).split())
+                # 날마다 반복되는 말(주체·사건명)은 빼고 그날의 전개만 남긴다
+                freq = Counter(w for ws in firsts for w in set(ws))
+                steps = [
+                    " ".join(w for w in ws if freq[w] * 2 <= len(firsts))[:16].strip() or " ".join(ws)[:16]
+                    for ws in firsts
+                ]
+                chains.append(
+                    Chain(title=short_name(anchor.name, 16), summary=" → ".join(steps), topic_ids=[anchor.id])
+                )
             continue
         members.sort(key=lambda t: t.first_seen)
         used.update(t.id for t in members)

@@ -1,0 +1,195 @@
+import io
+import os
+import re
+import wave
+from pathlib import Path
+
+import httpx
+import pytest
+import respx
+from PIL import Image
+
+from newsclip.download import DedupeRegistry, download_image, download_video, in_point, section_for, ytdlp_cmd
+from newsclip.fcpxml import build_xmeml, ease_out_keyframes, path_url, plan_segments, validate_xmeml
+from newsclip.license_log import attribution_text, write_assets_json
+
+from nch import asset, scene, sset
+
+SNAP = Path(__file__).parent / "snapshots" / "timeline.xml"
+
+
+def _jpeg(w=2400, h=1600) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), (10, 20, 30)).save(buf, "JPEG")
+    return buf.getvalue()
+
+
+def test_ytdlp_command_and_sections():
+    a = asset(
+        "youtube_video",
+        "https://www.youtube.com/watch?v=x",
+        media="video",
+        clip_start_sec=30,
+        duration_sec=40,
+    )
+    assert section_for(a, 6.0, 20) == (28.0, 38.0)
+    assert section_for(a, 60.0, 20) == (28.0, 40.0)  # 원본 길이로 자름
+    early = a.model_copy(update={"clip_start_sec": 1.0})
+    assert section_for(early, 5, 20)[0] == 0.0 and in_point(early) == 1.0 and in_point(a) == 2.0
+    cmd = ytdlp_cmd(a.url, 28.0, 38.0, Path("/tmp/o.mp4"))
+    joined = " ".join(cmd)
+    assert "--download-sections *28.00-38.00" in joined and "--force-keyframes-at-cuts" in cmd
+    assert (
+        "bv*[height<=1080][ext=mp4]+ba[ext=m4a]" in joined
+        and cmd[-1] == a.url
+        and "--merge-output-format mp4" in joined
+    )
+
+
+@respx.mock
+async def test_download_image_normalizes_and_dedupes(tmp_path):
+    data = _jpeg()
+    respx.get("https://img.example.com/a.jpg").mock(return_value=httpx.Response(200, content=data))
+    respx.get("https://img.example.com/b.jpg").mock(return_value=httpx.Response(200, content=data))
+    respx.get("https://img.example.com/bad.jpg").mock(
+        return_value=httpx.Response(200, content=b"not an image")
+    )
+    reg, sem = DedupeRegistry(), __import__("asyncio").Semaphore(5)
+    async with httpx.AsyncClient() as c:
+        a = await download_image(
+            c, asset(url="https://img.example.com/a.jpg"), tmp_path / "s001_1.jpg", reg, (1920, 1080), sem
+        )
+        b = await download_image(
+            c, asset(url="https://img.example.com/b.jpg"), tmp_path / "s002_1.jpg", reg, (1920, 1080), sem
+        )
+        bad = await download_image(
+            c, asset(url="https://img.example.com/bad.jpg"), tmp_path / "s003_1.jpg", reg, (1920, 1080), sem
+        )
+    assert Image.open(a.local_path).size == (1920, 1080) and a.width == 2400
+    assert b.local_path == a.local_path and b.sha256 == a.sha256  # 같은 바이트는 한 파일만
+    assert bad is None
+
+
+async def test_download_video_fake(tmp_path):
+    a = asset(
+        "youtube_video",
+        "https://www.youtube.com/watch?v=x",
+        media="video",
+        clip_start_sec=10,
+        duration_sec=300,
+    )
+    got = await download_video(
+        a, tmp_path / "s001_1.mp4", 5.0, 20.0, DedupeRegistry(), __import__("asyncio").Semaphore(1)
+    )
+    assert (
+        got is not None
+        and Path(got.local_path).exists()
+        and got.duration_sec == 9.0
+        and got.source_duration_sec == 300
+    )
+
+
+def _local_assets(tmp_path):
+    img = tmp_path / "assets" / "s001_1.jpg"
+    img.parent.mkdir(parents=True, exist_ok=True)
+    img.write_bytes(_jpeg(1920, 1080))
+    vid = tmp_path / "assets" / "s002_1.mp4"
+    vid.write_bytes(b"\x00")
+    a_img = asset(url="https://img/1.jpg", local_path=str(img), source_domain="assembly.go.kr")
+    a_img2 = asset(url="https://img/2.jpg", local_path=str(img), source_domain="korea.kr")
+    a_vid = asset(
+        "youtube_video",
+        "https://y/1",
+        media="video",
+        local_path=str(vid),
+        duration_sec=7.0,
+        clip_start_sec=10,
+        author_or_channel="KTV 국민방송",
+        width=1920,
+        height=1080,
+    )
+    for a in (a_img, a_img2, a_vid):
+        a.attribution_text = attribution_text(a)
+    return a_img, a_img2, a_vid
+
+
+def _set(tmp_path):
+    a_img, a_img2, a_vid = _local_assets(tmp_path)
+    s1 = scene("s001", 0.0, 4.0, candidates=[a_img], chosen=a_img)
+    s2 = scene(
+        "s002", 4.0, 12.0, kind="video", candidates=[a_vid, a_img2], chosen=a_vid
+    )  # 영상 5초 + 사진으로 채움
+    s3 = scene("s003", 12.0, 16.0, candidates=[], keywords_ko=["자료", "없음"])
+    s4 = scene("s004", 16.0, 20.0, candidates=[a_img], chosen=a_img, skipped=True)
+    s5 = scene("s005", 20.0, 24.0, candidates=[a_img2], chosen=a_img2)
+    return sset([s1, s2, s3, s4, s5])
+
+
+def test_plan_segments_fill_and_markers(tmp_path):
+    segs, marks = plan_segments(_set(tmp_path), video_max_sec=20)
+    spans = [(s.scene.id, s.asset.media, s.start, s.end) for s in segs]
+    assert spans[1] == ("s002", "video", 4.0, 9.0) and spans[2] == ("s002", "image", 9.0, 12.0)
+    assert {m.name for m in marks} == {"자료 없음", "건너뛰기"}
+    assert any("자료 없음: 자료, 없음" == m.comment for m in marks)
+
+
+def _norm(xml: str, root: Path) -> str:
+    return xml.replace(path_url(root).removeprefix("file://localhost"), "{ROOT}").replace(str(root), "{ROOT}")
+
+
+def test_fcpxml_snapshot_and_validation(tmp_path):
+    s = _set(tmp_path)
+    wav = tmp_path / "narration.wav"
+    with wave.open(str(wav), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(48000)
+        w.writeframes(b"\x00\x00" * 48000 * 25)
+    xml = build_xmeml(s, tmp_path, fps=30, size=(1920, 1080), zoom=1.04, audio=wav)
+    assert validate_xmeml(xml) == []
+    assert xml.count("<clipitem") == 2 * 4 + 1  # V1 4 + V2 4 + A1 1
+    assert "<name>Basic Motion</name>" in xml and "<marker>" in xml
+    scales = re.findall(r"<parameterid>scale</parameterid>.*?<value>([\d.]+)</value>", xml, re.S)
+    assert scales[0] == "100.0" and scales[1] == "104.0"  # 1번 장면 줌인, 2번 장면(사진 채움) 줌아웃
+    got = _norm(xml, tmp_path)
+    if os.environ.get("UPDATE_SNAPSHOTS") or not SNAP.exists():
+        SNAP.parent.mkdir(exist_ok=True)
+        SNAP.write_text(got, encoding="utf-8")
+    assert got == SNAP.read_text(encoding="utf-8")
+
+
+def test_validate_detects_problems():
+    bad = """<?xml version="1.0"?><!DOCTYPE xmeml><xmeml version="5"><sequence><duration>10</duration><media><video><track>
+<clipitem id="a"><start>0</start><end>8</end><in>0</in><out>8</out><file id="f1"><pathurl>x</pathurl></file></clipitem>
+<clipitem id="b"><start>5</start><end>12</end><in>0</in><out>3</out><file id="f2"/></clipitem>
+</track></video></media><marker><name>m</name><in>99</in></marker></sequence></xmeml>"""
+    errs = " | ".join(validate_xmeml(bad))
+    for frag in ("겹침", "불일치", "시퀀스 길이 초과", "정의되지 않은 file", "마커 위치"):
+        assert frag in errs
+    assert validate_xmeml("<not xml") and "sequence 없음" in validate_xmeml("<xmeml version='5'/>")[0]
+
+
+def test_ease_out_and_attribution(tmp_path):
+    kf = ease_out_keyframes(100, 104, 120)
+    assert kf[0] == (0, 100.0) and kf[-1] == (120, 104.0)
+    deltas = [b[1] - a[1] for a, b in zip(kf, kf[1:], strict=False)]
+    assert deltas == sorted(deltas, reverse=True)  # ease-out: 처음 빠르고 끝에서 느림
+    assert (
+        attribution_text(asset("wikimedia", author_or_channel="홍길동", license="CC BY 4.0"))
+        == "사진: 홍길동 / Wikimedia Commons / CC BY 4.0"
+    )
+    assert attribution_text(asset(source_domain="korea.kr")) == "출처: korea.kr"
+    assert (
+        attribution_text(asset("youtube_video", media="video", author_or_channel="KTV 국민방송"))
+        == "출처: KTV 국민방송 (YouTube)"
+    )
+    s = _set(tmp_path)
+    write_assets_json(tmp_path / "assets.json", s)
+    data = __import__("json").loads((tmp_path / "assets.json").read_text(encoding="utf-8"))
+    assert (
+        data["assets"]
+        and all(r["attribution_text"] for r in data["assets"])
+        and "허락이 아님" in data["notice"]
+    )
+    assert path_url("/a b/c.jpg") == "file://localhost/a%20b/c.jpg"
+    _ = pytest

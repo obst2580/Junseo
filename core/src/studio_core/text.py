@@ -219,9 +219,9 @@ def jaccard(a: Iterable[str], b: Iterable[str]) -> float:
     return len(sa & sb) / len(sa | sb)
 
 
-def idf_table(docs: list[set[str]]) -> dict[str, float]:
-    """문서 집합의 IDF."""
-    n = max(len(docs), 1)
+def idf_table(docs: list[set[str]], prior: int = 0) -> dict[str, float]:
+    """문서 집합의 IDF. prior: 그 토큰이 없는 가상 문서 수(작은 표본에서 IDF가 무너지는 것을 막는다)."""
+    n = max(len(docs), 1) + prior
     df: Counter[str] = Counter()
     for d in docs:
         df.update(d)

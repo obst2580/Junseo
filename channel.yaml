@@ -1,0 +1,49 @@
+# studio 공통 채널 설정 (topicradar · newsclip이 함께 읽는다)
+channel:
+  youtube_channel_id: ""
+  stance: "진보 성향 데일리 정치 해설 채널. 매일 아침 오늘 벌어질 일을 예고하고 저녁에 결과를 설명한다. 모든 이슈에 '왜 벌어졌나'와 '다음에 뭐가 오나'를 답한다. 감정이 아니라 인과로 말한다. 진보의 시각은 사실 배열과 원인 지목에서 드러나고, 구호로 드러내지 않는다. 시청자는 진보 성향 40~60대, 뉴스는 보지만 맥락을 모르겠다고 느끼는 사람."
+  categories: [국회, 정부, 사법, 선거, 외교안보, 국제, 경제, 노동, 복지]
+  competitors: []            # 경쟁 채널 ID(UC...)
+  past_titles: []            # 업로드 후 자동 추가
+  slack_webhook: ""
+
+sources:
+  # 국내 RSS. 주소는 docs/sources.md 참고 — 이 환경에선 접속 검증을 못 했으니 첫 collect 결과 표의
+  # '실패' 줄로 확인하세요(피드 하나가 실패해도 나머지는 계속 수집됩니다).
+  rss:
+    - {name: 연합뉴스 정치, url: "https://www.yna.co.kr/rss/politics.xml", kind: domestic, category: 국회}
+    - {name: 연합뉴스 북한, url: "https://www.yna.co.kr/rss/northkorea.xml", kind: domestic, category: 외교안보}
+    - {name: 연합뉴스 경제, url: "https://www.yna.co.kr/rss/economy.xml", kind: domestic, category: 경제}
+    - {name: 연합뉴스 사회, url: "https://www.yna.co.kr/rss/society.xml", kind: domestic}
+    # 정부 보도자료: 정책브리핑(korea.kr) RSS는 2026-07-01 공지로 제공 중단 → 부처별 RSS를 확인해 kind: press로 추가
+    # - {name: 기획재정부 보도자료, url: "<부처 RSS 주소>", kind: press, category: 정부}
+  overseas_rss:
+    - {name: 연합뉴스 국제, url: "https://www.yna.co.kr/rss/international.xml", category: 국제}
+    - {name: BBC World, url: "https://feeds.bbci.co.uk/news/world/rss.xml", category: 국제}
+    - {name: NYT World, url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", category: 국제}
+    - {name: Guardian World, url: "https://www.theguardian.com/world/rss", category: 국제}
+    - {name: Al Jazeera, url: "https://www.aljazeera.com/xml/rss/all.xml", category: 국제}
+    - {name: NPR World, url: "https://feeds.npr.org/1004/rss.xml", category: 국제}
+  # 네이버 뉴스 검색어(검색어당 최신 100건). 정치 중심으로 두고 경제는 최소로.
+  naver_queries: [국회 본회의, 국정감사, 대통령실, 국무회의, 법사위, 검찰 수사, 법원 선고, 헌법재판소, 여론조사, 공천, 외교부, 북한 미사일, 노동 입법, 연금 개혁]
+  kogl: []                   # KTV 국민방송, 국회방송 등 공공누리 영상 API (2차)
+
+images:
+  # 가점만, 제한 없음. 접미사 일치(go.kr → moef.go.kr 포함). 정당 도메인은 사용 전 확인.
+  preferred_domains: [wikimedia.org, go.kr, assembly.go.kr, theminjoo.kr, peoplepowerparty.kr, rebuildingkoreaparty.kr, reformparty.kr, justice21.org, jinboparty.com]
+  blocked_domains: []        # 비워둠. 필요 시 사용자가 추가
+
+videos:
+  preferred_channels: [KTV 국민방송, 국회방송, NATV, 대한민국 정부, 더불어민주당, 국민의힘, 조국혁신당, 개혁신당, 진보당]
+  blocked_channels: [KBS News, MBCNEWS, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, TV CHOSUN, 채널A, MBN]   # Content ID 회피
+
+scoring:
+  weights: {interest: 40, gap: 20, persistence: 10, fit: 30}   # history가 조정을 제안한다
+
+budget:
+  google_cse_per_day: 90       # 무료 100회 중 여유 10
+  youtube_search_per_day: 80   # search.list 1회 = 100 units, 하루 10,000 units 중 8,000
+  naver_per_day: 20000
+
+clustering:
+  generic_tokens: []           # 어디에나 나와 주제 연결 근거로 약하게만 칠 말(주요 정당명은 기본 포함)

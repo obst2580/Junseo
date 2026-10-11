@@ -28,8 +28,6 @@ BASE_ENV = {
     "NAVER_CLIENT_ID": "demo",
     "NAVER_CLIENT_SECRET": "demo",
     "YOUTUBE_API_KEY": "demo",
-    "GOOGLE_API_KEY": "demo",
-    "GOOGLE_CSE_ID": "demo",
     "STUDIO_NEWSCLIP_FAKE_YTDLP": "1",
     "STUDIO_CONTACT": "demo@example.com",
     "COLUMNS": "120",

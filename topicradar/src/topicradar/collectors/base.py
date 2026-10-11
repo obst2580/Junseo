@@ -8,12 +8,13 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from studio_core.keys import Unavailable
 from topicradar.models import Signal
 
 log = logging.getLogger("topicradar.collect")
 
 
-class CollectorDisabled(RuntimeError):
+class CollectorDisabled(Unavailable):
     """키 미설정 등으로 건너뛰는 수집기."""
 
 
@@ -44,7 +45,7 @@ async def collect_all(collectors: list[Collector], since: datetime) -> CollectRe
     async def _one(c: Collector) -> None:
         try:
             sigs = await c.fetch(since)
-        except CollectorDisabled as e:
+        except Unavailable as e:
             report.skipped[c.name] = str(e)
             log.warning("[%s] 건너뜀: %s", c.name, e)
             return

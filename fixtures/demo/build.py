@@ -53,7 +53,7 @@ def _url(host: str, a: dict) -> str:
 def build_rss(articles: list[dict]) -> None:
     out = HERE / "rss"
     out.mkdir(exist_ok=True)
-    for key, (name, _url_, host) in FEEDS.items():
+    for key, (name, _, host) in FEEDS.items():
         items = []
         for a in sorted((a for a in articles if a["src"] == key), key=lambda a: a["at"], reverse=True):
             pub = _dt(a["at"])
