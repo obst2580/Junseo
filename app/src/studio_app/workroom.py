@@ -301,6 +301,11 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
                 "videos": video_links(sc.candidates),
             }
         )
+    # timeline.xml이 가리키는 그 밖의 파일(출처 표시 글자 그림 captions/cap_*.png)도 같이 올린다
+    for png in sorted((proj / "captions").glob("*.png")):
+        rel = f"captions/{png.name}"
+        if rel in xml and rel not in {f["name"] for f in files}:
+            files.append({"name": rel, "path": str(png), "media": "image"})
     (out / "timeline.xml.txt").write_text(xml, encoding="utf-8")
     (out / "narration.srt.txt").write_text(
         (proj / "narration.srt").read_text(encoding="utf-8"), encoding="utf-8"

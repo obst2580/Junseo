@@ -1003,7 +1003,8 @@ function renderResult() {
     <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
       <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
     <div class="small muted">압축 파일 안의 <span class="mono">${esc(p.id)}</span> 폴더가 이 폴더 안에 풀리면 됩니다.</div>
-    <div class="row"><button class="btn" id="pick-audio" type="button">${S.audioFile ? '음성: ' + esc(S.audioFile.name) : '음성 파일 다시 고르기'}</button><input type="file" id="audio2" accept="audio/*,.mp3,.wav,.m4a" hidden>
+    ${S.audioFile ? '' : `<div class="note warn">압축 파일에 음성을 같이 넣으려면 <b>[음성 파일 고르기]</b>로 음성(${esc((p.audio && p.audio.name) || '타입캐스트에서 받은 파일')})을 한 번 더 골라 주세요. 화면을 새로 열면 음성 파일은 다시 골라야 합니다.</div>`}
+    <div class="row"><button class="btn" id="pick-audio" type="button">${S.audioFile ? '음성: ' + esc(S.audioFile.name) : '음성 파일 고르기'}</button><input type="file" id="audio2" accept="audio/*,.mp3,.wav,.m4a" hidden>
       <span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
     <div id="zip-state" class="small"></div>`;
   $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));
@@ -1021,6 +1022,12 @@ async function makeZip() {
   const folder = ($('#folder').value || '').trim();
   if (!folder || folder.includes('(사용자)')) { toast('압축을 풀 폴더 경로를 적어 주세요', true); $('#folder').focus(); return; }
   if (!window.JSZip) { st.textContent = '압축 도구를 불러오지 못했습니다. 새로 고침해 주세요.'; return; }
+  if (!S.audioFile && st.dataset.noAudio !== '1') {  // 음성 없이 받으면 프리미어가 narration 파일을 못 찾는다
+    st.dataset.noAudio = '1';
+    st.textContent = `음성 파일을 먼저 골라 주세요(${(p.audio && p.audio.name) || '타입캐스트 음성'}). 음성 없이 받으려면 [압축 파일 받기]를 한 번 더 누르세요.`;
+    $('#audio2').click(); return;
+  }
+  st.dataset.noAudio = '';
   st.innerHTML = spinner('파일을 모으는 중…');
   try {
     const zip = new JSZip(), root = zip.folder(p.id);

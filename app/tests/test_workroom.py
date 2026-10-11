@@ -81,9 +81,15 @@ def test_sources_makes_timeline_with_placeholder(root, tmp_path):
     out = tmp_path / "out"
     xml = (out / "timeline.xml.txt").read_text(encoding="utf-8")
     assert "file://localhost/__STUDIO_BASE__/" in xml and str(root) not in xml
+    # timeline.xml이 가리키는 파일은 음성 말고 전부 압축 파일에 들어간다(출처 표시 그림 captions/ 포함)
+    import re as _re
+
+    wanted = set(_re.findall(r"__STUDIO_BASE__/([^<]+)</pathurl>", xml)) - {"narration.wav"}
+    assert wanted and wanted <= {f["name"] for f in man["files"]}
+    assert any(n.startswith("captions/") for n in wanted)
     assert man["report"]["scenes"] > 0 and man["cues"] > 0 and man["audio_name"] == "narration.mp3"
     assert man["files"] and all(
-        Path(f["path"]).exists() and f["name"].startswith("assets/") for f in man["files"]
+        Path(f["path"]).exists() and f["name"].startswith(("assets/", "captions/")) for f in man["files"]
     )
     # 클라우드에서는 영상을 받지 않고 장면별 유튜브 후보 링크로만 남긴다
     assert {f["media"] for f in man["files"]} == {"image"}
