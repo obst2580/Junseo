@@ -79,6 +79,8 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    ```
 
    `scenes`·`report`·`base_token`은 manifest 그대로, `files`는 manifest의 `files`에서 `path`를 빼고 올린 자산 ID를 붙입니다.
+   `update`는 안쪽 객체까지 합치므로(예전 `report.skipped_sources`가 남음), 이전 result가 있으면 먼저
+   `{"result": {"__delete__": true}}`로 지운 뒤 새 result를 씁니다.
 6. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장 · 영상 후보 9장면(링크)`.
 
 화면은 `/_blob/<자산 ID>`로 자료를 보여 주고, 받을 때 사용자가 적은 폴더 경로로 timeline.xml의

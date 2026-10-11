@@ -17,6 +17,7 @@ from newsclip.sources.base import Source, SourceUnavailable
 from studio_core.http import get_json
 
 API = "https://www.googleapis.com/youtube/v3"
+MAX_RESULTS = 25  # 검색 1회 비용(100 units)은 개수와 상관없다 — 방송사를 빼고도 후보가 넉넉하게
 _DUR_RE = re.compile(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?")
 
 
@@ -52,6 +53,7 @@ class YouTubeVideoSource(Source):
 
     name = "youtube_video"
     media = "video"
+    cache_tag = f"n{MAX_RESULTS}"  # 결과 개수를 바꾸면 예전(적게 받은) 캐시를 쓰지 않게
 
     def __init__(self, *args: object, blocked: list[str] | None = None, **kwargs: object) -> None:
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
@@ -74,7 +76,7 @@ class YouTubeVideoSource(Source):
                 "regionCode": "KR",
                 "relevanceLanguage": "ko",
                 "order": "relevance",
-                "maxResults": 10,
+                "maxResults": MAX_RESULTS,
                 "videoEmbeddable": "true",
                 "key": key,
             },

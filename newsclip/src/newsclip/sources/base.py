@@ -89,6 +89,7 @@ class Source(ABC):
 
     name: str = "base"
     media: str = "image"
+    cache_tag: str = ""  # 검색 방식이 바뀌면 바꿔서 예전 캐시를 버린다
 
     def __init__(
         self, client: httpx.AsyncClient, budget: Budget | None = None, cache: SearchCache | None = None
@@ -104,7 +105,7 @@ class Source(ABC):
 
     async def search(self, query: str, kind: SceneKind) -> list[Asset]:
         """검색(캐시 → 진행 중 동일 요청 합류 → 예산 차감 → 실제 호출)."""
-        key = f"{self.name}|{kind}|{query}"
+        key = f"{self.name}{':' + self.cache_tag if self.cache_tag else ''}|{kind}|{query}"
         if self.cache is not None:
             hit = self.cache.get(key)
             if hit is not None:
