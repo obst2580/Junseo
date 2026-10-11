@@ -131,23 +131,108 @@ def test_auto_endpoint(client):
     assert client.get("/api/status").json()["auto"]["enabled"]
 
 
-def test_job_runner_busy_and_errors():
-    gate = threading.Event()
+SLOW_JOBS = """
+import time
+
+
+def slow(settings, say, seconds):
+    say("시작")
+    time.sleep(seconds)
+    return {"ok": True, "root": str(settings.root)}
+
+
+def boom(settings, say):
+    raise ValueError("일부러 실패")
+
+
+def quiet_exit(settings, say):
+    import os
+
+    os._exit(3)
+"""
+
+
+def _wait(job, timeout=30.0):
+    import time
+
+    end = time.time() + timeout
+    while job.status == "running" and time.time() < end:
+        time.sleep(0.05)
+    return job
+
+
+def test_job_runner_process_done_busy_cancel(tmp_path, monkeypatch):
+    (tmp_path / "slowjobs.py").write_text(SLOW_JOBS, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    settings = Settings(root=tmp_path)
     runner = JobRunner()
-    job = runner.start("t", "느린 작업", lambda say: (say("진행"), gate.wait(5), {"ok": True})[2])
+    done = _wait(runner.start("t", "빠른 작업", "slowjobs:slow", settings, seconds=0))
+    assert done.status == "done" and done.result["ok"] and any("시작" in x for x in done.log)
+    assert done.result["root"] == str(tmp_path)
+    job = runner.start("t", "느린 작업", "slowjobs:slow", settings, seconds=60)
     try:
-        runner.start("t2", "두 번째", lambda say: {})
+        runner.start("t2", "두 번째", "slowjobs:slow", settings, seconds=0)
         raise AssertionError("Busy가 나야 함")
     except Busy as e:
         assert "느린 작업" in str(e)
-    gate.set()
-    for _ in range(100):
-        if job.status != "running":
+    for _ in range(200):  # 작업 프로세스가 뜰 때까지
+        if any("시작" in x for x in job.log):
             break
-        threading.Event().wait(0.02)
-    assert job.status == "done" and job.result == {"ok": True} and any("진행" in x for x in job.log)
-    bad = JobRunner(inline=True).start("x", "실패 작업", lambda say: 1 / 0)
+        threading.Event().wait(0.05)
+    assert job.as_dict()["cancellable"]
+    assert runner.cancel() is job
+    _wait(job, 10)
+    assert job.status == "cancelled" and any("중지" in x for x in job.log) and not runner.busy()
+    assert runner.cancel() is None
+    bad = _wait(runner.start("x", "실패 작업", "slowjobs:boom", settings))
+    assert bad.status == "error" and "일부러 실패" in bad.error
+    odd = _wait(runner.start("x", "이상 종료", "slowjobs:quiet_exit", settings))
+    assert odd.status == "error" and "코드 3" in odd.error
+
+
+def test_job_runner_inline_errors():
+    bad = JobRunner(inline=True).start("x", "실패 작업", lambda settings, say: 1 / 0, None)
     assert bad.status == "error" and "ZeroDivisionError" in bad.error and bad.as_dict()["elapsed"] >= 0
+
+
+def test_worker_encoding_roundtrip():
+    import json
+    from datetime import date, datetime
+
+    from studio_app import worker
+
+    raw = json.dumps(
+        {"d": date(2026, 10, 8), "t": datetime(2026, 10, 8, 17, 0, tzinfo=KST)}, default=worker.encode
+    )
+    back = json.loads(raw, object_hook=worker.decode)
+    assert back["d"] == date(2026, 10, 8) and back["t"].hour == 17
+    assert worker.resolve("job_collect").__name__ == "job_collect"
+    try:
+        json.dumps({"x": object()}, default=worker.encode)
+        raise AssertionError("TypeError가 나야 함")
+    except TypeError:
+        pass
+
+
+def test_cancel_endpoint(root, monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from studio_app.server import create_app
+
+    (tmp_path / "slowjobs.py").write_text(SLOW_JOBS, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    app = create_app(Settings(root=root), auto=False)
+    with TestClient(app, headers={"X-Studio": "1"}) as c:
+        assert c.post("/api/jobs/cancel").status_code == 409
+        job = app.state.runner.start("slot", "편성", "slowjobs:slow", Settings(root=root), seconds=60)
+        for _ in range(200):
+            if any("시작" in x for x in job.log):
+                break
+            threading.Event().wait(0.05)
+        r = c.post("/api/jobs/cancel")
+        assert r.status_code == 200 and r.json()["id"] == job.id
+        _wait(job, 10)
+        assert c.get("/api/jobs/current").json()["job"]["status"] == "cancelled"
 
 
 def test_cli_main(root, monkeypatch, capsys):

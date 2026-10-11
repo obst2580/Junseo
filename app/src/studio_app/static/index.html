@@ -221,6 +221,7 @@ textarea.code { font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; min-hei
 .job pre { max-height: 220px; overflow: auto; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; background: var(--surface-2); padding: 8px; border-radius: 8px; white-space: pre-wrap; margin: 8px 0 0; }
 .job.done { border-color: color-mix(in srgb, var(--ok) 50%, var(--line)); }
 .job.error { border-color: var(--bad); }
+.job.cancelled { border-color: var(--line); }
 .spin { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -253,7 +254,7 @@ textarea.code { font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; min-hei
 
 <div class="job" id="job">
   <div class="jh"><span class="spin" id="job-spin"></span><span class="jl" id="job-label"></span><span class="small muted" id="job-time"></span>
-    <button class="btn ghost small" id="job-toggle">로그</button><button class="btn ghost small" id="job-close" title="닫기">✕</button></div>
+    <button class="btn small danger" id="job-stop" hidden>중지</button><button class="btn ghost small" id="job-toggle">로그</button><button class="btn ghost small" id="job-close" title="닫기">✕</button></div>
   <div class="last" id="job-last"></div>
   <pre id="job-log" hidden></pre>
 </div>
@@ -318,6 +319,7 @@ function finishJob(job) {
   if (job.status === 'done') finishJob._t = setTimeout(() => { if (!jobTimer) $('#job').classList.remove('show'); }, 8000);
   if (handled.has(job.id)) return;
   handled.add(job.id);
+  if (job.status === 'cancelled') { toast(`${job.label} 중지했습니다`); route(); return; }
   if (job.status === 'done') toast(`${job.label} 완료`); else toast(`${job.label} 실패: ${job.error}`, true);
   const cb = jobDone[job.id];
   if (cb) cb(job); else if (job.status === 'done') route();
@@ -327,14 +329,28 @@ function renderJob(job) {
   if (!job) { box.classList.remove('show'); return; }
   box.classList.add('show');
   box.classList.toggle('done', job.status === 'done'); box.classList.toggle('error', job.status === 'error');
+  box.classList.toggle('cancelled', job.status === 'cancelled');
   $('#job-spin').style.display = job.status === 'running' ? '' : 'none';
-  $('#job-label').textContent = (job.status === 'running' ? '' : job.status === 'done' ? '✓ ' : '✕ ') + job.label;
+  $('#job-stop').hidden = !(job.status === 'running' && job.cancellable);
+  $('#job-stop').dataset.kind = job.kind;
+  $('#job-label').textContent = ({ running: '', done: '✓ ', cancelled: '■ ' }[job.status] ?? '✕ ') + job.label;
   const m = Math.floor(job.elapsed / 60), s = job.elapsed % 60;
   $('#job-time').textContent = m ? `${m}분 ${s}초` : `${s}초`;
   $('#job-last').textContent = job.error || job.log[job.log.length - 1] || '';
   $('#job-log').textContent = job.log.join('\n');
 }
 $('#job-toggle').onclick = () => { const p = $('#job-log'); p.hidden = !p.hidden; };
+const STOP_NOTE = {
+  slot: '편성 만들기를 멈춥니다.\n수집 중이었다면 이번 수집 결과는 저장되지 않고, 편성안·대본은 만들어지지 않습니다.',
+  collect: '수집을 멈춥니다. 이번 수집 결과는 저장되지 않습니다.',
+  newsclip: '자료 수집을 멈춥니다.\n받던 파일 일부는 남지만 장면 목록은 만들어지지 않습니다. 다시 수집하면 처음부터 합니다.',
+  daily: '자동 실행을 멈춥니다. 오늘 이 시각 작업은 다시 돌지 않으니 필요하면 직접 만들어 주세요.',
+};
+$('#job-stop').onclick = async () => {
+  const kind = $('#job-stop').dataset.kind;
+  if (!confirm((STOP_NOTE[kind] || '진행 중인 작업을 멈춥니다.') + '\n\n멈출까요?')) return;
+  try { await api('/api/jobs/cancel', { body: {} }); watchJob(); } catch (e) { fail(e); }
+};
 $('#job-close').onclick = () => $('#job').classList.remove('show');
 
 /* ---------- 라우팅 ---------- */

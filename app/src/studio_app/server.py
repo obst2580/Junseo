@@ -166,7 +166,7 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
 
     def start(kind: str, label: str, fn: Any, **params: Any) -> dict[str, Any]:
         try:
-            job = runner.start(kind, label, lambda say: fn(settings, say, **params), **params)
+            job = runner.start(kind, label, fn, settings, **params)
         except Busy as e:
             raise HTTPException(409, str(e)) from e
         return job.as_dict()
@@ -174,7 +174,7 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     def auto_trigger(now: datetime) -> bool:
         if runner.busy():
             return False
-        runner.start("daily", f"자동 실행 {now:%H:%M}", lambda say: sv.job_daily(settings, say, now))
+        runner.start("daily", f"자동 실행 {now:%H:%M}", sv.job_daily, settings, now=now)
         return True
 
     autorun = AutoRunner(settings.data_dir / "app.json", auto_trigger)
@@ -218,6 +218,13 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     def current_job() -> dict:
         job = runner.current
         return {"job": job.as_dict() if job else None}
+
+    @app.post("/api/jobs/cancel")
+    def cancel_job() -> dict:
+        job = runner.cancel()
+        if job is None:
+            raise HTTPException(409, "중지할 작업이 없습니다")
+        return job.as_dict()
 
     @app.post("/api/jobs/collect")
     def collect(body: CollectBody) -> dict:
