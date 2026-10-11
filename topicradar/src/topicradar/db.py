@@ -105,6 +105,16 @@ class Store:
         self.engine = create_engine(url)
         SQLModel.metadata.create_all(self.engine)
 
+    def close(self) -> None:
+        """연결 반납."""
+        self.engine.dispose()
+
+    def __enter__(self) -> Store:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
     # ---- 신호 ------------------------------------------------------------
     def upsert_signals(self, signals: list[Signal]) -> int:
         """새 신호 수를 돌려준다(기존 ID는 갱신하지 않음, 단 metric은 병합)."""

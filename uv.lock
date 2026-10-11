@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "newsclip",
     "studio",
+    "studio-app",
     "studio-core",
     "topicradar",
 ]
@@ -1890,6 +1891,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "newsclip" },
+    { name = "studio-app" },
     { name = "studio-core" },
     { name = "topicradar" },
 ]
@@ -1906,6 +1908,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "newsclip", editable = "newsclip" },
+    { name = "studio-app", editable = "app" },
     { name = "studio-core", editable = "core" },
     { name = "topicradar", editable = "topicradar" },
 ]
@@ -1917,6 +1920,27 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.0" },
     { name = "respx", specifier = ">=0.22" },
     { name = "ruff", specifier = ">=0.8" },
+]
+
+[[package]]
+name = "studio-app"
+version = "0.1.0"
+source = { editable = "app" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "newsclip" },
+    { name = "studio-core" },
+    { name = "topicradar" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.110" },
+    { name = "newsclip", editable = "newsclip" },
+    { name = "studio-core", editable = "core" },
+    { name = "topicradar", editable = "topicradar" },
+    { name = "uvicorn", specifier = ">=0.29" },
 ]
 
 [[package]]

@@ -3,18 +3,19 @@ name = "studio"
 version = "0.1.0"
 description = "진보 성향 데일리 정치 해설 채널 제작 도구 (모노레포 루트)"
 requires-python = ">=3.11"
-dependencies = ["studio-core", "topicradar", "newsclip"]
+dependencies = ["studio-core", "topicradar", "newsclip", "studio-app"]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["core", "topicradar", "newsclip"]
+members = ["core", "topicradar", "newsclip", "app"]
 
 [tool.uv.sources]
 studio-core = { workspace = true }
 topicradar = { workspace = true }
 newsclip = { workspace = true }
+studio-app = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -28,7 +29,7 @@ dev = [
 [tool.ruff]
 line-length = 110
 target-version = "py311"
-src = ["core/src", "topicradar/src", "newsclip/src"]
+src = ["core/src", "topicradar/src", "newsclip/src", "app/src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "ANN001", "ANN201"]
@@ -43,14 +44,14 @@ known-local-folder = ["trh", "nch"]
 "fixtures/**" = ["ANN001", "ANN201"]
 
 [tool.pytest.ini_options]
-testpaths = ["core/tests", "topicradar/tests", "newsclip/tests"]
+testpaths = ["core/tests", "topicradar/tests", "newsclip/tests", "app/tests"]
 addopts = "-q"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 filterwarnings = ["ignore::DeprecationWarning", "ignore::ResourceWarning", "ignore::pytest.PytestUnraisableExceptionWarning"]
 
 [tool.coverage.run]
-source_pkgs = ["studio_core", "topicradar", "newsclip"]
+source_pkgs = ["studio_core", "topicradar", "newsclip", "studio_app"]
 omit = []
 
 [tool.coverage.report]

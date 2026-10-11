@@ -11,13 +11,40 @@ studio/
   core/                 studio-core: 설정, Claude 래퍼(토큰 로그), HTTP 재시도, 텍스트 유틸, 시연용 fixture 전송계층
   topicradar/           collect / slot / pick / made / history / probe / daily
   newsclip/             run / review / xml / search
+  app/                  studio 화면(브라우저): 아래 모든 단계를 버튼으로 — studio.command(맥) · studio.bat(윈도우)
   data/                 studio.db, logs/llm_usage.jsonl, schedule/날짜.yaml, 검색 캐시·API 사용량
   projects/날짜_슬롯/    report.md script.txt narration.wav* narration.srt* scenes.json assets/ assets.json timeline.xml
   docs/sources.md       데이터 소스 조사 메모   docs/demo/ 시연 결과
 ```
 \* 사용자가 만든다. `core/`는 두 패키지가 같이 쓰는 설정·LLM·HTTP 코드를 한 곳에 두려고 추가한 공용 패키지다.
 
-## 설치
+## 화면으로 쓰기 (권장)
+
+명령어 없이 브라우저 화면 하나로 씁니다. 화면은 이 컴퓨터에서만 열립니다(127.0.0.1:8760).
+
+1. **코드 받기**: GitHub에서 **Code → Download ZIP** 후 압축 풀기(또는 `git clone`).
+2. **실행**: 폴더 안의 **`studio.command`(맥)** 또는 **`studio.bat`(윈도우)** 더블클릭.
+   처음 한 번은 uv(파이썬 도구)·파이썬·패키지를 자동으로 설치하느라 몇 분 걸리고, 끝나면 브라우저가 열립니다.
+   - 맥에서 "확인되지 않은 개발자" 경고가 뜨면: 파일을 **우클릭 → 열기**. ZIP으로 받았다면 터미널에서 `chmod +x studio.command`가 필요할 수 있습니다.
+   - 영상 자료를 쓰려면 ffmpeg 설치(맥 `brew install ffmpeg`, 윈도우 `winget install Gyan.FFmpeg`). 없으면 화면이 알려 줍니다.
+3. **설정 탭**: API 키 붙여넣기 → 내 채널·경쟁 채널 ID → **게시판 점검**(커뮤니티 주소 확인) → 말투·점수 가중치.
+4. **오늘 탭**: **아침 프리뷰 / 저녁 리뷰 / 주간 심층 만들기** — 수집부터 대본 초안까지 1~3분. 끝나면 프로젝트 화면으로 넘어갑니다.
+5. **프로젝트 화면**은 위에서 아래로 따라가면 됩니다.
+
+| 단계 | 화면에서 하는 일 |
+|---|---|
+| 1 편성안 | 주제·점수·커뮤니티 반응·근거 기사 확인. 마음에 안 들면 **교체**(대본까지 다시 씀). 제목 후보는 눌러서 복사 |
+| 2 대본 | 바로 고치고 **저장** → 점검(글자 수, 25자 줄, 출처, 지어낸 수치 의심 등) 다시 표시 |
+| 3 녹음·자막 | 녹음 → 프리미어 전사 → SRT 내보내기 → **끌어다 놓기**(WAV는 선택) |
+| 4 자료 | **자료 수집 시작** → 장면별 사진·영상 후보 중 고르기, 영상 시작 초 조정 → **저장 + XML 다시 만들기** |
+| 5 프리미어 | **timeline.xml 내려받기** → 프리미어 파일 → 가져오기 |
+| 6 업로드 기록 | 올린 영상 주소와 실제 제목 → **기록하기**(중복 방지·성과 분석용) |
+
+- **성과 탭**: 예측 점수 vs 조회수, 제목 패턴, 아침 예상 적중률, 가중치 조정 제안.
+- **자동 실행**: 화면을 켜 둔 채 스위치를 켜면 매일 05:30·12:00·17:00에 수집·편성을 알아서 합니다(cron 불필요). Slack 주소를 넣으면 편성 요약이 갑니다.
+- 키는 `.env`, 나머지 설정은 `channel.yaml`에 저장됩니다(화면에서 고쳐도 파일 주석은 그대로). 아래 명령어 방식과 같은 데이터를 씁니다.
+
+## 설치 (명령어로 쓸 때)
 
 ```bash
 # Python 3.11+, uv, ffmpeg(yt-dlp 구간 자르기용)
@@ -170,6 +197,8 @@ collect → 10/7 아침·저녁 → 10/8 아침·저녁(+Slack) → 10/11 주간
 - `STUDIO_LLM=offline`: 이 환경엔 Claude 키가 없어 휴리스틱으로 돈다. 오프라인 대본은 **기사 문장을 사실→원인→다음 순서로 뽑아 존댓말·자막 단위로 바꾼 골격**이라
   분량이 목표보다 짧고 근거가 없으면 `#TODO`를 남긴다(지어내지 않음). 키를 넣고 같은 명령을 돌리면 Claude 경로로 간다.
 - `STUDIO_NOW`: 단계마다 '현재 시각'을 고정해 실제 운영 순서를 재현.
+- 시연 결과를 화면으로 보기: `STUDIO_ROOT=demo_root STUDIO_FIXTURES=fixtures/demo STUDIO_LLM=offline STUDIO_NOW=2026-10-08T18:40 uv run studio`
+  (화면에서 버튼을 눌러도 가상 데이터로만 돈다).
 
 ## 2차 범위
 

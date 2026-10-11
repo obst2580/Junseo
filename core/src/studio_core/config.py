@@ -259,3 +259,108 @@ def append_past_title(settings: Settings, title: str) -> bool:
         out = [ln if ln.strip() != "channel:" else f"channel:\n  past_titles: {flow}" for ln in out]
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
     return True
+
+
+# ---- 화면(설정 탭)에서 channel.yaml을 고칠 때: 주석을 지키려고 해당 줄만 바꾼다 ----------------------
+
+
+def _split_comment(rest: str) -> tuple[str, str]:
+    """'값   # 주석' → (값, '   # 주석'). 따옴표 안의 #은 주석으로 보지 않는다."""
+    for m in re.finditer(r"\s+#", rest):
+        before = rest[: m.start()]
+        if before.count('"') % 2 == 0 and before.count("'") % 2 == 0:
+            return before, rest[m.start() :]
+    return rest, ""
+
+
+def _yaml_value(value: object) -> str:
+    """파이썬 값 → YAML 흐름 표기(문자열은 큰따옴표, 목록은 [..])."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(_yaml_value(v) for v in value) + "]"
+    if isinstance(value, dict):
+        return "{" + ", ".join(f"{k}: {_yaml_value(v)}" for k, v in value.items()) + "}"
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+def _validated_write(settings: Settings, text: str) -> None:
+    """검사(파싱·스키마) 후 저장. 실패하면 ValueError, 파일은 그대로."""
+    try:
+        ChannelConfig.model_validate(yaml.safe_load(text) or {})
+    except Exception as e:  # yaml 오류·스키마 오류 모두
+        raise ValueError(f"channel.yaml 검사 실패: {e}") from e
+    settings.channel_path.write_text(text if text.endswith("\n") else text + "\n", encoding="utf-8")
+
+
+def set_channel_value(settings: Settings, section: str, key: str, value: object) -> None:
+    """channel.yaml의 `section.key` 값만 바꾼다(주석·나머지 줄 보존). 없으면 추가."""
+    path = settings.channel_path
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    start = next(
+        (i for i, ln in enumerate(lines) if re.match(rf"^{re.escape(section)}:\s*(#.*)?$", ln)), None
+    )
+    if start is None:
+        lines += ["", f"{section}:", f"  {key}: {_yaml_value(value)}"]
+        _validated_write(settings, "\n".join(lines))
+        return
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^[^\s#]", lines[i])), len(lines))
+    key_re = re.compile(rf"^(?P<indent>[ \t]+){re.escape(key)}:(?P<rest>.*)$")
+    for i in range(start + 1, end):
+        m = key_re.match(lines[i])
+        if not m:
+            continue
+        indent = m.group("indent")
+        _old, comment = _split_comment(m.group("rest"))
+        lines[i] = f"{indent}{key}: {_yaml_value(value)}{comment}"
+        j = i + 1  # 블록 목록(- 항목) 줄은 흡수
+        while j < end and re.match(rf"^{re.escape(indent)}[ \t]*- ", lines[j]):
+            j += 1
+        del lines[i + 1 : j]
+        break
+    else:
+        lines.insert(start + 1, f"  {key}: {_yaml_value(value)}")
+    _validated_write(settings, "\n".join(lines))
+
+
+def set_community_enabled(settings: Settings, name: str, enabled: bool) -> None:
+    """communities 중 name 게시판의 enabled만 바꾼다(흐름·블록 형식 모두)."""
+    path = settings.channel_path
+    lines = path.read_text(encoding="utf-8").splitlines()
+    flag = "true" if enabled else "false"
+    name_re = re.compile(
+        rf"""^(?P<indent>[ \t]*)- (?P<flow>\{{)?\s*name:\s*["']?{re.escape(name)}["']?\s*(?=,|\}}|#|$)"""
+    )
+    for i, ln in enumerate(lines):
+        m = name_re.match(ln)
+        if not m:
+            continue
+        if m.group("flow"):
+            if re.search(r"enabled:\s*\w+", ln):
+                lines[i] = re.sub(r"enabled:\s*\w+", f"enabled: {flag}", ln)
+            else:
+                lines[i] = re.sub(r"\}(\s*(#.*)?)$", rf", enabled: {flag}}}\1", ln)
+            break
+        # 블록 형식: 이 항목에 속한 줄(더 깊게 들여 쓴 줄)에서 enabled를 찾고, 없으면 name 다음 줄에 넣는다
+        indent = m.group("indent")
+        j = i + 1
+        while j < len(lines) and (lines[j].startswith(indent + "  ") or not lines[j].strip()):
+            em = re.match(r"^(?P<ind>[ \t]+)enabled:(?P<rest>.*)$", lines[j])
+            if em:
+                _old, comment = _split_comment(em.group("rest"))
+                lines[j] = f"{em.group('ind')}enabled: {flag}{comment}"
+                break
+            j += 1
+        else:
+            lines.insert(i + 1, f"{indent}  enabled: {flag}")
+        break
+    else:
+        raise KeyError(f"커뮤니티 '{name}' 없음")
+    _validated_write(settings, "\n".join(lines))
+
+
+def save_channel_text(settings: Settings, text: str) -> None:
+    """channel.yaml 전체를 검사 후 저장(설정 탭 '고급')."""
+    _validated_write(settings, text)
