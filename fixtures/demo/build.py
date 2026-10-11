@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 from email.utils import format_datetime
 from pathlib import Path
@@ -77,34 +78,6 @@ def build_rss(articles: list[dict]) -> None:
         (out / f"{key}.xml").write_text(xml, encoding="utf-8")
 
 
-def build_naver(articles: list[dict]) -> None:
-    out = HERE / "naver"
-    out.mkdir(exist_ok=True)
-    for q in NAVER_QUERIES:
-        items = []
-        for a in sorted((a for a in articles if a.get("q") == q), key=lambda a: a["at"], reverse=True):
-            link = _url("news.example-portal.com", a)
-            items.append(
-                {
-                    "title": a["title"].replace(q, f"<b>{q}</b>"),
-                    "originallink": link.replace("news.example-portal.com", "www.example-daily.co.kr"),
-                    "link": link,
-                    "description": a["desc"],
-                    "pubDate": format_datetime(_dt(a["at"])),
-                }
-            )
-        payload = {
-            "lastBuildDate": "Sat, 10 Oct 2026 17:00:00 +0900",
-            "total": len(items),
-            "start": 1,
-            "display": len(items),
-            "items": items,
-        }
-        (out / f"news_{q.replace(' ', '_')}.json").write_text(
-            json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8"
-        )
-
-
 def build_youtube(spec: dict) -> dict:
     out = HERE / "youtube"
     out.mkdir(exist_ok=True)
@@ -151,18 +124,116 @@ def build_schedule(spec: dict) -> None:
         )
 
 
+COMMUNITY = {
+    # 이름: (목록 URL, 글 주소 템플릿, 행 HTML 템플릿) — 사이트마다 마크업·시각 표기를 다르게 해 범용 파서를 시험한다
+    "다모앙": (
+        "https://damoang.net/free?page=1",
+        "/free/{no}",
+        '<li class="list-group-item"><a href="{href}" class="da-link">{title}</a>'
+        ' <span class="count-plus">[{comments}]</span> <span class="da-list-date">{when}</span></li>',
+    ),
+    "보배드림": (
+        "https://www.bobaedream.co.kr/list?code=politic&page=1",
+        "/view?code=politic&amp;No={no}&amp;bm=1",
+        '<tr><td class="pl14"><a class="bsubject" href="{href}">{title}</a>'
+        ' <strong class="totreply">{comments}</strong></td><td class="date">{when}</td></tr>',
+    ),
+    "뽐뿌": (
+        "https://www.ppomppu.co.kr/zboard/zboard.php?id=politics&page=1",
+        "view.php?id=politics&amp;page=1&amp;no={no}",
+        '<tr class="baseList"><td class="title"><a href="{href}"><span class="baseList-title">{title}</span></a>'
+        ' <span class="baseList-c">{comments}</span></td><td class="baseList-space"><time>{when}</time></td></tr>',
+    ),
+    "더쿠": (
+        "https://theqoo.net/hot?page=1",
+        "/hot/{no}",
+        '<tr><td class="title"><a href="{href}">{title}</a><a href="{href}#comment" class="replyNum">{comments}</a></td>'
+        '<td class="time">{when}</td></tr>',
+    ),
+}
+FETCH_DAY = "2026-10-10"
+
+
+def _when(site: str, at: str) -> str:
+    dt = _dt(at)
+    if at.startswith(FETCH_DAY):
+        return dt.strftime("%H:%M")
+    if site == "뽐뿌":
+        return dt.strftime("%y/%m/%d %H:%M:%S")
+    return dt.strftime("%m.%d %H:%M")
+
+
+def build_community(spec: dict) -> None:
+    out = HERE / "community"
+    out.mkdir(exist_ok=True)
+    for site, posts in spec.get("community_posts", {}).items():
+        _url, href_tpl, row = COMMUNITY[site]
+        rows = []
+        for p in sorted(posts, key=lambda p: p["at"], reverse=True):
+            no = 7000000 + int(hashlib.sha1((site + p["at"] + p["title"]).encode()).hexdigest()[:5], 16)
+            rows.append(
+                row.format(
+                    href=href_tpl.format(no=no),
+                    title=escape(p["title"]),
+                    comments=p["comments"],
+                    when=_when(site, p["at"]),
+                )
+            )
+        notice = row.format(
+            href=href_tpl.format(no=1), title="[공지] 게시판 이용 규칙", comments=0, when="01.01"
+        )
+        html = (
+            f"<!doctype html><html><head><meta charset='utf-8'><title>{site} (시연용 가상 게시판)</title></head><body>\n"
+            "<p>studio 시연 fixture — 실존 게시글 아님</p>\n<table>\n"
+            + notice
+            + "\n"
+            + "\n".join(rows)
+            + "\n</table><a href='/login'>로그인</a></body></html>\n"
+        )
+        (out / f"{site}.html").write_text(html, encoding="utf-8")
+
+
+def build_naver_index(articles: list[dict]) -> None:
+    """네이버 뉴스 검색 생성기가 쓰는 전체 기사 색인(검색어 토큰이 모두 들어간 기사를 돌려줌)."""
+    items = []
+    for a in sorted((a for a in articles if a["src"] == "naver"), key=lambda a: a["at"], reverse=True):
+        link = _url("news.example-portal.com", a)
+        items.append(
+            {
+                "title": a["title"],
+                "originallink": link.replace("news.example-portal.com", "www.example-daily.co.kr"),
+                "link": link,
+                "description": a["desc"],
+                "pubDate": format_datetime(_dt(a["at"])),
+                "queries": [a["q"]] if a.get("q") else [],
+            }
+        )
+    (HERE / "naver" / "index.json").write_text(
+        json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+
+
 def build_routes(spec: dict) -> None:
     routes: list[dict] = []
     for key, (_n, url, _h) in FEEDS.items():
         routes.append({"match": url.replace(".", r"\.").replace("?", r"\?"), "file": f"rss/{key}.xml"})
-    for q in NAVER_QUERIES:
+    # 네이버 뉴스: 설정 검색어든 커뮤니티 화제에서 뽑은 검색어든 같은 색인에서 찾는다
+    routes.append(
+        {
+            "match": r"openapi\.naver\.com/v1/search/news\.json",
+            "generate": "naver_news",
+            "data": "naver/index.json",
+        }
+    )
+    for site, (url, _h, _r) in COMMUNITY.items():
         routes.append(
             {
-                "match": r"openapi\.naver\.com/v1/search/news\.json",
-                "params": {"query": q},
-                "file": f"naver/news_{q.replace(' ', '_')}.json",
+                "match": re.escape(url),
+                "file": f"community/{site}.html",
+                "content_type": "text/html; charset=utf-8",
             }
         )
+    routes.append({"match": r"/robots\.txt$", "generate": "robots_allow"})
     for ch in spec["competitors"]:
         routes.append(
             {
@@ -197,9 +268,10 @@ def main() -> None:
     spec = yaml.safe_load((HERE / "stories.yaml").read_text(encoding="utf-8"))
     arts = spec["articles"]
     build_rss(arts)
-    build_naver(arts)
     build_youtube(spec)
     build_schedule(spec)
+    build_community(spec)
+    build_naver_index(arts)
     build_routes(spec)
     print(f"articles={len(arts)} feeds={len(FEEDS)} naver_queries={len(NAVER_QUERIES)} → {HERE}")
 

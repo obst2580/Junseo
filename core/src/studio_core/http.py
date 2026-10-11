@@ -27,6 +27,11 @@ def set_sleep(fn: Sleep) -> None:
     _sleep = fn
 
 
+async def pause(seconds: float) -> None:
+    """요청 사이 예의상 대기(테스트에서는 set_sleep으로 생략)."""
+    await _sleep(seconds)
+
+
 def user_agent() -> str:
     """Wikimedia 등 User-Agent 정책을 지키는 UA 문자열."""
     return USER_AGENT.format(contact=os.environ.get("STUDIO_CONTACT", "unset"))

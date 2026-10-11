@@ -313,8 +313,8 @@ def find_follow_up(signals: list[Signal]) -> str | None:
 
 
 def infer_kind(signals: list[Signal], scheduled_at: datetime | None) -> TopicKind:
-    """주제 성격 추정."""
-    content = [s for s in signals if s.kind != "competitor"]
+    """주제 성격 추정(커뮤니티 글은 성격 판정에서 뺀다)."""
+    content = [s for s in signals if s.kind not in ("competitor", "community")]
     if not content:
         return "event"
     n = len(content)
@@ -344,7 +344,7 @@ def latest_schedule(signals: list[Signal]) -> datetime | None:
 
 def window_title(t: Topic, start: datetime | None, end: datetime | None) -> str:
     """슬롯에서 보여줄 이름: 윈도우 신호 중 가장 중심적인 한국어 제목(없으면 주제명)."""
-    sigs = [s for s in t.signals if s.kind not in ("competitor", "schedule")]
+    sigs = [s for s in t.signals if s.kind not in ("competitor", "schedule", "community")]
     if start and end:
         sigs = [s for s in sigs if start <= s.published_at < end]
     korean = [s for s in sigs if re.search(r"[가-힣]", s.title)]
@@ -355,7 +355,7 @@ def window_title(t: Topic, start: datetime | None, end: datetime | None) -> str:
 
 def has_korean(t: Topic) -> bool:
     """한국어 신호가 하나라도 있는가(오프라인 대본은 번역을 못 한다)."""
-    return any(re.search(r"[가-힣]", s.title) for s in t.signals if s.kind != "competitor")
+    return any(re.search(r"[가-힣]", s.title) for s in t.signals if s.kind not in ("competitor", "community"))
 
 
 def refresh_topic(t: Topic) -> Topic:
@@ -364,8 +364,9 @@ def refresh_topic(t: Topic) -> Topic:
     if content:
         t.first_seen = min(t.first_seen, min(s.published_at for s in content))
         t.last_seen = max(t.last_seen, max(s.published_at for s in content))
-    t.scheduled_at = latest_schedule(content) or t.scheduled_at
-    t.follow_up = find_follow_up(content) or t.follow_up
+    facts = [s for s in content if s.kind != "community"]  # 일정·다음 수순은 뉴스·일정에서만
+    t.scheduled_at = latest_schedule(facts) or t.scheduled_at
+    t.follow_up = find_follow_up(facts) or t.follow_up
     t.kind = infer_kind(content, t.scheduled_at)
     return t
 
@@ -514,6 +515,8 @@ def heuristic_groups(
 
 
 def _group_name(group: list[Signal]) -> str:
+    # 주제명은 뉴스 제목에서(커뮤니티 제목은 말투가 섞여 이름으로 쓰지 않는다. 커뮤니티 글뿐이면 예외)
+    group = [s for s in group if s.kind != "community"] or group
     toks = [signal_tokens(s) for s in group]
     prio = {"schedule": 0, "domestic": 1, "press": 2, "overseas": 3}
 
@@ -585,7 +588,12 @@ def heuristic_cluster(
             id=topic_id_for(name, day),
             name=name,
             keywords=_group_keywords(g, idf),
-            category=categorize([name, *(s.text for s in g)], [h for h in hints if h], categories),
+            # 카테고리는 뉴스 기준(커뮤니티 제목의 말투·감정어가 섞이지 않게)
+            category=categorize(
+                [name, *(s.text for s in ([x for x in g if x.kind != "community"] or g))],
+                [h for h in hints if h],
+                categories,
+            ),
             signals=list(g),
             first_seen=min(s.published_at for s in g),
             last_seen=max(s.published_at for s in g),

@@ -110,23 +110,30 @@ class SlotContext:
     cfg: ChannelConfig
     llm: ClaudeLLM | None = None
     notes: list[str] = field(default_factory=list)
+    community_mode: bool = False  # 이번 윈도우에 커뮤니티 정치 게시판 데이터가 있는가
 
 
 # ---- 주제 준비(군집 + 점수) ----------------------------------------------
 
 
-def _prev_counts(store: Store, topics: list[Topic], start: datetime, end: datetime) -> dict[str, int]:
-    """직전 동일 길이 윈도우의 주제별 신호 수(배정 + 미배정 토큰 매칭)."""
+def _prev_counts(
+    store: Store, topics: list[Topic], start: datetime, end: datetime, kinds: set[str] | None = None
+) -> dict[str, int]:
+    """직전 동일 길이 윈도우의 주제별 신호 수(배정 + 미배정 토큰 매칭). kinds로 신호 종류를 제한."""
     span = end - start
     p_start, p_end = start - span, start
-    prev = [s for s in store.signals_between(p_start, p_end) if s.kind != "competitor"]
+    prev = [
+        s
+        for s in store.signals_between(p_start, p_end)
+        if s.kind != "competitor" and (kinds is None or s.kind in kinds)
+    ]
     assigned = store.assigned_map([s.id for s in prev])
     unassigned = [s for s in prev if s.id not in assigned]
     toks = [signal_tokens(s) for s in unassigned]
     idf = idf_table(toks + [set(t.keywords) for t in topics])
     out: dict[str, int] = {}
     for t in topics:
-        n = len(t.window_signals(p_start, p_end))
+        n = len([s for s in t.window_signals(p_start, p_end) if kinds is None or s.kind in kinds])
         kw = set(t.keywords)
         for st in toks:
             shared = st & kw
@@ -194,11 +201,15 @@ def prepare_topics(ctx: SlotContext, slot: SlotName, day: date) -> tuple[list[To
             if t is not None:
                 topics.append(t)
     plan_id = f"{day.isoformat()}_{slot}"
+    ctx.community_mode = bool(ctx.cfg.communities) and any(s.kind == "community" for s in signals)
     topics = score_topics(
         topics,
         window_start=start,
         window_end=end,
-        prev_counts=_prev_counts(ctx.store, topics, start, end),
+        prev_counts=_prev_counts(
+            ctx.store, topics, start, end, {"community"} if ctx.community_mode else None
+        ),
+        community_mode=ctx.community_mode,
         target_day=day,
         coverage={} if slot == "weekly" else _coverage(ctx.store, topics, day, plan_id),
         weights=ctx.cfg.scoring.weights,
@@ -220,6 +231,7 @@ def select_morning(
     end: datetime,
     prev_evening_ids: set[str],
     allow_foreign: bool = True,
+    prefer_buzz: bool = False,
 ) -> tuple[list[SlotItem], list[str], list[RiskFlag]]:
     """아침 편성. allow_foreign=False(오프라인)면 한국어 기사가 없는 해외 주제는 제외한다."""
     notes: list[str] = []
@@ -230,6 +242,8 @@ def select_morning(
         today = _sched_on(t, day)
         if not in_window and not today:
             continue
+        if not t.news_signals() and not today:  # 커뮤니티 글뿐인 화제는 사실 근거가 없어 편성하지 않는다
+            continue
         if not allow_foreign and not has_korean(t):
             notes.append(f"'{t.name}': 영문 기사뿐 — 오프라인 모드는 번역 불가로 제외(Claude 경로에선 포함)")
             continue
@@ -239,6 +253,8 @@ def select_morning(
         eligible.append(t)
     by_total = sorted(eligible, key=lambda t: -t.total)
     sched = [t for t in by_total if _sched_on(t, day)]
+    if prefer_buzz:  # 커뮤니티 모드: 반응이 있는 예정 주제를 포인트로 먼저
+        sched.sort(key=lambda t: (not t.buzz(start - timedelta(hours=12), end), -t.total))
     overseas = [t for t in by_total if t.kind == "overseas" and not _sched_on(t, day)]
     announce = [
         t
@@ -287,8 +303,9 @@ def select_evening(
     end: datetime,
     morning: SlotPlan | None,
     store: Store,
+    gate: bool = False,
 ) -> tuple[list[SlotItem], list[str], list[RiskFlag]]:
-    """저녁 편성."""
+    """저녁 편성. gate=True면 헤드라인·서브는 커뮤니티 반응(윈도우 12시간 전부터)이 있는 주제만."""
     notes: list[str] = []
     flags: list[RiskFlag] = []
     by_id = {t.id: t for t in topics}
@@ -296,20 +313,38 @@ def select_evening(
     point_ids = {i.topic.id for i in point_items}
     morning_other = (morning.topic_ids() - point_ids) if morning else set()
     events: list[Topic] = []
+    no_buzz: list[Topic] = []
     for t in sorted(topics, key=lambda t: -t.total):
-        n = len(t.window_signals(start, end))
+        n = len(t.news_signals(start, end))  # 사실 근거가 되는 오늘 기사
         if n == 0 or t.id in point_ids:
             continue
         if t.id in morning_other and n < 2:
-            notes.append(f"'{t.name}': 아침에 다룸, 새 전개 부족(신호 {n}건) → 제외")
+            notes.append(f"'{t.name}': 아침에 다룸, 새 전개 부족(기사 {n}건) → 제외")
+            continue
+        if gate and not t.buzz(start - timedelta(hours=12), end):
+            no_buzz.append(t)
             continue
         events.append(t)
+    if gate and no_buzz:
+        if events:
+            notes.append(
+                f"커뮤니티 반응 없는 주제 {len(no_buzz)}건은 헤드라인·서브에서 제외(예: '{no_buzz[0].name}')"
+            )
+        else:
+            events = no_buzz
+            flags.append(
+                RiskFlag(kind="구성", message="커뮤니티 반응이 있는 오늘 주제가 없어 뉴스 기준으로 편성")
+            )
     items: list[SlotItem] = []
     if events:
         items.append(SlotItem(topic=events[0], order=0, role="헤드라인"))
         subs = [t for t in events[1:] if t.total >= MIN_SUB_TOTAL][:4]
         if len(subs) < 2:
             subs = events[1:3]
+        if len(subs) < 2:
+            flags.append(
+                RiskFlag(kind="구성", message=f"서브 {len(subs)}개뿐(목표 2~4) — 오늘 반응 있는 주제가 적음")
+            )
         items += [SlotItem(topic=t, order=0, role="서브") for t in subs]
     else:
         flags.append(RiskFlag(kind="구성", message="오늘 윈도우에 새 사건 없음"))
@@ -414,12 +449,24 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
     if slot == "morning":
         prev = ctx.store.get_plan(day - timedelta(days=1), "evening")
         items, notes, flags = select_morning(
-            topics, day, start, end, prev.topic_ids() if prev else set(), allow_foreign=ctx.llm is not None
+            topics,
+            day,
+            start,
+            end,
+            prev.topic_ids() if prev else set(),
+            allow_foreign=ctx.llm is not None,
+            prefer_buzz=ctx.community_mode,
         )
         plan.items = items
     elif slot == "evening":
         items, notes, flags = select_evening(
-            topics, day, start, end, ctx.store.get_plan(day, "morning"), ctx.store
+            topics,
+            day,
+            start,
+            end,
+            ctx.store.get_plan(day, "morning"),
+            ctx.store,
+            gate=ctx.community_mode and ctx.cfg.selection.community_gate,
         )
         plan.items = items
     else:
@@ -438,12 +485,22 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
                         ]
                 except Exception:  # Claude 실패 시 휴리스틱
                     pass
-            return heuristic_chains(ts, generic=set(ctx.cfg.clustering.generic_tokens))
+            anchors = None
+            if ctx.community_mode and ctx.cfg.selection.community_gate:
+                anchors = {t.id for t in ts if t.buzz(start, end)}
+            return heuristic_chains(ts, generic=set(ctx.cfg.clustering.generic_tokens), anchor_ids=anchors)
 
         items, chains, notes, flags = select_weekly(topics, day, end, chains_from)
         plan.items, plan.chains = items, chains
     allocate_seconds(plan.items, slot)
     fill_plan_text(plan, ctx.llm, topics if slot == "weekly" else None)
+    hot_only = sorted(
+        (t for t in topics if not t.news_signals() and len(t.buzz(start, end)) >= 2),
+        key=lambda t: -len(t.buzz()),
+    )
+    if hot_only:  # 편집자 참고용: 뜨거운데 기사가 없는 화제(대본에는 쓰지 않음)
+        names = ", ".join(f"'{t.name[:24]}'({len(t.buzz())}건)" for t in hot_only[:3])
+        notes.append(f"뉴스 근거 없는 커뮤니티 화제 {len(hot_only)}건: {names} — 기사 확인 전엔 다루지 않음")
     plan.excluded = notes
     plan.risk_flags = [*flags, *plan_risks(plan)]
     if ctx.llm is not None:

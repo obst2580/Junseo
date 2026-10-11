@@ -36,6 +36,7 @@ class CollectReport:
     counts: dict[str, int] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
     skipped: dict[str, str] = field(default_factory=dict)
+    derived_queries: list[str] = field(default_factory=list)
 
 
 async def collect_all(collectors: list[Collector], since: datetime) -> CollectReport:
@@ -55,6 +56,10 @@ async def collect_all(collectors: list[Collector], since: datetime) -> CollectRe
             return
         report.counts[c.name] = len(sigs)
         report.signals.extend(sigs)
+        for site, n in getattr(c, "site_counts", {}).items():
+            report.counts[f"{c.name}:{site}"] = n
+        for site, err in getattr(c, "site_errors", {}).items():
+            report.errors[f"{c.name}:{site}"] = err
 
     await asyncio.gather(*(_one(c) for c in collectors))
     # URL 기준 중복 제거(먼저 들어온 것 유지)

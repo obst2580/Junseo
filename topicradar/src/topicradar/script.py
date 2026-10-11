@@ -54,7 +54,7 @@ def _sentence_lines(sentence: str, url: str | None = None, force_source: bool = 
 
 def _ranked_signals(item: SlotItem, plan: SlotPlan) -> list[Signal]:
     # 수동 일정(schedule)은 편집 메모라 대본 사실 문장으로 쓰지 않는다.
-    sigs = [s for s in item.topic.signals if s.kind not in ("competitor", "own", "schedule")]
+    sigs = [s for s in item.topic.signals if s.kind not in ("competitor", "own", "schedule", "community")]
     start, end = plan.window_start, plan.window_end
     in_win = [s for s in sigs if start and end and start <= s.published_at < end]
     rest = [s for s in sigs if s not in in_win]
@@ -279,6 +279,10 @@ def llm_script(llm: ClaudeLLM, plan: SlotPlan, tone: str = prompts.DEFAULT_TONE)
                     }
                     for s in sigs
                 ],
+                "community_titles": [
+                    f"[{b.metric.get('site', '')} 댓글 {b.metric.get('comments', 0)}] {b.title}"
+                    for b in sorted(it.topic.buzz(), key=lambda b: -int(b.metric.get("comments", 0)))[:5]
+                ],
             }
         )
     payload = {
@@ -343,9 +347,10 @@ def validate_script(text: str, plan: SlotPlan) -> list[str]:
         warns.append(f"25자 초과 줄 {len(long_lines)}개 (예: '{long_lines[0][:30]}…')")
     if not any(ln.startswith("## ") for ln in lines):
         warns.append("`## 주제명` 헤더 없음(newsclip 장면 분할 불가)")
-    sources = " ".join(s.text for it in plan.items for s in it.topic.signals)
+    # 사실 근거는 뉴스·일정만(커뮤니티 글은 출처가 될 수 없다)
+    sources = " ".join(s.text for it in plan.items for s in it.topic.signals if s.kind != "community")
     src_nums = set(numbers_in(sources))
-    urls = {s.url for it in plan.items for s in it.topic.signals}
+    urls = {s.url for it in plan.items for s in it.topic.signals if s.kind != "community"}
     bad_nums, bad_quotes, missing_src = [], [], 0
     for i, ln in enumerate(lines):
         if not ln or ln.startswith("#"):

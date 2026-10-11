@@ -164,7 +164,7 @@ def test_llm_script_path_and_fallback():
 def test_report_and_slack(tmp_path):
     plan = _plan()
     md = render_report(plan, tmp_path / "script.txt", ["글자 수 부족"])
-    assert "| 순서 | 역할 | 주제 | 카테고리 | 총점(세부) | 추세 | actual / hit |" in md
+    assert "| 순서 | 역할 | 주제 | 카테고리 | 총점(세부) | 추세 | 커뮤니티 반응 | actual / hit |" in md
     assert (
         "✅ hit" in md
         and "❌ miss" in md

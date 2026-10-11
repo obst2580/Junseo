@@ -264,7 +264,34 @@ def gen_youtube_stats(url: str, params: dict[str, str], ctx: dict[str, Any]) -> 
     return json.dumps({"items": items}, ensure_ascii=False).encode(), "application/json"
 
 
+def gen_naver_news(url: str, params: dict[str, str], ctx: dict[str, Any]) -> tuple[bytes, str]:
+    """네이버 뉴스 검색: 색인(route.data) 중 검색어 토큰이 모두 들어간 기사.
+
+    실제 검색은 본문까지 보므로, 색인 항목의 `queries`(fixture 전용)에 지정한 검색어로도 찾아지게 한다.
+    """
+    index = json.loads((ctx["root"] / ctx["route"]["data"]).read_text(encoding="utf-8"))
+    query = params.get("query", "").strip()
+    toks = [t for t in query.split() if t]
+
+    def hit(it: dict[str, Any]) -> bool:
+        return bool(toks) and (
+            query in it.get("queries", []) or all(t in it["title"] + it["description"] for t in toks)
+        )
+
+    hits = [{k: v for k, v in it.items() if k != "queries"} for it in index if hit(it)]
+    hits = hits[: int(params.get("display", 100))]
+    body = {"total": len(hits), "start": 1, "display": len(hits), "items": hits}
+    return json.dumps(body, ensure_ascii=False).encode(), "application/json"
+
+
+def gen_robots_allow(url: str, params: dict[str, str], ctx: dict[str, Any]) -> tuple[bytes, str]:
+    """모든 경로 허용 robots.txt."""
+    return b"User-agent: *\nAllow: /\n", "text/plain"
+
+
 GENERATORS = {
+    "naver_news": gen_naver_news,
+    "robots_allow": gen_robots_allow,
     "youtube_stats": gen_youtube_stats,
     "google_image": gen_google_image,
     "naver_image": gen_naver_image,

@@ -53,17 +53,24 @@ class InterestResult:
 
 
 def interest_score(
-    n_window: int, n_prev: int, trend_ratio: float | None = None, saturation: int = 25
+    n_window: int,
+    n_prev: int,
+    trend_ratio: float | None = None,
+    saturation: int = 25,
+    engagement: int = 0,
+    label: str = "윈도우 기사",
 ) -> InterestResult:
-    """관심도: 0.4×기사 수 점수 + 0.6×상승률 점수."""
-    count = 100.0 * min(1.0, math.log1p(n_window) / math.log1p(saturation))
+    """관심도: 0.4×양(건수 + 댓글/20) 점수 + 0.6×상승률 점수."""
+    volume = n_window + engagement / 20.0
+    count = 100.0 * min(1.0, math.log1p(volume) / math.log1p(saturation))
     rise = trend_ratio if trend_ratio is not None else (n_window - n_prev) / max(n_prev, 1)
     rise = max(-1.0, min(3.0, rise))
     rise_score = clamp(50.0 + 25.0 * rise)
     score = round(0.4 * count + 0.6 * rise_score, 1)
     trend = "↑" if rise >= 0.3 else "↓" if rise <= -0.3 else "→"
     basis = "검색 추이" if trend_ratio is not None else f"직전 동일 구간 {n_prev}건 대비"
-    return InterestResult(score, rise, trend, f"윈도우 기사 {n_window}건, {basis} {rise:+.0%}")
+    eng = f"(댓글 {engagement})" if engagement else ""
+    return InterestResult(score, rise, trend, f"{label} {n_window}건{eng}, {basis} {rise:+.0%}")
 
 
 def gap_score(competitor_hits: int, interest: float, has_competitors: bool = True) -> ScoreDetail:
@@ -80,7 +87,7 @@ def gap_score(competitor_hits: int, interest: float, has_competitors: bool = Tru
 
 
 def _text(t: Topic) -> str:
-    return " ".join([t.name, *(s.text for s in t.signals if s.kind != "competitor")])
+    return " ".join([t.name, *(s.text for s in t.signals if s.kind not in ("competitor", "community"))])
 
 
 def heuristic_judge(t: Topic) -> tuple[ScoreDetail, ScoreDetail]:
@@ -89,7 +96,9 @@ def heuristic_judge(t: Topic) -> tuple[ScoreDetail, ScoreDetail]:
     inst = bool(_INSTITUTIONAL.search(text))
     # 주제명 자체가 설전·막말이면 국감 같은 제도 맥락이 있어도 해프닝으로 본다.
     happening = bool(_HAPPENING.search(t.name)) or (bool(_HAPPENING.search(text)) and not inst)
-    days = {s.published_at.astimezone(KST).date() for s in t.signals if s.kind != "competitor"}
+    days = {
+        s.published_at.astimezone(KST).date() for s in t.signals if s.kind not in ("competitor", "community")
+    }
     has_next = t.scheduled_at is not None or t.follow_up is not None
 
     p, p_why = 50.0, []
@@ -123,6 +132,10 @@ def heuristic_judge(t: Topic) -> tuple[ScoreDetail, ScoreDetail]:
     if happening:
         f -= 20
         f_why.append("단순 발언·설전")
+    buzz = t.buzz()
+    if len(buzz) >= 3:
+        f += 10
+        f_why.append(f"진보 커뮤니티 화제({len(buzz)}건)")
     if t.category in ("경제", "노동", "복지") and not _POLITICAL.search(text):
         f -= 20
         f_why.append("정치 쟁점으로 번지지 않음")
@@ -151,8 +164,11 @@ def llm_judge(llm: ClaudeLLM, topics: list[Topic]) -> dict[str, tuple[ScoreDetai
     rows = []
     for t in topics:
         sigs = sorted(
-            (s for s in t.signals if s.kind != "competitor"), key=lambda s: s.published_at, reverse=True
+            (s for s in t.signals if s.kind not in ("competitor", "community")),
+            key=lambda s: s.published_at,
+            reverse=True,
         )
+        buzz = sorted(t.buzz(), key=lambda s: -int(s.metric.get("comments", 0)))
         rows.append(
             {
                 "topic_id": t.id,
@@ -162,6 +178,11 @@ def llm_judge(llm: ClaudeLLM, topics: list[Topic]) -> dict[str, tuple[ScoreDetai
                 "scheduled_at": t.scheduled_at.isoformat() if t.scheduled_at else None,
                 "follow_up": t.follow_up,
                 "articles": [{"title": s.title, "summary": s.summary[:160]} for s in sigs[:4]],
+                "community_buzz": {
+                    "posts": len(buzz),
+                    "comments": sum(int(s.metric.get("comments", 0)) for s in buzz),
+                    "titles": [f"[{s.metric.get('site', '')}] {s.title}" for s in buzz[:5]],
+                },
             }
         )
     system = prompts.IDENTITY + "\n" + prompts.JUDGE_TASK
@@ -223,8 +244,13 @@ def score_topics(
     has_competitors: bool = True,
     llm: ClaudeLLM | None = None,
     trend_ratios: dict[str, float] | None = None,
+    community_mode: bool = False,
 ) -> list[Topic]:
-    """주제마다 scores·total·trend를 채운다(제자리 갱신 후 반환)."""
+    """주제마다 scores·total·trend를 채운다(제자리 갱신 후 반환).
+
+    community_mode: 커뮤니티 정치 게시판 데이터가 있으면 관심도를 커뮤니티 반응(글 수·댓글·상승률)으로 잰다.
+    prev_counts는 같은 기준(커뮤니티 모드면 커뮤니티 글 수)이어야 한다.
+    """
     judged: dict[str, tuple[ScoreDetail, ScoreDetail]] = {}
     if llm is not None and topics:
         try:
@@ -235,8 +261,20 @@ def score_topics(
     trend_ratios = trend_ratios or {}
     gap_from = window_end - timedelta(hours=24)
     for t in topics:
-        n_window = len(t.window_signals(window_start, window_end))
-        ir = interest_score(n_window, prev_counts.get(t.id, 0), trend_ratios.get(t.id))
+        if community_mode:
+            buzz = t.buzz(window_start, window_end)
+            ir = interest_score(
+                len(buzz),
+                prev_counts.get(t.id, 0),
+                trend_ratios.get(t.id),
+                saturation=15,
+                engagement=sum(int(s.metric.get("comments", 0)) for s in buzz),
+                label="커뮤니티 글",
+            )
+            ir.reason += f" · 기사 {len(t.news_signals(window_start, window_end))}건"
+        else:
+            n_window = len(t.window_signals(window_start, window_end))
+            ir = interest_score(n_window, prev_counts.get(t.id, 0), trend_ratios.get(t.id))
         comp = [s for s in t.signals if s.kind == "competitor" and gap_from <= s.published_at <= window_end]
         t.competitor_hits = len(comp)
         persistence, fit = judged.get(t.id) or heuristic_judge(t)

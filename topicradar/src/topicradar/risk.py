@@ -52,7 +52,7 @@ CAUSAL_MARKERS = ["왜", "다음", "결국", "이유", "생기는 일", "달라�
 def topic_risks(t: Topic, title_text: str = "") -> list[RiskFlag]:
     """주제 하나의 리스크."""
     flags: list[RiskFlag] = []
-    text = " ".join([t.name, *(s.title for s in t.signals if s.kind != "competitor")])
+    text = " ".join([t.name, *(s.title for s in t.signals if s.kind not in ("competitor", "community"))])
     in_title = [w for w in YELLOW_WORDS if w in f"{t.name} {title_text}"]
     if in_title:
         flags.append(

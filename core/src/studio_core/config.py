@@ -44,6 +44,30 @@ class FeedSpec(BaseModel):
     category: str | None = None
 
 
+class CommunitySpec(BaseModel):
+    """커뮤니티 게시판 하나(주제 선정용 관심 신호. 대본 사실 근거로는 쓰지 않는다)."""
+
+    name: str
+    list_url: str  # 목록 페이지(페이지 번호 자리: 1부터면 {page}, 0부터면 {page0})
+    post_pattern: str  # 글 주소 정규식(목록 HTML의 a href에 적용, 상대주소 포함)
+    politics_filter: bool = False  # 자유게시판처럼 섞인 곳은 정치 키워드로 거른다
+    comment_pattern: str | None = None  # 댓글 수 정규식(그룹1=숫자, 글 링크 뒤 HTML에 적용). 없으면 [12] 형식
+    pages: int = 1
+    enabled: bool = True
+    note: str = ""
+
+    def page_url(self, page: int) -> str:
+        """page(1부터)번째 목록 주소."""
+        return self.list_url.format(page=page, page0=page - 1)
+
+
+class SelectionSection(BaseModel):
+    """주제 선정 방식."""
+
+    community_gate: bool = True  # 저녁 헤드라인·서브, 주간 줄기는 커뮤니티 반응이 있는 주제만
+    derived_queries: int = 10  # 커뮤니티 화제에서 뽑는 네이버 뉴스 검색어 수(근거 기사 확보용)
+
+
 class ChannelSection(BaseModel):
     """channel.yaml의 channel 섹션."""
 
@@ -119,6 +143,8 @@ class ChannelConfig(BaseModel):
     budget: BudgetSection = Field(default_factory=BudgetSection)
     clustering: ClusteringSection = Field(default_factory=ClusteringSection)
     script: ScriptSection = Field(default_factory=ScriptSection)
+    communities: list[CommunitySpec] = Field(default_factory=list)
+    selection: SelectionSection = Field(default_factory=SelectionSection)
 
 
 @dataclass(frozen=True)

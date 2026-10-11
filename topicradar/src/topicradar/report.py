@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 
 from studio_core.http import request
-from topicradar.models import SlotPlan
+from topicradar.models import SlotPlan, Topic
 from topicradar.score import SCORE_LABELS
 
 SLOT_KO = {"morning": "아침 프리뷰", "evening": "저녁 리뷰", "weekly": "주간 심층"}
@@ -27,6 +27,16 @@ def _detail(plan_item_scores: dict) -> str:
     return " ".join(parts)
 
 
+def buzz_cell(t: Topic) -> str:
+    """커뮤니티 반응 요약: 사이트별 글 수 + 댓글 합(근거 링크로는 쓰지 않음)."""
+    buzz = t.buzz()
+    if not buzz:
+        return "-"
+    by_site = Counter(str(s.metric.get("site", "?")) for s in buzz)
+    comments = sum(int(s.metric.get("comments", 0)) for s in buzz)
+    return "·".join(f"{k}{v}" for k, v in by_site.most_common()) + f" (댓글 {comments})"
+
+
 def render_report(plan: SlotPlan, script_path: Path, warnings: list[str]) -> str:
     """편성 리포트 마크다운."""
     p = plan
@@ -40,8 +50,10 @@ def render_report(plan: SlotPlan, script_path: Path, warnings: list[str]) -> str
     third = (
         "expected / 달라지는 것" if p.slot == "morning" else "actual / hit" if p.slot == "evening" else "사슬"
     )
-    out.append(f"| 순서 | 역할 | 주제 | 카테고리 | 총점(세부) | 추세 | {third} | 근거 링크 | 리스크 |")
-    out.append("|---|---|---|---|---|---|---|---|---|")
+    out.append(
+        f"| 순서 | 역할 | 주제 | 카테고리 | 총점(세부) | 추세 | 커뮤니티 반응 | {third} | 근거 링크 | 리스크 |"
+    )
+    out.append("|---|---|---|---|---|---|---|---|---|---|")
     flags_by_topic: dict[str, list[str]] = {}
     for f in p.risk_flags:
         if f.topic_id:
@@ -60,7 +72,7 @@ def render_report(plan: SlotPlan, script_path: Path, warnings: list[str]) -> str
         risk = ", ".join(sorted(set(flags_by_topic.get(t.id, [])))) or "-"
         out.append(
             f"| {it.order} | {it.role} | {_cell(t.name)} `{t.id}` | {t.category} | **{t.total:.1f}** ({_detail(t.scores)}) "
-            f"| {t.trend} | {col} | {links} | {risk} |"
+            f"| {t.trend} | {buzz_cell(t)} | {col} | {links} | {risk} |"
         )
     out += ["", "## 점수 근거", ""]
     for it in p.items:

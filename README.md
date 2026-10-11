@@ -6,10 +6,10 @@
 ```
 studio/
   pyproject.toml        uv 워크스페이스(core · topicradar · newsclip)
-  channel.yaml          채널 정체성·피드·선호/차단 출처·점수 가중치·API 예산
+  channel.yaml          채널 정체성·피드·커뮤니티 게시판·선호/차단 출처·점수 가중치·API 예산
   .env.example          키 목록
   core/                 studio-core: 설정, Claude 래퍼(토큰 로그), HTTP 재시도, 텍스트 유틸, 시연용 fixture 전송계층
-  topicradar/           collect / slot / pick / made / history / daily
+  topicradar/           collect / slot / pick / made / history / probe / daily
   newsclip/             run / review / xml / search
   data/                 studio.db, logs/llm_usage.jsonl, schedule/날짜.yaml, 검색 캐시·API 사용량
   projects/날짜_슬롯/    report.md script.txt narration.wav* narration.srt* scenes.json assets/ assets.json timeline.xml
@@ -53,6 +53,7 @@ uv run pytest --cov        # 테스트(시연 fixture 포함, 네트워크 불�
 
 ## 하루 운영 순서
 
+0. (처음 한 번) `topicradar probe` — 커뮤니티 게시판 주소·글 패턴 확인. 뽐뿌 게시판 id, 더쿠 정치 카테고리 주소는 미확인이라 여기서 맞춘다
 1. `topicradar daily` — cron이 시각에 맞춰 수집·편성(05:30 아침 / 12:00 수집만 / 17:00 저녁 / 토 17:00 저녁+주간)
 2. `projects/날짜_슬롯/report.md`를 보고 필요하면 `topicradar pick --project … --replace <순서> <topic_id>`
 3. `script.txt` 수정 — `#TODO`·`#확인` 처리, `#출처:` 줄은 녹음 때 읽지 않는다(리포트 하단 '대본 점검' 참고)
@@ -81,11 +82,12 @@ macOS는 launchd, 서버는 systemd timer로 같은 세 시각을 걸어도 된�
 ### topicradar
 | 명령 | 설명 |
 |---|---|
-| `collect [--since ISO]` | RSS(국내·보도자료) · 해외 RSS · 네이버 뉴스 · 유튜브 경쟁 채널 · 수동 일정 수집. 기본 since = 마지막 수집 1시간 전 |
+| `collect [--since ISO]` | 커뮤니티 정치 게시판 · RSS(국내·보도자료) · 해외 RSS · 네이버 뉴스(설정 검색어 + 커뮤니티 화제 검색어) · 유튜브 경쟁 채널 · 수동 일정 수집. 기본 since = 마지막 수집 1시간 전 |
 | `slot morning\|evening\|weekly [--date] [--notify]` | 군집 → 점수 → 슬롯 규칙 → 문장 요소 → 대본 → `report.md`·`script.txt`·`plan.json` |
 | `pick --project <폴더> --replace <order> <topic_id>` | 항목 교체(역할 유지) 후 대본 재생성 |
 | `made --project <폴더> --video-id <ID> [--title]` | 업로드 기록, covered_in 갱신, past_titles 추가(주석 보존) |
 | `history [--weeks 4]` | 예측 총점 vs 조회수 상관, 제목 패턴·카테고리별 성과, 주차별 포인트 적중률, 가중치 ±5 제안 |
+| `probe [--name 다모앙]` | 커뮤니티 게시판 점검: robots.txt 허용 여부, 인식한 글 수, 정치 필터 통과 수, 예시 5개(저장 안 함) |
 | `daily [--at ISO] [--notify]` | 시각에 따라 collect → slot |
 
 ### newsclip
@@ -98,8 +100,20 @@ macOS는 launchd, 서버는 systemd timer로 같은 세 시각을 걸어도 된�
 
 ## 설계 요점
 
+**주제 선정 = 진보 커뮤니티 정치 게시판의 반응, 사실 = 뉴스 기사.** `channel.yaml`의 `communities`(기본: 다모앙 자유게시판·보배드림 정치·뽐뿌·더쿠 HOT·클리앙 모두의공원)
+목록 1쪽에서 **제목·댓글 수·시각만** 읽는다(본문은 받지 않음, robots.txt 준수, 요청 사이 1초).
+1. 정치 어휘 필터(자유게시판용) → 커뮤니티 글은 같은 화제의 뉴스와 한 주제로 묶인다.
+2. 커뮤니티 제목에서 겹치는 핵심어로 네이버 뉴스 검색어를 만들어(`selection.derived_queries`, 예: "정치자금 재판") 근거 기사를 더 모은다.
+3. 관심도는 커뮤니티 반응으로 잰다: 글 수 + 댓글/20(15건 포화)과 직전 윈도우 대비 상승률. 리포트에 `커뮤니티 반응` 열(사이트별 글 수·댓글 합)이 붙는다.
+4. 저녁 헤드라인·서브와 주간 줄기는 반응이 있는 주제만(`selection.community_gate`, 윈도우 12시간 전 글까지 인정). 반응 있는 주제가 없으면 뉴스 기준으로 되돌리고 리스크에 표시.
+5. **뉴스 기사가 없는 커뮤니티 화제(소문·추측)는 편성하지 않고** 리포트 메모에 "뉴스 근거 없는 커뮤니티 화제"로만 남긴다.
+   커뮤니티 글은 대본 근거·출처·`#출처:` URL로 쓰지 않는다(점검기가 수집 밖 URL로 경고). Claude에는 "무엇에 반응하나" 참고용 제목만 준다.
+
+커뮤니티 수집이 전부 실패하면 자동으로 예전 방식(기사 수 기준)으로 돈다. 사이트 개편으로 글을 못 찾으면 수집 표에 `community:사이트 실패 … post_pattern 확인`이 뜬다
+→ `topicradar probe --name 사이트`로 보고 `post_pattern`/`list_url`을 고친다. 각 사이트 이용약관은 운영자가 확인할 것(docs/sources.md §12).
+
 **점수(0~100)** = 관심도 40 + 공백도 20 + 지속성 10 + 적합도 30, 세부마다 근거 한 문장을 리포트에 싣는다.
-- 관심도: 0.4 × 기사 수 점수(로그, 25건 포화) + 0.6 × 상승률 점수(직전 동일 길이 윈도우 대비, −100%~+300%). 추세 ↑→↓도 여기서.
+- 관심도: 커뮤니티 모드는 위 3. 커뮤니티 데이터가 없으면 0.4 × 기사 수 점수(로그, 25건 포화) + 0.6 × 상승률 점수(직전 동일 길이 윈도우 대비, −100%~+300%). 추세 ↑→↓도 여기서.
 - 공백도: 경쟁 채널이 최근 24시간에 다룬 편수 c ≥ 1이면 60−20(c−1). 아무도 안 다뤘으면 관심도 ≥ 40일 때 100, 아니면 30+관심도.
 - 지속성·적합도: Claude가 한 번의 배치 호출로 판정(오프라인은 어휘 휴리스틱). 적합도에는 코드 보정 — 최근 7일 내 다룬 주제는 새 전개(이후 기사 2건 이상 또는 오늘 일정)가 없으면 −25, 있으면 시리즈 연속 +10.
 - 카테고리 균형: 같은 슬롯에서 경제가 절반을 넘으면 최저점 경제 항목을 비경제 후보로 교체(없으면 제외). 본문(헤드라인·서브) 기준과 슬롯 전체 기준을 모두 적용. 주간 사슬도 경제 주제는 정치 사슬이 없을 때만 축이 된다.
@@ -147,8 +161,8 @@ YouTube `search.list`는 1회 100 units라 검색어 7일 캐시, 동시 동일 
 ```bash
 uv run python scripts/demo.py
 ```
-`fixtures/demo/stories.yaml`의 **가상 뉴스**(가상 정당 한빛당·새한당, 익명 인물, example.com URL — 실존 사건 아님)를
-실제 RSS·네이버·유튜브 응답 형식으로 만들어(`fixtures/demo/build.py`) 다음을 차례로 실행한다:
+`fixtures/demo/stories.yaml`의 **가상 뉴스와 가상 커뮤니티 글**(가상 정당 한빛당·새한당, 익명 인물, example.com URL — 실존 사건·실제 게시글 아님)을
+실제 RSS·네이버·유튜브 응답 형식과 게시판 목록 HTML로 만들어(`fixtures/demo/build.py`) 다음을 차례로 실행한다:
 collect → 10/7 아침·저녁 → 10/8 아침·저녁(+Slack) → 10/11 주간 → 각 `made` → `history` → 저녁 대본으로 샘플 SRT·무음 WAV 생성 → `newsclip run` → `newsclip xml --audio`.
 결과는 `demo_root/`(전체)와 `docs/demo/`(리포트·대본·SRT·scenes/assets·timeline.xml·실행 로그)에 남는다.
 

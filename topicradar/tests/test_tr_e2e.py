@@ -23,6 +23,8 @@ def test_full_flow(demo_env, monkeypatch):
     root = demo_env
     out = _run(monkeypatch, "2026-10-10T17:00", "collect", "--since", "2026-10-05T00:00")
     assert "naver_news" in out and "rss" in out
+    # 커뮤니티 정치 게시판 → 화제 검색어 → 근거 기사 추가 수집
+    assert "community" in out and "커뮤니티 화제 → 뉴스 검색어" in out
     _run(monkeypatch, "2026-10-07T05:30", "slot", "morning", "--date", "2026-10-07")
     _run(
         monkeypatch,
@@ -63,6 +65,8 @@ def test_full_flow(demo_env, monkeypatch):
     _run(monkeypatch, "2026-10-10T17:00", "slot", "weekly", "--date", "2026-10-11")
     wk = json.loads((root / "projects/2026-10-11_weekly/plan.json").read_text(encoding="utf-8"))
     assert wk["chains"] and any(i["role"] == "줄기" for i in wk["items"])
+    wk_report = (root / "projects/2026-10-11_weekly/report.md").read_text(encoding="utf-8")
+    assert "커뮤니티 반응" in wk_report and "뉴스 근거 없는 커뮤니티 화제" in wk_report  # 소문은 편성 안 함
     # pick: 주간 서브 교체
     sub = next(i for i in wk["items"] if i["role"] == "서브")
     other = ev["items"][0]["topic"]["id"]
@@ -84,6 +88,8 @@ def test_full_flow(demo_env, monkeypatch):
     assert "법사위 통과가 바꾸는 것" in cfg
     out = _run(monkeypatch, "2026-10-08T12:00", "daily")
     assert "수집 결과" in out
+    probe = _run(monkeypatch, "2026-10-10T17:00", "probe", "--name", "보배드림")
+    assert "보배드림" in probe and "정치 필터 통과" in probe and "다모앙" not in probe
 
 
 def test_daily_schedule_and_defaults():

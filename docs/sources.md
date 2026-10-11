@@ -13,6 +13,7 @@
 | Google Trends | 쓰지 않음, 네이버 데이터랩만(2차) | 공식 API 없음(알파), pytrends는 비공식·차단 잦음. 시청층은 국내 검색 |
 | 이미지 1순위 | 네이버 이미지. Google CSE는 기존 키가 있을 때만 앞에 | Custom Search JSON API 신규 가입 차단, 2027-01-01 종료 예정 |
 | Claude 모델 | 분석·대본 모두 `claude-opus-5-5`(.env로 교체) | 기본값. 비용을 줄이려면 분석만 `claude-sonnet-5-5`로 |
+| 주제 선정 기준 | 진보 성향 커뮤니티 정치 게시판의 반응(글 수·댓글·상승률). 사실은 뉴스 기사에서만 | 시청층이 실제로 반응하는 화제를 고르되, 커뮤니티 글은 검증되지 않은 주장이 섞여 근거로 쓰지 않음(§12) |
 
 ## 2. 국내 뉴스 RSS (키 불필요)
 
@@ -108,3 +109,30 @@
   제35조의5(공정한 이용)가 근거가 될 수 있지만 사용 목적·분량·대체 가능성에 따라 판단이 갈린다.
 - 방송사 뉴스 영상은 Content ID에 등록돼 있어 수익 차단·저작권 경고 위험이 크다 → `videos.blocked_channels`로 기본 제외.
 - newsclip은 모든 자료의 출처 URL·도메인·채널을 `assets.json`에 남기고 화면에 출처 자막을 넣는다. 업로드 전 `review`에서 사진·영상을 사람이 고른다.
+
+## 12. 커뮤니티 정치 게시판 (주제 선정용)
+
+> 2026-10-11 조사. 이 환경에선 사이트 DNS가 막혀 목록 페이지를 직접 열지 못했다. 아래 주소는 검색 결과로 본 글 주소 형식에서 추정했다.
+> **처음 운영 전에 `topicradar probe`로 확인**하고 `channel.yaml`의 `list_url`·`post_pattern`을 맞출 것.
+
+| 사이트 | 게시판 | 설정한 목록 주소 | 글 주소 형식 | 상태 |
+|---|---|---|---|---|
+| 다모앙 | 자유게시판(별도 정치 게시판 확인 못 함) | `damoang.net/free?page={page}` | `damoang.net/free/숫자` — 검색 결과의 글 주소로 확인 | 형식 확인, 정치 필터 사용 |
+| 보배드림 | 정치게시판 | `bobaedream.co.kr/list?code=politic&page={page}` | `view?code=politic&No=숫자` | 메뉴에 독립 정치게시판 있음(검색 결과). 댓글 수 표기(`totreply`)는 미확인 |
+| 뽐뿌 | 정치 게시판 | `ppomppu.co.kr/zboard/zboard.php?id=politics&page={page}` | `view.php?id=게시판&no=숫자`(zboard 형식은 확인) | **게시판 id 미확인**. 한 커뮤니티 댓글(2022)은 "보수·진보 게시판으로 분리"했다고 주장 — 미검증 |
+| 더쿠 | HOT(정치 카테고리) | `theqoo.net/hot?page={page}` | `theqoo.net/hot/숫자` | 2025-07 공지로 스퀘어에 '정치' 카테고리·정치 제외 기능 추가, HOT에도 적용. 카테고리 주소 미확인 → HOT 전체 + 정치 필터 |
+| 클리앙 | 모두의공원 | `clien.net/service/board/park?po={page0}` | `/service/board/park/숫자` — 검색 결과로 확인 | 페이지 파라미터(`po`, 0부터)는 미확인 |
+| 오늘의유머 | 시사게시판 | `todayhumor.co.kr/board/list.php?table=sisa&page={page}` | `view.php?table=sisa&no=숫자` | 미확인 → `enabled: false` |
+
+참고한 검색 결과: [더쿠 스퀘어 정치 카테고리 공지](https://theqoo.net/square/3836786021), [더쿠 HOT 정치 카테고리 글 예](https://theqoo.net/hot/4154411011),
+[더쿠 이용 규칙](https://theqoo.net/notice/1383792790), [보배드림 메뉴](https://m.bobaedream.co.kr/board/new_writing/bb_talk/186),
+[클리앙 모두의공원 글 예](https://www.clien.net/service/board/park/19248246), [다모앙 자유게시판 글 예](https://damoang.net/free/4123081).
+
+**성향은 고정돼 있지 않다.** 나무위키 '더쿠' 항목은 2026년 HOT 등에서 반민주당 정서가 강하다고 적고 있다(제3자 요약, 미검증).
+사이트별 반응이 채널 시청층과 어긋나면 그 사이트를 `enabled: false`로 끄거나 `pages`를 줄인다. 리포트 `커뮤니티 반응` 열이 사이트별로 나뉘어 있어 비교할 수 있다.
+
+**수집 원칙(이용약관은 운영자가 직접 확인 — 법률 자문 아님)**
+- robots.txt가 막으면 그 게시판은 건너뛴다(수집 표에 표시). 사이트당 목록 1쪽, 요청 사이 1초, 하루 3회.
+- 저장하는 것: 제목, 글 주소, 댓글 수, 작성 시각. **본문·작성자 닉네임은 저장하지 않는다.**
+- 커뮤니티 제목·내용은 대본·화면·출처 자막에 쓰지 않는다. 사실 문장은 같은 주제의 뉴스 기사에서만 가져온다(절대 규칙 2).
+- 커뮤니티에만 있고 기사가 없는 화제는 편성하지 않는다(리포트 메모에만 남김).

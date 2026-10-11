@@ -28,3 +28,12 @@ clustering:
 
 script:
   tone: 확신형+입담형
+
+communities:
+  - {name: 다모앙, list_url: "https://damoang.net/free?page={page}", post_pattern: "damoang\\.net/free/\\d+", politics_filter: true}
+  - {name: 보배드림, list_url: "https://www.bobaedream.co.kr/list?code=politic&page={page}", post_pattern: "/view\\?code=politic&No=\\d+", comment_pattern: "class=\"totreply\">(\\d+)<"}
+  - {name: 뽐뿌, list_url: "https://www.ppomppu.co.kr/zboard/zboard.php?id=politics&page={page}", post_pattern: "(view|zboard)\\.php\\?id=politics.*no=\\d+", comment_pattern: "class=\"baseList-c\">(\\d+)<"}
+  - {name: 더쿠, list_url: "https://theqoo.net/hot?page={page}", post_pattern: "theqoo\\.net/hot/\\d+", politics_filter: true, comment_pattern: "class=\"replyNum\">(\\d+)<"}
+selection:
+  community_gate: true
+  derived_queries: 10

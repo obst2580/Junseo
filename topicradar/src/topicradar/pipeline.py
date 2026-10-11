@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from studio_core.config import KST, ChannelConfig, Settings, append_past_title, 
 from studio_core.http import make_client
 from studio_core.llm import ClaudeLLM
 from topicradar.collectors.base import Collector, CollectorDisabled, CollectReport, collect_all
+from topicradar.collectors.community import CommunityCollector
 from topicradar.collectors.naver_news import NaverNewsCollector
 from topicradar.collectors.overseas import OverseasCollector
 from topicradar.collectors.rss import RssCollector
@@ -20,7 +22,7 @@ from topicradar.collectors.schedule import ManualScheduleCollector
 from topicradar.collectors.youtube import YouTubeCollector, video_stats
 from topicradar.db import Store, UploadRow
 from topicradar.history import history_report
-from topicradar.models import SlotName, SlotPlan
+from topicradar.models import Signal, SlotName, SlotPlan
 from topicradar.report import notify_slack, render_report, slack_text
 from topicradar.script import draft_script, validate_script
 from topicradar.slots import SlotContext, build_plan, replace_item
@@ -42,6 +44,8 @@ def build_collectors(settings: Settings, cfg: ChannelConfig, client: object) -> 
     ]
     if cfg.sources.naver_queries:
         cols.append(NaverNewsCollector(cfg.sources.naver_queries, client))  # type: ignore[arg-type]
+    if cfg.communities:
+        cols.append(CommunityCollector(cfg.communities, client, cfg.clustering.generic_tokens))  # type: ignore[arg-type]
     cols.append(YouTubeCollector(cfg.channel.competitors, client))  # type: ignore[arg-type]
     return cols
 
@@ -55,10 +59,104 @@ async def run_collect(
         since = datetime.fromisoformat(last) - timedelta(hours=1) if last else now_kst() - timedelta(hours=24)
     async with make_client() as client:
         report = await collect_all(build_collectors(settings, cfg, client), since)
+        # 2단계: 커뮤니티에서 뜨는 화제로 뉴스 검색어를 만들어 근거 기사를 확보한다.
+        queries = derive_queries(
+            [s for s in report.signals if s.kind == "community"],
+            cfg.selection.derived_queries,
+            set(cfg.clustering.generic_tokens),
+            exclude=set(cfg.sources.naver_queries),
+        )
+        if queries:
+            extra = await collect_all([NaverNewsCollector(queries, client)], since)  # type: ignore[arg-type]
+            known = {s.id for s in report.signals}
+            report.signals += [s for s in extra.signals if s.id not in known]
+            report.counts["naver_news(커뮤니티 화제)"] = extra.counts.get("naver_news", 0)
+            report.skipped.update({f"{k}(커뮤니티 화제)": v for k, v in extra.skipped.items()})
+            report.errors.update({f"{k}(커뮤니티 화제)": v for k, v in extra.errors.items()})
+            report.derived_queries = queries
     new = store.upsert_signals(report.signals)
     report.counts["_new"] = new
     store.set_meta("last_collect", now_kst().isoformat())
     return report
+
+
+def derive_queries(
+    community: list[Signal], n: int, generic: set[str], exclude: set[str] | None = None
+) -> list[str]:
+    """커뮤니티 제목에서 많이 겹치는 핵심어 두 개씩 묶어 뉴스 검색어를 만든다.
+
+    첫 단어는 여러 글에 겹치는 고유한 말(정당명·'재판' 같은 일반어 제외), 둘째 단어는 일반어도 허용한다
+    ("정치자금 재판"). 같은 두 단어는 순서가 달라도 한 검색어로 친다. 댓글이 많은 글일수록 가중한다.
+    """
+    from collections import Counter
+
+    from studio_core.text import tokenize
+    from topicradar.cluster import GENERIC_TOKENS
+
+    if not community or n <= 0:
+        return []
+    stop = GENERIC_TOKENS | generic
+
+    def nounish(t: str) -> bool:  # 어미·감탄 조각("되면", "했네요", "ㅋㅋ")은 검색어로 쓰지 않는다
+        return not re.search(r"(요|다|면|네|죠|까|고|서|데|만|래|ㅋ+|ㅎ+)$", t)
+
+    titles = [
+        [t for t in dict.fromkeys(tokenize(s.title)) if t not in generic and len(t) >= 2 and nounish(t)]
+        for s in community
+    ]
+    df: Counter[str] = Counter(t for toks in titles for t in toks)
+    q: Counter[frozenset[str]] = Counter()
+    text: dict[frozenset[str], str] = {}
+    for s, toks in zip(community, titles, strict=True):
+        top = sorted(toks, key=lambda t: (t in stop, -df[t], toks.index(t)))[:2]
+        if len(top) < 2 or top[0] in stop or df[top[0]] < 2:
+            continue
+        key = frozenset(top)
+        text.setdefault(key, " ".join(sorted(top, key=toks.index)))
+        q[key] += 1 + int(s.metric.get("comments", 0)) // 20
+    picked = [text[k] for k, _ in q.most_common() if text[k] not in (exclude or set())]
+    return picked[:n]
+
+
+@dataclass
+class ProbeResult:
+    """probe 결과(게시판 하나)."""
+
+    name: str
+    url: str
+    allowed: bool
+    posts: list = field(default_factory=list)
+    kept: int = 0
+    error: str = ""
+
+
+async def probe_communities(cfg: ChannelConfig, name: str | None = None) -> list[ProbeResult]:
+    """설정된 게시판 목록 1쪽을 읽어 패턴이 맞는지 보여 준다(저장하지 않음)."""
+    from topicradar.collectors.community import RobotsCache, is_political, parse_board
+
+    out: list[ProbeResult] = []
+    async with make_client() as client:
+        robots = RobotsCache(client)
+        for spec in cfg.communities:
+            if name and spec.name != name:
+                continue
+            url = spec.page_url(1)
+            res = ProbeResult(spec.name, url, await robots.allowed(url))
+            if res.allowed:
+                try:
+                    resp = await client.get(url)
+                    resp.raise_for_status()
+                    posts = parse_board(resp.text, spec, url, now_kst())
+                    res.posts = posts
+                    res.kept = sum(
+                        1
+                        for p in posts
+                        if not spec.politics_filter or is_political(p.title, cfg.clustering.generic_tokens)
+                    )
+                except Exception as e:  # 진단용
+                    res.error = f"{type(e).__name__}: {e}"
+            out.append(res)
+    return out
 
 
 def project_dir(settings: Settings, plan_id: str) -> Path:

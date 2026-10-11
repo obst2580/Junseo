@@ -11,37 +11,22 @@ routes:
 - match: https://press\.example\.go\.kr/rss/press\.xml
   file: rss/press.xml
 - match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 국회
-  file: naver/news_국회.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 플랫폼노동자 기본법
-  file: naver/news_플랫폼노동자_기본법.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 국정감사
-  file: naver/news_국정감사.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 지역의료
-  file: naver/news_지역의료.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 정치자금 재판
-  file: naver/news_정치자금_재판.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 새한당
-  file: naver/news_새한당.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 환율
-  file: naver/news_환율.json
-- match: openapi\.naver\.com/v1/search/news\.json
-  params:
-    query: 택배노조
-  file: naver/news_택배노조.json
+  generate: naver_news
+  data: naver/index.json
+- match: https://damoang\.net/free\?page=1
+  file: community/다모앙.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/list\?code=politic\&page=1
+  file: community/보배드림.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/zboard\.php\?id=politics\&page=1
+  file: community/뽐뿌.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot\?page=1
+  file: community/더쿠.html
+  content_type: text/html; charset=utf-8
+- match: /robots\.txt$
+  generate: robots_allow
 - match: youtube/v3/playlistItems
   params:
     playlistId: UUcompAAAAAAAAAAAAAAAAAA

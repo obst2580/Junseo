@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field, model_validator
 SlotName = Literal["morning", "evening", "weekly"]
 Role = Literal["헤드라인", "서브", "오늘의포인트", "포인트회수", "내일쟁점", "줄기"]
 Hit = Literal["hit", "miss", "pending"]
-SignalKind = Literal["domestic", "press", "overseas", "schedule", "competitor", "own"]
+SignalKind = Literal["domestic", "press", "overseas", "schedule", "competitor", "own", "community"]
+NEWS_KINDS = ("domestic", "press", "overseas")
 TopicKind = Literal["overseas", "announcement", "scheduled", "event"]
 Trend = Literal["↑", "→", "↓"]
 
@@ -82,13 +83,27 @@ class Topic(BaseModel):
         """윈도우 안의 신호(경쟁 채널 영상 제외)."""
         return [s for s in self.signals if start <= s.published_at < end and s.kind != "competitor"]
 
+    def news_signals(self, start: datetime | None = None, end: datetime | None = None) -> list[Signal]:
+        """뉴스 신호(대본 사실 근거가 되는 것)."""
+        sigs = [s for s in self.signals if s.kind in NEWS_KINDS]
+        if start is not None and end is not None:
+            sigs = [s for s in sigs if start <= s.published_at < end]
+        return sigs
+
+    def buzz(self, start: datetime | None = None, end: datetime | None = None) -> list[Signal]:
+        """커뮤니티 신호(관심 근거, 사실 근거 아님)."""
+        sigs = [s for s in self.signals if s.kind == "community"]
+        if start is not None and end is not None:
+            sigs = [s for s in sigs if start <= s.published_at < end]
+        return sigs
+
     def top_links(self, n: int = 2) -> list[str]:
         """근거 링크(보도자료·국내 기사 우선)."""
         prio = {"press": 0, "domestic": 1, "schedule": 2, "overseas": 3, "competitor": 9, "own": 9}
         sigs = sorted(self.signals, key=lambda s: (prio.get(s.kind, 5), -s.published_at.timestamp()))
         out: list[str] = []
         for s in sigs:
-            if s.url and s.url not in out and s.kind not in ("competitor", "own"):
+            if s.url and s.url not in out and s.kind not in ("competitor", "own", "community"):
                 out.append(s.url)
             if len(out) >= n:
                 break

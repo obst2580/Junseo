@@ -46,6 +46,8 @@ def _print_collect(report: object) -> None:
     for k, v in report.errors.items():  # type: ignore[attr-defined]
         t.add_row(k, f"[red]실패[/red] {v}")
     console.print(t)
+    if getattr(report, "derived_queries", None):
+        console.print("커뮤니티 화제 → 뉴스 검색어: " + ", ".join(report.derived_queries))  # type: ignore[attr-defined]
 
 
 def _print_slot(res: pipeline.SlotResult) -> None:
@@ -137,6 +139,34 @@ def history(weeks: int = typer.Option(4, "--weeks")) -> None:
     out.write_text(text, encoding="utf-8")
     console.print(text)
     console.print(f"→ {out}")
+
+
+@app.command()
+def probe(name: str = typer.Option(None, "--name", help="커뮤니티 이름(기본: 전부)")) -> None:
+    """커뮤니티 게시판 파싱 점검: robots.txt 허용 여부, 잡힌 글 수, 정치 필터 통과 수, 예시 5개."""
+    _settings, cfg, _store = _setup()
+    if not cfg.communities:
+        console.print("[yellow]channel.yaml에 communities가 없습니다.[/yellow]")
+        return
+    for r in asyncio.run(pipeline.probe_communities(cfg, name)):
+        head = f"[bold]{r.name}[/bold] {r.url}"
+        if not r.allowed:
+            console.print(f"{head}\n  [red]robots.txt가 수집을 허용하지 않음 — 이 게시판은 쓰지 마세요[/red]")
+            continue
+        if r.error:
+            console.print(f"{head}\n  [red]실패[/red] {r.error}")
+            continue
+        console.print(f"{head}\n  글 {len(r.posts)}개 인식 · 정치 필터 통과 {r.kept}개")
+        if not r.posts:
+            console.print(
+                "  [yellow]글을 하나도 못 찾았습니다 → post_pattern을 실제 글 주소 형식에 맞게 고치세요[/yellow]"
+            )
+        t = Table(show_header=True)
+        for col in ("시각", "댓글", "제목", "주소"):
+            t.add_column(col)
+        for p in r.posts[:5]:
+            t.add_row(f"{p.posted_at:%m-%d %H:%M}", str(p.comments), p.title[:40], p.url[-40:])
+        console.print(t)
 
 
 @app.command()

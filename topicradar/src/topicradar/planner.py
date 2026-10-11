@@ -97,7 +97,7 @@ def judge_hit(expected: str | None, actual: str | None) -> tuple[Literal["hit", 
 def result_signals(t: Topic, start: datetime, end: datetime) -> list[Signal]:
     """회수용 결과 신호(윈도우 안, 일정 시각 이후, 결과 성격이 드러난 것 우선)."""
     after = t.scheduled_at if t.scheduled_at and start <= t.scheduled_at < end else start
-    sigs = [s for s in t.window_signals(start, end) if s.kind != "schedule" and s.published_at >= after]
+    sigs = [s for s in t.news_signals(start, end) if s.published_at >= after]
     return sorted(sigs, key=lambda s: (outcome_class(s.text) is None, s.published_at))
 
 
@@ -117,7 +117,9 @@ def heuristic_expected(t: Topic) -> tuple[str | None, str | None]:
         if s.kind == "schedule" and s.metric.get("expected"):
             expected = str(s.metric["expected"])
     sigs = sorted(
-        (s for s in t.signals if s.kind != "competitor"), key=lambda s: s.published_at, reverse=True
+        (s for s in t.signals if s.kind not in ("competitor", "community")),
+        key=lambda s: s.published_at,
+        reverse=True,
     )
     sents = [x for s in sigs for x in split_sentences(s.summary)]
     for sent in sents:
@@ -174,7 +176,10 @@ def thumbnail_for(base: str) -> str:
 
 
 def heuristic_chains(
-    topics: list[Topic], max_chains: int = 2, generic: set[str] | None = None
+    topics: list[Topic],
+    max_chains: int = 2,
+    generic: set[str] | None = None,
+    anchor_ids: set[str] | None = None,
 ) -> list[Chain]:
     """지속성 높은 주제를 축으로 키워드가 이어지는 주제를 엮는다(정당명 같은 일반어만으로는 잇지 않음)."""
     if not topics:
@@ -183,7 +188,7 @@ def heuristic_chains(
     docs = {
         t.id: set(t.keywords)
         | set(tokenize(t.name))
-        | {x for sg in t.signals if sg.kind != "competitor" for x in signal_tokens(sg)}
+        | {x for sg in t.signals if sg.kind not in ("competitor", "community") for x in signal_tokens(sg)}
         for t in topics
     }
     idf = idf_table(list(docs.values()), prior=IDF_PRIOR)
@@ -199,6 +204,8 @@ def heuristic_chains(
             continue
         if anchor.category == "경제" and chains:  # 경제 사슬은 정치 사슬이 하나도 없을 때만
             continue
+        if anchor_ids is not None and anchor.id not in anchor_ids:  # 커뮤니티 반응이 있는 주제만 축으로
+            continue
         members = [anchor]
         for t in pool:
             if t.id == anchor.id or t.id in used:
@@ -210,7 +217,11 @@ def heuristic_chains(
         if len(members) < 2:
             # 한 주제가 여러 날에 걸쳐 전개됐다면 그 자체가 사슬(예: 선고 예고 → 연기 → 기일 재지정)
             days = sorted(
-                {sg.published_at.date() for sg in anchor.signals if sg.kind not in ("competitor", "schedule")}
+                {
+                    sg.published_at.date()
+                    for sg in anchor.signals
+                    if sg.kind not in ("competitor", "schedule", "community")
+                }
             )
             if anchor.category != "경제" and len(days) >= 3 and persist[anchor.id] >= 70:
                 used.add(anchor.id)
@@ -220,7 +231,8 @@ def heuristic_chains(
                         (
                             sg
                             for sg in anchor.signals
-                            if sg.published_at.date() == d and sg.kind not in ("competitor", "schedule")
+                            if sg.published_at.date() == d
+                            and sg.kind not in ("competitor", "schedule", "community")
                         ),
                         key=lambda sg: sg.published_at,
                     )
@@ -283,7 +295,7 @@ class LLMPlanText(BaseModel):
 
 
 def _articles(t: Topic, start: datetime | None = None, end: datetime | None = None, n: int = 5) -> list[dict]:
-    sigs = [s for s in t.signals if s.kind != "competitor"]
+    sigs = [s for s in t.signals if s.kind not in ("competitor", "community")]
     if start and end:
         sigs = [s for s in sigs if start <= s.published_at < end] or sigs
     sigs = sorted(sigs, key=lambda s: s.published_at, reverse=True)[:n]
