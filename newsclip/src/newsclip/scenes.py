@@ -201,9 +201,12 @@ def segment(
     return merged
 
 
-def segment_phrases(cues: list[Cue], topics: list[str], min_sec: float = 2.0) -> list[list[int]]:
-    """큐 하나(말 덩어리 하나) = 장면 하나. min_sec보다 짧은 덩어리만 다음 덩어리와 묶는다(같은 주제 안,
-    마지막이면 앞 장면에). 사진 한 장에 대사가 너무 많지도, 화면이 너무 자주 바뀌지도 않게."""
+_SENT_DONE_RE = re.compile(r"[.?!…]['\"”’」』)\]]*$")
+
+
+def segment_phrases(cues: list[Cue], topics: list[str], min_sec: float = 1.5) -> list[list[int]]:
+    """큐 하나(말 덩어리 하나) = 장면 하나. 문장 안의 min_sec보다 짧은 덩어리만 다음 덩어리와 묶는다
+    (문장 끝을 넘어 묶지 않는다 — 짧은 문장도 제 장면). 사진 한 장에 대사가 너무 많지 않게."""
     groups: list[list[int]] = []
     cur: list[int] = []
 
@@ -212,9 +215,9 @@ def segment_phrases(cues: list[Cue], topics: list[str], min_sec: float = 2.0) ->
         if not cur:
             return
         dur = cues[cur[-1]].end - cues[cur[0]].start
-        if dur < min_sec and not force:
+        if dur < min_sec and not force and not _SENT_DONE_RE.search(cues[cur[-1]].text.strip()):
             return
-        if dur < min_sec and groups and topics[groups[-1][0]] == topics[cur[0]]:
+        if dur < min_sec and force and groups and topics[groups[-1][0]] == topics[cur[0]]:
             groups[-1].extend(cur)
         else:
             groups.append(cur)

@@ -128,6 +128,15 @@ def test_segment_phrases_one_scene_each_but_not_too_short():
     from newsclip.scenes import segment_phrases
     from newsclip.srt import Cue
 
-    cues = [Cue(1, 0, 3, "a"), Cue(2, 3, 4, "b"), Cue(3, 4, 7, "c"), Cue(4, 7, 8, "d"), Cue(5, 8, 9.5, "e")]
+    cues = [
+        Cue(1, 0, 3, "a,"),
+        Cue(2, 3, 4, "b,"),
+        Cue(3, 4, 7, "c."),
+        Cue(4, 7, 8, "d,"),
+        Cue(5, 8, 9.2, "e"),
+    ]
     assert segment_phrases(cues, ["A", "A", "A", "B", "B"]) == [[0], [1, 2], [3, 4]]
     assert segment_phrases(cues[:2], ["A", "A"]) == [[0, 1]]  # 짧은 꼬리는 앞 장면에
+    # 짧아도 문장이 끝나면 제 장면(다음 문장과 묶지 않는다)
+    short = [Cue(1, 0, 1.2, "보시죠."), Cue(2, 1.2, 6, '"진실에 기초해…"라고 했고요,')]
+    assert segment_phrases(short, ["A", "A"]) == [[0], [1]]
