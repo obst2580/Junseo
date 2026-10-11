@@ -313,7 +313,7 @@ function when(iso) { const t = Date.parse(iso); const x = isNaN(t) ? isoParts(is
 function ago(iso) { const t = Date.parse(iso); if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`; }
 
 /* ---------- 상태 ---------- */
-let db = null, sample = null, assets = null, downloads = null, mcp = null;
+let db = null, sample = null, assets = null, downloads = null, comments = null;
 let known = false;
 const S = {
   worker: { ...WORKER }, meta: null, posts: [], articles: [], topics: null,
@@ -348,8 +348,8 @@ function renderStatus() {
   chips.push(!known ? '<span class="chip"><span class="dot"></span>연결 확인 중…</span>'
     : claudeOk() ? '<span class="chip ok"><span class="dot"></span>내 Claude 연결됨</span>'
     : '<span class="chip warn"><span class="dot"></span>Claude 없이(직접 쓰기)</span>');
-  chips.push(!known ? '' : mcp ? '<span class="chip ok"><span class="dot"></span>클라우드 작업자 연결</span>'
-    : '<span class="chip warn" title="작업 요청은 대화에 붙여 넣는 문장으로 대신합니다"><span class="dot"></span>작업자: 대화로 요청</span>');
+  chips.push(!known ? '' : S.canSend === 'available' ? '<span class="chip ok"><span class="dot"></span>클라우드 작업자 연결</span>'
+    : `<span class="chip warn" title="${esc(SEND_WHY[S.canSend] || '')} — 작업 요청은 대화에 붙여 넣는 글로 대신합니다"><span class="dot"></span>작업자: 대화로 요청</span>`);
   if (m) chips.push(`<span class="chip">수집 ${esc(when(m.collected_at))} · ${esc(ago(m.collected_at))}</span>`);
   if (known && !db) chips.push('<span class="chip bad"><span class="dot"></span>저장소 없음 — claude.ai에서 열어 주세요</span>');
   $('#status').innerHTML = chips.join('');
@@ -495,6 +495,7 @@ function renderTopics() {
   const T = S.topics;
   const fresh = T && m && T.raw_at === m.collected_at;
   $('#group').textContent = T ? (fresh ? 'Claude로 다시 묶기' : '새 글로 다시 묶기') : 'Claude로 주제 묶기·의견 정리';
+  if (!fresh && !ctl && /^주제 \d+개로 묶었습니다$/.test($('#group-state').textContent)) $('#group-state').textContent = '';
   if (!T || !T.topics.length) {
     $('#topics-wrap').hidden = true; $('#bundles-wrap').hidden = true; $('#pickbar').hidden = true;
     const top = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 8);
@@ -879,34 +880,56 @@ function workerMessage(rid, kind) {
     `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, S.project && kind !== 'collect' ? `프로젝트: projects/${S.project.id}` : '',
     '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
 }
-async function requestWork(kind) {
+// 작업자 깨우기: 이 아티팩트 댓글을 "Claude에게 보내기"로 남기면, 제작실을 지켜보는 작업자 대화가 깨어난다.
+const SEND_WHY = {
+  writers_only: '편집 권한이 있는 계정에서만 보낼 수 있습니다',
+  no_session: '받을 작업자 대화가 지금 없습니다',
+  off: '이 화면에서는 Claude에게 보내기가 꺼져 있습니다',
+  consent_required: '댓글 허용 창에서 [허용]을 눌러야 보낼 수 있습니다',
+  forbidden: '이 화면에서 댓글 쓰기가 꺼져 있습니다',
+  claude_unavailable: '지금은 Claude에게 보낼 수 없습니다',
+  rate_limited: '너무 자주 보냈습니다 — 잠시 뒤 다시',
+  no_comments: '이 화면에서는 댓글 기능을 쓸 수 없습니다',
+};
+async function refreshSend() {
+  let v = 'no_comments';
+  if (comments && typeof comments.canSendToClaude === 'function') { try { v = await comments.canSendToClaude(); } catch (e) { v = (e && e.code) || 'claude_unavailable'; } }
+  S.canSend = v; renderStatus();
+}
+async function requestWork(kind, el) {
   if (!db) { toast('저장소를 쓸 수 없는 화면입니다.', true); return null; }
   const k = kst(), rid = `${k.y}${k.mo}${k.d}-${k.h}${k.mi}-${kind}-${Math.random().toString(36).slice(2, 6)}`;
   const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '' };
-  try { await db.doc(`requests/${rid}`).set(doc); } catch (e) { toast('요청을 저장하지 못했습니다: ' + (e.code || ''), true); return null; }
   const msg = workerMessage(rid, kind);
-  let sent = false, why = '';
-  if (mcp && S.worker && S.worker.session_id) {
-    try { await mcp.callTool('Claude Code Remote', 'send_message', { session_id: S.worker.session_id, message: msg }); sent = true; }
-    catch (e) { why = e && e.code; }
+  // 누른 직후에만 보낼 수 있어서, 요청 문서 저장과 보내기를 함께 시작한다(작업자는 깨어난 뒤 문서를 읽는다).
+  let why = 'no_comments', send = null;
+  if (comments && typeof comments.sendToClaude === 'function') {
+    try { why = await comments.canSendToClaude(); } catch (e) { why = (e && e.code) || 'claude_unavailable'; }
+    if (why === 'available') send = comments.anchorFor(el).then(anchor => comments.sendToClaude({ anchor, text: msg }));
   }
-  try { await db.doc(`requests/${rid}`).update({ sent_to_worker: sent }); } catch (e) { /* 무시 */ }
-  return { rid, sent, why, msg };
+  const save = db.doc(`requests/${rid}`).set(doc);
+  const [saved, sentR] = await Promise.allSettled([save, send || Promise.reject({ code: why })]);
+  if (saved.status === 'rejected') { toast('요청을 저장하지 못했습니다: ' + ((saved.reason && saved.reason.code) || ''), true); return null; }
+  const sent = sentR.status === 'fulfilled';
+  if (!sent) why = (sentR.reason && sentR.reason.code) || why;
+  try { await db.doc(`requests/${rid}`).update({ sent_to_worker: sent, ...(sent ? { thread_id: sentR.value.threadId } : {}) }); } catch (e) { /* 무시 */ }
+  refreshSend();
+  return { rid, sent, why: sent ? '' : (SEND_WHY[why] || why), msg };
 }
 function fallbackBox(el, r) {
   const w = S.worker || {};
   el.hidden = false;
-  el.innerHTML = `<div class="note warn"><b class="t">작업자에게 자동으로 보내지 못했습니다${r.why ? ` (${esc(r.why)})` : ''}</b>아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으면 처리합니다.</div>
+  el.innerHTML = `<div class="note warn"><b class="t">작업자에게 자동으로 보내지 못했습니다${r.why ? ` — ${esc(r.why)}` : ''}</b>아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으면 처리합니다.</div>
     <textarea readonly spellcheck="false">${esc(r.msg)}</textarea><div><button class="btn small" type="button">복사</button></div>`;
   el.querySelector('button').onclick = () => copyText(r.msg, '요청 글을', null);
 }
 $('#collect').onclick = async () => {
   $('#collect').disabled = true;
-  const r = await requestWork('collect');
+  const r = await requestWork('collect', $('#collect'));
   $('#collect').disabled = false;
   if (!r) return;
   ls.set('collect_req', r.rid); watchRequest('collect', r.rid);
-  if (!r.sent) fallbackBox($('#collect-state'), r); else toast('작업자에게 수집을 맡겼습니다');
+  if (!r.sent) fallbackBox($('#collect-state'), r); else { $('#collect-state').innerHTML = ''; toast('작업자에게 수집을 맡겼습니다'); }
   renderCollect();
 };
 const reqLabel = r => !r ? '' : r.status === 'queued' ? (r.sent_to_worker === false ? '작업자 대기 — 아래 글을 대화에 보내 주세요' : '작업자에게 보냈습니다 — 곧 시작합니다')
@@ -931,7 +954,7 @@ $('#src-go').onclick = async () => {
   if (!p.audio) { toast('음성을 먼저 올려 주세요', true); return; }
   if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`projects/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '' }); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
-  const r = await requestWork('sources');
+  const r = await requestWork('sources', $('#src-go'));
   $('#src-go').disabled = false;
   if (!r) return;
   try { await db.doc(`projects/${p.id}`).update({ request_id: r.rid, status: 'requested' }); } catch (e) { /* 무시 */ }
@@ -1032,9 +1055,9 @@ setTab((location.hash || '').replace('#', '') || 'topics');
 (async () => {
   const c = window.claude;
   if (!c || typeof c.use !== 'function') { known = true; renderStatus(); return; }
-  const [d, s, a, dl, m] = await Promise.all(['db', 'sample', 'assets', 'downloads', 'mcp'].map(n => c.use(n).catch(() => null)));
-  db = d; sample = s; assets = a; downloads = dl; mcp = m; known = true;
-  renderStatus();
+  const [d, s, a, dl, cm] = await Promise.all(['db', 'sample', 'assets', 'downloads', 'comments'].map(n => c.use(n).catch(() => null)));
+  db = d; sample = s; assets = a; downloads = dl; comments = cm; known = true;
+  await refreshSend();
   if (!db) return;
   db.doc('config/worker').onSnapshot(snap => { if (snap.exists) S.worker = { ...WORKER, ...snap.data() }; }, () => {});
   db.doc('raw/meta').onSnapshot(snap => { S.meta = snap.exists ? snap.data() : null; renderStatus(); loadRaw(S.meta); renderTopics(); if (S.project) renderScript(); }, () => {});
