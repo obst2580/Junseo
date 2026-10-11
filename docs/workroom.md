@@ -65,7 +65,8 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 
    `audio`는 화면이 브라우저에서 분석한 값(`duration`, `silences` = 문장 사이 쉼 구간)입니다. 음성 파일은
    사용자 컴퓨터에만 있고, 작업자는 같은 길이의 무음 wav로 timeline.xml을 만듭니다.
-3. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진·영상, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다:
+3. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
+   (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다):
    `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`와 `narration.srt.txt`는
    텍스트라 한 번에 하나씩 `file_path`로 올립니다(`.xml`은 자산 형식이 아니라 `.txt`로 올리고 화면이 이름을 바꿉니다).
 4. 프로젝트에 이전 결과(`result.files`, `result.timeline_id`)가 있으면, 새 결과를 쓴 뒤 그 옛 자산을 지웁니다
@@ -78,7 +79,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    ```
 
    `scenes`·`report`·`base_token`은 manifest 그대로, `files`는 manifest의 `files`에서 `path`를 빼고 올린 자산 ID를 붙입니다.
-6. 요청을 `done`으로, note 예: `장면 26개 중 24개에 자료 · 사진 40 · 영상 6`.
+6. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장 · 영상 후보 9장면(링크)`.
 
 화면은 `/_blob/<자산 ID>`로 자료를 보여 주고, 받을 때 사용자가 적은 폴더 경로로 timeline.xml의
 `file://localhost/__STUDIO_BASE__`를 바꿔 압축 파일(timeline.xml + 자료 + 음성)을 만듭니다.

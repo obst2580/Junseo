@@ -63,37 +63,63 @@ def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClie
     }
 
 
+def topic_query(scene: Scene) -> str:
+    """같은 주제 장면이 함께 쓰는 검색어(영상 검색·사진 보충, 캐시로 한 번만 부른다)."""
+    return " ".join(scene.topic_keywords[:2]) or " ".join(scene.keywords_ko[:2])
+
+
 def query_for(scene: Scene, source: str) -> str:
-    """소스별 검색어(Wikimedia는 영어, 나머지는 한국어 상위 2개)."""
+    """소스별 검색어. Wikimedia는 영어, 유튜브는 주제 검색어,
+    사진은 주제 대표 말 + 그 장면에만 두드러진 말(장면마다 다른 사진이 나오게)."""
     if source == "wikimedia":
         return " ".join(scene.keywords_en[:2]) or " ".join(scene.keywords_ko[:2])
-    return " ".join(scene.keywords_ko[:2])
+    if source == "youtube_video":
+        return topic_query(scene)
+    anchor = scene.topic_keywords[:1]
+    own = [k for k in scene.keywords_ko if k not in anchor][:1]
+    return " ".join([*anchor, *own]) or " ".join(scene.keywords_ko[:2])
 
 
 async def gather_candidates(
     scene: Scene, sources: dict[str, Source], report: RunReport, want: int
 ) -> list[Asset]:
-    """우선순위대로 검색해 후보를 모은다(충분히 모이면 멈춤, 키 없는 소스는 경고 후 건너뜀)."""
+    """우선순위대로 검색해 후보를 모은다(사진이 충분히 모이면 멈춤, 키 없는 소스는 경고 후 건너뜀).
+    영상 후보는 사진 수에 세지 않아서 영상 장면에도 사진이 같이 모인다. 장면 검색어로 사진이 모자라면
+    주제 검색어로 한 번 더 찾는다."""
     out: list[Asset] = []
     seen: set[str] = set()
-    for name in route_for(scene):
-        if len(out) >= want:
-            break
+
+    async def search(name: str, query: str) -> None:
         src = sources[name]
         try:
-            found = await src.search(query_for(scene, name), scene.kind)
+            found = await src.search(query, scene.kind)
         except Unavailable as e:
             if name not in report.skipped_sources:
                 log.warning("[%s] 건너뜀: %s", name, e)
             report.skipped_sources[name] = str(e)
-            continue
+            return
         except Exception as e:  # 소스 실패 격리
             report.errors.append(f"{scene.id} {name}: {type(e).__name__}: {e}")
-            continue
+            return
         for a in found:
             if a.id not in seen:
                 seen.add(a.id)
                 out.append(a)
+
+    def images() -> int:
+        return sum(1 for a in out if a.media == "image")
+
+    route = route_for(scene)
+    for name in route:
+        if images() >= want:
+            break
+        await search(name, query_for(scene, name))
+    fallback = topic_query(scene)
+    for name in route:
+        if images() >= want or name in ("youtube_video", "wikimedia"):
+            continue
+        if fallback and fallback != query_for(scene, name) and name not in report.skipped_sources:
+            await search(name, fallback)
     return out
 
 
@@ -108,8 +134,9 @@ async def run_project(
     llm: ClaudeLLM | None = None,
     fps: int = 30,
     size: tuple[int, int] = (1920, 1080),
+    videos: bool = True,
 ) -> tuple[SceneSet, RunReport]:
-    """newsclip run 전체."""
+    """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳)."""
     script = (project / "script.txt").read_text(encoding="utf-8")
     cues = parse_srt((project / "narration.srt").read_text(encoding="utf-8"))
     scenes = build_scenes(cues, script, llm)
@@ -138,16 +165,24 @@ async def run_project(
             *(gather_candidates(sc, sources, report, want=per_scene * 3) for sc in scenes)
         )
         prev_key: str | None = None
+        used: dict[str, int] = {}  # 앞 장면들이 이미 고른 자료(같은 사진 되풀이 감점)
         for sc, cands in zip(scenes, found, strict=True):
-            ranked = rank(sc, cands, cfg, prev_key)
+            ranked = rank(sc, cands, cfg, prev_key, used=used)
             for a in ranked:
                 a.attribution_text = attribution_text(a)
             sc.candidates = ranked
             if ranked:
                 prev_key = asset_key(ranked[0])
+            for media in ("image", "video"):  # 장면의 첫 사진·첫 영상 후보를 '썼음'으로
+                top = next((a for a in ranked if a.media == media), None)
+                if top is not None:
+                    used[top.id] = used.get(top.id, 0) + 1
 
         async def fetch(sc: Scene) -> None:
-            top = sc.candidates[:per_scene]
+            pool = sc.candidates if videos else [a for a in sc.candidates if a.media == "image"]
+            top = pool[:per_scene]
+            if not any(a.media == "image" for a in top):  # 영상을 못 받아도 사진 하나는 남게
+                top += [a for a in pool if a.media == "image"][:1]
             jobs = []
             for r, a in enumerate(top, start=1):
                 if a.media == "video":
@@ -173,6 +208,8 @@ async def run_project(
         if sc.chosen:
             report.with_asset += 1
             report.by_source[sc.chosen.source] = report.by_source.get(sc.chosen.source, 0) + 1
+    for name in report.by_source:  # 일부 장면에서만 실패한 소스는 '못 쓴 검색'에서 뺀다
+        report.skipped_sources.pop(name, None)
     save_scenes(project, sset)
     write_assets_json(project / "assets.json", sset)
     audio = project / "narration.wav"

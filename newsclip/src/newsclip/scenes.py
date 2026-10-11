@@ -98,6 +98,23 @@ _HEADER_PREFIX_RE = re.compile(
 _VIDEO_RE = re.compile(
     r"(발언|회의|본회의|기자회견|브리핑|연설|청문회|표결|국감|국정감사|질타|토론|집회|파업|퇴장|선고)"
 )
+# 명사가 아닐 가능성이 큰 끝말(형태소 분석 없이 검색어 후보를 거른다)
+_NOT_NOUN_END = tuple(
+    "다 죠 는 을 를 니다 는데 지만 라고 라는 이라 인데 건데 거든 잖아 네요 군요 는지 을지 할지 에서 으로 한테 "
+    "에게 까지 부터 처럼 보다 하는 있는 없는 했던 하던 하고 이고 되고 했고 해서 아서 어서 라서 면서 하며 하면 거나 "
+    "으면 라면 다면 려면 어요 아요 해요 세요 에요 예요 까요 데요 하게 되는 였던 하지 하자 러서".split()
+)
+_NOT_NOUN_LAST = set(
+    "면고요게히할될인"
+)  # 세 글자 이상에서: 말씀드리면·따지고·했고요·있게·솔직히·욕설할·전날인
+_FUNCTION_WORDS = set(
+    "이건 그건 저건 이게 그게 이거 그거 같은 이런 그런 저런 정말 진짜 바로 이미 다시 아니라 두고 대해 위해 "
+    "통해 따라 관련 여러분 우리 저희 지금 그리고 그런데 하지만 결론 이유 문제 얘기 말을 말로 글은 글을 자기 "
+    "한쪽 이날 당시 모두 누가 무엇 어디 이번 그날 동안 전날 어제 오늘 내일 "
+    "먼저 대신 말고 읽고 올린 줄일 붙잡 뿌리 요사 기초해 "
+    "월요일 화요일 수요일 목요일 금요일 토요일 일요일".split()
+)
+VIDEO_EVERY = 3  # 주제 안에서 장면 몇 개마다 하나는 영상 장면으로(영상 후보를 찾는다)
 
 
 @dataclass
@@ -186,7 +203,7 @@ def segment(
 
 def heuristic_keywords(text: str, topic: str) -> tuple[list[str], list[str]]:
     """고유명사 우선 키워드(ko 3, en 3)."""
-    topic = _HEADER_PREFIX_RE.sub("", topic)
+    topic = _HEADER_PREFIX_RE.sub("", topic).replace("·", " ")
     found: list[str] = []
     for noun in sorted(PROPER_NOUNS, key=len, reverse=True):
         for src in (text, topic):
@@ -209,6 +226,60 @@ def heuristic_keywords(text: str, topic: str) -> tuple[list[str], list[str]]:
         if filler not in en:
             en.append(filler)
     return ko[:3] or ["국회", "정치", "서울"], en[:3]
+
+
+def noun_tokens(text: str) -> list[str]:
+    """검색어로 쓸 만한 말(명사로 보이는 것, 나온 순서·중복 포함)."""
+    out = []
+    for t in tokenize(text.replace("·", " ")):
+        if len(t) < 2 or t in STOPWORDS or t in STRUCTURAL or t in _FUNCTION_WORDS or t.isdigit():
+            continue
+        if t.endswith(_NOT_NOUN_END) or (len(t) >= 3 and t[-1] in _NOT_NOUN_LAST):
+            continue
+        out.append(t)
+    return out
+
+
+def diversify(scenes: list[Scene]) -> None:
+    """같은 주제 장면들이 같은 검색어로 같은 사진만 받지 않게: 주제 공통 검색어(topic_keywords)와
+    장면마다 그 장면에만 두드러진 말(keywords_ko 앞쪽)을 나눈다."""
+    by_topic: dict[str, list[Scene]] = {}
+    for sc in scenes:
+        by_topic.setdefault(sc.topic, []).append(sc)
+    for topic, group in by_topic.items():
+        common, _en = heuristic_keywords(" ".join(sc.text for sc in group), topic)
+        common = common[:2]
+        df: Counter[str] = Counter()
+        for sc in group:
+            df.update(set(noun_tokens(sc.text)))
+        used: set[str] = set()
+        for sc in group:
+            sc.topic_keywords = list(common)
+            counts = Counter(noun_tokens(sc.text))
+            cands = [t for t in counts if not any(t in c or c in t for c in common)]
+            # 이 장면에만 나오는 말 → 많이 나온 말 → 긴 말, 앞 장면이 쓴 말은 뒤로
+            cands.sort(key=lambda t: (t in used, df[t], -counts[t], -len(t)))
+            proper = [k for k in sc.keywords_ko if k in PROPER_NOUNS and k in sc.text]
+            own = [*proper, *cands[:2]]
+            if own:
+                used.add(own[0])
+            merged: list[str] = []
+            for k in [*own, *common, *sc.keywords_ko]:
+                if k and k not in merged:
+                    merged.append(k)
+            sc.keywords_ko = merged[:3]
+
+
+def mark_video_scenes(scenes: list[Scene], every: int = VIDEO_EVERY) -> None:
+    """주제마다 장면 every개 중 하나는 영상 장면으로 둔다(이미 영상 장면이 있으면 그대로)."""
+    by_topic: dict[str, list[Scene]] = {}
+    for sc in scenes:
+        by_topic.setdefault(sc.topic, []).append(sc)
+    for group in by_topic.values():
+        for i in range(0, len(group), every):
+            window = group[i : i + every]
+            if not any(sc.kind == "video" for sc in window):
+                window[0].kind = "video"
 
 
 def heuristic_kind(text: str, ko: list[str]) -> SceneKind:
@@ -260,6 +331,7 @@ def _to_scenes(groups: list[list[int]], cues: list[Cue], topics: list[str]) -> l
                 cue_ids=[cues[i].index for i in g],
             )
         )
+    diversify(scenes)
     # 빈틈 없는 타임라인: 첫 장면은 0초부터, 각 장면은 다음 장면 시작까지
     if scenes:
         scenes[0].start_sec = 0.0
@@ -274,6 +346,7 @@ def build_scenes(cues: list[Cue], script_text: str, llm: ClaudeLLM | None = None
     groups = segment(cues, topics)
     scenes = _to_scenes(groups, cues, topics)
     if llm is None or not cues:
+        mark_video_scenes(scenes)
         return scenes
     payload = [
         {
@@ -290,9 +363,11 @@ def build_scenes(cues: list[Cue], script_text: str, llm: ClaudeLLM | None = None
             "scenes", SCENES_TASK, "자막 큐:\n" + json.dumps(payload, ensure_ascii=False), LLMScenes
         )
     except LLMError:
+        mark_video_scenes(scenes)
         return scenes
     assert isinstance(res, LLMScenes)
     if not _valid_llm(res, cues, topics):
+        mark_video_scenes(scenes)
         return scenes
     groups = [[i - 1 for i in s.cue_ids] for s in res.scenes]
     out = _to_scenes(groups, cues, topics)

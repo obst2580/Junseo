@@ -38,6 +38,7 @@ COMMENT_LEN = 150
 ARTICLE_SUMMARY = 220
 ARTICLE_BODY = 1500
 BODY_ARTICLES = 60  # 본문까지 받을 관련 기사 수
+VIDEO_LINKS = 3  # 장면마다 남길 유튜브 영상 후보 수
 
 
 # ---- collect ---------------------------------------------------------------------------------
@@ -237,7 +238,8 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
     cues, matched = align(script_sentences(script), info)
     (proj / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
     silent_wav(proj / "narration.wav", info.duration)
-    sset, report = await run_project(settings, cfg, proj, per_scene=per_scene)
+    # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
+    sset, report = await run_project(settings, cfg, proj, per_scene=per_scene, videos=False)
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
     files: list[dict] = []
@@ -266,6 +268,7 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
                 "chosen": next((n for n in names if chosen and n.endswith(chosen)), None),
                 "attribution": sc.chosen.attribution_text if sc.chosen else "",
                 "files": names,
+                "videos": video_links(sc.candidates),
             }
         )
     (out / "timeline.xml.txt").write_text(xml, encoding="utf-8")
@@ -284,6 +287,7 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
             "with_asset": report.with_asset,
             "downloaded": report.downloaded,
             "by_source": report.by_source,
+            "video_scenes": sum(1 for x in scenes if x["videos"]),
             "skipped_sources": report.skipped_sources,
             "errors": report.errors + report.xml_errors,
         },
@@ -292,6 +296,20 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
+
+
+def video_links(candidates: list, n: int = VIDEO_LINKS) -> list[dict]:
+    """장면에 쓸 만한 유튜브 영상 후보(받지 않은 것): 제목·채널·시작 지점이 붙은 링크."""
+    out = []
+    for a in candidates:
+        if a.media != "video" or a.local_path:
+            continue
+        start = int(a.clip_start_sec or 0)
+        url = a.url + (f"&t={start}s" if start and "?" in a.url else "")
+        out.append({"title": a.title[:80], "channel": a.author_or_channel, "url": url, "start": start})
+        if len(out) >= n:
+            break
+    return out
 
 
 def folder_url(folder: str) -> str:

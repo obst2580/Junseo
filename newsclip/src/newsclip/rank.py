@@ -4,7 +4,8 @@
 2. preferred_domains / preferred_channels 가점, blocked 제외
 3. 해상도 1280 이상, 가로형 가점(세로형 감점)
 4. 제목·설명·출처 페이지에 장면 키워드가 들어간 수
-5. 직전 장면과 같은 도메인·채널이면 감점(다양성), 같은 장면 안 중복 도메인도 감점
+5. 직전 장면과 같은 도메인·채널이면 감점(다양성), 같은 장면 안 중복 도메인도 감점,
+   앞 장면에서 이미 고른 자료는 크게 감점(같은 사진 되풀이 방지)
 6. --clip 시 open_clip 이미지-텍스트 유사도 가산
 """
 
@@ -124,8 +125,10 @@ def rank(
     cfg: ChannelConfig,
     prev_key: str | None = None,
     clip_scorer: Callable[[Asset, Scene], float] | None = None,
+    used: dict[str, int] | None = None,
 ) -> list[Asset]:
-    """정렬된 후보(차단 제외). 점수·근거는 Asset.score / score_notes에 기록."""
+    """정렬된 후보(차단 제외). 점수·근거는 Asset.score / score_notes에 기록.
+    used: 앞 장면들이 이미 고른 자료 ID와 횟수(같은 사진이 영상 내내 되풀이되지 않게 감점)."""
     route = route_for(scene)
     scored: list[Asset] = []
     for a in assets:
@@ -136,6 +139,9 @@ def rank(
         if prev_key and asset_key(a) == prev_key:
             s -= 10
             notes.append("직전 장면과 같은 출처 −10")
+        if used and used.get(a.id):
+            s -= 25 * used[a.id]
+            notes.append(f"앞 장면에서 이미 씀 −{25 * used[a.id]}")
         if clip_scorer is not None:
             sim = clip_scorer(a, scene)
             s += 20 * sim

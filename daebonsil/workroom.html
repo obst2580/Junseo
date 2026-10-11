@@ -155,6 +155,8 @@ pre.tts { white-space: pre-wrap; background: var(--paper-2); border: 1px solid v
 .scene .cap { padding: 6px 8px; font-size: 12.5px; display: grid; gap: 2px; min-width: 0; }
 .scene .cap .tc { font-family: var(--mono); color: var(--muted); font-size: 11.5px; }
 .scene .cap .tx { overflow-wrap: anywhere; }
+.scene .vids { margin: 0; padding-left: 16px; overflow-wrap: anywhere; }
+.scene .vids a { color: var(--accent, inherit); }
 .reqbox { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .fallback { display: grid; gap: 6px; }
 .fallback textarea { font: 13px/1.5 var(--mono); min-height: 84px; }
@@ -987,12 +989,15 @@ function renderResult() {
   const sc = (res.scenes || []).map(s => {
     const f = s.chosen && byName[s.chosen];
     const media = f ? (f.media === 'video' ? `<video src="/_blob/${esc(f.id)}" muted preload="metadata" playsinline></video>` : `<img src="/_blob/${esc(f.id)}" alt="" loading="lazy">`) : '자료 없음';
-    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}</div></div>`;
+    const vids = (s.videos || []).map(v => `<li><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.title || v.url)}</a> <span class="muted">· ${esc(v.channel || '')}${v.start ? ` · ${fmtSec(v.start)}부터` : ''}</span></li>`).join('');
+    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}${vids ? `<span class="small">영상 후보</span><ul class="vids small">${vids}</ul>` : ''}</div></div>`;
   }).join('');
+  const vidScenes = (res.scenes || []).filter(s => (s.videos || []).length).length;
   const skipped = Object.entries(rep.skipped_sources || {});
   const folder = ls.get('folder', '');
   el.innerHTML = `<div class="note ${rep.with_asset ? 'info' : 'warn'}"><b class="t">장면 ${rep.scenes || 0}개 중 ${rep.with_asset || 0}개에 자료 · ${esc(when(res.made_at))}</b>
-      ${skipped.length ? `<span class="small">못 쓴 검색: ${skipped.map(([k, v]) => esc(k + ' — ' + v)).join(' / ')}</span>` : ''}</div>
+      ${skipped.length ? `<span class="small">못 쓴 검색: ${skipped.map(([k, v]) => esc(k + ' — ' + v)).join(' / ')}</span>` : ''}
+      ${vidScenes ? `<span class="small">유튜브 영상 후보가 있는 장면 ${vidScenes}개 — 클라우드에서는 영상을 받을 수 없어 링크로 남겼습니다(압축 파일의 <span class="mono">영상후보.txt</span>). 쓰려면 직접 받아 그 장면 위에 얹으세요.</span>` : ''}</div>
     <div class="scenes">${sc}</div>
     <h3>받기</h3>
     <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
@@ -1026,6 +1031,9 @@ async function makeZip() {
     root.file('timeline.xml', xml);
     if (res.srt_id) root.file('narration.srt', await (await fetch('/_blob/' + res.srt_id)).text());
     root.file('script.txt', p.script || '');
+    const vlines = (res.scenes || []).filter(s => (s.videos || []).length).map(s => [`[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)} ${s.text}`,
+      ...s.videos.map(v => `  - ${v.title} (${v.channel}${v.start ? `, ${fmtSec(v.start)}부터` : ''})\n    ${v.url}`)].join('\n'));
+    if (vlines.length) root.file('영상후보.txt', '장면별 유튜브 영상 후보 — 받아서 쓸 때는 출처(채널)를 밝히세요.\n\n' + vlines.join('\n\n') + '\n');
     let n = 0;
     for (const f of res.files || []) {
       const r = await fetch('/_blob/' + f.id); if (!r.ok) continue;

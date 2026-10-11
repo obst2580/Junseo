@@ -85,6 +85,13 @@ def test_sources_makes_timeline_with_placeholder(root, tmp_path):
     assert man["files"] and all(
         Path(f["path"]).exists() and f["name"].startswith("assets/") for f in man["files"]
     )
+    # 클라우드에서는 영상을 받지 않고 장면별 유튜브 후보 링크로만 남긴다
+    assert {f["media"] for f in man["files"]} == {"image"}
+    vids = [v for s in man["scenes"] for v in s["videos"]]
+    assert vids and all(v["url"].startswith("https://www.youtube.com/watch?v=") for v in vids)
+    assert man["report"]["video_scenes"] == sum(1 for s in man["scenes"] if s["videos"])
+    firsts = [s["chosen"] for s in man["scenes"] if s["chosen"]]
+    assert len(set(firsts)) == len(firsts)  # 장면마다 다른 사진
     chosen = [s["chosen"] for s in man["scenes"] if s["chosen"]]
     assert chosen and set(chosen) <= {f["name"] for f in man["files"]}
     assert "-->" in (out / "narration.srt.txt").read_text(encoding="utf-8")
