@@ -193,3 +193,36 @@ def test_ease_out_and_attribution(tmp_path):
     )
     assert path_url("/a b/c.jpg") == "file://localhost/a%20b/c.jpg"
     _ = pytest
+
+
+def test_subtitle_track_follows_voice(tmp_path):
+    from PIL import Image
+
+    from newsclip.pipeline import write_xml
+    from newsclip.srt import Cue, write_srt
+
+    s = _set(tmp_path)
+    cues = [
+        Cue(1, 0.5, 2.0, "금융보안원이 2주 전에 이미"),
+        Cue(2, 1.9, 3.6, "위험을 알렸는데도"),  # 앞 자막과 살짝 겹침 → 겹치지 않게 당김
+        Cue(3, 4.0, 6.5, "금융사들이 그대로 뚫렸습니다."),
+        Cue(4, 30.0, 31.0, "시퀀스 밖 자막"),  # 영상 길이 밖 → 버림
+    ]
+    xml = build_xmeml(s, tmp_path, fps=30, size=(1920, 1080), subtitles=cues)
+    assert validate_xmeml(xml) == []
+    v3 = re.findall(r'<clipitem id="clipitem-v3-\d+">.*?</clipitem>', xml, re.S)
+    assert len(v3) == 3
+    spans = [
+        tuple(int(x) for x in re.search(r"<start>(\d+)</start>\s*<end>(\d+)</end>", c).groups()) for c in v3
+    ]
+    assert spans[0] == (15, 60) and spans[1][0] == 60 and spans[2] == (120, 195)
+    pngs = sorted((tmp_path / "subtitles").glob("sub_*.png"))
+    assert len(pngs) == 3
+    img = Image.open(pngs[0])
+    assert img.size == (1920, 1080) and img.getbbox()[1] > 1080 * 0.7  # 화면 아래쪽
+    cap = Image.open(next((tmp_path / "captions").glob("cap_*.png")))
+    assert cap.getbbox()[3] < 1080 * 0.2  # 출처 표시는 왼쪽 위(자막과 안 겹침)
+    # write_xml은 narration.srt가 있으면 자막 트랙을 자동으로 붙인다
+    (tmp_path / "narration.srt").write_text(write_srt(cues[:3]), encoding="utf-8")
+    assert write_xml(tmp_path, s) == []
+    assert (tmp_path / "timeline.xml").read_text(encoding="utf-8").count("clipitem-v3-") == 3

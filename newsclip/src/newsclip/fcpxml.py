@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import quote
 
-from newsclip.caption import render_caption
+from newsclip.caption import render_caption, render_subtitle
 from newsclip.download import in_point
 from newsclip.license_log import attribution_text
 from newsclip.models import Asset, Scene, SceneSet
@@ -197,8 +197,9 @@ def build_xmeml(
     zoom: float = 1.04,
     audio: Path | None = None,
     video_max_sec: float = 20.0,
+    subtitles: list | None = None,
 ) -> str:
-    """xmeml v5 문자열."""
+    """xmeml v5 문자열. subtitles(자막 큐 목록)가 있으면 V3에 대본 자막을 깐다."""
     segs, marks = plan_segments(sset, video_max_sec)
     seq_end = max([s.end_sec for s in sset.scenes] + [0.0])
     a_dur = audio_duration(audio) if audio else None
@@ -276,6 +277,31 @@ def build_xmeml(
         _text(cc, "in", 0)
         _text(cc, "out", length)
         files.add(cc, str(png), fps, length, size[0], size[1])
+
+    # V3 대본 자막(음성에 맞춘 자막 큐 → 줄마다 PNG)
+    if subtitles:
+        v3 = ET.SubElement(video, "track")
+        sub_dir = project_dir / "subtitles"
+        last_end = 0
+        for n, cue in enumerate(sorted(subtitles, key=lambda c: c.start), start=1):
+            st = max(_f(cue.start, fps), last_end)
+            en = min(_f(cue.end, fps), total)
+            if en <= st:
+                continue
+            png = sub_dir / f"sub_{hashlib.sha1(cue.text.encode()).hexdigest()[:10]}.png"
+            if not png.exists():
+                render_subtitle(cue.text, png, size)
+            sc_ = ET.SubElement(v3, "clipitem", {"id": f"clipitem-v3-{n}"})
+            _text(sc_, "name", cue.text)
+            _text(sc_, "enabled", "TRUE")
+            _text(sc_, "duration", en - st)
+            _rate(sc_, fps)
+            _text(sc_, "start", st)
+            _text(sc_, "end", en)
+            _text(sc_, "in", 0)
+            _text(sc_, "out", en - st)
+            files.add(sc_, str(png), fps, en - st, size[0], size[1])
+            last_end = en
 
     if audio is not None:
         aud = ET.SubElement(media, "audio")

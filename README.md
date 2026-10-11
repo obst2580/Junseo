@@ -90,7 +90,7 @@ uv run pytest --cov        # 테스트(시연 fixture 포함, 네트워크 불�
 5. (직접 녹음 시) 프리미어 Pro: 전사(Speech to Text) → 캡션 → **SRT 내보내기** → `narration.srt`
 6. `newsclip run --project projects/날짜_슬롯`
 7. `newsclip review --project …` (http://localhost:8765) — 후보 교체·건너뛰기·영상 시작 초 조정 → 저장 시 XML 재생성
-8. 프리미어 **파일 → 가져오기 → `timeline.xml`** (V1 화면, V2 출처 자막, A1 내레이션)
+8. 프리미어 **파일 → 가져오기 → `timeline.xml`** (V1 화면, V2 출처 표시, V3 대본 자막, A1 내레이션)
 9. 업로드
 10. `topicradar made --project … --video-id <유튜브ID> [--title "실제 제목"]` — covered_in·past_titles·성과 추적
 11. 주 1회 `topicradar history --weeks 4` — 가중치 조정 제안 확인 후 `channel.yaml scoring.weights` 수정

@@ -610,7 +610,7 @@
             </filter>
           </clipitem>
           <clipitem id="clipitem-v1-11">
-            <name>s011_1.mp4</name>
+            <name>s011_2.mp4</name>
             <enabled>TRUE</enabled>
             <duration>306</duration>
             <rate>
@@ -622,8 +622,8 @@
             <in>60</in>
             <out>246</out>
             <file id="file-10">
-              <name>s011_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s011_1.mp4</pathurl>
+              <name>s011_2.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s011_2.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -1296,6 +1296,1118 @@
             <file id="file-2" />
           </clipitem>
         </track>
+        <track>
+          <clipitem id="clipitem-v3-1">
+            <name>새한당 지지율이 3주 연속 하락했다는 여론조사</name>
+            <enabled>TRUE</enabled>
+            <duration>107</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>18</start>
+            <end>125</end>
+            <in>0</in>
+            <out>107</out>
+            <file id="file-19">
+              <name>sub_177ccdb8f3.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_177ccdb8f3.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>107</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-2">
+            <name>결과가 나왔습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>43</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>133</start>
+            <end>176</end>
+            <in>0</in>
+            <out>43</out>
+            <file id="file-20">
+              <name>sub_84ea198695.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_84ea198695.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>43</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-3">
+            <name>조사는 가상리서치가 5~7일 전국 성인</name>
+            <enabled>TRUE</enabled>
+            <duration>90</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>183</start>
+            <end>273</end>
+            <in>0</in>
+            <out>90</out>
+            <file id="file-21">
+              <name>sub_70ea17337c.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_70ea17337c.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>90</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-4">
+            <name>1000명을 대상으로 진행했습니다</name>
+            <enabled>TRUE</enabled>
+            <duration>86</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>280</start>
+            <end>366</end>
+            <in>0</in>
+            <out>86</out>
+            <file id="file-22">
+              <name>sub_bd8d724c22.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_bd8d724c22.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>86</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-5">
+            <name>표본오차는 95% 신뢰수준에서</name>
+            <enabled>TRUE</enabled>
+            <duration>68</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>374</start>
+            <end>442</end>
+            <in>0</in>
+            <out>68</out>
+            <file id="file-23">
+              <name>sub_7ab51727a1.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_7ab51727a1.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>68</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-6">
+            <name>±3.1%포인틉니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>47</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>450</start>
+            <end>497</end>
+            <in>0</in>
+            <out>47</out>
+            <file id="file-24">
+              <name>sub_b834517b1e.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_b834517b1e.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>47</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-7">
+            <name>8일 국방부 국정감사에서 북한 신형 미사일</name>
+            <enabled>TRUE</enabled>
+            <duration>99</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>504</start>
+            <end>603</end>
+            <in>0</in>
+            <out>99</out>
+            <file id="file-25">
+              <name>sub_d9f60a188f.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_d9f60a188f.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>99</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-8">
+            <name>탐지가 늦었다는 질타가 이어졌습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>86</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>610</start>
+            <end>696</end>
+            <in>0</in>
+            <out>86</out>
+            <file id="file-26">
+              <name>sub_efa8a74268.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_efa8a74268.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>86</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-9">
+            <name>예산 삭감은 새한당이 주도했습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>81</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>704</start>
+            <end>785</end>
+            <in>0</in>
+            <out>81</out>
+            <file id="file-27">
+              <name>sub_ca13a46cc5.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_ca13a46cc5.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>81</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-10">
+            <name>근데 왜 이렇게 됐을까요?</name>
+            <enabled>TRUE</enabled>
+            <duration>60</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>793</start>
+            <end>853</end>
+            <in>0</in>
+            <out>60</out>
+            <file id="file-28">
+              <name>sub_29c28a3602.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_29c28a3602.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>60</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-11">
+            <name>국방부는 고체연료 미사일의 발사 준비 시간이</name>
+            <enabled>TRUE</enabled>
+            <duration>103</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>860</start>
+            <end>963</end>
+            <in>0</in>
+            <out>103</out>
+            <file id="file-29">
+              <name>sub_cf7341b4a2.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_cf7341b4a2.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>103</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-12">
+            <name>짧아졌기 때문이라고 해명했습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>78</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>970</start>
+            <end>1048</end>
+            <in>0</in>
+            <out>78</out>
+            <file id="file-30">
+              <name>sub_cf7ef2a89f.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_cf7ef2a89f.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>78</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-13">
+            <name>중국과 러시아의 반대로 결의 채택은 어려울</name>
+            <enabled>TRUE</enabled>
+            <duration>99</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1055</start>
+            <end>1154</end>
+            <in>0</in>
+            <out>99</out>
+            <file id="file-31">
+              <name>sub_61afd7d23b.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_61afd7d23b.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>99</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-14">
+            <name>전망입니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>36</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1161</start>
+            <end>1197</end>
+            <in>0</in>
+            <out>36</out>
+            <file id="file-32">
+              <name>sub_e6b383024d.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_e6b383024d.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>36</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-15">
+            <name>부동산 프로젝트파이낸싱 부실 우려가 다시</name>
+            <enabled>TRUE</enabled>
+            <duration>94</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1205</start>
+            <end>1299</end>
+            <in>0</in>
+            <out>94</out>
+            <file id="file-33">
+              <name>sub_0446754bf0.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_0446754bf0.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>94</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-16">
+            <name>커졌습니다</name>
+            <enabled>TRUE</enabled>
+            <duration>36</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1306</start>
+            <end>1342</end>
+            <in>0</in>
+            <out>36</out>
+            <file id="file-34">
+              <name>sub_17cb06a071.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_17cb06a071.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>36</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-17">
+            <name>저축은행 연체율이 상승했습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>73</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1350</start>
+            <end>1423</end>
+            <in>0</in>
+            <out>73</out>
+            <file id="file-35">
+              <name>sub_04049e047a.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_04049e047a.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>73</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-18">
+            <name>금융당국은 다음 달 점검 결과를 발표합니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>103</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1430</start>
+            <end>1533</end>
+            <in>0</in>
+            <out>103</out>
+            <file id="file-36">
+              <name>sub_9fcfed358f.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_9fcfed358f.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>103</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-19">
+            <name>아침 예상과 달리 서울중앙지법 재판부가 8일</name>
+            <enabled>TRUE</enabled>
+            <duration>107</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1541</start>
+            <end>1648</end>
+            <in>0</in>
+            <out>107</out>
+            <file id="file-37">
+              <name>sub_5f157a3554.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_5f157a3554.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>107</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-20">
+            <name>새한당 소속 전 의원 A씨의 정치자금법 위반</name>
+            <enabled>TRUE</enabled>
+            <duration>103</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1655</start>
+            <end>1758</end>
+            <in>0</in>
+            <out>103</out>
+            <file id="file-38">
+              <name>sub_16deba786f.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_16deba786f.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>103</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-21">
+            <name>혐의 1심 선고를 연기했습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>73</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1766</start>
+            <end>1839</end>
+            <in>0</in>
+            <out>73</out>
+            <file id="file-39">
+              <name>sub_1d72c8467a.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_1d72c8467a.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>73</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-22">
+            <name>검찰이 선고 직전 새 계좌 내역을 제출했기</name>
+            <enabled>TRUE</enabled>
+            <duration>99</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1846</start>
+            <end>1945</end>
+            <in>0</in>
+            <out>99</out>
+            <file id="file-40">
+              <name>sub_32e6d0034a.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_32e6d0034a.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>99</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-23">
+            <name>때문입니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>36</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1952</start>
+            <end>1988</end>
+            <in>0</in>
+            <out>36</out>
+            <file id="file-41">
+              <name>sub_e1ec4f4dd8.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_e1ec4f4dd8.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>36</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-24">
+            <name>그래서 다음은, 재판부는 다음 달 선고기일을</name>
+            <enabled>TRUE</enabled>
+            <duration>102</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1996</start>
+            <end>2098</end>
+            <in>0</in>
+            <out>102</out>
+            <file id="file-42">
+              <name>sub_6fbb706cf1.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_6fbb706cf1.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>102</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-25">
+            <name>다시 잡을 예정입니다</name>
+            <enabled>TRUE</enabled>
+            <duration>51</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2106</start>
+            <end>2157</end>
+            <in>0</in>
+            <out>51</out>
+            <file id="file-43">
+              <name>sub_14a42cf4c6.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_14a42cf4c6.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>51</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-26">
+            <name>아침에 말씀드린 대로,</name>
+            <enabled>TRUE</enabled>
+            <duration>51</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2165</start>
+            <end>2216</end>
+            <in>0</in>
+            <out>51</out>
+            <file id="file-44">
+              <name>sub_bcaa562421.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_bcaa562421.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>51</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-27">
+            <name>국회는 8일 본회의를 열고</name>
+            <enabled>TRUE</enabled>
+            <duration>60</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2224</start>
+            <end>2284</end>
+            <in>0</in>
+            <out>60</out>
+            <file id="file-45">
+              <name>sub_a257056228.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_a257056228.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>60</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-28">
+            <name>플랫폼노동자 기본법을 가결했습니다</name>
+            <enabled>TRUE</enabled>
+            <duration>82</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2291</start>
+            <end>2373</end>
+            <in>0</in>
+            <out>82</out>
+            <file id="file-46">
+              <name>sub_0058b3440a.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_0058b3440a.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>82</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-29">
+            <name>그래서 다음은, 법은 공포 후 6개월 뒤</name>
+            <enabled>TRUE</enabled>
+            <duration>95</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2380</start>
+            <end>2475</end>
+            <in>0</in>
+            <out>95</out>
+            <file id="file-47">
+              <name>sub_e759f3969d.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_e759f3969d.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>95</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-30">
+            <name>시행됩니다 아침에 말씀드린 대로</name>
+            <enabled>TRUE</enabled>
+            <duration>82</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2482</start>
+            <end>2564</end>
+            <in>0</in>
+            <out>82</out>
+            <file id="file-48">
+              <name>sub_9c9ccaabbe.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_9c9ccaabbe.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>82</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-31">
+            <name>정부는 8일 국무회의에서 지역의료법 개정안을</name>
+            <enabled>TRUE</enabled>
+            <duration>103</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2571</start>
+            <end>2674</end>
+            <in>0</in>
+            <out>103</out>
+            <file id="file-49">
+              <name>sub_76f8d51a83.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_76f8d51a83.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>103</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-32">
+            <name>의결했습니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>36</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2681</start>
+            <end>2717</end>
+            <in>0</in>
+            <out>36</out>
+            <file id="file-50">
+              <name>sub_1434b0f666.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_1434b0f666.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>36</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-33">
+            <name>그래서 다음은 정부는 다음 주 국회에 법안을</name>
+            <enabled>TRUE</enabled>
+            <duration>107</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2725</start>
+            <end>2832</end>
+            <in>0</in>
+            <out>107</out>
+            <file id="file-51">
+              <name>sub_3ea76c09bd.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_3ea76c09bd.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>107</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-34">
+            <name>제출할 예정입니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>42</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2840</start>
+            <end>2882</end>
+            <in>0</in>
+            <out>42</out>
+            <file id="file-52">
+              <name>sub_a1793004fd.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_a1793004fd.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>42</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-35">
+            <name>국회 국방위원회가 감시자산 예산 증액을</name>
+            <enabled>TRUE</enabled>
+            <duration>90</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2890</start>
+            <end>2980</end>
+            <in>0</in>
+            <out>90</out>
+            <file id="file-53">
+              <name>sub_8d7abc3bd6.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_8d7abc3bd6.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>90</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-36">
+            <name>추진합니다</name>
+            <enabled>TRUE</enabled>
+            <duration>36</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2987</start>
+            <end>3023</end>
+            <in>0</in>
+            <out>36</out>
+            <file id="file-54">
+              <name>sub_9511be0221.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_9511be0221.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>36</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v3-37">
+            <name>내년 예산안 심사에서 반영할 계획입니다.</name>
+            <enabled>TRUE</enabled>
+            <duration>94</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>3031</start>
+            <end>3125</end>
+            <in>0</in>
+            <out>94</out>
+            <file id="file-55">
+              <name>sub_3e56cea55c.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/subtitles/sub_3e56cea55c.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>94</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+        </track>
       </video>
       <audio>
         <format>
@@ -1317,7 +2429,7 @@
             <end>3148</end>
             <in>0</in>
             <out>3148</out>
-            <file id="file-19">
+            <file id="file-56">
               <name>narration.wav</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/narration.wav</pathurl>
               <rate>

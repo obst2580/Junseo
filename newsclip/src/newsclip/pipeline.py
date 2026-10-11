@@ -209,8 +209,19 @@ def write_xml(
     audio: Path | None = None,
     video_max_sec: float = 20.0,
 ) -> list[str]:
-    """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환."""
-    xml = build_xmeml(sset, project, fps=fps, size=size, zoom=zoom, audio=audio, video_max_sec=video_max_sec)
+    """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환. narration.srt가 있으면 V3에 대본 자막."""
+    srt = project / "narration.srt"
+    subtitles = parse_srt(srt.read_text(encoding="utf-8")) if srt.exists() else None
+    xml = build_xmeml(
+        sset,
+        project,
+        fps=fps,
+        size=size,
+        zoom=zoom,
+        audio=audio,
+        video_max_sec=video_max_sec,
+        subtitles=subtitles,
+    )
     (project / "timeline.xml").write_text(xml, encoding="utf-8")
     return validate_xmeml(xml)
 

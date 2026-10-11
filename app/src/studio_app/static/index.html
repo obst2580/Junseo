@@ -701,7 +701,7 @@ function xmlSection(pid, p) {
   return `
     <div class="sec-h"><span class="num">5</span><h2>프리미어</h2></div>
     ${p.steps.xml ? `<div class="row" style="margin:6px 0 10px"><a class="btn primary big" href="/files/${esc(pid)}/timeline.xml" download="${esc(pid)}_timeline.xml">timeline.xml 내려받기</a></div>
-      <ol class="steps"><li>프리미어 <b>파일 → 가져오기</b> → timeline.xml</li><li>V1 화면(줌 포함) · V2 출처 자막 · A1 내레이션 · 장면 마커가 깔립니다.</li>
+      <ol class="steps"><li>프리미어 <b>파일 → 가져오기</b> → timeline.xml</li><li>V1 화면(줌 포함) · V2 출처 표시(왼쪽 위) · <b>V3 대본 자막(음성에 맞춤)</b> · A1 내레이션 · 장면 마커가 깔립니다.</li>
       <li>사진·영상 파일은 프로젝트 폴더(<a href="#" id="of2">폴더 열기</a>)에 그대로 두세요. XML이 그 위치를 가리킵니다.</li></ol>`
       : `<div class="note info">자료 수집이 끝나면 여기서 timeline.xml을 받습니다.</div>`}`;
 }
