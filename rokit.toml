@@ -1,0 +1,4 @@
+# 개발 도구 버전 (https://github.com/rojo-rbx/rokit 으로 설치: rokit install)
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+lune = "lune-org/lune@0.8.9"

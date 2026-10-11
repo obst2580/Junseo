@@ -1,0 +1,9 @@
+# 생성기 중간 결과 (scripts/build.sh로 다시 만듦)
+build/
+
+# 원본 지도·고도 데이터 내려받은 것 (tools/mapdata/fetch.py)
+tools/mapdata/.cache/
+
+__pycache__/
+*.pyc
+.venv/

@@ -1,0 +1,62 @@
+{
+  "name": "SeoulRP",
+  "tree": {
+    "$className": "DataModel",
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "StreamingEnabled": true,
+        "FallenPartsDestroyHeight": -600
+      },
+      "City": {
+        "$path": "build/City.rbxm"
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future",
+        "ClockTime": 14.5,
+        "GeographicLatitude": 37.5,
+        "Brightness": 2.6,
+        "GlobalShadows": true,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
+        "OutdoorAmbient": [0.5, 0.5, 0.52],
+        "Ambient": [0.27, 0.27, 0.29]
+      },
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Density": 0.32,
+          "Offset": 0.12,
+          "Haze": 1.4,
+          "Glare": 0.25,
+          "Color": [0.78, 0.8, 0.84],
+          "Decay": [0.42, 0.45, 0.52]
+        }
+      },
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": { "Intensity": 0.35, "Size": 24, "Threshold": 1.7 }
+      },
+      "ColorCorrection": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": { "Saturation": 0.06, "Contrast": 0.04 }
+      },
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": { "Intensity": 0.04, "Spread": 0.8 }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "MapRuntime": {
+        "$path": "src/server"
+      },
+      "MapData": {
+        "$path": "build/MapData.rbxm"
+      }
+    }
+  }
+}

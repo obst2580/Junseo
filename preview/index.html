@@ -1,0 +1,386 @@
+<title>서울 인생모드 맵</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+/* 레이아웃: 화면 전체 3D 지도 위에 왼쪽 위 안내판, 아래쪽 범례·조작 안내를 띄운다. 표지판 색은 한국 도로 표지 체계(일반도로 파랑, 고속도로 초록, 관광지 갈색)를 따른다. */
+:root {
+  --bg: #e6ebf0;
+  --sky: #cfd9e4;
+  --panel: rgba(248, 250, 252, 0.93);
+  --ink: #16202b;
+  --muted: #566272;
+  --line: #d2d9e1;
+  --sign-blue: #1f4f9c;
+  --sign-green: #1c7849;
+  --sign-brown: #7b4a27;
+  --on-sign: #ffffff;
+  --focus: #e0a10f;
+  --font-display: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b; --sky: #18212d; --panel: rgba(19, 25, 34, 0.9); --ink: #e7ecf2; --muted: #9ba7b5;
+    --line: #2a3441; --sign-blue: #3a72cf; --sign-green: #2e9a63; --sign-brown: #a5683a; --on-sign: #ffffff; --focus: #f2bb3a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b; --sky: #18212d; --panel: rgba(19, 25, 34, 0.9); --ink: #e7ecf2; --muted: #9ba7b5;
+  --line: #2a3441; --sign-blue: #3a72cf; --sign-green: #2e9a63; --sign-brown: #a5683a; --on-sign: #ffffff; --focus: #f2bb3a;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); overflow: hidden; }
+#view { position: fixed; inset: 0; }
+#view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.lbl {
+  position: absolute; left: 0; top: 0; white-space: nowrap; transform: translate(-50%, -50%);
+  font-family: var(--font-body); font-weight: 600; font-size: 12px; line-height: 1;
+  padding: 4px 7px; border-radius: 3px; color: var(--on-sign); will-change: transform;
+}
+.lbl.lm { background: var(--sign-brown); }
+.lbl.gu { background: var(--sign-blue); font-family: var(--font-display); font-weight: 400; font-size: 15px; letter-spacing: 0.02em; padding: 5px 9px; }
+.lbl[hidden], #status[hidden] { display: none !important; }
+
+.panel {
+  position: fixed; left: 16px; top: calc(16px + env(safe-area-inset-top, 0px));
+  width: min(360px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: 14px 16px 12px; display: grid; gap: 10px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+.eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.08em; color: var(--muted); }
+.eyebrow b { background: var(--sign-green); color: var(--on-sign); font-weight: 600; letter-spacing: 0.04em; padding: 2px 6px; border-radius: 3px; }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 26px; line-height: 1.1; text-wrap: balance; }
+.facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12.5px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; min-width: 0; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.chip {
+  flex: none; font: inherit; font-size: 12.5px; font-weight: 600; color: var(--ink); background: transparent;
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 10px; cursor: pointer;
+}
+.chip:hover { border-color: var(--sign-blue); }
+.chip[aria-pressed="true"] { background: var(--sign-blue); border-color: var(--sign-blue); color: var(--on-sign); }
+.chip:focus-visible, .toggle input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.legend {
+  position: fixed; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; max-width: calc(100% - 32px);
+}
+.sw { display: inline-flex; align-items: center; gap: 6px; }
+.sw i { width: 18px; height: 8px; border-radius: 2px; display: inline-block; }
+.sw .road { background: #3a3b40; box-shadow: inset 0 -2px 0 #f0b81e; }
+.sw .deck { background: #4b4c53; box-shadow: inset 0 2px 0 #c9c6be, inset 0 -2px 0 #c9c6be; }
+.sw .ramp { background: #4b4c53; width: 12px; transform: skewX(-25deg); }
+.sw .wall { background: transparent; border: 1px dashed var(--sign-green); }
+.toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.hint {
+  position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  font-size: 11.5px; color: var(--muted); text-align: right; display: grid; gap: 2px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px;
+}
+#status {
+  position: fixed; inset: 0; display: grid; place-items: center; font-size: 14px; color: var(--muted); pointer-events: none;
+}
+@media (max-width: 640px) {
+  .hint { display: none; }
+  .panel { padding: 12px 14px 10px; gap: 8px; }
+  h1 { font-size: 22px; }
+  .facts { font-size: 12px; }
+}
+</style>
+
+<div id="view" aria-label="서울과 인천 3D 지도"></div>
+<div id="labels"></div>
+<div id="status">맵 데이터를 불러오는 중…</div>
+
+<section class="panel" aria-label="맵 정보">
+  <div class="eyebrow"><b>1단계</b>지형 · 도로 · 고가 · 한강 다리</div>
+  <h1>서울 인생모드 맵</h1>
+  <dl class="facts">
+    <dt>범위</dt><dd>서울특별시 + 인천(본토·영종도)</dd>
+    <dt>크기</dt><dd id="f-size">–</dd>
+    <dt>도로</dt><dd id="f-roads">–</dd>
+    <dt>버전</dt><dd id="f-version">–</dd>
+  </dl>
+  <div class="chips" role="group" aria-label="지역으로 이동" id="chips"></div>
+</section>
+
+<div class="legend" aria-label="범례">
+  <span class="sw"><i class="road"></i>지상 도로</span>
+  <span class="sw"><i class="deck"></i>고가 고속도로</span>
+  <span class="sw"><i class="ramp"></i>진출입 램프</span>
+  <span class="sw"><i class="wall"></i>맵 경계</span>
+  <label class="toggle"><input type="checkbox" id="opt-labels" checked> 이름표</label>
+</div>
+
+<div class="hint">
+  <span>드래그 회전 · 휠/두 손가락 확대 · 오른쪽 드래그 이동</span>
+  <span>지도 데이터 © OpenStreetMap contributors</span>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="mapdata.js"></script>
+<script>
+(function () {
+  "use strict";
+  const D = window.MAPDATA;
+  const statusEl = document.getElementById("status");
+  if (!D || !window.THREE) {
+    statusEl.textContent = "맵 데이터를 불러오지 못했습니다. 페이지를 새로 고쳐 보세요.";
+    return;
+  }
+
+  const fmt = (n) => n.toLocaleString("ko-KR");
+  document.getElementById("f-size").textContent = `${fmt(D.size[0])} × ${fmt(D.size[1])} 스터드 · 축척 1/10`;
+  document.getElementById("f-roads").textContent = `파트 ${fmt(D.partCount)}개 · 램프 ${D.ramps}개`;
+  document.getElementById("f-version").textContent = D.version;
+
+  function b64(s) {
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+  // ---------------------------------------------------------------- 장면
+  const view = document.getElementById("view");
+  const renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  view.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, 1, 2, 80000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.12;
+  controls.maxPolarAngle = Math.PI * 0.47;
+  controls.minDistance = 60;
+  controls.maxDistance = 30000;
+  controls.screenSpacePanning = false;
+
+  const hemi = new THREE.HemisphereLight(0xdfe8f2, 0x5b5345, 0.95);
+  scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xfff3e0, 0.85);
+  sun.position.set(-0.6, 1, 0.45);
+  scene.add(sun);
+
+  function applyTheme() {
+    const sky = new THREE.Color(css("--sky") || "#cfd9e4");
+    scene.background = sky;
+    scene.fog = new THREE.Fog(sky, 6000, 34000);
+    requestRender();
+  }
+
+  // ---------------------------------------------------------------- 지형
+  const T = D.terrain;
+  const heights = new Int16Array(b64(T.h).buffer);
+  const mats = b64(T.m);
+  {
+    const nx = T.nx, nz = T.nz;
+    const pos = new Float32Array(nx * nz * 3);
+    const col = new Float32Array(nx * nz * 3);
+    for (let j = 0; j < nz; j++) {
+      for (let i = 0; i < nx; i++) {
+        const k = j * nx + i;
+        pos[k * 3] = T.x0 + i * T.step;
+        pos[k * 3 + 1] = heights[k] / 2;
+        pos[k * 3 + 2] = T.z0 + j * T.step;
+        let m = mats[k];
+        let dim = 1;
+        if (m >= 100) { m -= 100; dim = 0.62; }
+        const c = T.palette[m] || [110, 140, 80];
+        col[k * 3] = (c[0] / 255) * dim;
+        col[k * 3 + 1] = (c[1] / 255) * dim;
+        col[k * 3 + 2] = (c[2] / 255) * dim * (dim < 1 ? 1.08 : 1);
+      }
+    }
+    const idx = new Uint32Array((nx - 1) * (nz - 1) * 6);
+    let p = 0;
+    for (let j = 0; j < nz - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
+        idx[p++] = a; idx[p++] = c; idx[p++] = b;
+        idx[p++] = b; idx[p++] = c; idx[p++] = d;
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true })));
+
+    const w = (nx - 1) * T.step, h = (nz - 1) * T.step;
+    const wg = new THREE.PlaneGeometry(w, h);
+    wg.rotateX(-Math.PI / 2);
+    const water = new THREE.Mesh(wg, new THREE.MeshPhongMaterial({ color: 0x2b6a86, shininess: 70, transparent: true, opacity: 0.88 }));
+    water.position.set(T.x0 + w / 2, T.water, T.z0 + h / 2);
+    scene.add(water);
+  }
+
+  // ---------------------------------------------------------------- 도로 파트
+  const GROUP_COLOR = { 1: 0x3a3b40, 2: 0x4b4c53, 3: 0xc4c1b9, 4: 0xa5a39d, 5: 0xf0b81e, 6: 0xeeeeee, 7: 0x7d838a };
+  {
+    const bytes = b64(D.parts);
+    const dv = new DataView(bytes.buffer);
+    const n = D.partCount;
+    const buckets = new Map();
+    for (let i = 0; i < n; i++) {
+      const o = i * 22;
+      const key = dv.getUint8(o) * 2 + dv.getUint8(o + 1);
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(o);
+    }
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const cyl = new THREE.CylinderGeometry(0.5, 0.5, 1, 28);
+    cyl.rotateZ(Math.PI / 2); // 로블록스 원기둥은 X축 방향
+    const m4 = new THREE.Matrix4(), v = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+    for (const [key, list] of buckets) {
+      const group = key >> 1, shape = key & 1;
+      const mat = new THREE.MeshLambertMaterial({ color: GROUP_COLOR[group] || 0x888888 });
+      if (group === 5 || group === 6) { mat.emissive = new THREE.Color(GROUP_COLOR[group]); mat.emissiveIntensity = 0.25; }
+      const mesh = new THREE.InstancedMesh(shape ? cyl : box, mat, list.length);
+      list.forEach((o, k) => {
+        v.set(dv.getInt32(o + 2, true) / 100, dv.getInt16(o + 6, true) / 50, dv.getInt32(o + 8, true) / 100);
+        s.set(dv.getUint16(o + 12, true) / 20, dv.getUint16(o + 14, true) / 20, dv.getUint16(o + 16, true) / 20);
+        q.set(dv.getInt8(o + 18) / 127, dv.getInt8(o + 19) / 127, dv.getInt8(o + 20) / 127, dv.getInt8(o + 21) / 127).normalize();
+        m4.compose(v, q, s);
+        mesh.setMatrixAt(k, m4);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      scene.add(mesh);
+    }
+  }
+
+  // ---------------------------------------------------------------- 경계
+  {
+    const ring = D.walls[0];
+    const pos = [];
+    for (let i = 0; i < ring.length - 1; i++) {
+      const a = ring[i], b = ring[i + 1];
+      pos.push(a[0], -10, a[1], b[0], -10, b[1], b[0], 140, b[1]);
+      pos.push(a[0], -10, a[1], b[0], 140, b[1], a[0], 140, a[1]);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    const curtain = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x2e9a63, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }));
+    scene.add(curtain);
+  }
+
+  // ---------------------------------------------------------------- 이름표
+  const labelLayer = document.getElementById("labels");
+  const labels = D.labels.map((l) => {
+    const el = document.createElement("span");
+    el.className = "lbl " + l.k;
+    el.textContent = l.t;
+    labelLayer.appendChild(el);
+    return { el, v: new THREE.Vector3(l.x, (l.y || 0) + (l.k === "gu" ? 160 : 40), l.z), k: l.k };
+  });
+  let showLabels = true;
+  document.getElementById("opt-labels").addEventListener("change", (e) => { showLabels = e.target.checked; requestRender(); });
+  const tmp = new THREE.Vector3();
+  function placeLabels() {
+    const w = view.clientWidth, h = view.clientHeight;
+    const dist = camera.position.distanceTo(controls.target);
+    for (const l of labels) {
+      const visible = showLabels && (l.k === "gu" ? dist > 2500 : dist < 9000);
+      if (!visible) { l.el.hidden = true; continue; }
+      tmp.copy(l.v).project(camera);
+      if (tmp.z > 1 || tmp.x < -1.2 || tmp.x > 1.2 || tmp.y < -1.2 || tmp.y > 1.2) { l.el.hidden = true; continue; }
+      l.el.hidden = false;
+      l.el.style.transform = `translate(${((tmp.x + 1) / 2) * w}px, ${((1 - tmp.y) / 2) * h}px) translate(-50%, -50%)`;
+    }
+  }
+
+  // ---------------------------------------------------------------- 이동
+  const byName = Object.fromEntries(D.labels.filter((l) => l.k === "lm").map((l) => [l.t, l]));
+  const PLACES = [
+    ["전체", null],
+    ["도심", "서울시청"],
+    ["여의도", "여의도 금융가"],
+    ["강남", "강남역 사거리"],
+    ["잠실", "잠실야구장"],
+    ["상암", "상암 월드컵경기장"],
+    ["김포공항", "김포공항"],
+    ["인천항", "인천항·연안부두"],
+    ["인천공항", "인천국제공항"],
+  ];
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let anim = null;
+  function goTo(name, key) {
+    let target, offset;
+    if (!key) {
+      target = new THREE.Vector3(0, 0, 0);
+      offset = new THREE.Vector3(0, 15500, 9500);
+    } else {
+      const l = byName[key];
+      target = new THREE.Vector3(l.x, l.y || 0, l.z);
+      offset = new THREE.Vector3(260, 820, 1150);
+    }
+    const toPos = target.clone().add(offset);
+    document.querySelectorAll(".chip").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.name === name)));
+    if (reduceMotion) {
+      controls.target.copy(target); camera.position.copy(toPos); controls.update(); requestRender(); return;
+    }
+    anim = { t0: performance.now(), fromT: controls.target.clone(), fromP: camera.position.clone(), toT: target, toP: toPos };
+    requestRender();
+  }
+  const chips = document.getElementById("chips");
+  for (const [name, key] of PLACES) {
+    if (key && !byName[key]) continue;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = name; b.dataset.name = name; b.id = "go-" + name;
+    b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => goTo(name, key));
+    chips.appendChild(b);
+  }
+
+  // ---------------------------------------------------------------- 그리기
+  let needs = true;
+  function requestRender() { needs = true; }
+  controls.addEventListener("change", requestRender);
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    requestRender();
+  }
+  window.addEventListener("resize", resize);
+  function frame(now) {
+    if (anim) {
+      const t = Math.min(1, (now - anim.t0) / 1300);
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      controls.target.lerpVectors(anim.fromT, anim.toT, e);
+      camera.position.lerpVectors(anim.fromP, anim.toP, e);
+      if (t >= 1) anim = null;
+      needs = true;
+    }
+    if (controls.update()) needs = true;
+    if (needs) {
+      renderer.render(scene, camera);
+      placeLabels();
+      needs = false;
+    }
+    requestAnimationFrame(frame);
+  }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+  new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  resize();
+  applyTheme();
+  const start = byName["서울시청"];
+  controls.target.set(start.x - 1800, 0, start.z + 1600);
+  camera.position.set(start.x - 1300, 2600, start.z + 4600);
+  controls.update();
+  statusEl.hidden = true;
+  window.__goTo = goTo; // 검사용
+  requestAnimationFrame(frame);
+})();
+</script>
