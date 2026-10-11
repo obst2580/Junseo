@@ -209,14 +209,21 @@ def parse_board(html_text: str, spec: CommunitySpec, base_url: str, now: datetim
     for gi, g in enumerate(groups):
         key = g[0][2]
         best = max(g, key=lambda h: len(strip_html(h[0].group(2))))
-        title_raw = strip_html(best[0].group(2))
+        inner = best[0].group(2)
+        tm = re.search(spec.title_pattern, inner, re.S) if spec.title_pattern else None
+        title_raw = strip_html(tm.group(1)) if tm else strip_html(inner)
         start = g[0][0].end()
         end = groups[gi + 1][0][0].start() if gi + 1 < len(groups) else start + 1500
         seg_html = html_text[start : min(end, start + 1500)]
         seg = strip_html(seg_html)
         if title_raw.lstrip().startswith(("공지", "[공지]", "【공지】")):
             continue
-        cm = re.search(spec.comment_pattern, seg_html) if spec.comment_pattern else None
+        # 댓글·공감 수는 글 링크 뒤에서 먼저 찾고, 없으면 링크 안(제목·요약과 한 덩어리인 사이트)에서
+        cm = (
+            (re.search(spec.comment_pattern, seg_html) or re.search(spec.comment_pattern, inner))
+            if spec.comment_pattern
+            else None
+        )
         cm = cm or _COMMENT_RE.search(title_raw)
         # 같은 글을 가리키는 숫자뿐인 링크(댓글 수 링크)도 댓글 수로 본다
         linked = next(
@@ -224,13 +231,18 @@ def parse_board(html_text: str, spec: CommunitySpec, base_url: str, now: datetim
         )
         cm = cm or (None if linked else _COMMENT_RE.search(seg[:40]))
         comments = int(cm.group(1)) if cm else int(linked or 0)
-        vm = re.search(spec.vote_pattern, seg_html) if spec.vote_pattern else None
+        vm = (
+            (re.search(spec.vote_pattern, seg_html) or re.search(spec.vote_pattern, inner))
+            if spec.vote_pattern
+            else None
+        )
         votes = int(vm.group(1).replace(",", "")) if vm else None
         title = normalize_title(_COMMENT_RE.sub("", title_raw)).strip()
         if len(title) < 4:
             continue
-        url = g[0][1].split("#", 1)[0]
-        posted = parse_time(seg, now) or now - timedelta(minutes=1)
+        url = urljoin(base_url, key) if spec.canonical_url else g[0][1].split("#", 1)[0]
+        posted = parse_time(seg, now) or (parse_time(strip_html(inner), now) if tm else None)
+        posted = posted or now - timedelta(minutes=1)
         if key not in out:
             out[key] = BoardPost(title=title, url=url, comments=comments, posted_at=posted, votes=votes)
     return list(out.values())
@@ -284,11 +296,6 @@ def _post_votes(root: Node, spec: CommunitySpec, skip: set[int], body: Node) -> 
         chain = [n, *n.ancestors()]
         return not any(id(a) in skip or _NAVISH.search(_attr_text(a)) for a in chain)
 
-    cands = (
-        root.select(spec.vote_selector)
-        if spec.vote_selector
-        else [x for x in root.nodes() if _VOTEISH.search(_attr_text(x))]
-    )
     body_chain = {id(a): a.depth() for a in [body, *body.ancestors()]}
     bd = body.depth()
 
@@ -296,9 +303,14 @@ def _post_votes(root: Node, spec: CommunitySpec, skip: set[int], body: Node) -> 
         lca = next(a for a in [n, *n.ancestors()] if id(a) in body_chain)
         return n.depth() - body_chain[id(lca)] + bd - body_chain[id(lca)]
 
-    found = [(distance(c), i, v) for i, c in enumerate(cands) if outside(c) and (v := _num_in(c)) is not None]
-    if found:
-        return min(found)[2]
+    heuristic = [x for x in root.nodes() if _VOTEISH.search(_attr_text(x))]
+    # vote_selector는 댓글 공감용으로만 맞춘 사이트도 있어, 글 밖에서 못 찾으면 class 이름으로 다시 찾는다
+    for cands in ([*root.select(spec.vote_selector)] if spec.vote_selector else [], heuristic):
+        found = [
+            (distance(c), i, v) for i, c in enumerate(cands) if outside(c) and (v := _num_in(c)) is not None
+        ]
+        if found:
+            return min(found)[2]
     m = _VOTE_TEXT_RE.search(root.text(skip | {id(body)}))
     return int(m.group(1).replace(",", "")) if m else None
 
@@ -344,16 +356,19 @@ def _repeated_children(box: Node) -> list[Node]:
     return max(cands, key=lambda g: (len(g), -g[0].depth()), default=[])
 
 
-def _comment_text(n: Node) -> str:
+def _comment_text(n: Node, skip: set[int] | None = None) -> str:
+    skip = skip or set()
     inner = [x for x in n.nodes() if _CONTENTISH.search(_attr_text(x)) and not _VOTEISH.search(_attr_text(x))]
-    inner = [x for x in inner if len(x.text()) >= 2]
+    inner = [
+        x for x in inner if not any(id(a) in skip for a in [x, *x.ancestors()]) and len(x.text(skip)) >= 2
+    ]
     if inner:
-        text = max(inner, key=lambda x: len(x.text())).text()
+        text = max(inner, key=lambda x: len(x.text(skip))).text(skip)
         return " ".join(text.split())
-    lines = [ln for ln in n.text().split("\n") if not _JUNK_LINE_RE.match(ln.strip())]
+    lines = [ln for ln in n.text(skip).split("\n") if not _JUNK_LINE_RE.match(ln.strip())]
     if len(lines) > 1:  # 첫 줄의 짧은 띄어쓰기 없는 말은 닉네임으로 보고 뺀다
         lines = [ln for i, ln in enumerate(lines) if not (i == 0 and len(ln) <= 12 and " " not in ln)]
-    return " ".join(" ".join(lines).split())
+    return " ".join(" ".join(lines).split()).strip(" /|:·-")
 
 
 def _comment_row(n: Node, comment_ids: set[int]) -> Node:
@@ -430,13 +445,23 @@ def parse_post(html_text: str, spec: CommunitySpec) -> PostDetail:
     body = " ".join(body_node.text(chrome - {id(body_node)}).split())
     comments: list[Comment] = []
     for n in cnodes:
-        text = _comment_text(n)
+        strip = (
+            {id(x) for x in n.select(spec.comment_strip_selector)} if spec.comment_strip_selector else set()
+        )
+        text = _comment_text(n, strip)
+        votes = None
+        vm = re.search(spec.comment_vote_regex, text) if spec.comment_vote_regex else None
+        if vm:
+            votes = int(vm.group(1).replace(",", ""))
+            text = (text[: vm.start()] + text[vm.end() :]).strip(" /|:·-")
         if len(text) < 2:
             continue
-        votes = _vote_of(n, spec.vote_selector)
+        votes = votes if votes is not None else _vote_of(n, spec.vote_selector)
         if votes is None:  # 공감 버튼이 댓글 내용 옆(같은 댓글 줄)에 있는 사이트
             row = _comment_row(n, skip)
             votes = _vote_of(row, spec.vote_selector) if row is not n else None
+        if any(c.text == text[:300] for c in comments):  # 베스트 댓글이 본 목록에도 다시 나오는 사이트
+            continue
         comments.append(Comment(text=text[:300], votes=votes or 0))
     votes = _post_votes(root, spec, skip, body_node)
     if votes is not None and votes > MAX_VOTES:  # 글 번호·조회수를 잘못 읽은 것
@@ -473,9 +498,12 @@ class RobotsCache:
 
 def explain_fetch_error(e: Exception) -> str:
     """게시판 접속 실패 → 쉬운 설명."""
-    status = getattr(getattr(e, "response", None), "status_code", None)
+    status = getattr(getattr(e, "response", None), "status_code", None) or getattr(e, "status", None)
     if status == 403:
-        return "사이트가 프로그램 접속을 막았습니다(403) — 이 게시판은 끄세요(설정 → 커뮤니티 게시판)"
+        return (
+            "사이트가 프로그램 접속을 막았습니다(403, 보안 검사·해외 접속 차단 등) — "
+            "이 컴퓨터에서 계속 막히면 이 게시판은 끄세요(설정 → 커뮤니티 게시판)"
+        )
     if status == 404:
         return "게시판 주소가 없습니다(404) — list_url 확인"
     if status in (429, 503):
@@ -540,6 +568,7 @@ class CommunityCollector(Collector):
         """게시판 하나(실패 격리)."""
         now = now_kst()
         out: list[Signal] = []
+        seen: set[str] = set()  # 여러 쪽(옆 칸 인기글 목록 포함)에 같은 글이 다시 나와도 한 번만
         for page in range(1, spec.pages + 1):
             url = spec.page_url(page)
             if not await self.robots.allowed(url):
@@ -559,8 +588,9 @@ class CommunityCollector(Collector):
                 )
                 return out
             for post in posts:
-                if post.posted_at < since:
+                if post.posted_at < since or post.url in seen:
                     continue
+                seen.add(post.url)
                 if spec.politics_filter and not is_political(post.title, self.extra):
                     continue
                 metric: dict = {"site": spec.name, "comments": post.comments}

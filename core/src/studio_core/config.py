@@ -65,12 +65,24 @@ class CommunitySpec(BaseModel):
     politics_filter: bool = False  # 자유게시판처럼 섞인 곳은 정치 키워드로 거른다
     comment_pattern: str | None = None  # 댓글 수 정규식(그룹1=숫자, 글 링크 뒤 HTML에 적용). 없으면 [12] 형식
     vote_pattern: str | None = None  # 목록의 추천(공감) 수 정규식(그룹1=숫자). 없으면 글 상세에서 읽는다
+    title_pattern: str | None = (
+        None  # 글 링크 안 HTML에서 제목만 뽑는 정규식(그룹1). 링크에 요약·조회수가 섞인 사이트
+    )
+    # 글 주소를 post_pattern에 맞은 부분만으로 정리한다(?od=…·&rtn=… 같은 꼬리 제거). 같은 글이 주소만 달리
+    # 여러 번 잡히거나, robots.txt가 꼬리 붙은 주소를 막는 사이트. post_pattern이 주소 경로로 시작해야 한다
+    canonical_url: bool = False
     # 글 상세(본문·댓글·공감): 선택자는 'div.post_article', '#bo_v_con', 'div.comment_row'처럼 태그·#id·.class
     # (띄어 쓰면 '안쪽', 쉼표로 여러 후보). 비우면 가장 긴 글 덩어리를 본문으로, class에 comment·reply·cmt가
     # 들어간 반복 요소를 댓글로 본다.
     body_selector: str | None = None
     comment_selector: str | None = None
     vote_selector: str | None = None  # 글·댓글 안의 공감 수 요소(비우면 class에 like·symph·vote·recom·good)
+    comment_strip_selector: str | None = (
+        None  # 댓글 안에서 뺄 요소(닉네임 등 — 글쓴이 정보는 저장하지 않는다)
+    )
+    comment_vote_regex: str | None = (
+        None  # 댓글 글자에서 공감 수(그룹1)를 읽는 정규식. 읽은 부분은 댓글에서 지운다
+    )
     detail_posts: int = 8  # 수집할 때마다 반응 큰 글 몇 개의 본문·댓글을 읽을지(0이면 목록만)
     pages: int = 1
     enabled: bool = True

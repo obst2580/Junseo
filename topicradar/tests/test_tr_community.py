@@ -381,8 +381,12 @@ def test_fetch_error_hints_and_vote_cap():
 
     resp = httpx.Response(403, request=httpx.Request("GET", "https://damoang.net/free?page=1"))
     e = httpx.HTTPStatusError("403 Forbidden", request=resp.request, response=resp)
-    assert "프로그램 접속을 막았습니다(403)" in explain_fetch_error(e)
+    assert "프로그램 접속을 막았습니다(403" in explain_fetch_error(e)
     assert explain_fetch_error(ValueError("x")) == "ValueError: x"
+    from studio_core.http import HttpError
+
+    blocked = explain_fetch_error(HttpError("403 https://theqoo.net/hot: <!DOCTYPE html>…", status=403))
+    assert "보안 검사" in blocked and "DOCTYPE" not in blocked  # 수집 결과에 사이트 HTML을 늘어놓지 않는다
     menu = (
         '<a href="zboard.php?id=freeboard">자유게시판</a><a href="zboard.php?id=issue">정치/시사</a>'
         '<a href="/zboard/zboard.php?id=issue">정치/시사</a><a href="x">로그인</a>'
@@ -391,3 +395,100 @@ def test_fetch_error_hints_and_vote_cap():
     assert hints == [("정치/시사", "https://www.ppomppu.co.kr/zboard/zboard.php?id=issue")]
     huge = POST_GNU.replace("<strong>87</strong>", f"<strong>{MAX_VOTES * 12}</strong>")
     assert parse_post(huge, _spec()).votes is None  # 글 번호·조회수를 공감으로 잘못 읽은 것
+
+
+# ---- 사이트별 설정: 제목만 집기·'?' 떼기·닉네임 빼기·댓글 글자 속 공감 수 -----------------------
+
+NEWS_BOARD = """<ul class="board_list"><li>
+<a href="/zboard/view.php?id=news_pol&no=501&type=&page=1">
+  <i class="Bbox"></i><strong><img src="/hot.jpg" alt="hot"> 법사위, 기본법 통과<span class="list_comment2">47</span></strong>
+  <small>요약 문장 123명이 참석했다</small>
+  <span class="mini_view">가상일보 | 조회수 : 4149 | 15:48:01 <span class="goodbad"><span class="gcon up"><img src="/up.png">5</span><span class="gcon down"><img src="/down.png">0</span></span></span>
+</a></li><li>
+<a href="/zboard/view.php?id=news_pol&no=502&type=&page=1"><strong>댓글 없는 기사 제목입니다</strong>
+  <span class="mini_view">가상일보 | 조회수 : 10 | 09:05:00</span></a></li></ul>"""
+
+
+def test_parse_board_title_pattern_and_canonical_url():
+    spec = _spec(
+        post_pattern=r"view\.php\?id=news_pol.*?no=\d+",
+        title_pattern=r'<strong>(.*?)(?:<span class="list_comment2">|</strong>)',
+        comment_pattern=r'class="list_comment2">(\d+)<',
+        vote_pattern=r'gcon up"><img[^>]*>(\d+)',
+        canonical_url=True,
+    )
+    posts = parse_board(NEWS_BOARD, spec, "https://board.example/zboard/zboard.php?id=news_pol", NOW)
+    a, b = posts
+    # 링크 안의 요약·조회수·시각은 제목에서 빠지고, 댓글 수·공감·시각은 링크 안에서 읽는다
+    assert a.title == "법사위, 기본법 통과" and a.comments == 47 and a.votes == 5
+    assert (
+        a.posted_at.strftime("%H:%M") == "15:48"
+        and a.url == "https://board.example/zboard/view.php?id=news_pol&no=501"
+    )
+    assert (
+        b.title == "댓글 없는 기사 제목입니다"
+        and b.comments == 0
+        and b.posted_at.strftime("%H:%M") == "09:05"
+    )
+    # canonical_url이 없으면 주소 꼬리(&type=&page=1)까지 그대로
+    keep = parse_board(
+        NEWS_BOARD, spec.model_copy(update={"canonical_url": False}), "https://board.example/", NOW
+    )
+    assert keep[0].url.endswith("no=501&type=&page=1")
+
+
+POST_NICK = """<html><body><div class="post_article"><p>본문입니다. 오늘 표결이 있었습니다.</p></div>
+<div class="comment_row"><div class="comment_info"><span class="nickname"><span>가상닉네임</span></span>
+  <form><label>1</label><label>2</label></form><button>입력</button><div class="comment_ip">IP 1.♡.2.3</div></div>
+  <div class="comment_content_symph"><button class="comment_symph"><strong>15</strong></button></div>
+  <div class="comment_content"><div class="comment_view">진짜 고집 하나는 인정합니다</div></div></div>
+<div class="comment_row"><div class="comment_info"><span class="nickname"><span>다른닉</span></span></div>
+  <div class="comment_content_symph"><button class="comment_symph"><strong>3</strong></button></div>
+  <div class="comment_content"><div class="comment_view">회의록 보면 다 나옵니다</div></div></div>
+<div class="hot_comment_list"><a href="javascript:;"><b>가상닉네임</b> / 김 후보가 우리끼리에 들어가나요? <img src="/up.png"> 30 <img src="/down.png"> 0</a>
+<a href="javascript:;"><b>또다른닉</b> / 같은 편 말도 좀 들어라 <img src="/up.png"> 1,204 <img src="/down.png"> 2</a></div>
+</body></html>"""
+
+
+def test_parse_post_strips_nicknames_and_reads_vote_text():
+    rows = _spec(
+        comment_selector="div.comment_row",
+        comment_strip_selector=".comment_info",
+        vote_selector=".comment_symph",
+    )
+    d = parse_post(POST_NICK, rows)
+    assert [(c.votes, c.text) for c in d.comments] == [
+        (15, "진짜 고집 하나는 인정합니다"),
+        (3, "회의록 보면 다 나옵니다"),
+    ]
+    hot = _spec(
+        comment_selector=".hot_comment_list a",
+        comment_strip_selector="b",
+        comment_vote_regex=r"(\d[\d,]*)\s+\d+\s*$",
+    )
+    d2 = parse_post(POST_NICK, hot)
+    assert [(c.votes, c.text) for c in d2.comments] == [
+        (1204, "같은 편 말도 좀 들어라"),
+        (30, "김 후보가 우리끼리에 들어가나요?"),
+    ]
+    # 글쓴이 정보는 어디에도 남지 않는다
+    assert not any("닉" in c.text for c in d.comments + d2.comments)
+
+
+def test_parse_post_best_comments_deduped_and_post_votes_kept():
+    html = """<html><body><div class="bodyCont"><p>본문입니다. 영화 이야기입니다.</p></div>
+    <div class="btn_recom"><a>추천</a> <span id="tempPublic">944</span></div>
+    <ul id="best_cmt_reply"><li class="best01"><dl><dt><span class="author">가상A</span><span class="date">26.10.05 10:59</span></dt>
+      <dd>금융치료가 답</dd></dl><div class="updownbox"><dl><dd class="fl first"><a>추천 338</a></dd><dd class="fl last"><a>반대 19</a></dd></dl></div></li></ul>
+    <ul id="cmt_reply"><li class="re"><dl><dt><span class="author">가상A</span></dt><dd>금융치료가 답</dd></dl>
+      <div class="updownbox"><dl><dd class="fl first"><a>추천 338</a></dd></dl></div></li>
+    <li class="re"><dl><dt><span class="author">가상B</span></dt><dd>별 내용도 없던데요</dd></dl>
+      <div class="updownbox"><dl><dd class="fl first"><a>추천 10</a></dd></dl></div></li></ul></body></html>"""
+    spec = _spec(
+        comment_selector="#best_cmt_reply li, #cmt_reply li.re",
+        comment_strip_selector="dt, .updownbox",
+        vote_selector=".updownbox .first",
+    )
+    d = parse_post(html, spec)
+    assert [(c.votes, c.text) for c in d.comments] == [(338, "금융치료가 답"), (10, "별 내용도 없던데요")]
+    assert d.votes == 944  # 댓글용 vote_selector와 별개로 글 공감 수를 찾는다
