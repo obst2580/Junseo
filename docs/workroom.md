@@ -89,7 +89,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    ```
 5. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
    (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다):
-   `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`(와 쓰고 싶으면 `narration.srt.txt`)는
+   `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`와 `narration.srt.txt`(프리미어 캡션용 자막, 한 줄 20자 안팎)는
    텍스트라 한 번에 하나씩 `file_path`로 올립니다(`.xml`은 자산 형식이 아니라 `.txt`로 올리고 화면이 이름을 바꿉니다).
 6. 프로젝트에 이전 결과(`result.files`, `result.timeline_id`)가 있으면, 새 결과를 쓴 뒤 그 옛 자산을 지웁니다
    (`Artifact delete`, `url` + `path`=자산 ID). 아무 문서도 가리키지 않는 자산만 지웁니다.

@@ -100,7 +100,10 @@ def test_sources_makes_timeline_with_placeholder(root, tmp_path):
     assert len(set(firsts)) == len(firsts)  # 장면마다 다른 사진
     chosen = [s["chosen"] for s in man["scenes"] if s["chosen"]]
     assert chosen and set(chosen) <= {f["name"] for f in man["files"]}
-    assert "-->" in (out / "narration.srt.txt").read_text(encoding="utf-8")
+    srt = (out / "narration.srt.txt").read_text(encoding="utf-8")
+    assert "-->" in srt
+    texts = [b.split("\n", 2)[2] for b in srt.strip().split("\n\n")]
+    assert texts and all(len(x) <= 24 for x in texts)  # 자막용: 한 줄 20자 안팎
     assert json.loads((out / "manifest.json").read_text(encoding="utf-8"))["project"] == req["id"]
 
 

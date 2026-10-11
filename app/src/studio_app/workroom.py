@@ -306,9 +306,11 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
         if rel in xml and rel not in {f["name"] for f in files}:
             files.append({"name": rel, "path": str(png), "media": "image"})
     (out / "timeline.xml.txt").write_text(xml, encoding="utf-8")
-    (out / "narration.srt.txt").write_text(
-        (proj / "narration.srt").read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    # 프리미어 캡션용 자막(한 줄 20자 안팎, 장면 시각과 같은 시간축 — 음성을 올렸으면 그 음성에 맞춤)
+    from newsclip.autosub import subtitle_cues
+    from newsclip.srt import write_srt
+
+    (out / "narration.srt.txt").write_text(write_srt(subtitle_cues(cues)), encoding="utf-8")
     manifest = {
         "project": pid,
         "made_at": _iso(now_kst()),

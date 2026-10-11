@@ -998,7 +998,7 @@ function renderResult() {
     <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
       <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
     <div class="small muted">압축 파일 안의 <span class="mono">${esc(p.id)}</span> 폴더가 이 폴더 안에 풀리면 됩니다.</div>
-    <div class="small muted">압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성과 자막은 직접 넣으세요.</div>
+    <div class="small muted">압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 자막.srt(한 줄 20자 안팎, 프리미어 캡션으로 가져오기), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성은 직접 넣으세요.</div>
     <div class="row"><span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
     <div id="zip-state" class="small"></div>`;
   $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));
@@ -1021,6 +1021,8 @@ async function makeZip() {
     let xml = await (await fetch('/_blob/' + res.timeline_id)).text();
     xml = xml.split(res.base_token || 'file://localhost/__STUDIO_BASE__').join(base);
     root.file('timeline.xml', xml);
+    // 프리미어 캡션용 자막(한 줄 20자 안팎). 한글이 깨지지 않게 UTF-8 BOM을 붙인다.
+    if (res.srt_id) { const r = await fetch('/_blob/' + res.srt_id); if (r.ok) root.file('자막.srt', '\ufeff' + (await r.text()).replace(/^\ufeff/, '')); }
     root.file('장면목록.txt', `장면별 대사와 사진 — ${p.id}\n(시각은 ${res.timing === 'estimated' ? '대본 길이로 어림한 값' : '올린 음성에 맞춘 값'})\n\n` + (res.scenes || []).map(s =>
       `[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)}\n  대사: ${s.text}\n  사진: ${s.chosen || '없음'}${s.attribution ? ` (${s.attribution})` : ''}${s.query ? `\n  검색어: ${s.query}` : ''}`).join('\n\n') + '\n');
     const vlines = (res.scenes || []).filter(s => (s.videos || []).length).map(s => [`[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)} ${s.text}`,
@@ -1034,7 +1036,7 @@ async function makeZip() {
     const blob = await zip.generateAsync({ type: 'blob' });
     if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
     await downloads.save({ filename: `${p.id}.zip`, data: blob });
-    st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 음성·자막은 직접 얹으세요.';
+    st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
     try { await db.doc(`projects/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
   } catch (e) {
     const code = e && e.code;

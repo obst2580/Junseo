@@ -140,3 +140,19 @@ def test_segment_phrases_one_scene_each_but_not_too_short():
     # 짧아도 문장이 끝나면 제 장면(다음 문장과 묶지 않는다)
     short = [Cue(1, 0, 1.2, "보시죠."), Cue(2, 1.2, 6, '"진실에 기초해…"라고 했고요,')]
     assert segment_phrases(short, ["A", "A"]) == [[0], [1]]
+
+
+def test_subtitle_lines_even_and_not_after_short_adverbs():
+    from newsclip.autosub import subtitle_cues, subtitle_lines
+    from newsclip.srt import Cue
+
+    assert subtitle_lines("결론부터 말씀드리면 이건 글은 안 읽고 단어 하나만 붙잡은 겁니다.") == [
+        "결론부터 말씀드리면 이건 글은 안 읽고",
+        "단어 하나만 붙잡은 겁니다.",
+    ]
+    lines = subtitle_lines("대통령이 엑스에 '좌아하게'라는 말을 쓴 게 한쪽 진영만 본다는 비판인데요,")
+    assert len(lines) == 2 and all(len(x) <= 22 for x in lines)  # 외톨이 '비판인데요,' 없이 고르게
+    subs = subtitle_cues(
+        [Cue(1, 0.0, 4.0, "결론부터 말씀드리면 이건 글은 안 읽고 단어 하나만 붙잡은 겁니다.")]
+    )
+    assert len(subs) == 2 and subs[0].start == 0.0 and subs[-1].end <= 4.0

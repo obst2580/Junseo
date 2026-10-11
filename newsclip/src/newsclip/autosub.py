@@ -20,6 +20,30 @@ from pathlib import Path
 
 from newsclip.srt import Cue
 
+SUB_LINE = 20  # 자막 한 줄 글자 수(프리미어 캡션용 SRT, 2자까지 넘쳐도 됨)
+# 이 말 뒤에서는 자막 줄을 바꾸지 않는다(뒷말과 붙어야 읽힘: '안 읽고', '못 박았습니다')
+_NO_BREAK_AFTER = {
+    "안",
+    "못",
+    "더",
+    "잘",
+    "꼭",
+    "다",
+    "또",
+    "좀",
+    "제",
+    "그",
+    "이",
+    "저",
+    "한",
+    "두",
+    "세",
+    "몇",
+    "온",
+    "새",
+}
+_CLAUSE_END = (",", "고", "며", "면", "서", "데", "지만", "는데요,", "아니라")
+
 _SENT_END_RE = re.compile(r"[.?!…]['\"”’」』)\]]*$")
 _DUR_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
 _SIL_START_RE = re.compile(r"silence_start:\s*(-?\d+(?:\.\d+)?)")
@@ -144,6 +168,53 @@ def script_phrases(script: str, max_len: int = PHRASE_MAX) -> list[list[str]]:
         para.append(ln)
     flush()
     return [x for x in out if x]
+
+
+def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
+    """말 덩어리 → 자막 줄. 줄 수를 정한 뒤 고르게 나누고(외톨이 짧은 줄 없이), 띄어쓰기에서만 자른다.
+    절이 끝나는 곳(쉼표·'~고'·'~면')을 조금 더 좋아하고, '안·못' 같은 말 바로 뒤는 피한다."""
+    text = text.strip()
+    if len(text) <= limit + 2:
+        return [text] if text else []
+    k = -(-len(text) // (limit + 2))
+    spaces = [i for i, ch in enumerate(text) if ch == " "]
+    lines, start = [], 0
+    for part in range(1, k):
+        target = start + (len(text) - start) / (k - part + 1)
+        best, best_cost = None, float("inf")
+        for i in spaces:
+            if i <= start + 3 or i >= len(text) - 3:
+                continue
+            word = text[:i].rsplit(" ", 1)[-1]
+            cost = (
+                abs(i - target)
+                - (3 if word.endswith(_CLAUSE_END) else 0)
+                + (8 if word in _NO_BREAK_AFTER else 0)
+            )
+            if cost < best_cost:
+                best, best_cost = i, cost
+        if best is None:
+            break
+        lines.append(text[start:best].strip())
+        start = best + 1
+    lines.append(text[start:].strip())
+    return [ln for ln in lines if ln]
+
+
+def subtitle_cues(cues: list[Cue], limit: int = SUB_LINE, gap: float = 0.05) -> list[Cue]:
+    """장면용 큐(말 덩어리) → 자막용 큐(한 줄 limit자 안팎). 덩어리 안 시간은 글자 수 비율로 나눈다."""
+    out: list[Cue] = []
+    for c in cues:
+        lines = subtitle_lines(c.text, limit) or [c.text]
+        n = sum(len(x) for x in lines) or 1
+        t = c.start
+        for ln in lines:
+            d = (c.end - c.start) * len(ln) / n
+            out.append(
+                Cue(index=len(out) + 1, start=round(t, 3), end=round(max(t + 0.3, t + d - gap), 3), text=ln)
+            )
+            t += d
+    return out
 
 
 def narration_text(script: str) -> str:
