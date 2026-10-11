@@ -1,4 +1,4 @@
-"""end-to-end 시연: fixtures(가상 뉴스) → 아침·저녁·주간 편성/대본 → made/history → newsclip → timeline.xml.
+"""end-to-end 시연: fixtures(가상 뉴스·커뮤니티) → 주제판 → 10분 묶음·3분 단독 대본 → made/history → newsclip → timeline.xml.
 
 네트워크·API 키 없이 돈다:
 - STUDIO_FIXTURES: 모든 HTTP 요청을 fixtures/demo/routes.yaml 규칙으로 대체
@@ -63,29 +63,32 @@ def prepare() -> None:
         shutil.copy(f, DEMO / "data" / "schedule" / f.name)
 
 
+BOARD_AT = "2026-10-08T18:00"  # 이 시각의 주제판(최근 24시간 커뮤니티 글)
+
+
 def topicradar_flow() -> None:
-    """아침 → 저녁 → 아침 → 저녁 → 주간 → history."""
+    """수집 → 주제판 → 10분 묶음(추천 묶음 1) + 3분 단독 2편(판 1·2위) → made → history."""
     run(["topicradar.cli", "collect", "--since", "2026-10-05T00:00"], "2026-10-10T17:00")
-    steps = [
-        ("2026-10-07", "morning", "2026-10-07T05:30", "demo_m1007"),
-        ("2026-10-07", "evening", "2026-10-07T17:00", "demo_e1007"),
-        ("2026-10-08", "morning", "2026-10-08T05:30", "demo_m1008"),
-        ("2026-10-08", "evening", "2026-10-08T17:00", "demo_e1008"),
-        ("2026-10-11", "weekly", "2026-10-10T17:00", "demo_w1011"),
-    ]
-    for day, slot, now, vid in steps:
-        extra = ["--notify"] if slot == "evening" and day == "2026-10-08" else []
-        run(["topicradar.cli", "slot", slot, "--date", day, *extra], now)
+    run(["topicradar.cli", "board", "--notify"], BOARD_AT)
+    run(["topicradar.cli", "video", "--format", "long", "--bundle", "1"], "2026-10-08T18:05")
+    run(["topicradar.cli", "video", "--format", "short", "--pick", "1"], "2026-10-08T18:10")
+    run(["topicradar.cli", "video", "--format", "short", "--pick", "3"], "2026-10-08T18:15")
+    made = (
+        ("2026-10-08_1805_long", "demo_long1008"),
+        ("2026-10-08_1810_short", "demo_short1008a"),
+        ("2026-10-08_1815_short", "demo_short1008b"),
+    )
+    for pid, vid in made:
         run(
-            ["topicradar.cli", "made", "--project", f"demo_root/projects/{day}_{slot}", "--video-id", vid],
-            now,
+            ["topicradar.cli", "made", "--project", f"demo_root/projects/{pid}", "--video-id", vid],
+            "2026-10-08T21:00",
         )
     run(["topicradar.cli", "history", "--weeks", "2"], "2026-10-11T21:00")
 
 
 def newsclip_flow() -> None:
-    """저녁 대본 + 샘플 SRT → newsclip run → timeline.xml."""
-    proj = DEMO / "projects" / "2026-10-08_evening"
+    """10분 묶음 대본 + 샘플 SRT → newsclip run → timeline.xml."""
+    proj = DEMO / "projects" / "2026-10-08_1805_long"
     env = {**os.environ, **BASE_ENV}
     subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "make_sample_srt.py"), str(proj)], check=True, env=env

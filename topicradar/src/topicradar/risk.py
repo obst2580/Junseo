@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from topicradar.models import RiskFlag, SlotPlan, Topic
+from topicradar.models import RiskFlag, Topic, VideoPlan
 
 YELLOW_WORDS = [
     "사망",
@@ -42,11 +42,16 @@ LEGAL_WORDS = [
 ]
 POLL_WORDS = ["여론조사", "지지율", "조사 결과", "갤럽", "리얼미터", "오차범위"]
 
-BANNED_TITLE = ["충격", "경악", "난리", "대박", "소름", "발칵", "초토화"]
+BANNED_TITLE = [
+    "충격",
+    "경악",
+    "대박",
+    "소름",
+    "초토화",
+]  # 빈 감탄(사건을 말하는 동사 '발칵·뒤집혔다'는 허용)
 _DATE_TITLE = re.compile(
     r"(\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}[./]\d{1,2}|\d{4}[.-]\d{1,2}[.-]\d{1,2}).{0,6}(이슈|정리|뉴스|소식)?"
 )
-CAUSAL_MARKERS = ["왜", "다음", "결국", "이유", "생기는 일", "달라지는", "수순"]
 
 
 def topic_risks(t: Topic, title_text: str = "") -> list[RiskFlag]:
@@ -83,8 +88,8 @@ def topic_risks(t: Topic, title_text: str = "") -> list[RiskFlag]:
     return flags
 
 
-def plan_risks(plan: SlotPlan) -> list[RiskFlag]:
-    """편성안 전체 리스크(주제별 중복 제거)."""
+def plan_risks(plan: VideoPlan) -> list[RiskFlag]:
+    """영상 계획 전체 리스크(주제별 중복 제거)."""
     titles = " ".join([*plan.titles, plan.thumbnail_text])
     seen: set[tuple[str, str | None]] = set()
     out: list[RiskFlag] = []
@@ -98,12 +103,10 @@ def plan_risks(plan: SlotPlan) -> list[RiskFlag]:
 
 
 def title_problems(title: str) -> list[str]:
-    """제목 규칙 위반 목록(날짜형·감탄형·인과형 아님)."""
+    """제목 규칙 위반 목록(날짜형·빈 감탄형)."""
     problems = []
     if _DATE_TITLE.search(title):
         problems.append("날짜형")
     if any(w in title for w in BANNED_TITLE):
         problems.append("감탄형")
-    if not any(m in title for m in CAUSAL_MARKERS):
-        problems.append("인과형 표지 없음")
     return problems

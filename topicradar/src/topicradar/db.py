@@ -11,7 +11,7 @@ from sqlalchemy import JSON, Column
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 from studio_core.config import KST
-from topicradar.models import ScoreDetail, Signal, SlotPlan, Topic
+from topicradar.models import Board, ScoreDetail, Signal, Topic, VideoPlan
 
 
 def _naive(dt: datetime | None) -> datetime | None:
@@ -63,16 +63,25 @@ class TopicRow(SQLModel, table=True):
     covered_in: list = Field(default_factory=list, sa_column=Column(JSON))
 
 
-class PlanRow(SQLModel, table=True):
-    """슬롯 편성안(전체를 JSON으로 보관)."""
+class VideoRow(SQLModel, table=True):
+    """영상 계획(10분 묶음·3분 단독, 전체를 JSON으로 보관)."""
 
-    __tablename__ = "plans"
+    __tablename__ = "videos"
     id: str = Field(primary_key=True)
     day: dt.date = Field(index=True)
-    slot: str
+    format: str
     data: dict = Field(default_factory=dict, sa_column=Column(JSON))
     project_dir: str = ""
     created_at: datetime
+
+
+class BoardRow(SQLModel, table=True):
+    """주제판(지금 뜨는 주제 스냅숏)."""
+
+    __tablename__ = "boards"
+    id: str = Field(primary_key=True)
+    created_at: datetime = Field(index=True)
+    data: dict = Field(default_factory=dict, sa_column=Column(JSON))
 
 
 class UploadRow(SQLModel, table=True):
@@ -117,7 +126,8 @@ class Store:
 
     # ---- 신호 ------------------------------------------------------------
     def upsert_signals(self, signals: list[Signal]) -> int:
-        """새 신호 수를 돌려준다(기존 ID는 갱신하지 않음, 단 metric은 병합)."""
+        """새 신호 수를 돌려준다. 기존 신호는 metric(댓글·공감 수 등)을 병합하고,
+        커뮤니티 글은 새로 읽은 본문(summary)이 있으면 바꾼다."""
         new = 0
         with Session(self.engine, expire_on_commit=False) as s:
             for sig in signals:
@@ -125,11 +135,20 @@ class Store:
                 if row is None:
                     s.add(self._sig_row(sig))
                     new += 1
-                elif sig.metric:
+                    continue
+                if sig.metric:
                     row.metric = {**(row.metric or {}), **sig.metric}
-                    s.add(row)
+                if sig.kind == "community" and sig.summary:
+                    row.summary = sig.summary
+                s.add(row)
             s.commit()
         return new
+
+    def get_signal(self, signal_id: str) -> Signal | None:
+        """신호 하나."""
+        with Session(self.engine, expire_on_commit=False) as s:
+            row = s.get(SignalRow, signal_id)
+        return self._sig(row) if row else None
 
     @staticmethod
     def _sig_row(sig: Signal, topic_id: str | None = None) -> SignalRow:
@@ -271,7 +290,7 @@ class Store:
         return [self._topic(r, self.signals_of(r.id)) for r in rows]
 
     def mark_covered(self, topic_id: str, plan_id: str) -> None:
-        """covered_in에 슬롯을 추가."""
+        """covered_in에 영상 ID를 추가."""
         with Session(self.engine, expire_on_commit=False) as s:
             row = s.get(TopicRow, topic_id)
             if row is not None and plan_id not in (row.covered_in or []):
@@ -279,33 +298,54 @@ class Store:
                 s.add(row)
                 s.commit()
 
-    # ---- 편성안 ----------------------------------------------------------
-    def save_plan(self, plan: SlotPlan, project_dir: str = "") -> None:
-        """편성안 저장(같은 ID는 덮어씀)."""
+    # ---- 주제판 ----------------------------------------------------------
+    def save_board(self, board: Board) -> None:
+        """주제판 저장."""
         with Session(self.engine, expire_on_commit=False) as s:
-            row = s.get(PlanRow, plan.plan_id) or PlanRow(
-                id=plan.plan_id, day=plan.date, slot=plan.slot, created_at=_naive(datetime.now(KST))
+            row = s.get(BoardRow, board.id) or BoardRow(id=board.id, created_at=_naive(board.created_at))
+            row.data = board.model_dump(mode="json")
+            s.add(row)
+            s.commit()
+
+    def get_board(self, board_id: str) -> Board | None:
+        """주제판 조회."""
+        with Session(self.engine, expire_on_commit=False) as s:
+            row = s.get(BoardRow, board_id)
+        return Board.model_validate(row.data) if row else None
+
+    def latest_board(self) -> Board | None:
+        """가장 최근 주제판."""
+        with Session(self.engine, expire_on_commit=False) as s:
+            row = s.exec(select(BoardRow).order_by(BoardRow.created_at.desc()).limit(1)).first()  # type: ignore[attr-defined]
+        return Board.model_validate(row.data) if row else None
+
+    # ---- 영상 계획 --------------------------------------------------------
+    def save_video(self, plan: VideoPlan, project_dir: str = "") -> None:
+        """영상 계획 저장(같은 ID는 덮어씀)."""
+        with Session(self.engine, expire_on_commit=False) as s:
+            row = s.get(VideoRow, plan.id) or VideoRow(
+                id=plan.id, day=plan.date, format=plan.format, created_at=_naive(plan.created_at)
             )
             row.data = plan.model_dump(mode="json")
             row.project_dir = project_dir or row.project_dir
             s.add(row)
             s.commit()
 
-    def get_plan(self, day: date, slot: str) -> SlotPlan | None:
-        """편성안 조회."""
+    def get_video(self, video_id: str) -> VideoPlan | None:
+        """영상 계획 조회."""
         with Session(self.engine, expire_on_commit=False) as s:
-            row = s.get(PlanRow, f"{day.isoformat()}_{slot}")
-        return SlotPlan.model_validate(row.data) if row else None
+            row = s.get(VideoRow, video_id)
+        return VideoPlan.model_validate(row.data) if row else None
 
-    def plans_between(self, start: date, end: date) -> list[SlotPlan]:
-        """[start, end] 날짜의 편성안."""
+    def videos_between(self, start: date, end: date) -> list[VideoPlan]:
+        """[start, end] 날짜에 만든 영상 계획(만든 순)."""
         with Session(self.engine, expire_on_commit=False) as s:
             rows = s.exec(
-                select(PlanRow).where(PlanRow.day >= start, PlanRow.day <= end).order_by(PlanRow.day)
+                select(VideoRow)
+                .where(VideoRow.day >= start, VideoRow.day <= end)
+                .order_by(VideoRow.created_at)  # type: ignore[arg-type]
             ).all()
-        order = {"morning": 0, "evening": 1, "weekly": 2}
-        plans = [SlotPlan.model_validate(r.data) for r in rows]
-        return sorted(plans, key=lambda p: (p.date, order[p.slot]))
+        return [VideoPlan.model_validate(r.data) for r in rows]
 
     # ---- 업로드 ----------------------------------------------------------
     def record_upload(self, row: UploadRow) -> None:

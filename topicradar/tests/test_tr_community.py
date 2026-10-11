@@ -1,5 +1,7 @@
-"""커뮤니티 정치 게시판: 파싱·robots·수집·검색어 도출·관심도·편성 관문·사실 근거 배제."""
+"""커뮤니티 정치 게시판: 목록·글 상세(본문·댓글·공감) 파싱, robots, 수집, 다시 읽기 규칙, 검색어 도출,
+그리고 '커뮤니티 글은 주장의 근거일 뿐 사실 근거가 아니다'."""
 
+from datetime import timedelta
 from pathlib import Path
 
 import httpx
@@ -9,17 +11,19 @@ from studio_core.config import ChannelConfig, CommunitySpec
 from topicradar.collectors.community import (
     CommunityCollector,
     RobotsCache,
+    apply_detail,
+    decode_html,
     is_political,
     parse_board,
+    parse_post,
     parse_time,
 )
 from topicradar.db import Store
-from topicradar.models import ScoreDetail, SlotItem, SlotPlan
-from topicradar.pipeline import derive_queries, probe_communities
+from topicradar.models import Opinion, VideoItem, VideoPlan
+from topicradar.opinion import heuristic_opinion
+from topicradar.pipeline import derive_queries, needs_detail, probe_communities
 from topicradar.report import buzz_cell, render_report
-from topicradar.score import score_topics
 from topicradar.script import heuristic_script, validate_script
-from topicradar.slots import select_evening, select_morning, window_for
 
 from trh import kst, sig, topic
 
@@ -33,8 +37,28 @@ BOARD = """<html><body><ul>
 <li><a href="https://other.example/x">외부 링크</a></li>
 <li><a href="/free/103">점심 뭐 먹지</a> <span>어제 12:10</span></li>
 <li><a href="/free/104">ㅋㅋ</a></li>
-<li><a href="/free/105">국감 막말 정리</a> <em class="cnt">33</em> <span>2026.10.06</span></li>
+<li><a href="/free/105">국감 막말 정리</a> <em class="cnt">33</em> <b class="rec">1,204</b> <span>2026.10.06</span></li>
 </ul></body></html>"""
+
+# 그누보드형 글 상세: 본문 #bo_v_con, 댓글 article(.cmt_contents)과 옆 칸의 공감, 메뉴·인기글 상자
+POST_GNU = """<html><head><title>사이트 제목</title></head><body><nav id="gnb"><a href="/">홈</a> 메뉴</nav>
+<article id="bo_v"><header><h2>본회의 표결 언제죠</h2></header>
+<section id="bo_v_atc"><div id="bo_v_con"><p>본회의 표결이 내일이라는데 새한당은 또 불참한다네요.</p><p>이번엔 꼭 통과돼야 합니다.</p></div>
+<div id="bo_v_act"><a class="bo_v_good">추천 <strong>87</strong></a> <a class="bo_v_nogood">비추천 <strong>2</strong></a></div></section>
+<section id="bo_vc"><h2>댓글목록</h2>
+<article id="c_1"><header><span class="member">홍길동</span><time>10-08 09:00</time></header><div class="cmt_contents"><p>불참하면 그냥 통과입니다</p></div><div class="bo_vc_act"><span class="cmt_good">공감 30</span></div></article>
+<article id="c_2"><header><span class="member">임꺽정</span></header><div class="cmt_contents"><p>표결 결과 보고 얘기합시다</p></div><div class="bo_vc_act"><span class="cmt_good">공감 5</span></div></article>
+<article id="c_3"><header><span class="member">일지매</span></header><div class="cmt_contents"><p>새한당 작년 공약은 뭐였죠</p></div><div class="bo_vc_act"><span class="cmt_good">공감 41</span></div></article>
+</section></article><aside class="side_best"><a href="/free/9">인기글 하나</a><span class="good">999</span></aside>
+<footer class="footer">이용약관 회사소개</footer></body></html>"""
+
+# 댓글 상자 하나 안에 li가 반복되는 사이트(class 이름에 comment가 상자에만 있음)
+POST_BOX = """<html><body><div class="content02"><div class="writer"><span>추천 <em>12</em></span></div>
+<div class="bodyCont"><p>감시자산 예산 삭감 누가 했는지 회의록에 다 나옵니다.</p></div></div>
+<div class="commentArea"><ul class="basiclist">
+<li><dl><dt><span class="author">닉1</span><span class="date">10.08 14:51</span></dt><dd class="txt">회의록 링크 부탁드려요</dd><dd><button class="good">추천 <span>3</span></button></dd></dl></li>
+<li><dl><dt><span class="author">닉2</span><span class="date">10.08 14:52</span></dt><dd class="txt">국정감사에서 끝까지 물어야 합니다</dd><dd><button class="good">추천 <span>19</span></button></dd></dl></li>
+</ul></div></body></html>"""
 
 
 def _spec(**kw):
@@ -75,7 +99,7 @@ def test_is_political():
 
 
 def test_parse_board_generic_links():
-    spec = _spec(comment_pattern=r'class="cnt">(\d+)<')
+    spec = _spec(comment_pattern=r'class="cnt">(\d+)<', vote_pattern=r'class="rec">([\d,]+)<')
     posts = parse_board(BOARD, spec, "https://board.example/free?page=1", NOW)
     by_title = {p.title: p for p in posts}
     assert "[공지] 게시판 이용 규칙" not in by_title and "게시판 이용 규칙" not in by_title
@@ -92,6 +116,7 @@ def test_parse_board_generic_links():
     assert by_title["점심 뭐 먹지"].posted_at == kst("2026-10-07 12:10")
     third = by_title["국감 막말 정리"]
     assert third.comments == 33 and third.posted_at == kst("2026-10-06 12:00")
+    assert third.votes == 1204 and first.votes is None  # 목록 추천 수(쉼표 포함), 없으면 None
 
 
 def test_parse_board_without_comment_pattern_reads_brackets():
@@ -131,7 +156,7 @@ async def test_community_collector_filters_and_isolates(monkeypatch):
     )
     respx.get(url__regex=r"/robots\.txt$").mock(return_value=httpx.Response(404))  # 나머지는 robots.txt 없음
     specs = [
-        _spec(pages=2, politics_filter=True),
+        _spec(pages=2, politics_filter=True, detail_posts=0),
         CommunitySpec(name="막힘", list_url="https://down.example/list", post_pattern=r"/v/\d+"),
         CommunitySpec(name="금지", list_url="https://deny.example/list", post_pattern=r"/v/\d+"),
         CommunitySpec(name="이동", list_url="https://moved.example/list", post_pattern=r"/v/\d+"),
@@ -152,7 +177,93 @@ async def test_community_collector_filters_and_isolates(monkeypatch):
     assert col.site_counts["테스트"] == 3 and "끔" not in col.site_counts
 
 
-def _buzz(title, at, comments=0, site="다모앙"):
+def test_parse_post_generic_gnuboard():
+    d = parse_post(POST_GNU, _spec())
+    assert d.body == "본회의 표결이 내일이라는데 새한당은 또 불참한다네요. 이번엔 꼭 통과돼야 합니다."
+    assert d.votes == 87  # 비추천·인기글 상자 숫자가 아니라 글 추천
+    # 공감 많은 순, 닉네임·시각은 빼고 내용만
+    assert [(c.votes, c.text) for c in d.comments] == [
+        (41, "새한당 작년 공약은 뭐였죠"),
+        (30, "불참하면 그냥 통과입니다"),
+        (5, "표결 결과 보고 얘기합시다"),
+    ]
+
+
+def test_parse_post_comment_box_rows_and_selectors():
+    d = parse_post(POST_BOX, _spec())
+    assert d.body == "감시자산 예산 삭감 누가 했는지 회의록에 다 나옵니다."
+    assert d.votes == 12 and [(c.votes, c.text) for c in d.comments] == [
+        (19, "국정감사에서 끝까지 물어야 합니다"),
+        (3, "회의록 링크 부탁드려요"),
+    ]
+    sel = _spec(body_selector="div.bodyCont", comment_selector="ul.basiclist li", vote_selector="button.good")
+    d2 = parse_post(POST_BOX, sel)
+    assert d2.body == d.body and [c.votes for c in d2.comments] == [19, 3]
+    # 본문만 있고 댓글이 없는 글(댓글을 따로 불러오는 사이트)
+    d3 = parse_post(
+        "<html><body><div class='rd_body'><p>짧은 글</p></div><footer>약관</footer></body></html>", _spec()
+    )
+    assert d3.body == "짧은 글" and d3.comments == [] and d3.votes is None
+
+
+def test_decode_html_meta_charset():
+    html = "<html><head><meta charset='euc-kr'></head><body>국회 본회의</body></html>".encode("euc-kr")
+    resp = httpx.Response(200, content=html, headers={"content-type": "text/html"})
+    assert "국회 본회의" in decode_html(resp)
+    utf = httpx.Response(200, content="정치".encode(), headers={"content-type": "text/html; charset=utf-8"})
+    assert decode_html(utf) == "정치"
+
+
+@respx.mock
+async def test_collector_reads_details_of_hot_posts(monkeypatch, tmp_path):
+    respx.get(url__regex=r"/robots\.txt$").mock(return_value=httpx.Response(404))
+    respx.get("https://board.example/free?page=1").mock(return_value=httpx.Response(200, text=BOARD))
+    post = respx.get("https://board.example/free/102?page=1").mock(
+        return_value=httpx.Response(200, text=POST_GNU)
+    )
+    respx.get(url__regex=r"board\.example/free/\d+$").mock(return_value=httpx.Response(200, text=POST_BOX))
+    monkeypatch.setenv("STUDIO_NOW", NOW.isoformat())
+    store = Store(tmp_path / "t.db")
+    async with httpx.AsyncClient() as c:
+        col = CommunityCollector(
+            [_spec(politics_filter=True, detail_posts=1)], c, need_detail=needs_detail(store)
+        )
+        sigs = await col.fetch(kst("2026-10-07 00:00"))
+    # 반응이 가장 큰 글(댓글 12) 하나만 상세를 읽는다
+    by = {s.title: s for s in sigs}
+    hot = by["법사위 플랫폼법 통과했네요"]
+    assert hot.summary.startswith("감시자산") and hot.metric["votes"] == 12
+    assert hot.metric["top_comments"][0] == {"t": "국정감사에서 끝까지 물어야 합니다", "v": 19}
+    assert hot.metric["detail_comments"] == 12 and col.detail_counts["테스트"] == 1
+    assert by["본회의 표결 언제죠"].summary == "" and not post.called
+    # 다시 읽기 규칙: 처음 보는 글 / 댓글이 5개·30% 이상 늘었을 때만
+    store.upsert_signals(sigs)
+    check = needs_detail(store)
+    assert not check(hot)
+    grown = hot.model_copy(deep=True)
+    grown.metric["comments"] = 17
+    assert check(grown)
+    grown.metric["comments"] = 15
+    assert not check(grown)
+    assert check(by["본회의 표결 언제죠"])
+    # 저장소: 나중에 읽은 본문은 덮어쓰고, 목록만 다시 읽으면 댓글 내용은 남는다
+    again = by["법사위 플랫폼법 통과했네요"].model_copy(
+        update={"summary": "", "metric": {"site": "테스트", "comments": 20}}
+    )
+    store.upsert_signals([again])
+    kept = store.get_signal(hot.id)
+    assert (
+        kept.summary.startswith("감시자산") and kept.metric["comments"] == 20 and kept.metric["top_comments"]
+    )
+
+
+def test_apply_detail_keeps_list_votes():
+    s = sig("글", "2026-10-08 10:00", kind="community", site="x", comments=3, votes=50)
+    apply_detail(s, parse_post(POST_GNU, _spec()), NOW)
+    assert s.metric["votes"] == 50 and s.metric["comments_read"] == 3 and s.metric["detail_at"]
+
+
+def _buzz(title, at, comments=0, site="다모앙", **metric):
     return sig(
         title,
         at,
@@ -160,6 +271,7 @@ def _buzz(title, at, comments=0, site="다모앙"):
         url=f"https://c.example/{abs(hash((title, at)))}",
         site=site,
         comments=comments,
+        **metric,
     )
 
 
@@ -182,91 +294,7 @@ def test_derive_queries():
     assert derive_queries(community, 0, set()) == [] and derive_queries([], 3, set()) == []
 
 
-def test_score_interest_from_community():
-    s, e = window_for("evening", DAY)
-    hot = topic(
-        "hot",
-        "본회의 표결",
-        [
-            sig("본회의 가결", "2026-10-08 14:50", "국회는 8일 본회의에서 법안을 가결했다."),
-            _buzz("본회의 가결 축하", "2026-10-08 15:00", 120),
-            _buzz("드디어 통과", "2026-10-08 15:10", 60, site="보배드림"),
-        ],
-    )
-    cold = topic(
-        "cold",
-        "환율",
-        [sig("환율 상승", "2026-10-08 10:00"), sig("환율 또 상승", "2026-10-08 11:00")],
-        category="경제",
-    )
-    score_topics(
-        [hot, cold],
-        window_start=s,
-        window_end=e,
-        prev_counts={"hot": 0},
-        target_day=DAY,
-        has_competitors=False,
-        community_mode=True,
-    )
-    assert hot.scores["interest"].score > cold.scores["interest"].score
-    assert "커뮤니티 글 2건(댓글 180)" in hot.scores["interest"].reason
-    assert (
-        "기사 2건" in cold.scores["interest"].reason and "커뮤니티 글 0건" in cold.scores["interest"].reason
-    )
-    assert "진보 커뮤니티" not in hot.scores["fit"].reason  # 글 3건 미만은 가점 없음
-
-
-def _scored(t, total):
-    t.total = total
-    t.scores = {"persistence": ScoreDetail(score=60, reason="")}
-    return t
-
-
-def test_evening_gate_and_fallback(tmp_path):
-    store = Store(tmp_path / "t.db")
-    s, e = window_for("evening", DAY)
-    loud = _scored(
-        topic(
-            "loud",
-            "국감 막말",
-            [sig("국감 막말 설전", "2026-10-08 10:00"), _buzz("막말 정리", "2026-10-08 09:00", 40)],
-        ),
-        60,
-    )
-    big = _scored(topic("big", "국방위 국감", [sig("국방위 국감 질타", "2026-10-08 11:00")]), 90)
-    late = _scored(
-        topic(
-            "late",
-            "재판",
-            [sig("재판 시작", "2026-10-08 12:00"), _buzz("재판 어제 얘기", "2026-10-07 20:00", 3)],
-        ),
-        50,
-    )
-    rumor = _scored(topic("rumor", "대표 사퇴설", [_buzz("대표 사퇴설 돈다", "2026-10-08 10:00", 200)]), 95)
-    items, notes, flags = select_evening([loud, big, late, rumor], DAY, s, e, None, store, gate=True)
-    body = [i for i in items if i.role in ("헤드라인", "서브")]
-    assert [i.topic.id for i in body] == ["loud", "late"]  # 12시간 전 반응까지 인정, 뉴스 없는 소문은 제외
-    assert any("커뮤니티 반응 없는 주제 1건" in n for n in notes)
-    # 반응 있는 주제가 하나도 없으면 뉴스 기준으로 되돌리고 표시
-    items2, _n, flags2 = select_evening([big], DAY, s, e, None, store, gate=True)
-    assert items2[0].topic.id == "big" and any("뉴스 기준으로 편성" in f.message for f in flags2)
-    assert any("서브 0개뿐" in f.message for f in flags2)
-
-
-def test_morning_skips_community_only_topics():
-    s, e = window_for("morning", DAY)
-    rumor = topic("r", "사퇴설", [_buzz("대표 사퇴설", "2026-10-08 01:00", 90)])
-    rumor.total = 99
-    real = topic(
-        "n", "본회의", [sig("8일 본회의 표결", "2026-10-07 22:00")], scheduled_at=kst("2026-10-08 14:00")
-    )
-    real.total = 50
-    items, _notes, _flags = select_morning([rumor, real], DAY, s, e, set(), prefer_buzz=True)
-    assert [i.topic.id for i in items] == ["n"]
-
-
 def test_script_and_report_never_cite_community():
-    s, e = window_for("evening", DAY)
     head = topic(
         "h",
         "본회의 표결",
@@ -277,33 +305,47 @@ def test_script_and_report_never_cite_community():
                 "국회는 8일 본회의를 열고 플랫폼노동자 기본법을 가결했다. 새한당은 표결에 불참했다. 법은 공포 후 6개월 뒤 시행된다.",
                 url="https://n.example/p1",
             ),
-            _buzz("가결 배후에 300억 거래 있었다는 소문", "2026-10-08 15:00", 500),
+            _buzz(
+                "가결 배후에 300억 거래 있었다는 소문",
+                "2026-10-08 15:00",
+                500,
+                top_comments=[{"t": "출처도 없는 소문 퍼뜨리지 맙시다", "v": 80}],
+            ),
+            _buzz("드디어 통과 축하합니다", "2026-10-08 15:10", 40, votes=200),
         ],
     )
     head.total = 80
-    head.scores = {k: ScoreDetail(score=80, reason="r") for k in ("interest", "gap", "persistence", "fit")}
-    plan = SlotPlan(
-        date=DAY,
-        slot="evening",
-        items=[SlotItem(topic=head, order=1, role="헤드라인")],
+    op = heuristic_opinion(head)
+    assert op.stance == "드디어 통과 축하합니다" and op.votes == 200  # 공감이 많은 글이 다수 의견
+    plan = VideoPlan(
+        id="2026-10-08_1530_short",
+        format="short",
+        created_at=NOW,
+        items=[VideoItem(topic=head, order=1, opinion=op)],
+        target_chars=(810, 990),
         titles=["가결이 바꾸는 것"],
         thumbnail_text="가결 왜?",
-        window_start=s,
-        window_end=e,
+        window_start=NOW - timedelta(hours=24),
+        window_end=NOW,
     )
     text = heuristic_script(plan)
     community_url = head.buzz()[0].url
-    assert community_url not in text and "300억" not in text and "소문" not in text
-    assert "https://n.example/p1" in text
-    warns = " | ".join(validate_script(text + f"\n#출처: {community_url}\n", plan))
-    assert "수집되지 않은 출처 URL 1개" in warns  # 커뮤니티 주소는 근거로 인정하지 않는다
+    assert community_url not in text and "https://n.example/p1" in text
     assert (
-        buzz_cell(head) == "다모앙1 (댓글 500)"
+        "드디어 통과 축하합니다" in text and "#확인: 커뮤니티 주장" in text
+    )  # 주장은 커뮤니티에서, 다듬을 곳 표시
+    warns = " | ".join(validate_script(text + f"\n300억 거래가 있었습니다.\n#출처: {community_url}\n", plan))
+    assert "수집되지 않은 출처 URL 1개" in warns  # 커뮤니티 주소는 사실 근거로 인정하지 않는다
+    assert "수집 기사에 없는 수치" in warns and ": 300" in warns  # 커뮤니티 글 속 숫자도 기사에 없으면 경고
+    assert "커뮤니티 글·댓글을 그대로 옮긴 곳" in warns
+    assert (
+        buzz_cell(head) == "다모앙2 (댓글 540 · 공감 200)"
         and buzz_cell(topic("x", "x", [sig("a", "2026-10-08 10:00")])) == "-"
     )
     report = render_report(plan, Path("script.txt"), [])
-    assert "커뮤니티 반응" in report and "다모앙1 (댓글 500)" in report
+    assert "커뮤니티 반응" in report and "드디어 통과 축하합니다" in report and "출처도 없는 소문" in report
     assert community_url not in report
+    assert Opinion(stance="x", posts=2, comments=1200, votes=0).heat_label == "글 2 · 댓글 1,200"
 
 
 @respx.mock
@@ -311,6 +353,7 @@ async def test_probe_communities(monkeypatch):
     monkeypatch.delenv("STUDIO_FIXTURES", raising=False)
     respx.get("https://board.example/robots.txt").mock(return_value=httpx.Response(404))
     respx.get("https://board.example/free?page=1").mock(return_value=httpx.Response(200, text=BOARD))
+    respx.get("https://board.example/free/101").mock(return_value=httpx.Response(200, text=POST_GNU))
     respx.get("https://deny.example/robots.txt").mock(
         return_value=httpx.Response(200, text="User-agent: *\nDisallow: /\n")
     )
@@ -325,6 +368,9 @@ async def test_probe_communities(monkeypatch):
     )
     res = {r.name: r for r in await probe_communities(cfg)}
     assert len(res["테스트"].posts) == 4 and res["테스트"].kept == 3
+    t = res["테스트"]  # 댓글 가장 많은 정치글 하나의 상세까지 읽어 본다
+    assert t.detail_url == "https://board.example/free/101" and t.body_chars > 20
+    assert t.comments_found == 3 and t.comment_votes == 3 and t.post_votes == 87 and not t.detail_error
     assert not res["금지"].allowed and "500" in res["오류"].error
     only = await probe_communities(cfg, "테스트")
     assert [r.name for r in only] == ["테스트"]

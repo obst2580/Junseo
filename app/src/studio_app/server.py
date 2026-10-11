@@ -1,4 +1,4 @@
-"""studio 화면 서버(FastAPI). 브라우저 화면 하나로 편성 → 대본 → 자막 → 자료 → XML → 업로드 기록까지.
+"""studio 화면 서버(FastAPI). 브라우저 화면 하나로 주제판 → 대본(10분·3분) → 자막 → 자료 → XML → 업로드 기록까지.
 
 이 컴퓨터에서만 연다(127.0.0.1). 오래 걸리는 일은 JobRunner가 한 번에 하나씩 돌린다.
 """
@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -27,13 +27,18 @@ INDEX = Path(__file__).with_name("static") / "index.html"
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "testserver"}
 
 
-class SlotBody(BaseModel):
-    """편성 만들기."""
+class BoardBody(BaseModel):
+    """주제판 만들기."""
 
-    slot: str
-    date: str | None = None
     collect: bool = True
-    draft: bool = True  # 주제 후보까지만(대본은 고른 뒤)
+
+
+class VideoBody(BaseModel):
+    """판에서 고른 주제로 영상 만들기."""
+
+    board_id: str
+    topic_ids: list[str]
+    format: str  # long | short
 
 
 class CollectBody(BaseModel):
@@ -46,26 +51,6 @@ class ScriptBody(BaseModel):
     """대본 저장."""
 
     text: str
-
-
-class FinalizePick(BaseModel):
-    """고른 주제 하나."""
-
-    topic_id: str
-    role: str
-
-
-class FinalizeBody(BaseModel):
-    """주제 고르기 결과(화면 순서대로)."""
-
-    items: list[FinalizePick]
-
-
-class PickBody(BaseModel):
-    """주제 교체."""
-
-    order: int
-    topic_id: str
 
 
 class MadeBody(BaseModel):
@@ -107,8 +92,8 @@ class ChannelBody(BaseModel):
     competitors: list[str] | str | None = None
     slack_webhook: str | None = None
     tone: str | None = None
-    weights: dict[str, float] | None = None
-    selection_mode: str | None = None
+    chars_per_minute: int | None = None
+    window_hours: int | None = None
 
 
 class CommunityBody(BaseModel):
@@ -188,7 +173,7 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     def auto_trigger(now: datetime) -> bool:
         if runner.busy():
             return False
-        runner.start("daily", f"자동 실행 {now:%H:%M}", sv.job_daily, settings, now=now)
+        runner.start("auto", f"자동 수집 {now:%H:%M}", sv.job_auto, settings, now=now)
         return True
 
     autorun = AutoRunner(settings.data_dir / "app.json", auto_trigger)
@@ -245,19 +230,28 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
         since = _parse_dt(body.since)
         return start("collect", "뉴스·커뮤니티 수집", sv.job_collect, since=since)
 
-    @app.post("/api/jobs/slot")
-    def slot(body: SlotBody) -> dict:
-        if body.slot not in sv.SLOT_ORDER:
-            raise HTTPException(400, "slot은 morning | evening | weekly")
-        day = date.fromisoformat(body.date) if body.date else sv.default_date(body.slot)
+    @app.post("/api/jobs/board")
+    def board_job(body: BoardBody) -> dict:
+        return start("board", "주제판 만들기", sv.job_board, collect=body.collect)
+
+    @app.get("/api/board")
+    def board() -> dict:
+        return sv.board_info(settings)
+
+    @app.post("/api/jobs/video")
+    def video_job(body: VideoBody) -> dict:
+        if body.format not in ("long", "short"):
+            raise HTTPException(400, "형식은 long(10분 묶음) | short(3분 단독)")
+        if not body.topic_ids:
+            raise HTTPException(400, "주제를 골라 주세요")
+        name = "10분 묶음" if body.format == "long" else "3분 단독"
         return start(
-            "slot",
-            f"{sv.label_for(day, body.slot)} 편성",
-            sv.job_slot,
-            slot=body.slot,
-            day=day,
-            collect=body.collect,
-            draft=body.draft,
+            "video",
+            f"{name} 대본 만들기",
+            sv.job_video,
+            board_id=body.board_id,
+            topic_ids=body.topic_ids,
+            fmt=body.format,
         )
 
     @app.post("/api/jobs/history")
@@ -285,30 +279,6 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     def rewrite(pid: str) -> dict:
         guard(sv.project_path, settings, pid)
         return start("rewrite", "대본 다시 쓰기", sv.job_rewrite, pid=pid)
-
-    @app.post("/api/projects/{pid}/finalize")
-    def finalize(pid: str, body: FinalizeBody) -> dict:
-        guard(sv.project_path, settings, pid)
-        if not body.items:
-            raise HTTPException(400, "주제를 하나 이상 골라 주세요")
-        picks = [[p.topic_id, p.role] for p in body.items]
-        return start("finalize", "대본 만들기", sv.job_finalize, pid=pid, picks=picks)
-
-    @app.get("/api/projects/{pid}/candidates")
-    def candidates(pid: str, order: int) -> dict:
-        return {"candidates": guard(sv.replace_candidates, settings, pid, order)}
-
-    @app.post("/api/projects/{pid}/pick")
-    def pick(pid: str, body: PickBody) -> dict:
-        guard(sv.project_path, settings, pid)
-        return start(
-            "pick",
-            f"{body.order}번 주제 교체",
-            sv.job_pick,
-            pid=pid,
-            order=body.order,
-            topic_id=body.topic_id,
-        )
 
     @app.put("/api/projects/{pid}/upload/{name}")
     async def upload(pid: str, name: str, request: Request) -> dict:

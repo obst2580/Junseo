@@ -29,8 +29,13 @@ def test_load_settings_and_channel_defaults(tmp_path, monkeypatch):
     assert s.db_path.parent.exists() and s.env("STUDIO_TEST_KEY") == "hello"
     cfg = load_channel(s)
     assert cfg.channel.competitors == ["UCx"]
-    assert cfg.scoring.weights["interest"] == 40.0
+    assert cfg.board.window_hours == 24 and cfg.script.chars_per_minute == 300
     assert cfg.channel.categories[0] == "국회"
+    # 예전 설정 파일(selection·scoring)도 그대로 읽힌다(모르는 칸은 무시)
+    (tmp_path / "old").mkdir()
+    old = _root(tmp_path / "old", "selection:\n  mode: hottest\nscoring:\n  weights: {interest: 40}\n")
+    monkeypatch.setenv("STUDIO_ROOT", str(old))
+    assert load_channel(load_settings()).board.min_posts == 2
 
 
 def test_append_past_title_keeps_comments(tmp_path, monkeypatch):

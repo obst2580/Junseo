@@ -88,20 +88,35 @@ label.field .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
 .note ul { margin: 6px 0 0; padding-left: 20px; }
 .note b.t { display: block; margin-bottom: 2px; }
 
-/* 홈: 슬롯 타일 */
-.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 14px; }
-.slot { border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 10px; background: var(--surface); position: relative; }
-.slot.suggest { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.slot .name { font-size: 17px; font-weight: 800; }
-.slot .desc { color: var(--muted); font-size: 13px; min-height: 38px; }
-.slot .tag { position: absolute; top: 12px; right: 12px; font-size: 11.5px; font-weight: 700; background: var(--accent); color: var(--accent-ink); padding: 2px 8px; border-radius: 999px; }
-@media (max-width: 760px) { .slots { grid-template-columns: 1fr; } }
+/* 주제판 */
+.bundles { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 10px; }
+.bundle { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: grid; gap: 10px; align-content: start; background: var(--surface); }
+.bundle .bnames { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bundle .plus { color: var(--muted); font-weight: 700; }
+.tlist { display: grid; }
+.trow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; padding: 14px 4px; border-top: 1px solid var(--line); align-items: start; }
+.trow:first-child { border-top: 0; }
+.trow.on { background: var(--accent-soft); border-radius: 10px; }
+.tcheck { padding-top: 3px; }
+.tcheck input { width: 18px; height: 18px; }
+.tline { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; }
+.rank { font-weight: 800; color: var(--accent); min-width: 18px; }
+.heat { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.stance { font-weight: 700; margin-top: 6px; }
+.stance::before { content: "커뮤니티 주장 "; font-size: 11.5px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px; margin-right: 6px; vertical-align: 1px; }
+ul.points { margin: 4px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); }
+details.samples { margin-top: 6px; }
+details.samples ul { margin: 6px 0; padding-left: 0; list-style: none; display: grid; gap: 4px; font-size: 13.5px; }
+.pickbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: 18px; z-index: 40; width: min(760px, calc(100vw - 32px)); background: var(--surface); border: 1px solid var(--accent); border-radius: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.15); padding: 10px 14px; display: none; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pickbar.show { display: flex; }
+@media (max-width: 640px) { .trow { grid-template-columns: auto minmax(0, 1fr); } .trow .tact { grid-column: 2; } }
 
 /* 프로젝트 목록 */
 .plist { display: grid; }
 .pitem { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding: 12px 4px; border-top: 1px solid var(--line); }
 .pitem:first-child { border-top: 0; }
-.pitem .t { font-weight: 700; }
+.pitem > div { min-width: 0; }
+.pitem .t { font-weight: 700; overflow-wrap: anywhere; }
 .pitem .s { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px; }
 .dots { display: flex; gap: 4px; }
 .dot { width: 22px; height: 6px; border-radius: 3px; background: var(--line); }
@@ -131,19 +146,12 @@ table.plan { width: 100%; border-collapse: collapse; margin-top: 14px; font-size
 table.plan th { text-align: left; font-size: 12.5px; color: var(--muted); font-weight: 700; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 table.plan td { padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.plan tr.detail td { background: var(--surface-2); font-size: 13px; }
-.role { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); white-space: nowrap; }
-.role.헤드라인, .role.줄기 { background: var(--accent); color: var(--accent-ink); }
-.role.오늘의포인트, .role.포인트회수 { background: var(--accent-soft); color: var(--accent); }
+.fmt { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
 .cat { font-size: 12px; color: var(--muted); margin-left: 6px; }
 .tname { font-weight: 700; }
 .links a { font-size: 12.5px; margin-right: 8px; }
 .score { font-weight: 800; font-size: 16px; }
-.hit { font-weight: 700; }
-.hit.hit_ { color: var(--ok); } .hit.miss { color: var(--bad); } .hit.pending { color: var(--muted); }
 .buzz { font-size: 13px; color: var(--ink-2); }
-.reasons { display: grid; grid-template-columns: 70px 40px 1fr; gap: 2px 10px; }
-.weights { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-@media (max-width: 760px) { .weights { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 860px) { table.plan .hide-s { display: none; } }
 
 /* 대본 */
@@ -242,7 +250,7 @@ textarea.code { font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; min-hei
   <div class="top-in">
     <a class="brand" href="#/">studio</a>
     <nav id="nav">
-      <a href="#/" data-r="">오늘</a>
+      <a href="#/" data-r="">주제판</a>
       <a href="#/projects" data-r="projects">프로젝트</a>
       <a href="#/history" data-r="history">성과</a>
       <a href="#/settings" data-r="settings">설정</a>
@@ -267,15 +275,8 @@ const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const app = $('#app');
-const SLOT = { morning: '아침 프리뷰', evening: '저녁 리뷰', weekly: '주간 심층' };
-const SLOT_DESC = {
-  morning: '어젯밤 17시~오늘 5:30 소식으로 "오늘 볼 것"을 예고. 7시 업로드용.',
-  evening: '오늘 5:30~17:00 결과 정리 + 아침 예상 회수. 19시 업로드용.',
-  weekly: '한 주의 흐름을 인과 사슬로. 일요일 업로드용.',
-};
-const TARGET = { morning: [900, 1100], evening: [1500, 1800], weekly: [2500, 3000] };
-const STEPS = [['plan', '편성·대본'], ['audio', '음성·자막'], ['assets', '자료'], ['xml', '프리미어'], ['upload', '업로드']];
-const NEXT = { plan: '편성 만들기', audio: '음성 만들어 올리기', assets: '자료 수집', xml: 'XML 만들기', upload: '업로드 기록' };
+const STEPS = [['plan', '대본'], ['audio', '음성·자막'], ['assets', '자료'], ['xml', '프리미어'], ['upload', '업로드']];
+const NEXT = { plan: '대본 만들기', audio: '음성 만들어 올리기', assets: '자료 수집', xml: 'XML 만들기', upload: '업로드 기록' };
 let STATUS = null;
 
 async function api(path, opts = {}) {
@@ -341,10 +342,11 @@ function renderJob(job) {
 }
 $('#job-toggle').onclick = () => { const p = $('#job-log'); p.hidden = !p.hidden; };
 const STOP_NOTE = {
-  slot: '편성 만들기를 멈춥니다.\n수집 중이었다면 이번 수집 결과는 저장되지 않고, 편성안·대본은 만들어지지 않습니다.',
+  board: '주제판 만들기를 멈춥니다.\n수집 중이었다면 이번 수집 결과는 저장되지 않고, 주제판은 만들어지지 않습니다.',
+  video: '대본 만들기를 멈춥니다. 영상 폴더와 대본은 만들어지지 않습니다.',
   collect: '수집을 멈춥니다. 이번 수집 결과는 저장되지 않습니다.',
   newsclip: '자료 수집을 멈춥니다.\n받던 파일 일부는 남지만 장면 목록은 만들어지지 않습니다. 다시 수집하면 처음부터 합니다.',
-  daily: '자동 실행을 멈춥니다. 오늘 이 시각 작업은 다시 돌지 않으니 필요하면 직접 만들어 주세요.',
+  auto: '자동 수집을 멈춥니다. 다음 자동 수집 시각에 다시 모읍니다.',
 };
 $('#job-stop').onclick = async () => {
   const kind = $('#job-stop').dataset.kind;
@@ -382,62 +384,115 @@ window.addEventListener('hashchange', route);
 
 /* ---------- 공통 조각 ---------- */
 function dots(steps) { return `<div class="dots">${STEPS.map(([k, l]) => `<span class="dot ${steps[k] ? 'on' : ''}" title="${l}"></span>`).join('')}</div>`; }
-function nextStep(steps, status) { if (status === 'draft') return '다음: 주제 고르기'; if (steps.upload) return '업로드 완료'; const k = STEPS.find(([k]) => !steps[k]); return k ? '다음: ' + NEXT[k[0]] : '완료'; }
+function nextStep(steps) { if (steps.upload) return '업로드 완료'; const k = STEPS.find(([k]) => !steps[k]); return k ? '다음: ' + NEXT[k[0]] : '완료'; }
 function projectRows(list) {
-  if (!list.length) return `<div class="empty">아직 만든 편성이 없습니다. 위에서 <b>만들기</b>를 눌러 시작하세요.</div>`;
+  if (!list.length) return `<div class="empty">아직 만든 영상이 없습니다. 주제판에서 <b>3분 만들기</b> 또는 <b>10분 묶음 만들기</b>를 누르세요.</div>`;
   return `<div class="plist">${list.map(p => `
     <div class="pitem">
-      <div><div class="t"><a href="#/p/${esc(p.id)}">${esc(p.label)}</a></div><div class="s">${esc(p.uploaded_title || p.title || '')}</div></div>
-      <div class="row">${dots(p.steps)}<span class="next">${esc(nextStep(p.steps, p.status))}</span></div>
+      <div><div class="t"><a href="#/p/${esc(p.id)}">${esc(p.uploaded_title || p.title || p.label)}</a> <span class="fmt">${esc(p.format_name)}</span></div>
+        <div class="s">${esc(p.label)} · ${esc((p.topics || []).join(' / '))}</div></div>
+      <div class="row">${dots(p.steps)}<span class="next">${esc(nextStep(p.steps))}</span></div>
       <a class="btn" href="#/p/${esc(p.id)}">열기</a>
     </div>`).join('')}</div>`;
 }
 function autoCard(auto) {
   return `<div class="card"><div class="row">
-    <div style="flex:1"><h2>자동 실행</h2><p class="sub" style="margin:0">이 화면을 켜 두면 매일 ${auto.times.join(' · ')}에 수집하고 아침·저녁(토요일은 주간까지) 편성을 만듭니다. 다음: ${esc(auto.next)}</p></div>
-    <label class="switch" title="자동 실행"><input type="checkbox" id="auto" ${auto.enabled ? 'checked' : ''}><span></span></label>
+    <div style="flex:1"><h2>자동 수집</h2><p class="sub" style="margin:0">이 화면을 켜 두면 ${auto.times[0]}부터 2시간마다(${auto.times.join(' · ')}) 커뮤니티 글·댓글과 뉴스를 모아 둡니다. 주제판과 대본은 원할 때 만드세요. 다음: ${esc(auto.next)}</p></div>
+    <label class="switch" title="자동 수집"><input type="checkbox" id="auto" ${auto.enabled ? 'checked' : ''}><span></span></label>
   </div></div>`;
 }
 function bindAuto() {
   const el = $('#auto'); if (!el) return;
-  el.onchange = async () => { try { await api('/api/settings/auto', { method: 'PUT', body: { enabled: el.checked } }); toast(el.checked ? '자동 실행 켬' : '자동 실행 끔'); } catch (e) { fail(e); } };
+  el.onchange = async () => { try { await api('/api/settings/auto', { method: 'PUT', body: { enabled: el.checked } }); toast(el.checked ? '자동 수집 켬' : '자동 수집 끔'); } catch (e) { fail(e); } };
 }
 
-/* ---------- 오늘 ---------- */
-async function homePage() {
-  const { projects } = await api('/api/projects');
-  const s = STATUS;
-  app.innerHTML = `
-    <div class="head"><div><div class="eyebrow">오늘</div><h1>${esc(s.now_label)}</h1></div></div>
-    ${s.setup.length ? `<div class="note warn" style="margin-bottom:16px"><b class="t">처음 설정이 남았어요</b><ul>${s.setup.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div style="margin-top:8px"><a class="btn" href="#/settings">설정으로</a></div></div>` : ''}
-    <div class="card">
-      <div class="row"><div style="flex:1"><h2>편성 만들기</h2><p class="sub" style="margin:0">커뮤니티 반응·뉴스를 모아 <b>추천 주제</b>를 보여 줍니다. 고른 뒤에 대본을 씁니다. 보통 1~2분.</p></div>
-        <button class="btn" id="collect">수집만 하기</button></div>
-      <div class="small muted" style="margin-top:6px">마지막 수집: ${esc(s.last_collect_label || '없음')}</div>
-      <div class="slots">${['morning', 'evening', 'weekly'].map(k => `
-        <div class="slot ${s.suggest === k ? 'suggest' : ''}">
-          ${s.suggest === k ? '<span class="tag">지금 추천</span>' : ''}
-          <div class="name">${SLOT[k]}</div>
-          <div class="desc">${SLOT_DESC[k]}</div>
-          <input type="date" id="d-${k}" value="${esc(s.defaults[k])}" aria-label="${SLOT[k]} 날짜">
-          <button class="btn ${s.suggest === k ? 'primary' : ''} big" data-slot="${k}">${SLOT[k]} 만들기</button>
-        </div>`).join('')}</div>
-    </div>
-    <div class="card"><div class="row"><h2 style="flex:1">최근 프로젝트</h2><a href="#/projects">전체 보기</a></div>${projectRows(projects.slice(0, 6))}</div>
-    ${autoCard(s.auto)}`;
-  $$('[data-slot]').forEach(b => b.onclick = () => {
-    const slot = b.dataset.slot;
-    runJob('/api/jobs/slot', { slot, date: $('#d-' + slot).value || null }, job => {
-      if (job.status === 'done') location.hash = '#/p/' + job.result.project;
-    });
+/* ---------- 주제판(홈) ---------- */
+function makeVideo(boardId, ids, format) {
+  runJob('/api/jobs/video', { board_id: boardId, topic_ids: ids, format }, job => {
+    if (job.status === 'done') location.hash = '#/p/' + job.result.project;
   });
+}
+function sampleLi(x) {
+  const tag = `<span class="badge opt">${esc(x.site)} ${x.kind === 'post' ? '글' : '댓글'} · 공감 ${x.votes}${x.kind === 'post' ? ` · 댓글 ${x.comments}` : ''}</span>`;
+  return `<li>${tag} ${x.url && x.kind === 'post' ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.text)}</a>` : esc(x.text)}</li>`;
+}
+function topicRow(t) {
+  const op = t.opinion || { stance: '', points: [], samples: [], heat: '' };
+  return `<div class="trow" data-row="${esc(t.id)}">
+    <label class="tcheck"><input type="checkbox" data-pick="${esc(t.id)}" aria-label="${esc(t.name)} 고르기"></label>
+    <div class="tmain">
+      <div class="tline"><span class="rank">${t.rank}</span><span class="tname">${esc(t.name)}</span><span class="cat">${esc(t.category)}</span>
+        ${t.covered.length ? `<span class="badge opt" title="${esc(t.covered.join('\n'))}">만든 영상 ${t.covered.length}</span>` : ''}</div>
+      <div class="heat">반응도 <b>${t.score}</b> ${esc(t.trend)} · ${esc(op.heat)} · ${t.articles ? `기사 ${t.articles}건` : '<span style="color:var(--warn)">기사 없음 — 사실 확인 필요</span>'}</div>
+      <div class="stance">${esc(op.stance)}</div>
+      ${op.points.length ? `<ul class="points">${op.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${op.minority ? `<div class="small muted" style="margin-top:4px">소수 의견: ${esc(op.minority)}</div>` : ''}
+      ${op.questions && op.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(op.questions.join(' / '))}</div>` : ''}
+      <details class="samples"><summary class="small">대표 글·댓글 ${op.samples.length}개${t.links.length ? ' · 기사 링크' : ''}</summary>
+        <ul>${op.samples.map(sampleLi).join('')}</ul>
+        <div class="links">${t.links.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">기사${i + 1}</a>`).join('')}</div></details>
+    </div>
+    <div class="tact"><button class="btn" data-short="${esc(t.id)}">3분 만들기</button></div>
+  </div>`;
+}
+async function homePage() {
+  const [{ board }, { projects }] = await Promise.all([api('/api/board'), api('/api/projects')]);
+  const s = STATUS;
+  const meta = board
+    ? `${esc(board.created_label)} 기준 · 최근 ${board.window_hours}시간 커뮤니티 글 · 의견 정리 ${board.llm_mode === 'claude' ? 'Claude' : '오프라인(공감 많은 글을 그대로)'}`
+    : '아직 주제판이 없습니다';
+  app.innerHTML = `
+    <div class="head"><div><div class="eyebrow">주제판 · ${esc(s.now_label)}</div><h1>지금 커뮤니티에서 뜨는 주제</h1>
+      <div class="small muted" style="margin-top:4px">${meta} · 마지막 수집 ${esc(s.last_collect_label || '없음')}</div></div>
+      <div class="row"><button class="btn" id="collect">수집만 하기</button><button class="btn primary big" id="mk-board">${board ? '새로 모으기' : '주제판 만들기'}</button></div></div>
+    ${s.setup.length ? `<div class="note warn" style="margin-bottom:16px"><b class="t">처음 설정이 남았어요</b><ul>${s.setup.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div style="margin-top:8px"><a class="btn" href="#/settings">설정으로</a></div></div>` : ''}
+    ${!board ? `<div class="card"><h2>주제판 만들기</h2><p class="sub">커뮤니티 정치 게시판의 글·댓글·공감 수와 뉴스를 모아, <b>지금 가장 뜨거운 주제</b>와 그 주제에 대한 <b>커뮤니티의 주장</b>을 보여 줍니다.
+      거기서 하나를 골라 <b>3분</b>, 이어지는 2~3개를 골라 <b>10분</b> 대본을 바로 만듭니다. 보통 1~2분 걸립니다.</p>
+      <button class="btn primary big" id="mk-board2">주제판 만들기</button></div>` : `
+    ${board.age_minutes > 180 ? `<div class="note info" style="margin-bottom:16px">이 주제판은 ${Math.round(board.age_minutes / 60)}시간 전 것입니다 — <b>새로 모으기</b>를 누르면 지금 기준으로 다시 짭니다.</div>` : ''}
+    <div class="card"><h2>10분 묶음 추천</h2><p class="sub" style="margin:0">서로 이어지는 주제 2~3개입니다. 누르면 바로 10분 대본을 씁니다.</p>
+      ${board.bundles.length ? `<div class="bundles">${board.bundles.map((b, i) => `<div class="bundle">
+        <div class="bnames">${b.names.map(n => `<span class="chip">${esc(n)}</span>`).join('<span class="plus">+</span>')}</div>
+        <div class="small">${esc(b.link)}</div>
+        <div><button class="btn primary" data-bundle="${i}">이 묶음으로 10분 만들기</button></div></div>`).join('')}</div>`
+        : '<div class="empty">이어지는 주제가 없어 묶음 추천이 없습니다 — 아래에서 2~3개를 직접 고르세요.</div>'}</div>
+    <div class="card"><div class="row"><h2 style="flex:1">주제 ${board.topics.length}개 <span class="small muted">반응도 순</span></h2></div>
+      <p class="sub">하나는 <b>3분 만들기</b>, 이어지는 2~3개를 체크하면 <b>10분 묶음</b>으로 만듭니다. <b>커뮤니티 주장</b>이 그 영상에서 채널이 할 말입니다(사실은 기사로 받칩니다).</p>
+      ${board.topics.length ? `<div class="tlist">${board.topics.map(topicRow).join('')}</div>` : '<div class="empty">반응이 있는 주제가 없습니다. 수집이 됐는지(설정 → 게시판 점검) 확인해 주세요.</div>'}
+      ${board.notes.length ? `<details style="margin-top:10px"><summary class="small">메모 ${board.notes.length}건</summary><ul class="small">${board.notes.map(x => `<li class="muted">${esc(x)}</li>`).join('')}</ul></details>` : ''}</div>`}
+    <div class="card"><div class="row"><h2 style="flex:1">최근 영상</h2><a href="#/projects">전체 보기</a></div>${projectRows(projects.slice(0, 6))}</div>
+    ${autoCard(s.auto)}
+    <div class="pickbar" id="pickbar"><span id="pick-sum"></span><span class="spacer"></span>
+      <button class="btn" id="pick-clear">선택 해제</button><button class="btn" id="pick-short">3분 만들기</button><button class="btn primary" id="pick-long">10분 묶음 만들기</button></div>`;
+  const mk = () => runJob('/api/jobs/board', {}, () => route());
+  $('#mk-board').onclick = mk; if ($('#mk-board2')) $('#mk-board2').onclick = mk;
   $('#collect').onclick = () => runJob('/api/jobs/collect', {}, () => route());
   bindAuto();
+  if (!board) return;
+  $$('[data-bundle]').forEach(b => b.onclick = () => makeVideo(board.id, board.bundles[+b.dataset.bundle].topic_ids, 'long'));
+  $$('[data-short]').forEach(b => b.onclick = () => makeVideo(board.id, [b.dataset.short], 'short'));
+  const picked = [];
+  const sync = () => {
+    $$('[data-row]').forEach(r => r.classList.toggle('on', picked.includes(r.dataset.row)));
+    const n = picked.length;
+    $('#pickbar').classList.toggle('show', n > 0);
+    $('#pick-sum').innerHTML = `고른 주제 <b>${n}</b>개` + (n > 3 ? ' <span style="color:var(--bad)">· 10분 묶음은 3개까지</span>' : n === 1 ? ' <span class="muted">· 하나 더 고르면 10분 묶음</span>' : '');
+    $('#pick-short').disabled = n !== 1;
+    $('#pick-long').disabled = n < 2 || n > 3;
+  };
+  $$('[data-pick]').forEach(c => c.onchange = () => {
+    const id = c.dataset.pick, i = picked.indexOf(id);
+    if (c.checked && i < 0) picked.push(id); else if (!c.checked && i >= 0) picked.splice(i, 1);
+    sync();
+  });
+  $('#pick-clear').onclick = () => { picked.length = 0; $$('[data-pick]').forEach(c => { c.checked = false; }); sync(); };
+  $('#pick-short').onclick = () => makeVideo(board.id, picked.slice(0, 1), 'short');
+  $('#pick-long').onclick = () => makeVideo(board.id, picked.slice(), 'long');
 }
 
 async function projectsPage() {
   const { projects } = await api('/api/projects');
-  app.innerHTML = `<div class="head"><div><div class="eyebrow">프로젝트</div><h1>만든 편성 ${projects.length}개</h1></div></div>
+  app.innerHTML = `<div class="head"><div><div class="eyebrow">프로젝트</div><h1>만든 영상 ${projects.length}개</h1></div></div>
     <div class="card">${projectRows(projects)}</div>`;
 }
 
@@ -445,22 +500,20 @@ async function projectsPage() {
 async function projectPage(pid) {
   const d = await api('/api/projects/' + encodeURIComponent(pid));
   const p = d.summary, plan = d.plan;
-  if (!plan) { app.innerHTML = `<div class="card"><h2>${esc(p.label)}</h2><p class="muted">편성안이 없습니다.</p></div>`; return; }
-  if (plan.status === 'draft') { pickPage(pid, d); return; }
+  if (!plan) { app.innerHTML = `<div class="card"><h2>${esc(p.label)}</h2><p class="muted">영상 계획이 없습니다.</p></div>`; return; }
   const cur = (STEPS.find(([k]) => !p.steps[k]) || ['done'])[0];
-  const secIds = { plan: 's-plan', audio: 's-audio', assets: 's-assets', xml: 's-xml', upload: 's-upload' };
+  const secIds = { plan: 's-script', audio: 's-audio', assets: 's-assets', xml: 's-xml', upload: 's-upload' };
   app.innerHTML = `
-    <div class="head"><div><div class="eyebrow"><a href="#/">← 오늘</a> · ${esc(p.label)}</div><h1>${esc(plan.titles[0] || p.label)}</h1>
-      <div class="small muted" style="margin-top:4px">윈도우 ${esc(plan.window)} · 판정 ${plan.llm_mode === 'claude' ? 'Claude' : '오프라인 휴리스틱'}</div></div>
+    <div class="head"><div><div class="eyebrow"><a href="#/">← 주제판</a> · ${esc(p.label)}</div><h1>${esc(plan.titles[0] || p.label)}</h1>
+      <div class="small muted" style="margin-top:4px"><span class="fmt">${esc(plan.format_name)}</span> 대본 ${plan.target_chars[0].toLocaleString()}~${plan.target_chars[1].toLocaleString()}자 · 주제판 구간 ${esc(plan.window)} · ${plan.llm_mode === 'claude' ? 'Claude' : '오프라인 골격'}</div></div>
       <button class="btn" id="open-folder">폴더 열기</button></div>
     <div class="stepper">
-      <button class="step ${p.steps.plan ? 'done' : ''} ${cur === 'plan' ? 'cur' : ''}" data-go="s-plan"><div class="n">1 ${p.steps.plan ? '✓' : ''}</div><div class="l">편성안</div></button>
-      <button class="step ${p.steps.plan ? 'done' : ''}" data-go="s-script"><div class="n">2 ${p.steps.plan ? '✓' : ''}</div><div class="l">대본</div></button>
-      ${STEPS.slice(1).map(([k, l], i) => `<button class="step ${p.steps[k] ? 'done' : ''} ${cur === k ? 'cur' : ''}" data-go="${secIds[k]}"><div class="n">${i + 3} ${p.steps[k] ? '✓' : ''}</div><div class="l">${l}</div></button>`).join('')}
+      <button class="step done" data-go="s-plan"><div class="n">1 ✓</div><div class="l">계획</div></button>
+      ${STEPS.map(([k, l], i) => `<button class="step ${p.steps[k] ? 'done' : ''} ${cur === k ? 'cur' : ''}" data-go="${secIds[k]}"><div class="n">${i + 2} ${p.steps[k] ? '✓' : ''}</div><div class="l">${l}</div></button>`).join('')}
     </div>
     <section class="card sec" id="s-plan">${planSection(pid, d)}</section>
     <section class="card sec" id="s-script">${scriptSection(p, d)}</section>
-    <section class="card sec" id="s-audio">${audioSection(p)}</section>
+    <section class="card sec" id="s-audio">${audioSection(p, d)}</section>
     <section class="card sec" id="s-assets"><div class="sec-h"><span class="num">4</span><h2>자료(사진·영상)</h2></div><div id="assets-body"><div class="loading">…</div></div></section>
     <section class="card sec" id="s-xml">${xmlSection(pid, p)}</section>
     <section class="card sec" id="s-upload">${uploadSection(p, plan)}</section>`;
@@ -470,126 +523,45 @@ async function projectPage(pid) {
   renderAssets(pid, p);
 }
 
-function buzzHtml(b) {
-  const m = String(b || '').match(/^(.*) \(댓글 (\d+)\)$/);
-  return m ? `${esc(m[1])}<div class="small muted">댓글 ${Number(m[2]).toLocaleString()}</div>` : esc(b || '-');
-}
-/* ---------- 주제 고르기(대본 전) ---------- */
-function pickPage(pid, d) {
-  const p = d.summary, plan = d.plan, roles = plan.pickable_roles;
-  const lead = p.slot === 'weekly' ? '줄기' : '헤드라인';
-  const rows = [
-    ...d.items.filter(it => it.role !== '포인트회수').map(it => ({ id: it.topic.id, name: it.topic.name, category: it.topic.category, total: it.topic.total, buzz: it.buzz, links: it.links, reason: (Object.values(it.topic.scores)[0] || {}).reason || '', role: it.role, on: true })),
-    ...d.candidates.map(c => ({ ...c, role: roles.includes('서브') ? '서브' : roles[0], on: false })),
-  ];
-  const recalls = d.items.filter(it => it.role === '포인트회수');
-  app.innerHTML = `
-    <div class="head"><div><div class="eyebrow"><a href="#/">← 오늘</a> · ${esc(p.label)}</div><h1>주제 고르기</h1>
-      <div class="small muted" style="margin-top:4px">윈도우 ${esc(plan.window)} · 가장 이슈인 순으로 추천했습니다. 넣을 주제에 체크하고 역할·순서를 정한 뒤 대본을 만드세요.</div></div></div>
-    <div class="card">
-      <div style="overflow-x:auto"><table class="plan" id="pick"><thead><tr><th></th><th>역할</th><th>주제</th><th>이슈도</th><th class="hide-s">커뮤니티 반응</th><th>순서</th></tr></thead><tbody></tbody></table></div>
-      ${recalls.length ? `<h3>아침 예상 회수 <span class="small muted">— 자동으로 들어갑니다</span></h3><ul class="small">${recalls.map(r => `<li>${esc(r.topic.name)} <span class="muted">· 아침: ${esc(r.expected || '')}</span></li>`).join('')}</ul>` : ''}
-      <div class="row" style="margin-top:14px"><span class="small" id="pick-sum"></span><span class="spacer"></span>
-        <button class="btn primary big" id="pick-go">이대로 대본 만들기</button></div>
-    </div>`;
-  const body = $('#pick tbody');
-  const draw = () => {
-    body.innerHTML = rows.map((r, i) => `<tr style="${r.on ? '' : 'opacity:.55'}">
-      <td><input type="checkbox" data-i="${i}" ${r.on ? 'checked' : ''} aria-label="넣기"></td>
-      <td><select data-role="${i}" style="width:auto">${roles.map(x => `<option ${x === r.role ? 'selected' : ''}>${x}</option>`).join('')}</select></td>
-      <td><span class="tname">${esc(r.name)}</span><span class="cat">${esc(r.category)}</span>
-        <div class="links">${(r.links || []).map((u, k) => `<a href="${esc(u)}" target="_blank" rel="noopener">기사${k + 1}</a>`).join('')}</div>
-        <div class="small muted">${esc(r.reason)}</div></td>
-      <td><span class="score">${Math.round(r.total)}</span></td>
-      <td class="buzz hide-s">${buzzHtml(r.buzz)}</td>
-      <td style="white-space:nowrap"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="위로">↑</button> <button class="btn small" data-down="${i}" ${i < rows.length - 1 ? '' : 'disabled'} aria-label="아래로">↓</button></td>
-    </tr>`).join('');
-    $$('[data-i]', body).forEach(c => c.onchange = () => { rows[+c.dataset.i].on = c.checked; draw(); });
-    $$('[data-role]', body).forEach(c => c.onchange = () => {
-      const i = +c.dataset.role; rows[i].role = c.value;
-      if (c.value === lead && p.slot !== 'weekly') rows.forEach((r, k) => { if (k !== i && r.role === lead) r.role = '서브'; });  // 헤드라인은 하나
-      rows[i].on = true; draw();
-    });
-    $$('[data-up]', body).forEach(b => b.onclick = () => { const i = +b.dataset.up; [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; draw(); });
-    $$('[data-down]', body).forEach(b => b.onclick = () => { const i = +b.dataset.down; [rows[i + 1], rows[i]] = [rows[i], rows[i + 1]]; draw(); });
-    const on = rows.filter(r => r.on), cnt = {};
-    on.forEach(r => cnt[r.role] = (cnt[r.role] || 0) + 1);
-    const ok = p.slot === 'weekly' ? (cnt[lead] || 0) >= 1 : cnt[lead] === 1;
-    $('#pick-sum').innerHTML = `고른 주제 <b>${on.length}</b>개 — ${roles.map(x => `${x} ${cnt[x] || 0}`).join(' · ')}${recalls.length ? ` · 아침 예상 회수 ${recalls.length}` : ''}`
-      + (ok ? '' : ` <span style="color:var(--bad)">· ${lead}을(를) ${p.slot === 'weekly' ? '하나 이상' : '하나'} 골라 주세요</span>`);
-    $('#pick-go').disabled = !ok;
-  };
-  draw();
-  $('#pick-go').onclick = () => {
-    const items = rows.filter(r => r.on).map(r => ({ topic_id: r.id, role: r.role }));
-    runJob(`/api/projects/${pid}/finalize`, { items }, job => { if (job.status === 'done') route(); });
-  };
-}
-
+function fmtSec(sec) { const m = Math.floor(sec / 60), r = Math.round(sec % 60); return m ? `${m}분${r ? ` ${r}초` : ''}` : `${r}초`; }
 function planSection(pid, d) {
   const plan = d.plan;
-  const third = d.summary.slot === 'evening' ? '아침 예상 → 결과' : d.summary.slot === 'morning' ? '예상 / 달라지는 것' : '사슬';
   const rows = d.items.map(it => {
-    const t = it.topic;
-    const hit = it.hit ? `<div class="hit ${it.hit === 'hit' ? 'hit_' : it.hit}">${{ hit: '✅ 적중', miss: '❌ 빗나감', pending: '⏳ 결과 대기' }[it.hit]}</div>` : '';
-    const third = it.role === '포인트회수' ? `${hit}<div class="small">${esc(it.actual || '')}</div><div class="small muted">아침: ${esc(it.expected || '')}</div>`
-      : it.expected ? `<div>${esc(it.expected)}</div><div class="small muted">${esc(it.impact || '')}</div>` : it.chain ? esc(it.chain) : '<span class="muted">-</span>';
-    const reasons = Object.entries(t.scores).map(([k, v]) => `<span class="muted">${{ issue: '이슈도', repeat: '중복', interest: '관심도', gap: '공백도', persistence: '지속성', fit: '적합도' }[k] || k}</span><b>${v.score}</b><span>${esc(v.reason)}</span>`).join('');
+    const t = it.topic, op = it.opinion || { stance: '-', points: [] };
     return `<tr>
       <td>${it.order}</td>
-      <td><span class="role ${esc(it.role)}">${esc(it.role)}</span></td>
       <td><span class="tname">${esc(t.name)}</span><span class="cat">${esc(t.category)}</span>
-        <div class="links">${it.links.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">기사${i + 1}</a>`).join('')}
-        <a href="#" data-why="${it.order}">점수 근거</a></div>
+        <div class="links">${it.links.map((u, i) => `<a href="${esc(u)}" target="_blank" rel="noopener">기사${i + 1}</a>`).join('') || '<span class="small" style="color:var(--warn)">기사 없음</span>'}</div>
         ${it.risks.length ? `<div class="small" style="color:var(--warn)">⚠️ ${esc(it.risks.join(' / '))}</div>` : ''}</td>
-      <td><span class="score">${Math.round(t.total)}</span> <span class="muted">${esc(t.trend)}</span></td>
-      <td class="buzz hide-s">${buzzHtml(it.buzz)}</td>
-      <td class="hide-s">${third}</td>
-      <td>${it.role === '포인트회수' ? '' : `<button class="btn small" data-swap="${it.order}">교체</button>`}</td>
-    </tr><tr class="detail" id="why-${it.order}" hidden><td></td><td colspan="6"><div class="reasons">${reasons}</div>${it.note ? `<div class="small muted" style="margin-top:6px">${esc(it.note)}</div>` : ''}</td></tr>`;
+      <td><span class="score">${Math.round(t.total)}</span> <span class="muted">${esc(t.trend)}</span><div class="small muted">${esc(it.buzz)}</div></td>
+      <td class="hide-s"><div class="stance">${esc(op.stance)}</div>${op.points.length ? `<ul class="points">${op.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</td>
+      <td style="white-space:nowrap">${fmtSec(it.est_seconds)}</td>
+    </tr>`;
   }).join('');
   return `
-    <div class="sec-h"><span class="num">1</span><h2>편성안</h2></div>
-    <p class="sub">마음에 안 드는 주제는 <b>교체</b>를 누르면 대본까지 다시 씁니다. 제목을 누르면 복사됩니다.</p>
+    <div class="sec-h"><span class="num">1</span><h2>${esc(plan.format_name)} 계획</h2></div>
+    <p class="sub">주제를 바꾸려면 <a href="#/">주제판</a>에서 새로 만드세요. 제목을 누르면 복사됩니다.</p>
+    ${plan.link ? `<div class="note info" style="margin-bottom:12px"><b class="t">주제를 잇는 고리</b>${esc(plan.link)}</div>` : ''}
     <div class="small muted" style="margin-bottom:6px">제목 후보</div>
     <div class="chips">${plan.titles.map(x => `<span class="chip" data-copy="${esc(x)}">${esc(x)}</span>`).join('')}
       ${plan.thumbnail_text ? `<span class="chip" data-copy="${esc(plan.thumbnail_text)}" title="썸네일 문구">🖼 ${esc(plan.thumbnail_text)}</span>` : ''}</div>
-    <div style="overflow-x:auto"><table class="plan"><thead><tr><th>#</th><th>역할</th><th>주제</th><th>점수</th><th class="hide-s">커뮤니티 반응</th><th class="hide-s">${third}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-    ${plan.chains.length ? `<h3>인과 사슬</h3>${plan.chains.map(c => `<div><b>${esc(c.title)}</b> <span class="muted small">${esc(c.summary)}</span></div>`).join('')}` : ''}
-    ${plan.risks.length || plan.excluded.length ? `<details style="margin-top:14px"><summary class="small">리스크 ${plan.risks.length}건 · 제외·조정 메모 ${plan.excluded.length}건</summary>
-      <ul class="small">${plan.risks.map(r => `<li>[${esc(r.kind)}] ${esc(r.message)}</li>`).join('')}${plan.excluded.map(x => `<li class="muted">${esc(x)}</li>`).join('')}</ul></details>` : ''}`;
+    <div style="overflow-x:auto"><table class="plan"><thead><tr><th>#</th><th>주제</th><th>반응도</th><th class="hide-s">커뮤니티 주장(=채널이 할 말)</th><th>분량</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${plan.risks.length || plan.notes.length ? `<details style="margin-top:14px"><summary class="small">리스크 ${plan.risks.length}건 · 메모 ${plan.notes.length}건</summary>
+      <ul class="small">${plan.risks.map(r => `<li>[${esc(r.kind)}] ${esc(r.message)}</li>`).join('')}${plan.notes.map(x => `<li class="muted">${esc(x)}</li>`).join('')}</ul></details>` : ''}`;
 }
 function bindPlan(pid, d) {
   $$('[data-copy]').forEach(c => c.onclick = () => navigator.clipboard.writeText(c.dataset.copy).then(() => toast('복사했습니다')).catch(() => toast('복사 실패', true)));
-  $$('[data-why]').forEach(a => a.onclick = e => { e.preventDefault(); const r = $('#why-' + a.dataset.why); r.hidden = !r.hidden; });
-  $$('[data-swap]').forEach(b => b.onclick = () => swapModal(pid, Number(b.dataset.swap), d));
-}
-async function swapModal(pid, order, d) {
-  const it = d.items.find(x => x.order === order);
-  modal(`<h2>${order}번 교체</h2><p class="sub">지금: ${esc(it.topic.name)}</p><div class="loading">후보 불러오는 중…</div>`);
-  try {
-    const { candidates } = await api(`/api/projects/${pid}/candidates?order=${order}`);
-    $('#modal-box').innerHTML = `<div class="row"><h2 style="flex:1">${order}번 교체</h2><button class="btn ghost" onclick="closeModal()">닫기</button></div>
-      <p class="sub">지금: ${esc(it.topic.name)} · 역할(${esc(it.role)})은 그대로 두고 주제만 바꿉니다. 대본도 다시 씁니다.</p>
-      ${candidates.length ? candidates.map(c => `<div class="cand-row"><div><b>${esc(c.name)}</b><span class="cat">${esc(c.category)}</span>
-        <div class="small muted">기사 ${c.articles}건 · 커뮤니티 ${esc(c.buzz)} · 마지막 ${esc(c.last_seen)}</div></div>
-        <span class="score">${Math.round(c.total)}</span><button class="btn primary" data-pick="${esc(c.id)}">이걸로</button></div>`).join('') : '<div class="empty">교체할 후보가 없습니다.</div>'}`;
-    $$('[data-pick]', $('#modal-box')).forEach(b => b.onclick = () => {
-      closeModal();
-      runJob(`/api/projects/${pid}/pick`, { order, topic_id: b.dataset.pick }, () => route());
-    });
-  } catch (e) { closeModal(); fail(e); }
 }
 
 function scriptSection(p, d) {
   const w = d.warnings;
   return `
     <div class="sec-h"><span class="num">2</span><h2>대본</h2></div>
-    <p class="sub">고친 뒤 <b>저장</b>하면 다시 점검합니다. <code>#출처:</code> 줄은 녹음 때 읽지 않고, <code>#TODO</code>·<code>#확인</code>은 처리한 뒤 지우세요.</p>
+    <p class="sub">고친 뒤 <b>저장</b>하면 다시 점검합니다. <code>#출처:</code> 줄은 녹음 때 읽지 않고, <code>#TODO</code>·<code>#확인</code>은 처리한 뒤 지우세요. 커뮤니티 글은 사실 근거가 아니라 주장의 근거입니다.</p>
     <div id="warn-box">${warnBox(w)}</div>
     <textarea class="script" id="script" spellcheck="false">${esc(d.script)}</textarea>
     <div class="row" style="margin-top:10px"><div class="meter" id="meter"></div><span class="spacer"></span>
-      <button class="btn" id="rewrite" title="편성은 그대로, 대본만 새로 씁니다(지금 고친 내용은 사라짐)">대본 다시 쓰기</button>
+      <button class="btn" id="rewrite" title="주제는 그대로, 대본만 새로 씁니다(지금 고친 내용은 사라짐)">대본 다시 쓰기</button>
       <button class="btn primary" id="save-script">저장</button></div>`;
 }
 function warnBox(w) {
@@ -597,13 +569,14 @@ function warnBox(w) {
     : `<div class="note ok" style="margin-bottom:12px">점검 통과</div>`;
 }
 function bindScript(pid, p, d) {
-  const ta = $('#script'), meter = $('#meter'), [lo, hi] = TARGET[p.slot];
+  const ta = $('#script'), meter = $('#meter'), [lo, hi] = d.plan.target_chars, cpm = d.chars_per_minute || 300;
   const update = () => {
     const spoken = ta.value.split('\n').filter(l => l.trim() && !l.trim().startsWith('#'));
     const chars = spoken.reduce((n, l) => n + [...l.trim()].length, 0);
     const long = spoken.filter(l => [...l.trim()].length > 25).length;
     const todo = (ta.value.match(/#(TODO|확인)/g) || []).length;
     meter.innerHTML = `<span>글자 <b class="${chars < lo || chars > hi ? 'bad' : ''}">${chars.toLocaleString()}</b> / 목표 ${lo.toLocaleString()}~${hi.toLocaleString()}</span>
+      <span>예상 길이 <b>${fmtSec(chars / cpm * 60)}</b> <span class="muted">(분당 ${cpm}자)</span></span>
       <span>읽는 줄 <b>${spoken.length}</b></span><span>25자 넘는 줄 <b class="${long ? 'bad' : ''}">${long}</b></span><span>확인 주석 <b class="${todo ? 'bad' : ''}">${todo}</b></span>`;
   };
   ta.addEventListener('input', update); update();
@@ -612,15 +585,18 @@ function bindScript(pid, p, d) {
     catch (e) { fail(e); }
   };
   $('#rewrite').onclick = () => {
-    if (!confirm('편성은 그대로 두고 대본을 새로 씁니다. 지금 고친 내용은 사라집니다. 계속할까요?')) return;
+    if (!confirm('주제는 그대로 두고 대본을 새로 씁니다. 지금 고친 내용은 사라집니다. 계속할까요?')) return;
     runJob(`/api/projects/${pid}/rewrite`, {}, () => route());
   };
 }
 
-function audioSection(p) {
-  const au = p.autosub;
+function audioSection(p, d) {
+  const au = p.autosub, cpm = d.chars_per_minute;
+  const speed = au && au.chars_per_minute
+    ? `<div class="small" style="margin-top:6px">실제 읽는 속도: 분당 <b>${au.chars_per_minute}자</b> (지금 대본 길이 기준은 분당 ${cpm}자)
+        ${Math.abs(au.chars_per_minute - cpm) >= 15 ? ` <button class="btn small" id="use-cpm" data-cpm="${au.chars_per_minute}">이 속도로 길이 기준 바꾸기</button>` : ' ✓'}</div>` : '';
   const auto = p.steps.audio && p.srt_auto && au
-    ? `<div class="note ok" style="margin-top:12px">✓ 자막 자동 생성 — ${au.cues}줄 · ${Math.floor(au.duration / 60)}분 ${Math.round(au.duration % 60)}초 · 문장 경계 ${au.boundaries}곳 중 ${au.matched}곳을 음성의 쉼에 맞춤
+    ? `<div class="note ok" style="margin-top:12px">✓ 자막 자동 생성 — ${au.cues}줄 · ${Math.floor(au.duration / 60)}분 ${Math.round(au.duration % 60)}초 · 문장 경계 ${au.boundaries}곳 중 ${au.matched}곳을 음성의 쉼에 맞춤${speed}
         ${au.boundaries && au.matched / au.boundaries < 0.7 ? '<div class="small" style="color:var(--warn)">쉼에 맞춘 비율이 낮습니다 — 대본을 고친 뒤 음성을 만들었다면 대본과 음성이 다를 수 있어요.</div>' : ''}
         <div style="margin-top:6px"><button class="btn small" id="resub">자막 다시 맞추기</button></div></div>`
     : p.steps.audio ? `<div class="note ok" style="margin-top:12px">✓ 자막(SRT) 올림</div>` : '';
@@ -684,6 +660,9 @@ function bindAudio(pid) {
     drop.addEventListener('dragleave', () => drop.classList.remove('over'));
     drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); go(e.dataTransfer.files[0]); });
   }
+  const useCpm = $('#use-cpm');
+  if (useCpm) useCpm.onclick = () => api('/api/settings/channel', { method: 'PUT', body: { chars_per_minute: Number(useCpm.dataset.cpm) } })
+    .then(() => { toast(`분당 ${useCpm.dataset.cpm}자로 바꿨습니다 — 다음 대본부터 10분·3분 길이가 이 속도로 맞춰집니다`); route(); }).catch(fail);
   const resub = $('#resub');
   if (resub) resub.onclick = () => api(`/api/projects/${pid}/autosub`, { body: {} }).then(r => { toast(`자막 ${r.cues}줄로 다시 맞춤`); route(); }).catch(fail);
   $$('[data-up]').forEach(z => {
@@ -760,10 +739,10 @@ function xmlSection(pid, p) {
 }
 function uploadSection(p, plan) {
   if (p.steps.upload) return `<div class="sec-h"><span class="num">6</span><h2>업로드 기록</h2></div>
-    <div class="note ok">기록됨: <b>${esc(p.uploaded_title)}</b> · <a href="https://youtu.be/${esc(p.video_id)}" target="_blank" rel="noopener">${esc(p.video_id)}</a><br><span class="small muted">다음 편성에서 이 주제의 중복을 막고, 성과 탭에서 조회수와 비교합니다.</span></div>`;
+    <div class="note ok">기록됨: <b>${esc(p.uploaded_title)}</b> · <a href="https://youtu.be/${esc(p.video_id)}" target="_blank" rel="noopener">${esc(p.video_id)}</a><br><span class="small muted">성과 탭에서 커뮤니티 반응도·형식(10분·3분)별 조회수와 비교합니다.</span></div>`;
   return `
     <div class="sec-h"><span class="num">6</span><h2>업로드 기록</h2></div>
-    <p class="sub">유튜브에 올린 뒤 기록하면 같은 주제를 반복하지 않고, 성과 분석에 쓰입니다.</p>
+    <p class="sub">유튜브에 올린 뒤 기록하면 성과 분석(반응도 vs 조회수, 10분 vs 3분)에 쓰입니다.</p>
     <div class="grid" style="grid-template-columns:1fr 1fr;align-items:end">
       <label class="field">영상 주소 또는 ID<input type="text" id="vid" placeholder="https://youtu.be/…"></label>
       <label class="field">실제 제목<select id="vtitle">${plan.titles.map(t => `<option>${esc(t)}</option>`).join('')}<option value="__custom">직접 입력…</option></select></label>
@@ -786,12 +765,12 @@ function bindUpload(pid) {
 /* ---------- 성과 ---------- */
 async function historyPage() {
   app.innerHTML = `<div class="head"><div><div class="eyebrow">성과</div><h1>무엇이 잘 됐나</h1></div></div>
-    <div class="card"><div class="row"><p class="sub" style="margin:0;flex:1">예측 점수와 실제 조회수, 제목 패턴, 아침 예상 적중률을 보고 점수 가중치 조정을 제안합니다.</p>
+    <div class="card"><div class="row"><p class="sub" style="margin:0;flex:1">커뮤니티 반응도와 실제 조회수, 10분 묶음 vs 3분 단독, 카테고리별 성과를 봅니다.</p>
       <select id="weeks" style="width:auto"><option value="2">최근 2주</option><option value="4" selected>최근 4주</option><option value="8">최근 8주</option><option value="12">최근 12주</option></select>
       <button class="btn primary" id="run-h">분석하기</button></div>
       <div class="md" id="md" style="margin-top:10px"></div></div>`;
   $('#run-h').onclick = () => runJob('/api/jobs/history', { weeks: Number($('#weeks').value) }, job => {
-    if (job.status === 'done') $('#md').innerHTML = md(job.result.markdown) + '<div class="note info" style="margin-top:12px">주제 고르는 기준(가장 이슈인 순 / 균형)과 가중치는 <a href="#/settings">설정</a>에서 바꿉니다.</div>';
+    if (job.status === 'done') $('#md').innerHTML = md(job.result.markdown);
   });
 }
 function inline(s) {
@@ -829,41 +808,36 @@ async function settingsPage() {
       </div>`).join('')}
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-keys">키 저장</button></div></div>
 
-    <div class="card"><h2>채널</h2><p class="sub">경쟁 채널은 공백도 점수(아무도 안 다룬 주제 가점)에 쓰입니다.</p>
+    <div class="card"><h2>채널</h2><p class="sub">경쟁 채널 영상도 모아 같은 주제에 붙여 둡니다(점수에는 넣지 않습니다 — 주제는 100% 커뮤니티 반응으로 고릅니다).</p>
       <div class="grid" style="grid-template-columns:1fr 1fr">
         <label class="field">내 채널 ID<span class="hint">UC로 시작 · 유튜브 스튜디오 → 설정 → 채널 → 고급 설정</span><input type="text" id="ch-id" value="${esc(s.channel.youtube_channel_id)}"></label>
-        <label class="field">Slack 알림 주소(선택)<span class="hint">편성이 만들어지면 요약을 보냅니다(Incoming Webhook)</span><input type="text" id="ch-slack" value="${esc(s.channel.slack_webhook)}"></label>
+        <label class="field">Slack 알림 주소(선택)<span class="hint">주제판이 만들어지면 요약을 보냅니다(Incoming Webhook)</span><input type="text" id="ch-slack" value="${esc(s.channel.slack_webhook)}"></label>
       </div>
       <label class="field" style="margin-top:12px">경쟁 채널 ID<span class="hint">한 줄에 하나(UC…)</span><textarea id="ch-comp" rows="4">${esc(s.channel.competitors.join('\n'))}</textarea></label>
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-ch">채널 저장</button></div></div>
 
-    <div class="card"><h2>주제 고르는 기준</h2><p class="sub">누르면 바로 저장되고 다음 편성부터 적용됩니다.</p>
-      <div class="tones">
-        <div class="tone ${s.channel.selection_mode === 'hottest' ? 'on' : ''}" data-sel="hottest"><b>가장 이슈인 순</b> <span class="badge opt">기본</span>
-          <pre>지금 제일 뜨거운 주제부터.
-이슈도 = 커뮤니티 반응(글·댓글) 60% + 보도량(기사·언론사 수) 40%
-+ 급상승·다른 채널도 다룸 가점, 최근 다룬 주제 반복은 감점.
-영상마다 이슈 여러 개(저녁: 헤드라인 + 서브 2~4 + 아침 예상 회수 + 내일 쟁점).</pre></div>
-        <div class="tone ${s.channel.selection_mode === 'balanced' ? 'on' : ''}" data-sel="balanced"><b>균형</b>
-          <pre>관심도·공백도(경쟁 채널이 안 다룸)·지속성·적합도의 가중합.
-덜 다뤄진 주제, 오래 갈 주제에 가점. 가중치는 아래에서.</pre></div>
-      </div></div>
-
-    <div class="card" ${s.channel.selection_mode === 'hottest' ? 'hidden' : ''} id="w-card"><h2>점수 가중치</h2><p class="sub">'균형' 방식의 총점 = 네 점수의 가중합(합계로 나눔). 성과 탭의 조정 제안을 보고 바꾸세요.</p>
-      <div class="weights">${[['interest', '관심도', '커뮤니티 반응·상승세'], ['gap', '공백도', '경쟁 채널이 안 다룸'], ['persistence', '지속성', '후속 일정·며칠째'], ['fit', '적합도', '정치 핵심·원인 설명']].map(([k, l, h]) => `
-        <label class="field">${l}<span class="hint">${h}</span><input type="number" min="0" max="100" step="5" data-w="${k}" value="${esc(s.channel.weights[k] ?? 0)}"></label>`).join('')}</div>
-      <div class="row" style="margin-top:10px"><span class="small muted" id="w-sum"></span><span class="spacer"></span><button class="btn primary" id="save-w">가중치 저장</button></div></div>
+    <div class="card"><h2>영상 길이 · 주제판</h2>
+      <p class="sub">주제는 <b>100% 커뮤니티 반응</b>(글 수 + 댓글 + 공감)으로 고르고, 채널의 주장은 그 주제에 대한 <b>커뮤니티 다수 의견</b>으로 씁니다. 사실은 기사로 받칩니다.</p>
+      <div class="grid" style="grid-template-columns:1fr 1fr;align-items:end">
+        <label class="field">AI 음성 분당 글자 수<span class="hint">10분 = 약 <b id="len-long"></b>자, 3분 = 약 <b id="len-short"></b>자. 음성을 올리면 실제 속도가 보입니다</span>
+          <input type="number" id="cpm" min="120" max="600" step="10" value="${esc(s.channel.chars_per_minute)}"></label>
+        <label class="field">주제판 구간(시간)<span class="hint">최근 몇 시간의 커뮤니티 글로 판을 짤지(기본 24)</span>
+          <input type="number" id="wh" min="3" max="72" step="1" value="${esc(s.channel.window_hours)}"></label>
+      </div>
+      <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-len">저장</button></div></div>
 
     <div class="card"><h2>대본 말투</h2><p class="sub">형식(25자 줄, 사실→원인→다음, 출처 주석)은 같고 목소리만 바뀝니다. 누르면 바로 저장됩니다.</p>
       <div class="tones">${s.tones.map(t => `<div class="tone ${t.name === s.channel.tone ? 'on' : ''}" data-tone="${esc(t.name)}"><b>${esc(t.name)}</b>${t.name === '확신형+입담형' ? ' <span class="badge opt">기본</span>' : ''}<pre>${esc(t.rules)}</pre></div>`).join('')}</div></div>
 
-    <div class="card"><div class="row"><div style="flex:1"><h2>커뮤니티 게시판</h2><p class="sub" style="margin:0">주제 선정의 기준(반응)입니다. 제목·댓글 수·시각만 읽고, 대본 근거로는 쓰지 않습니다.</p></div>
+    <div class="card"><div class="row"><div style="flex:1"><h2>커뮤니티 게시판</h2><p class="sub" style="margin:0">주제(반응)와 채널 주장(의견)의 출처입니다. 목록의 제목·댓글·추천 수와, 반응 큰 글의 본문·댓글·댓글 공감 수를 읽습니다(닉네임은 저장하지 않음). 사실 근거로는 쓰지 않습니다.</p></div>
       <button class="btn" id="probe">게시판 점검</button></div>
       <div style="margin-top:10px">${s.communities.map(c => { const r = probe[c.name]; return `<div class="comm">
         <label class="switch" title="${esc(c.name)} 사용"><input type="checkbox" data-comm="${esc(c.name)}" ${c.enabled ? 'checked' : ''}><span></span></label>
         <b>${esc(c.name)}</b>
         <div><div class="u">${esc(c.list_url)}${c.politics_filter ? ' · 정치글만 거름' : ''}</div>${c.note ? `<div class="small" style="color:var(--warn)">${esc(c.note)}</div>` : ''}
-          ${r ? `<div class="small">${r.ok ? `<span style="color:var(--ok)">✓ 정상</span> 글 ${r.posts}개 · 정치 ${r.kept}개 — ${esc(r.samples.slice(0, 2).map(x => x.title).join(' / '))}` : `<span style="color:var(--bad)">✕ ${esc(r.error || (!r.allowed ? 'robots.txt가 막음' : '글을 못 찾음 — 주소·패턴 확인'))}</span>`}</div>` : ''}</div>
+          ${r ? `<div class="small">${r.ok ? `<span style="color:var(--ok)">✓ 목록</span> 글 ${r.posts}개 · 정치 ${r.kept}개 — ${esc(r.samples.slice(0, 2).map(x => x.title).join(' / '))}` : `<span style="color:var(--bad)">✕ ${esc(r.error || (!r.allowed ? 'robots.txt가 막음' : '글을 못 찾음 — 주소·패턴 확인'))}</span>`}</div>
+            ${r.ok && r.detail ? `<div class="small">${r.detail.error ? `<span style="color:var(--bad)">✕ 글 상세</span> ${esc(r.detail.error)}`
+              : r.detail.url ? `<span style="color:${r.detail.body_chars && r.detail.comments ? 'var(--ok)' : 'var(--warn)'}">${r.detail.body_chars && r.detail.comments ? '✓' : '△'} 글 상세</span> 본문 ${r.detail.body_chars}자 · 댓글 ${r.detail.comments}개(공감 읽힘 ${r.detail.comment_votes}) · 글 공감 ${r.detail.post_votes ?? '-'}${!r.detail.comments ? ' — 댓글을 따로 불러오는 사이트면 못 읽습니다(반응은 목록 댓글 수로)' : ''}` : ''}</div>` : ''}` : ''}</div>
         <span class="small muted">${r ? '점검됨' : '미점검'}</span></div>`; }).join('')}</div>
       ${s.probe ? `<div class="small muted" style="margin-top:6px">마지막 점검 ${esc(s.probe.checked_label)}</div>` : ''}</div>
 
@@ -885,20 +859,11 @@ async function settingsPage() {
       toast('채널 저장');
     } catch (e) { fail(e); }
   };
-  const wsum = () => { $('#w-sum').textContent = '합계 ' + $$('[data-w]').reduce((n, i) => n + Number(i.value || 0), 0); };
-  $$('[data-w]').forEach(i => i.oninput = wsum); wsum();
-  $('#save-w').onclick = async () => {
-    const weights = {}; $$('[data-w]').forEach(i => { weights[i.dataset.w] = Number(i.value || 0); });
-    try { await api('/api/settings/channel', { method: 'PUT', body: { weights } }); toast('가중치 저장 — 다음 편성부터 반영'); } catch (e) { fail(e); }
+  const lens = () => { const c = Number($('#cpm').value || 300); $('#len-long').textContent = (c * 10).toLocaleString(); $('#len-short').textContent = (c * 3).toLocaleString(); };
+  $('#cpm').oninput = lens; lens();
+  $('#save-len').onclick = async () => {
+    try { await api('/api/settings/channel', { method: 'PUT', body: { chars_per_minute: Number($('#cpm').value), window_hours: Number($('#wh').value) } }); toast('저장 — 다음 주제판·대본부터 반영'); } catch (e) { fail(e); }
   };
-  $$('[data-sel]').forEach(el => el.onclick = async () => {
-    try {
-      await api('/api/settings/channel', { method: 'PUT', body: { selection_mode: el.dataset.sel } });
-      $$('[data-sel]').forEach(x => x.classList.toggle('on', x === el));
-      $('#w-card').hidden = el.dataset.sel === 'hottest';
-      toast(el.dataset.sel === 'hottest' ? '가장 이슈인 순으로 고릅니다' : '균형 방식으로 고릅니다');
-    } catch (e) { fail(e); }
-  });
   $$('[data-tone]').forEach(el => el.onclick = async () => {
     try { await api('/api/settings/channel', { method: 'PUT', body: { tone: el.dataset.tone } }); $$('[data-tone]').forEach(x => x.classList.toggle('on', x === el)); toast(`말투: ${el.dataset.tone}`); } catch (e) { fail(e); }
   });

@@ -57,13 +57,21 @@ class FeedSpec(BaseModel):
 
 
 class CommunitySpec(BaseModel):
-    """커뮤니티 게시판 하나(주제 선정용 관심 신호. 대본 사실 근거로는 쓰지 않는다)."""
+    """커뮤니티 게시판 하나. 주제 선정과 채널의 주장(커뮤니티 의견)의 출처 — 사실 근거는 기사에서만."""
 
     name: str
     list_url: str  # 목록 페이지(페이지 번호 자리: 1부터면 {page}, 0부터면 {page0})
     post_pattern: str  # 글 주소 정규식(목록 HTML의 a href에 적용, 상대주소 포함)
     politics_filter: bool = False  # 자유게시판처럼 섞인 곳은 정치 키워드로 거른다
     comment_pattern: str | None = None  # 댓글 수 정규식(그룹1=숫자, 글 링크 뒤 HTML에 적용). 없으면 [12] 형식
+    vote_pattern: str | None = None  # 목록의 추천(공감) 수 정규식(그룹1=숫자). 없으면 글 상세에서 읽는다
+    # 글 상세(본문·댓글·공감): 선택자는 'div.post_article', '#bo_v_con', 'div.comment_row'처럼 태그·#id·.class
+    # (띄어 쓰면 '안쪽', 쉼표로 여러 후보). 비우면 가장 긴 글 덩어리를 본문으로, class에 comment·reply·cmt가
+    # 들어간 반복 요소를 댓글로 본다.
+    body_selector: str | None = None
+    comment_selector: str | None = None
+    vote_selector: str | None = None  # 글·댓글 안의 공감 수 요소(비우면 class에 like·symph·vote·recom·good)
+    detail_posts: int = 8  # 수집할 때마다 반응 큰 글 몇 개의 본문·댓글을 읽을지(0이면 목록만)
     pages: int = 1
     enabled: bool = True
     note: str = ""
@@ -73,14 +81,13 @@ class CommunitySpec(BaseModel):
         return self.list_url.format(page=page, page0=page - 1)
 
 
-class SelectionSection(BaseModel):
-    """주제 선정 방식."""
+class BoardSection(BaseModel):
+    """주제판: 지금 커뮤니티에서 뜨는 주제(100% 커뮤니티 반응 기준)."""
 
-    # hottest: 가장 이슈인 순(커뮤니티 반응 + 보도량 + 급상승 + 다른 채널도 다룸) — 영상마다 이슈 4~5개
-    # balanced: 관심·공백·지속·적합 가중합(scoring.weights)
-    mode: Literal["hottest", "balanced"] = "hottest"
-    community_gate: bool = True  # balanced 모드: 저녁 헤드라인·서브, 주간 줄기는 커뮤니티 반응이 있는 주제만
-    derived_queries: int = 10  # 커뮤니티 화제에서 뽑는 네이버 뉴스 검색어 수(근거 기사 확보용)
+    window_hours: int = 24  # 최근 몇 시간의 커뮤니티 글로 판을 짤지
+    min_posts: int = 2  # 판에 올릴 최소 글 수(반응이 아주 큰 글은 하나여도 올린다)
+    size: int = 20  # 판에 보여 줄 주제 수
+    derived_queries: int = 10  # 커뮤니티 화제로 만든 네이버 뉴스 검색어 수(사실 근거 기사 확보용)
 
 
 class ChannelSection(BaseModel):
@@ -119,18 +126,13 @@ class VideosSection(BaseModel):
     blocked_channels: list[str] = Field(default_factory=list)
 
 
-class ScoringSection(BaseModel):
-    """점수 가중치(합계 100)."""
-
-    weights: dict[str, float] = Field(
-        default_factory=lambda: {"interest": 40.0, "gap": 20.0, "persistence": 10.0, "fit": 30.0}
-    )
-
-
 class ScriptSection(BaseModel):
     """대본 설정."""
 
     tone: str = "확신형+입담형"  # 확신형+입담형 | 확신형 | 해설형
+    chars_per_minute: int = (
+        300  # AI 음성이 1분에 읽는 글자 수(10분·3분 대본 길이의 기준). 음성을 올리면 실제 값이 보인다
+    )
 
 
 class ClusteringSection(BaseModel):
@@ -154,12 +156,11 @@ class ChannelConfig(BaseModel):
     sources: SourcesSection = Field(default_factory=SourcesSection)
     images: ImagesSection = Field(default_factory=ImagesSection)
     videos: VideosSection = Field(default_factory=VideosSection)
-    scoring: ScoringSection = Field(default_factory=ScoringSection)
     budget: BudgetSection = Field(default_factory=BudgetSection)
     clustering: ClusteringSection = Field(default_factory=ClusteringSection)
     script: ScriptSection = Field(default_factory=ScriptSection)
     communities: list[CommunitySpec] = Field(default_factory=list)
-    selection: SelectionSection = Field(default_factory=SelectionSection)
+    board: BoardSection = Field(default_factory=BoardSection)
 
 
 @dataclass(frozen=True)

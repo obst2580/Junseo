@@ -1,6 +1,3 @@
-from datetime import timedelta
-from types import SimpleNamespace
-
 from topicradar.cluster import (
     LLMCluster,
     LLMTopic,
@@ -14,16 +11,7 @@ from topicradar.cluster import (
     infer_kind,
     window_title,
 )
-from topicradar.models import ScoreDetail
-from topicradar.score import (
-    Coverage,
-    coverage_adjust,
-    gap_score,
-    heuristic_judge,
-    interest_score,
-    score_topics,
-    total_score,
-)
+from topicradar.score import community_score, heat_stats, score_topics
 
 from trh import kst, sig, topic
 
@@ -135,136 +123,35 @@ def test_llm_cluster_path_and_fallback():
     assert t.scheduled_at == kst("2026-10-08 14:00") and t.follow_up == "본회의 표결"
 
 
-def test_interest_and_trend_boundaries():
-    r0 = interest_score(0, 0)
-    assert r0.score == 30.0 and r0.trend == "→"
-    up = interest_score(5, 1)
-    assert up.trend == "↑" and up.rise == 3.0  # 상승률 상한 3
-    down = interest_score(1, 4)
-    assert down.trend == "↓"
-    sat = interest_score(25, 25)
-    assert sat.score == 70.0  # 기사 수 포화(100×0.4) + 상승률 0(50×0.6)
-    assert interest_score(1, 1, trend_ratio=1.0).rise == 1.0
-
-
-def test_gap_boundaries():
-    assert gap_score(0, 40.0).score == 100.0
-    assert gap_score(0, 39.9).score == 69.9
-    assert gap_score(1, 90).score == 60.0
-    assert gap_score(4, 90).score == 0.0
-    assert "미설정" in gap_score(0, 10, has_competitors=False).reason
-
-
-def test_judge_and_coverage_adjust():
-    happening = topic("h", "막말 설전", [B1], category="국회")
-    p, f = heuristic_judge(happening)
-    assert p.score <= 30 and "단순 발언" in f.reason
-    econ = topic(
-        "e",
-        "환율 급등",
-        [sig("환율 1,430원 돌파", "2026-10-07 09:00", "외국인 매도가 겹쳤다.")],
-        category="경제",
-    )
-    _, fe = heuristic_judge(econ)
-    assert "정치 쟁점" in fe.reason
-    base = ScoreDetail(score=60, reason="기본")
-    t = topic("t", "플랫폼", [A1, A2])
-    day = kst("2026-10-08 00:00").date()
-    old = Coverage("2026-10-07_evening", kst("2026-10-07 00:00").date(), kst("2026-10-07 17:00"))
-    assert coverage_adjust(t, base, [old], day).score == 35  # 새 전개 없음 −25
-    early = Coverage("2026-10-07_morning", kst("2026-10-07 00:00").date(), kst("2026-10-07 05:30"))
-    assert coverage_adjust(t, base, [early], day).score == 70  # 이후 기사 2건 → 시리즈 +10
-    far = Coverage("2026-09-20_evening", kst("2026-09-20 00:00").date(), None)
-    assert coverage_adjust(t, base, [far], day).score == 60
-    assert (
-        total_score(
-            {"interest": ScoreDetail(score=100, reason=""), "gap": ScoreDetail(score=0, reason="")},
-            {"interest": 50, "gap": 50},
-        )
-        == 50.0
-    )
-
-
-def test_score_topics_with_llm_and_competitors():
-    t = topic("t", "막말 설전", [B1, sig("x", "2026-10-07 16:00", kind="competitor")])
-
-    class FakeLLM:
-        def json(self, task, system, prompt, output, **kw):
-            return output(
-                judgements=[
-                    {
-                        "topic_id": "t",
-                        "persistence": 20,
-                        "persistence_reason": "단발",
-                        "fit": 10,
-                        "fit_reason": "설전",
-                    }
-                ]
-            )
-
-    out = score_topics(
-        [t],
-        window_start=kst("2026-10-07 05:30"),
-        window_end=kst("2026-10-07 17:00"),
-        prev_counts={},
-        target_day=kst("2026-10-07 00:00").date(),
-        llm=FakeLLM(),
-    )
-    assert out[0].scores["fit"].reason == "설전" and out[0].competitor_hits == 1
-    assert out[0].scores["gap"].score == 60.0
-    assert out[0].total == round(
-        (out[0].scores["interest"].score * 40 + 60 * 20 + 20 * 10 + 10 * 30) / 100, 1
-    )
-    _ = SimpleNamespace, timedelta
-
-
-def test_issue_score_hottest_mode():
-    from datetime import date
-
-    from topicradar.score import Coverage, issue_score
-
-    s, e = kst("2026-10-08 05:30"), kst("2026-10-08 17:00")
+def test_community_score_is_community_only():
+    """반응도 = 커뮤니티 글·댓글·공감만(기사·경쟁 채널은 점수에 안 들어감)."""
+    s, e = kst("2026-10-07 18:00"), kst("2026-10-08 18:00")
     hot = topic(
         "hot",
         "본회의 가결",
         [
             sig("본회의 가결", "2026-10-08 14:50", url="https://a.example/1"),
-            sig("본회의서 법안 통과", "2026-10-08 15:00", url="https://b.example/2"),
-            sig("가결 축하", "2026-10-08 15:10", kind="community", site="다모앙", comments=200),
+            sig("가결 축하", "2026-10-08 15:10", kind="community", site="다모앙", comments=200, votes=150),
             sig("드디어 통과", "2026-10-08 15:20", kind="community", site="보배드림", comments=100),
             sig("[해설] 본회의 가결", "2026-10-08 16:00", kind="competitor"),
         ],
     )
-    quiet = topic("q", "세수 결손", [sig("세수 결손 전망", "2026-10-08 10:00", url="https://a.example/3")])
-    d, rise = issue_score(hot, s, e, 0, 1, True)
-    assert (
-        "커뮤니티 글 2건(댓글 300)" in d.reason
-        and "기사 2건(언론 2곳)" in d.reason
-        and "다른 채널 1편" in d.reason
-    )
-    assert rise > 0 and "직전 대비" in d.reason
-    q, _ = issue_score(quiet, s, e, 0, 0, True)
-    assert d.score > q.score and q.reason.startswith("커뮤니티 글 0건")
-    n, _ = issue_score(quiet, s, e, 0, 0, False)  # 커뮤니티 데이터 없으면 보도량만
-    assert "커뮤니티" not in n.reason and n.score > q.score
-    out = score_topics(
-        [hot, quiet],
-        window_start=s,
-        window_end=e,
-        prev_counts={},
-        target_day=date(2026, 10, 8),
-        coverage={
-            "q": [
-                Coverage(
-                    plan_id="2026-10-07_evening", day=date(2026, 10, 7), window_end=kst("2026-10-07 17:00")
-                )
-            ]
-        },
-        community_mode=True,
-        mode="hottest",
-    )
-    assert out[0].id == "hot" and set(out[0].scores) == {"issue"} and out[0].trend == "↑"
-    assert out[1].scores["repeat"].score == -25 and out[1].total == max(0.0, q.score - 25)
+    news_only = topic("n", "세수 결손", [sig(f"세수 결손 {i}", "2026-10-08 10:00") for i in range(30)])
+    d, rise = community_score(hot, s, e, prev_posts=0)
+    assert d.reason.startswith("커뮤니티 글 2건 · 댓글 300 · 공감 150") and "직전 대비" in d.reason
+    assert rise > 0 and d.score > 80
+    n, _ = community_score(news_only, s, e, prev_posts=0)
+    assert n.score == 0.0  # 기사 30건이어도 커뮤니티 반응이 없으면 0
+    assert heat_stats(hot.buzz()) == (2, 300, 150)
+    # 공감이 많을수록 높다(댓글이 같아도)
+    liked = topic("l", "x", [sig("가결 축하", "2026-10-08 15:10", kind="community", comments=20, votes=300)])
+    plain = topic("p", "y", [sig("가결 축하", "2026-10-08 15:11", kind="community", comments=20)])
+    assert community_score(liked, s, e, 0)[0].score > community_score(plain, s, e, 0)[0].score
+    # 글이 하나뿐이면 급상승 가점은 없다
+    assert "직전 대비" not in community_score(plain, s, e, 0)[0].reason
+    out = score_topics([news_only, plain, hot], window_start=s, window_end=e, prev_counts={"hot": 4})
+    assert [t.id for t in out] == ["hot", "p", "n"] and set(out[0].scores) == {"heat"}
+    assert out[0].trend == "↓"  # 직전 4건 → 지금 2건
 
 
 def test_no_chaining_on_realistic_volume():

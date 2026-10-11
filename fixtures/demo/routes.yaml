@@ -25,6 +25,99 @@ routes:
 - match: https://theqoo\.net/hot\?page=1
   file: community/더쿠.html
   content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7960573$
+  file: community/다모앙/7960573.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7276152$
+  file: community/다모앙/7276152.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7403141$
+  file: community/다모앙/7403141.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7539017$
+  file: community/다모앙/7539017.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7166668$
+  file: community/다모앙/7166668.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7848702$
+  file: community/다모앙/7848702.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7337502$
+  file: community/다모앙/7337502.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7197069$
+  file: community/다모앙/7197069.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7508829$
+  file: community/다모앙/7508829.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7660561$
+  file: community/다모앙/7660561.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7250674$
+  file: community/다모앙/7250674.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=8037316\&bm=1$
+  file: community/보배드림/8037316.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7141100\&bm=1$
+  file: community/보배드림/7141100.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7696419\&bm=1$
+  file: community/보배드림/7696419.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7450902\&bm=1$
+  file: community/보배드림/7450902.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7032265\&bm=1$
+  file: community/보배드림/7032265.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7916747\&bm=1$
+  file: community/보배드림/7916747.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7071880\&bm=1$
+  file: community/보배드림/7071880.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7962166$
+  file: community/뽐뿌/7962166.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7907521$
+  file: community/뽐뿌/7907521.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=8018140$
+  file: community/뽐뿌/8018140.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7146176$
+  file: community/뽐뿌/7146176.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7443918$
+  file: community/뽐뿌/7443918.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7215919$
+  file: community/뽐뿌/7215919.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7393242$
+  file: community/더쿠/7393242.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7368727$
+  file: community/더쿠/7368727.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7801153$
+  file: community/더쿠/7801153.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7521624$
+  file: community/더쿠/7521624.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7362577$
+  file: community/더쿠/7362577.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7716567$
+  file: community/더쿠/7716567.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7164647$
+  file: community/더쿠/7164647.html
+  content_type: text/html; charset=utf-8
 - match: /robots\.txt$
   generate: robots_allow
 - match: youtube/v3/playlistItems

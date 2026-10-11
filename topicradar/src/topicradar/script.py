@@ -1,10 +1,11 @@
-"""대본 초안.
+"""대본 초안(10분 묶음 / 3분 단독).
 
-- Claude 경로: 채널 규칙 + 슬롯 규칙을 시스템 프롬프트로, 편성안과 근거 기사를 입력으로 한 번 호출.
-- 오프라인 경로: 수집 기사 문장을 사실 → 원인 → 다음 수순 순서로 뽑아 존댓말로 바꾸고
-  자막 단위로 끊는 '추출형 골격'. 근거 문장이 없으면 지어내지 않고 `#TODO` 주석을 남긴다.
+- 주장은 커뮤니티 다수 의견(주제별 opinion), 사실은 기사에서만.
+- Claude 경로: 채널 규칙 + 형식 규칙을 시스템 프롬프트로, 영상 계획(주제·의견·근거 기사)을 입력으로 한 번 호출.
+- 오프라인 경로: 기사 문장(사실) + 공감 많은 커뮤니티 글·댓글(주장)을 옮겨 놓은 '골격'.
+  근거가 없으면 지어내지 않고 `#TODO`, 말로 다듬어야 할 곳은 `#확인` 주석을 남긴다.
 - 어느 경로든 `validate_script()`가 규칙(글자 수, 25자, 출처 주석, 수집 밖 수치·인용,
-  금지 표현, 회수 문구)을 점검해 리포트에 싣는다.
+  커뮤니티 글 그대로 옮김, 금지 표현)을 점검해 리포트에 싣는다.
 """
 
 from __future__ import annotations
@@ -26,12 +27,11 @@ from studio_core.text import (
     wrap_subtitle,
 )
 from topicradar import prompts
-from topicradar.cluster import signal_tokens, window_title
-from topicradar.models import Signal, SlotItem, SlotPlan
+from topicradar.cluster import signal_tokens
+from topicradar.models import Signal, VideoItem, VideoPlan
 
 log = logging.getLogger("topicradar.script")
 
-CHAR_RANGE = {"morning": (900, 1100), "evening": (1500, 1800), "weekly": (2500, 3000)}
 LINE_LIMIT = 25
 BANNED = ["충격", "경악", "난리", "대박", "소름", "어이없", "한심"]
 HEDGES = ["로 보입니다", "것 같습니다", "듯합니다", "아닐까"]
@@ -39,8 +39,7 @@ _CAUSE_RE = re.compile(r"(때문|이유|배경|책임|탓|반발|여파|원인|�
 _NEXT_RE = re.compile(
     r"(예정|전망|방침|계획|다음 달|다음 주|내주|내달|후속|수순|할 것으로|되면|하면|시행된다|준비에 들어|검토하겠다|검토한다)"
 )
-_ORDINALS = ["첫째", "둘째", "셋째", "넷째"]
-_CAUSE_QUESTION = "근데 왜 이렇게 됐을까요?"
+_OPINION_BRIDGE = "이 소식에 대한 반응은 분명합니다."
 _ARTICLE_ENDING_RE = re.compile(r"(밝혔습니다|알려졌습니다|전해졌습니다|밝혔다|했다|였다|이다)[.]?$")
 SLANG = ["존나", "씨발", "시발", "개새", "병신", "좆"]
 
@@ -64,7 +63,7 @@ def _core_tokens(topic: object) -> set[str]:
     return {t for t in toks if t not in GENERIC_TOKENS and len(t) >= 2}
 
 
-def _ranked_signals(item: SlotItem, plan: SlotPlan) -> list[Signal]:
+def _ranked_signals(item: VideoItem, plan: VideoPlan) -> list[Signal]:
     # 수동 일정(schedule)은 편집 메모라 대본 사실 문장으로 쓰지 않는다.
     sigs = [s for s in item.topic.signals if s.kind not in ("competitor", "own", "schedule", "community")]
     # 주제 이름과 고유어가 하나도 안 겹치는 기사는 빼고 쓴다(잘못 묶인 기사가 대본에 섞이지 않게).
@@ -112,7 +111,7 @@ def _pick(
     return out
 
 
-def _source_for(text: str, item: SlotItem) -> str | None:
+def _source_for(text: str, item: VideoItem) -> str | None:
     """문장이 나온 기사 URL(앞 12자 일치)."""
     core = re.sub(r"\s+", "", text)[:12]
     for s in item.topic.signals:
@@ -121,7 +120,7 @@ def _source_for(text: str, item: SlotItem) -> str | None:
     return None
 
 
-def _cited(text: str, item: SlotItem, prefix: str = "") -> list[str]:
+def _cited(text: str, item: VideoItem, prefix: str = "") -> list[str]:
     """출처를 찾아 붙이는 줄 만들기(수치·인용이 있을 때)."""
     url = _source_for(text, item)
     lines = wrap_subtitle(f"{prefix}{to_polite(text)}", LINE_LIMIT)
@@ -130,143 +129,68 @@ def _cited(text: str, item: SlotItem, prefix: str = "") -> list[str]:
     return lines
 
 
-ALLOWED_EXTRA_HEADINGS = ("오늘 볼 포인트", "이번 주 인과 사슬", "다음 주 전망")
+ALLOWED_EXTRA_HEADINGS = ("정리",)  # 10분 묶음의 마무리 단락
 
 
-def section_heading(item: SlotItem, plan: SlotPlan) -> str:
-    """편성 항목의 대본 헤더(`## ` 뒤). 오프라인 초안과 Claude 대본이 같은 헤더를 쓴다."""
-    name = item.topic.name
-    if item.role == "포인트회수":
-        return f"아침 포인트 회수: {short_name(name, 16)}"
-    if item.role == "내일쟁점":
-        return f"{'다음 주 전망' if plan.slot == 'weekly' else '내일 쟁점'}: {short_name(name, 14)}"
-    title = name if plan.slot == "weekly" else window_title(item.topic, plan.window_start, plan.window_end)
-    return short_name(title, 20)
+def section_heading(item: VideoItem, plan: VideoPlan | None = None) -> str:
+    """영상 항목의 대본 헤더(`## ` 뒤). 오프라인 초안과 Claude 대본이 같은 헤더를 쓴다."""
+    return short_name(item.topic.name, 20)
+
+
+def _opinion_lines(item: VideoItem, tone: str) -> list[str]:
+    """커뮤니티 주장(오프라인): 공감 많은 글·댓글을 옮겨 두고 말로 다듬게 표시한다."""
+    op = item.opinion
+    if op is None or not op.posts:
+        return ["#TODO: 커뮤니티 의견 없음 — 주장 보강"]
+    lines = [_OPINION_BRIDGE] if tone != "해설형" else []
+    for text in [
+        op.stance,
+        *op.points[:2],
+    ]:  # 커뮤니티 말 그대로(존댓말 변환은 하지 않는다 — 다듬을 곳으로 표시)
+        lines += wrap_subtitle(text.rstrip(".") + ".", LINE_LIMIT)
+    lines.append(f"#확인: 커뮤니티 주장({op.heat_label}) — 글·댓글을 옮겨 둔 것, 채널의 말로 다듬기")
+    return lines
 
 
 def topic_block(
-    item: SlotItem,
-    plan: SlotPlan,
-    facts: int = 2,
-    header: str | None = None,
-    tone: str = prompts.DEFAULT_TONE,
+    item: VideoItem, plan: VideoPlan, facts: int = 2, tone: str = prompts.DEFAULT_TONE
 ) -> list[str]:
-    """주제 하나: 사실 → 원인 → 다음 수순."""
+    """주제 하나: 사실(기사) → 커뮤니티 주장 → 다음 수순(기사 속 일정)."""
     sigs = _ranked_signals(item, plan)
     used: set[str] = set()
-    lines = [f"## {header or section_heading(item, plan)}"]
+    lines = [f"## {section_heading(item, plan)}"]
     fact_sents = _pick(sigs, None, used, facts)
     if len(fact_sents) < facts:  # 기사가 적으면 같은 기사의 다음 사실 문장까지
         fact_sents += _pick(sigs, None, used, facts - len(fact_sents), per_signal=2)
+    if not fact_sents:
+        lines.append("#TODO: 사실 확인 — 기사 없음")
     for n, (sent, url) in enumerate(fact_sents):
         lines += _sentence_lines(sent, url, force_source=(n == 0))
-    cause = _pick(sigs, _CAUSE_RE, used, 1)
-    if cause:
-        if tone != "해설형":  # 확신형 구어: 시청자의 의문을 대신 던지고 답한다
-            lines.append(_CAUSE_QUESTION)
-        lines += _sentence_lines(*cause[0])
-    else:
-        lines.append("#TODO: 원인 문장 보강 — 수집 기사에 원인 서술 없음")
+    lines += _opinion_lines(item, tone)
     nxt = _pick(sigs, _NEXT_RE, used, 1)
     if nxt:
         lines += _sentence_lines(*nxt[0])
     elif item.topic.follow_up and re.sub(r"\s+", "", item.topic.follow_up) not in used:
         lines += wrap_subtitle(to_polite(item.topic.follow_up), LINE_LIMIT)
-    else:
-        lines.append("#TODO: 다음 수순 보강 — 후속 일정 근거 없음")
     return lines
 
 
-# ---- 슬롯별 오프라인 초안 ---------------------------------------------------
-
-
-def _morning(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> list[str]:
+def heuristic_script(plan: VideoPlan, tone: str = prompts.DEFAULT_TONE) -> str:
+    """오프라인 골격(말투는 연결 문장 정도만 — 입담과 주장 다듬기는 Claude 경로에서)."""
     lines: list[str] = []
-    for it in plan.items:
-        if it.role in ("헤드라인", "서브"):
-            lines += topic_block(it, plan, facts=3 if it.role == "헤드라인" else 2, tone=tone) + [""]
-    points = plan.items_by_role("오늘의포인트")
-    for it in points:
-        lines += topic_block(it, plan, facts=2, tone=tone) + [""]
-    if points:
-        lines += [
-            "## 오늘 볼 포인트",
-            f"오늘 볼 포인트 {'세' if len(points) == 3 else len(points)} 가지입니다.",
-        ]
-        for n, it in enumerate(points):
-            lines.append(f"{_ORDINALS[n]}, {short_name(it.topic.name, 16)}.")
-            if it.impact:
-                lines += _cited(it.impact, it)
-            else:
-                lines.append("#TODO: '어떻게 되면 뭐가 달라지는지' 한 문장 보강")
-    return lines
-
-
-def _result_signals(it: SlotItem, plan: SlotPlan) -> list[Signal]:
-    """회수 항목의 결과 기사(저녁 윈도우 안)."""
-    start, end = plan.window_start, plan.window_end
-    return [s for s in _ranked_signals(it, plan) if start and end and start <= s.published_at < end]
-
-
-def _recall_lines(it: SlotItem, plan: SlotPlan) -> list[str]:
-    name = short_name(it.topic.name, 16)
-    lines = [f"## {section_heading(it, plan)}"]
-    if it.hit == "hit" and it.actual:
-        lines += _cited(it.actual, it, prefix="아침에 말씀드린 대로, ")
-    elif it.hit == "miss" and it.actual:
-        lines += _cited(it.actual, it, prefix="아침 예상과 달리, ")
-        why = _pick(_result_signals(it, plan), _CAUSE_RE, set(), 1)
-        lines += _sentence_lines(*why[0]) if why else ["#TODO: 예상과 달라진 이유 보강"]
-    elif it.actual:
-        lines += _cited(it.actual, it)
-        lines.append("#확인: 아침 예상과의 일치 여부 수동 판정 필요")
-    else:
-        lines += wrap_subtitle(f"{name} 결과는 아직 나오지 않았습니다.", LINE_LIMIT)
-        return lines
-    # '그래서 다음은'은 결과가 나온 뒤의 기사에서만 찾는다(표결 전 '가결 전망' 같은 문장 배제).
-    nxt = _pick(_result_signals(it, plan), _NEXT_RE, {re.sub(r"\s+", "", it.actual or "")}, 1)
-    follow = nxt[0][0] if nxt else None
-    if follow:
-        lines += _cited(follow, it, prefix="그래서 다음은, ")
-    else:
-        lines.append("#TODO: '그래서 다음은' 한 문장 보강")
-    return lines
-
-
-def _evening(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> list[str]:
-    lines: list[str] = []
-    for it in plan.items_by_role("헤드라인", "서브"):
-        lines += topic_block(it, plan, facts=3 if it.role == "헤드라인" else 2, tone=tone) + [""]
-    for it in plan.items_by_role("포인트회수"):
-        lines += _recall_lines(it, plan) + [""]
-    for it in plan.items_by_role("내일쟁점"):
-        lines += topic_block(it, plan, facts=1, tone=tone)
-    return lines
-
-
-def _weekly(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> list[str]:
-    lines: list[str] = []
-    if plan.chains:
-        lines += ["## 이번 주 인과 사슬", "이번 주는 하나의 흐름으로 읽힙니다."]
-        for ch in plan.chains:
-            lines += wrap_subtitle(f"{ch.title}의 흐름입니다.", LINE_LIMIT)
-            for step in ch.summary.split(" → "):
-                lines += wrap_subtitle(f"{step}.", LINE_LIMIT)
-        lines += ["#확인: 사슬 연결은 키워드 기반 추정 — 인과 관계를 녹음 전 검토", ""]
-    for it in plan.items_by_role("줄기", "서브"):
-        lines += topic_block(it, plan, facts=5 if it.role == "줄기" else 3, tone=tone) + [""]
-    nxt = plan.items_by_role("내일쟁점")
-    if nxt:
-        lines += ["## 다음 주 전망"]
-        for it in nxt:
-            lines += topic_block(it, plan, facts=1, tone=tone)[1:]
-    return lines
-
-
-def heuristic_script(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> str:
-    """오프라인 추출형 초안(말투는 연결 문장 정도만 반영 — 입담은 Claude 경로에서)."""
-    body = {"morning": _morning, "evening": _evening, "weekly": _weekly}[plan.slot](plan, tone)
-    return normalize_script("\n".join(body))
+    for n, it in enumerate(plan.items):
+        block = topic_block(it, plan, facts=3 if n == 0 else 2, tone=tone)
+        if n == 0 and plan.format == "long" and plan.link:
+            block[1:1] = wrap_subtitle(plan.link, LINE_LIMIT)  # 첫 문장: 묶은 주제들을 잇는 고리
+        lines += block + [""]
+    if plan.format == "long":
+        lead = plan.items[0].opinion if plan.items else None
+        lines += ["## 정리"]
+        lines += wrap_subtitle(plan.link, LINE_LIMIT) if plan.link else []
+        if lead is not None and lead.posts:
+            lines += wrap_subtitle(lead.stance.rstrip(".") + ".", LINE_LIMIT)
+        lines.append("#확인: 마무리 — 묶은 주제들을 하나의 주장으로 맺기")
+    return normalize_script("\n".join(lines))
 
 
 # ---- Claude 경로 ---------------------------------------------------------
@@ -277,7 +201,21 @@ def tone_rules(tone: str) -> str:
     return prompts.TONES.get(tone, prompts.TONES[prompts.DEFAULT_TONE])
 
 
-def llm_script(llm: ClaudeLLM, plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> str:
+def _opinion_payload(item: VideoItem) -> dict | None:
+    op = item.opinion
+    if op is None:
+        return None
+    return {
+        "stance": op.stance,
+        "points": op.points,
+        "minority": op.minority,
+        "questions": op.questions,
+        "heat": op.heat_label,
+        "samples": [{"kind": x.kind, "text": x.text, "votes": x.votes} for x in op.samples[:6]],
+    }
+
+
+def llm_script(llm: ClaudeLLM, plan: VideoPlan, tone: str = prompts.DEFAULT_TONE) -> str:
     """Claude로 대본 생성."""
     items = []
     for it in plan.items:
@@ -285,17 +223,12 @@ def llm_script(llm: ClaudeLLM, plan: SlotPlan, tone: str = prompts.DEFAULT_TONE)
         items.append(
             {
                 "order": it.order,
-                "role": it.role,
                 "heading": section_heading(it, plan),
                 "topic": it.topic.name,
                 "category": it.topic.category,
-                "chain": it.chain,
-                "expected": it.expected,
-                "impact": it.impact,
-                "actual": it.actual,
-                "hit": it.hit,
-                "hit_reason": it.hit_reason,
                 "est_seconds": it.est_seconds,
+                "opinion": _opinion_payload(it),
+                "follow_up": it.topic.follow_up,
                 "articles": [
                     {
                         "url": s.url,
@@ -305,16 +238,12 @@ def llm_script(llm: ClaudeLLM, plan: SlotPlan, tone: str = prompts.DEFAULT_TONE)
                     }
                     for s in sigs
                 ],
-                "community_titles": [
-                    f"[{b.metric.get('site', '')} 댓글 {b.metric.get('comments', 0)}] {b.title}"
-                    for b in sorted(it.topic.buzz(), key=lambda b: -int(b.metric.get("comments", 0)))[:5]
-                ],
             }
         )
     payload = {
-        "slot": plan.slot,
-        "date": plan.date.isoformat(),
-        "chains": [c.model_dump() for c in plan.chains],
+        "format": plan.spec.name,
+        "target_chars": list(plan.target_chars),
+        "link": plan.link,
         "risk_notes": [f.message for f in plan.risk_flags if f.kind in ("법적", "여론조사")],
         "items": items,
     }
@@ -324,25 +253,25 @@ def llm_script(llm: ClaudeLLM, plan: SlotPlan, tone: str = prompts.DEFAULT_TONE)
             prompts.SCRIPT_RULES,
             prompts.SCRIPT_STRUCTURE_RULES,
             tone_rules(tone),
-            prompts.SLOT_SCRIPT_RULES[plan.slot],
+            prompts.FORMAT_SCRIPT_RULES[plan.format],
         ]
     )
-    prompt = "편성안과 근거 기사:\n" + json.dumps(payload, ensure_ascii=False)
+    prompt = "영상 계획과 근거 기사·커뮤니티 의견:\n" + json.dumps(payload, ensure_ascii=False)
     text = normalize_script(llm.text("script", system, prompt, role="script"))
     problems = structure_problems(text, plan)
-    if problems:  # 편성과 다른 대본이면 한 번 고쳐 쓰게 한다
-        log.warning("대본이 편성과 다름 → 다시 씀: %s", "; ".join(problems))
+    if problems:  # 계획과 다른 대본이면 한 번 고쳐 쓰게 한다
+        log.warning("대본이 영상 계획과 다름 → 다시 씀: %s", "; ".join(problems))
         retry = (
             prompt
-            + "\n\n방금 쓴 대본이 편성안과 달랐다: "
+            + "\n\n방금 쓴 대본이 영상 계획과 달랐다: "
             + "; ".join(problems)
-            + "\nitems 순서대로, 항목마다 heading을 `## heading` 그대로 달고 그 항목 기사로만 다시 써라."
+            + "\nitems 순서대로, 항목마다 heading을 `## heading` 그대로 달고 그 항목 기사·의견으로만 다시 써라."
         )
         text = normalize_script(llm.text("script_retry", system, retry, role="script"))
     return text
 
 
-def draft_script(plan: SlotPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFAULT_TONE) -> str:
+def draft_script(plan: VideoPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFAULT_TONE) -> str:
     """대본 초안(실패 시 오프라인 초안)."""
     if llm is not None:
         try:
@@ -374,12 +303,10 @@ def spoken_lines(text: str) -> list[str]:
     return [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
 
 
-def _heading_matches(heading: str, item: SlotItem, plan: SlotPlan) -> bool:
+def _heading_matches(heading: str, item: VideoItem, plan: VideoPlan) -> bool:
     want = section_heading(item, plan)
     if heading.strip() == want:
         return True
-    if item.role == "내일쟁점" and plan.slot == "weekly" and heading.startswith("다음 주 전망"):
-        return True  # 주간은 다음 주 전망을 한 단락으로 묶는다
     core = _core_tokens(item.topic)
     got = {t for t in tokenize(heading)}
     return bool(core) and len(got & core) >= max(1, min(2, len(core) // 2))
@@ -401,40 +328,49 @@ def _choppy_runs(spoken: list[str], short: int = 20, run: int = 3) -> int:
     return count
 
 
-def structure_problems(text: str, plan: SlotPlan) -> list[str]:
-    """대본 헤더가 편성 항목과 맞는지(빠진 주제, 편성에 없는 단락)."""
+def structure_problems(text: str, plan: VideoPlan) -> list[str]:
+    """대본 헤더가 영상 계획 항목과 맞는지(빠진 주제, 계획에 없는 단락)."""
     headings = [ln[3:].strip() for ln in text.splitlines() if ln.startswith("## ")]
     problems: list[str] = []
     claimed: set[int] = set()
     for it in plan.items:
-        shared_ok = it.role == "내일쟁점" and plan.slot == "weekly"
         hit = next(
-            (
-                i
-                for i, h in enumerate(headings)
-                if (shared_ok or i not in claimed) and _heading_matches(h, it, plan)
-            ),
-            None,
+            (i for i, h in enumerate(headings) if i not in claimed and _heading_matches(h, it, plan)), None
         )
         if hit is None:
-            problems.append(f"편성 주제가 대본에 없음: '{short_name(it.topic.name, 24)}'")
+            problems.append(f"고른 주제가 대본에 없음: '{short_name(it.topic.name, 24)}'")
         else:
             claimed.add(hit)
+    extra_ok = ALLOWED_EXTRA_HEADINGS if plan.format == "long" else ()
     for i, h in enumerate(headings):
-        if i not in claimed and not h.startswith(ALLOWED_EXTRA_HEADINGS):
-            problems.append(f"편성에 없는 단락: '{h}'")
+        if i not in claimed and not (extra_ok and h.startswith(extra_ok)):
+            problems.append(f"계획에 없는 단락: '{h}'")
     return problems
 
 
-def validate_script(text: str, plan: SlotPlan) -> list[str]:
+def _copied_lines(spoken: list[str], plan: VideoPlan, min_len: int = 10, prefix: int = 18) -> int:
+    """커뮤니티 글 제목·댓글을 그대로 옮긴 곳 수(공백 빼고 비교: 짧은 글은 통째로, 긴 글은 앞 18자)."""
+    texts = []
+    for it in plan.items:
+        for s in it.topic.buzz():
+            texts.append(re.sub(r"\s+", "", s.title))
+            texts += [re.sub(r"\s+", "", c.get("t", "")) for c in s.metric.get("top_comments", [])]
+    keys = {t[:prefix] for t in texts if len(t) >= min_len}
+    if not keys:
+        return 0
+    joined = re.sub(r"\s+", "", "".join(spoken))
+    return sum(1 for k in keys if k in joined)
+
+
+def validate_script(text: str, plan: VideoPlan) -> list[str]:
     """대본 규칙 점검 결과(경고 문장 목록)."""
     warns: list[str] = []
     lines = [ln.strip() for ln in text.splitlines()]
     spoken = spoken_lines(text)
     n = count_chars(lines)
-    lo, hi = CHAR_RANGE[plan.slot]
+    lo, hi = plan.target_chars
     if not lo <= n <= hi:
-        warns.append(f"글자 수 {n:,}자 — 목표 {lo:,}~{hi:,}자")
+        warns.append(f"글자 수 {n:,}자 — 목표 {lo:,}~{hi:,}자({plan.spec.name})")
     choppy = _choppy_runs(spoken)
     if choppy:
         warns.append(
@@ -446,7 +382,7 @@ def validate_script(text: str, plan: SlotPlan) -> list[str]:
     if not any(ln.startswith("## ") for ln in lines):
         warns.append("`## 주제명` 헤더 없음(newsclip 장면 분할 불가)")
     else:
-        warns += [f"편성과 다름 — {p}" for p in structure_problems(text, plan)]
+        warns += [f"계획과 다름 — {p}" for p in structure_problems(text, plan)]
     # 사실 근거는 뉴스·일정만(커뮤니티 글은 출처가 될 수 없다)
     sources = " ".join(s.text for it in plan.items for s in it.topic.signals if s.kind != "community")
     src_nums = set(numbers_in(sources))
@@ -472,7 +408,10 @@ def validate_script(text: str, plan: SlotPlan) -> list[str]:
         warns.append(f"수치·인용 줄 {missing_src}곳에 `#출처:` 주석 없음")
     foreign = [ln for ln in lines if ln.startswith("#출처:") and ln.split(":", 1)[1].strip() not in urls]
     if foreign:
-        warns.append(f"수집되지 않은 출처 URL {len(foreign)}개")
+        warns.append(f"수집되지 않은 출처 URL {len(foreign)}개(커뮤니티 글은 출처가 될 수 없음)")
+    copied = _copied_lines(spoken, plan)
+    if copied:
+        warns.append(f"커뮤니티 글·댓글을 그대로 옮긴 곳 {copied}개 — 채널의 말로 바꿀 것")
     banned = sorted({w for w in BANNED if any(w in ln for ln in spoken)})
     if banned:
         warns.append(f"금지 표현: {', '.join(banned)}")
@@ -485,15 +424,6 @@ def validate_script(text: str, plan: SlotPlan) -> list[str]:
     hedges = sum(1 for ln in spoken for h in HEDGES if h in ln)
     if hedges > 2:
         warns.append(f"완충 표현 {hedges}회 — 사실관계가 불확실한 곳에만")
-    joined = "\n".join(spoken)
-    if plan.slot == "morning" and plan.items_by_role("오늘의포인트") and "오늘 볼 포인트" not in joined:
-        warns.append("'오늘 볼 포인트 세 가지' 마무리 없음")
-    if plan.slot == "evening":
-        for it in plan.items_by_role("포인트회수"):
-            if it.hit == "hit" and "아침에 말씀드린 대로" not in joined:
-                warns.append(f"hit '{it.topic.name}' 회수 문구('아침에 말씀드린 대로') 없음")
-            if it.hit == "miss" and "아침 예상과 달리" not in joined:
-                warns.append(f"miss '{it.topic.name}' 회수 문구('아침 예상과 달리') 없음")
     todos = sum(1 for ln in lines if ln.startswith(("#TODO", "#확인")))
     if todos:
         warns.append(f"편집자 확인 주석 {todos}개(#TODO/#확인) — 녹음 전 처리")

@@ -9,9 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-SlotName = Literal["morning", "evening", "weekly"]
-Role = Literal["헤드라인", "서브", "오늘의포인트", "포인트회수", "내일쟁점", "줄기"]
-Hit = Literal["hit", "miss", "pending"]
+VideoFormat = Literal["long", "short"]
 SignalKind = Literal["domestic", "press", "overseas", "schedule", "competitor", "own", "community"]
 NEWS_KINDS = ("domestic", "press", "overseas")
 TopicKind = Literal["overseas", "announcement", "scheduled", "event"]
@@ -19,6 +17,27 @@ Trend = Literal["↑", "→", "↓"]
 
 ECON_CATEGORY = "경제"
 POLITICS_CORE = ("국회", "정부", "사법", "선거", "외교안보")
+
+
+class FormatSpec(BaseModel):
+    """영상 형식: 10분 묶음(연관 주제 2~3개) / 3분 단독(주제 1개)."""
+
+    name: str
+    minutes: float
+    min_topics: int
+    max_topics: int
+
+
+FORMATS: dict[str, FormatSpec] = {
+    "long": FormatSpec(name="10분 묶음", minutes=10, min_topics=2, max_topics=3),
+    "short": FormatSpec(name="3분 단독", minutes=3, min_topics=1, max_topics=1),
+}
+
+
+def target_chars(fmt: str, chars_per_minute: int) -> tuple[int, int]:
+    """형식별 대본 글자 수 목표(읽는 부분, ±10%)."""
+    n = FORMATS[fmt].minutes * chars_per_minute
+    return int(round(n * 0.9, -1)), int(round(n * 1.1, -1))
 
 
 def signal_id(url: str, title: str = "") -> str:
@@ -73,7 +92,7 @@ class Topic(BaseModel):
     scores: dict[str, ScoreDetail] = Field(default_factory=dict)
     total: float = 0.0
     covered_in: list[str] = Field(default_factory=list)
-    # 슬롯 선정용 보조 필드
+    # 군집 보조 필드(기사 속 일정·다음 수순)
     kind: TopicKind = "event"
     scheduled_at: datetime | None = None
     follow_up: str | None = None
@@ -91,7 +110,7 @@ class Topic(BaseModel):
         return sigs
 
     def buzz(self, start: datetime | None = None, end: datetime | None = None) -> list[Signal]:
-        """커뮤니티 신호(관심 근거, 사실 근거 아님)."""
+        """커뮤니티 글(반응·의견의 근거, 사실 근거 아님)."""
         sigs = [s for s in self.signals if s.kind == "community"]
         if start is not None and end is not None:
             sigs = [s for s in sigs if start <= s.published_at < end]
@@ -110,20 +129,37 @@ class Topic(BaseModel):
         return out
 
 
-class SlotItem(BaseModel):
-    """슬롯 구성 항목."""
+class OpinionSample(BaseModel):
+    """의견 근거가 된 커뮤니티 글·댓글 하나(화면 표시·대본 참고용, 그대로 인용하지 않는다)."""
 
-    topic: Topic
-    order: int
-    role: Role
-    est_seconds: int = 60
-    expected: str | None = None  # 아침 포인트의 예상 결과 한 문장
-    impact: str | None = None  # "이게 어떻게 되면 뭐가 달라지는지" 한 문장
-    actual: str | None = None  # 저녁 회수 시 실제 결과
-    hit: Hit | None = None
-    hit_reason: str | None = None
-    chain: str | None = None  # 주간: 소속 인과 사슬
-    note: str | None = None
+    site: str
+    kind: Literal["post", "comment"]
+    text: str
+    votes: int = 0
+    comments: int = 0
+    url: str = ""
+
+
+class Opinion(BaseModel):
+    """주제 하나에 대한 커뮤니티 의견 — 채널이 대신 말할 주장."""
+
+    stance: str  # 다수 의견 한 문장
+    points: list[str] = Field(default_factory=list)  # 주장·근거(공감 많은 순)
+    minority: str | None = None  # 소수·반대 의견
+    questions: list[str] = Field(default_factory=list)  # 시청자가 궁금해하는 것
+    posts: int = 0
+    comments: int = 0
+    votes: int = 0
+    samples: list[OpinionSample] = Field(default_factory=list)
+    by: Literal["claude", "heuristic"] = "heuristic"
+
+    @property
+    def heat_label(self) -> str:
+        """'글 12 · 댓글 340 · 공감 1,200'."""
+        parts = [f"글 {self.posts}", f"댓글 {self.comments:,}"]
+        if self.votes:
+            parts.append(f"공감 {self.votes:,}")
+        return " · ".join(parts)
 
 
 class RiskFlag(BaseModel):
@@ -134,41 +170,83 @@ class RiskFlag(BaseModel):
     message: str
 
 
-class Chain(BaseModel):
-    """주간 인과 사슬."""
+class BoardTopic(BaseModel):
+    """주제판의 주제 하나(점수·의견은 판을 만든 시점 기준)."""
 
-    title: str
-    summary: str
+    topic_id: str
+    name: str
+    category: str
+    score: float
+    reason: str
+    trend: Trend = "→"
+    opinion: Opinion
+    articles: int = 0  # 사실 근거가 될 기사 수
+    links: list[str] = Field(default_factory=list)
+    covered_in: list[str] = Field(default_factory=list)  # 이미 만든 영상
+
+
+class Bundle(BaseModel):
+    """10분 묶음 추천: 연관 주제 2~3개와 잇는 고리."""
+
     topic_ids: list[str]
+    link: str
 
 
-class SlotPlan(BaseModel):
-    """슬롯(아침/저녁/주간) 편성안."""
+class Board(BaseModel):
+    """주제판: 지금 커뮤니티에서 뜨는 주제."""
 
-    date: dt.date
-    slot: SlotName
-    items: list[SlotItem] = Field(default_factory=list)
+    id: str
+    created_at: datetime
+    window_start: datetime
+    window_end: datetime
+    topics: list[BoardTopic] = Field(default_factory=list)
+    bundles: list[Bundle] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    llm_mode: Literal["claude", "offline"] = "offline"
+
+    def get(self, topic_id: str) -> BoardTopic | None:
+        """판의 주제."""
+        return next((t for t in self.topics if t.topic_id == topic_id), None)
+
+
+class VideoItem(BaseModel):
+    """영상에 넣은 주제 하나."""
+
+    topic: Topic
+    order: int
+    opinion: Opinion | None = None
+    est_seconds: int = 60
+    note: str | None = None
+
+
+class VideoPlan(BaseModel):
+    """영상 하나(10분 묶음 / 3분 단독)의 계획. id = 프로젝트 폴더명."""
+
+    id: str
+    format: VideoFormat
+    created_at: datetime
+    board_id: str | None = None
+    items: list[VideoItem] = Field(default_factory=list)
+    link: str | None = None  # 10분 묶음: 주제들을 하나의 이야기로 잇는 고리
+    target_chars: tuple[int, int] = (2700, 3300)
     titles: list[str] = Field(default_factory=list)
     thumbnail_text: str = ""
     risk_flags: list[RiskFlag] = Field(default_factory=list)
-    chains: list[Chain] = Field(default_factory=list)
-    excluded: list[str] = Field(default_factory=list)  # 제외 사유 메모
+    notes: list[str] = Field(default_factory=list)
     window_start: datetime | None = None
     window_end: datetime | None = None
     llm_mode: Literal["claude", "offline"] = "offline"
-    # draft: 추천 편성만(대본 전, 사용자가 주제를 고르는 단계) / final: 대본까지
-    status: Literal["draft", "final"] = "final"
-    candidate_ids: list[str] = Field(default_factory=list)  # draft에서 고를 수 있게 보여 줄 다른 주제
 
     @property
-    def plan_id(self) -> str:
-        """프로젝트 폴더명과 같은 ID."""
-        return f"{self.date.isoformat()}_{self.slot}"
+    def date(self) -> dt.date:
+        """만든 날(KST)."""
+        return self.created_at.date()
 
-    def items_by_role(self, *roles: Role) -> list[SlotItem]:
-        """역할로 거른 항목."""
-        return [i for i in self.items if i.role in roles]
+    @property
+    def spec(self) -> FormatSpec:
+        """형식 정보."""
+        return FORMATS[self.format]
 
     def topic_ids(self) -> set[str]:
-        """편성된 주제 ID."""
+        """넣은 주제 ID."""
         return {i.topic.id for i in self.items}

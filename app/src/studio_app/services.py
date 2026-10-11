@@ -9,7 +9,7 @@ import asyncio
 import json
 import re
 import shutil
-from datetime import date, datetime, time, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -27,26 +27,23 @@ from studio_core.envfile import mask, read_env, set_env
 from studio_core.llm import auth_marker, get_llm
 from topicradar import pipeline as tr
 from topicradar.db import Store
-from topicradar.models import SlotPlan
+from topicradar.models import FORMATS, Board, VideoPlan
 from topicradar.prompts import TONES
-from topicradar.report import SLOT_KO, buzz_cell, render_report
+from topicradar.report import board_text, buzz_cell, render_report
 from topicradar.script import validate_script
-from topicradar.slots import PICKABLE_ROLES
 
-PROJECT_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(morning|evening|weekly)$")
-SLOT_ORDER = {"morning": 0, "evening": 1, "weekly": 2}
+PROJECT_RE = tr.PROJECT_RE
 UPLOAD_NAMES = {"narration.srt", "narration.wav"}
 AUTO_MARK = "narration.srt.auto"  # 자막을 음성에서 자동으로 맞췄다는 표시(결과 요약 JSON)
 WEEKDAYS = "월화수목금토일"
-WEIGHT_KEYS = ("interest", "gap", "persistence", "fit")
-COLLECT_FRESH = timedelta(minutes=20)  # 이보다 최근에 수집했으면 편성 전에 다시 수집하지 않는다
+COLLECT_FRESH = timedelta(minutes=20)  # 이보다 최근에 수집했으면 주제판 전에 다시 수집하지 않는다
 
 KEYS: list[dict[str, Any]] = [
     {
         "key": "ANTHROPIC_API_KEY",
         "label": "Claude API 키",
         "required": True,
-        "why": "주제 판단·대본(입담 말투)·장면 나누기. 없으면 기사 문장을 옮긴 골격 대본만 나옵니다.",
+        "why": "커뮤니티 의견 정리·10분 묶음 추천·대본(입담 말투)·장면 나누기. 없으면 기사 문장과 공감 많은 글을 옮긴 골격만 나옵니다.",
         "how": "Claude Console → API Keys → Create Key(만료는 '없음' 또는 90일 이상 권장) · Billing에서 월 사용 한도 설정",
         "url": "https://console.anthropic.com/settings/keys",
     },
@@ -70,7 +67,7 @@ KEYS: list[dict[str, Any]] = [
         "key": "YOUTUBE_API_KEY",
         "label": "YouTube API 키",
         "required": True,
-        "why": "경쟁 채널이 다룬 주제, 내 영상 조회수, 영상 자료 검색.",
+        "why": "내 영상 조회수(성과), 영상 자료 검색, 경쟁 채널 영상 표시.",
         "how": "Google Cloud Console → YouTube Data API v3 사용 → 사용자 인증 정보 → API 키",
         "url": "https://console.cloud.google.com/apis/library/youtube.googleapis.com",
     },
@@ -119,58 +116,54 @@ def project_path(settings: Settings, pid: str) -> Path:
     return path
 
 
-def load_plan(project: Path) -> SlotPlan:
+def load_plan(project: Path) -> VideoPlan:
     """plan.json."""
-    return SlotPlan.model_validate_json((project / "plan.json").read_text(encoding="utf-8"))
+    return VideoPlan.model_validate_json((project / "plan.json").read_text(encoding="utf-8"))
 
 
-def label_for(day: date, slot: str) -> str:
-    """'10월 8일(목) 저녁 리뷰'."""
-    return f"{day.month}월 {day.day}일({WEEKDAYS[day.weekday()]}) {SLOT_KO.get(slot, slot)}"
+def _when(iso: str | datetime | None) -> str:
+    """ISO 시각 → '10월 8일(목) 17:00'(KST, 브라우저 시간대와 무관)."""
+    if not iso:
+        return ""
+    dt = (datetime.fromisoformat(iso) if isinstance(iso, str) else iso).astimezone(KST)
+    return f"{dt.month}월 {dt.day}일({WEEKDAYS[dt.weekday()]}) {dt:%H:%M}"
 
 
-def suggest_slot(now: datetime) -> str | None:
-    """지금 만들 만한 슬롯."""
-    t = now.timetz().replace(tzinfo=None)
-    if time(3, 0) <= t < time(10, 0):
-        return "morning"
-    if time(15, 0) <= t < time(23, 0):
-        return "weekly" if now.weekday() == 5 and t >= time(19, 0) else "evening"
-    return None
-
-
-def default_date(slot: str, now: datetime | None = None) -> date:
-    """슬롯 기본 날짜(주간은 이번/다가오는 일요일)."""
-    return tr.default_day(slot, now)  # type: ignore[arg-type]
+def label_for(pid: str) -> str:
+    """'2026-10-08_1805_long' → '10월 8일(목) 18:05 · 10분 묶음'."""
+    m = re.match(r"^(\d{4}-\d{2}-\d{2})_(\d{2})(\d{2})(?:-\d+)?_(long|short)$", pid)
+    if not m:
+        return pid
+    dt = datetime.fromisoformat(f"{m.group(1)}T{m.group(2)}:{m.group(3)}").replace(tzinfo=KST)
+    return f"{_when(dt)} · {FORMATS[m.group(4)].name}"
 
 
 # ---- 상태·프로젝트 ---------------------------------------------------------------------------------
 
 
 def status(settings: Settings) -> dict[str, Any]:
-    """홈 화면 상단: 시각, Claude 연결 여부, 처음 설정 점검, 추천 슬롯."""
+    """화면 상단: 시각, Claude 연결 여부, 처음 설정 점검, 마지막 수집·주제판."""
     now = now_kst()
     cfg = load_channel(settings)
     missing = [k["label"] for k in KEYS if k["required"] and not settings.env(k["key"])]
     with open_store(settings) as store:
         last = store.get_meta("last_collect")
+        board = store.latest_board()
     setup: list[str] = []
     rejected = auth_marker(settings).exists() and bool(settings.env("ANTHROPIC_API_KEY"))
     if rejected:
         setup.append(
             "Claude API 키가 거부됐습니다(만료·삭제됐거나 잘못된 키) — 설정에서 새 키를 넣으세요. "
-            "그동안 대본은 오프라인 초안으로 나옵니다"
+            "그동안 의견 정리·대본은 오프라인 골격으로 나옵니다"
         )
     if missing:
         setup.append("API 키 입력: " + ", ".join(missing))
     if not shutil.which("ffmpeg"):
         setup.append(
-            "ffmpeg 설치(영상 자료 구간 자르기용) — 맥: brew install ffmpeg / 윈도우: winget install Gyan.FFmpeg"
+            "ffmpeg 설치(음성 변환·영상 자료 구간 자르기용) — 맥: brew install ffmpeg / 윈도우: winget install Gyan.FFmpeg"
         )
-    if not cfg.channel.competitors:
-        setup.append("경쟁 채널 ID 입력(공백도 점수용)")
     if cfg.communities and not (settings.data_dir / "probe.json").exists():
-        setup.append("커뮤니티 게시판 점검(설정 → 게시판 점검)")
+        setup.append("커뮤니티 게시판 점검(설정 → 게시판 점검) — 글·본문·댓글이 제대로 읽히는지 확인")
     llm = (
         "offline"
         if settings.env("STUDIO_LLM").lower() == "offline" or not settings.env("ANTHROPIC_API_KEY")
@@ -180,23 +173,16 @@ def status(settings: Settings) -> dict[str, Any]:
     )
     return {
         "now": now.isoformat(),
-        "now_label": f"{now.month}월 {now.day}일({WEEKDAYS[now.weekday()]}) {now:%H:%M}",
+        "now_label": _when(now),
         "llm": llm,
         "last_collect": last,
         "last_collect_label": _when(last),
+        "board_id": board.id if board else None,
+        "board_label": _when(board.created_at) if board else "",
+        "chars_per_minute": cfg.script.chars_per_minute,
         "setup": setup,
-        "suggest": suggest_slot(now),
-        "defaults": {s: default_date(s, now).isoformat() for s in ("morning", "evening", "weekly")},
         "root": str(settings.root),
     }
-
-
-def _when(iso: str | None) -> str:
-    """ISO 시각 → '10월 8일 17:00'(KST, 브라우저 시간대와 무관)."""
-    if not iso:
-        return ""
-    dt = datetime.fromisoformat(iso).astimezone(KST)
-    return f"{dt.month}월 {dt.day}일 {dt:%H:%M}"
 
 
 def _uploads(store: Store) -> dict[str, Any]:
@@ -212,17 +198,14 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 def project_summary(settings: Settings, pid: str, uploads: dict[str, Any]) -> dict[str, Any]:
     """목록 한 줄."""
-    m = PROJECT_RE.match(pid)
-    assert m
-    day, slot = date.fromisoformat(m.group(1)), m.group(2)
     d = settings.projects_dir / pid
-    title = ""
-    status = ""
+    title, fmt, topics = "", pid.rsplit("_", 1)[-1], []
     if (d / "plan.json").exists():
         try:
             plan = load_plan(d)
             title = plan.titles[0] if plan.titles else ""
-            status = plan.status
+            fmt = plan.format
+            topics = [it.topic.name for it in plan.items]
         except ValueError:
             title = ""
     up = uploads.get(pid)
@@ -235,11 +218,11 @@ def project_summary(settings: Settings, pid: str, uploads: dict[str, Any]) -> di
     }
     return {
         "id": pid,
-        "date": day.isoformat(),
-        "slot": slot,
-        "label": label_for(day, slot),
+        "format": fmt,
+        "format_name": FORMATS[fmt].name if fmt in FORMATS else fmt,
+        "label": label_for(pid),
         "title": title,
-        "status": status,
+        "topics": topics,
         "steps": steps,
         "has_wav": (d / "narration.wav").exists(),
         "srt_auto": (d / AUTO_MARK).exists(),
@@ -254,17 +237,31 @@ def list_projects(settings: Settings) -> list[dict[str, Any]]:
     if not settings.projects_dir.exists():
         return []
     names = [p.name for p in settings.projects_dir.iterdir() if p.is_dir() and PROJECT_RE.match(p.name)]
-    names.sort(key=lambda n: (n.split("_")[0], SLOT_ORDER[n.split("_")[1]]), reverse=True)
+    names.sort(reverse=True)
     with open_store(settings) as store:
         ups = _uploads(store)
     return [project_summary(settings, n, ups) for n in names]
 
 
-def _item_dict(plan: SlotPlan, it: Any) -> dict[str, Any]:
+def _opinion_dict(op: Any) -> dict[str, Any] | None:
+    if op is None:
+        return None
+    return {
+        "stance": op.stance,
+        "points": op.points,
+        "minority": op.minority,
+        "questions": op.questions,
+        "heat": op.heat_label,
+        "posts": op.posts,
+        "by": op.by,
+        "samples": [s.model_dump() for s in op.samples],
+    }
+
+
+def _item_dict(plan: VideoPlan, it: Any) -> dict[str, Any]:
     t = it.topic
     return {
         "order": it.order,
-        "role": it.role,
         "est_seconds": it.est_seconds,
         "topic": {
             "id": t.id,
@@ -272,17 +269,12 @@ def _item_dict(plan: SlotPlan, it: Any) -> dict[str, Any]:
             "category": t.category,
             "total": round(t.total, 1),
             "trend": t.trend,
-            "kind": t.kind,
-            "scores": {k: {"score": round(v.score), "reason": v.reason} for k, v in t.scores.items()},
+            "reason": t.scores["heat"].reason if "heat" in t.scores else "",
         },
         "buzz": buzz_cell(t),
+        "articles": len(t.news_signals()),
         "links": t.top_links(2),
-        "expected": it.expected,
-        "impact": it.impact,
-        "actual": it.actual,
-        "hit": it.hit,
-        "hit_reason": it.hit_reason,
-        "chain": it.chain,
+        "opinion": _opinion_dict(it.opinion),
         "note": it.note,
         "risks": [f.message for f in plan.risk_flags if f.topic_id == t.id],
     }
@@ -302,8 +294,12 @@ def project_detail(settings: Settings, pid: str) -> dict[str, Any]:
         plan={
             "titles": plan.titles,
             "thumbnail_text": plan.thumbnail_text,
-            "chains": [c.model_dump() for c in plan.chains],
-            "excluded": plan.excluded,
+            "format": plan.format,
+            "format_name": plan.spec.name,
+            "minutes": plan.spec.minutes,
+            "target_chars": list(plan.target_chars),
+            "link": plan.link,
+            "notes": plan.notes,
             "risks": [{"kind": f.kind, "message": f.message} for f in plan.risk_flags if f.topic_id is None],
             "window": (
                 f"{plan.window_start:%m-%d %H:%M} ~ {plan.window_end:%m-%d %H:%M}"
@@ -311,34 +307,57 @@ def project_detail(settings: Settings, pid: str) -> dict[str, Any]:
                 else ""
             ),
             "llm_mode": plan.llm_mode,
-            "status": plan.status,
-            "pickable_roles": PICKABLE_ROLES[plan.slot],
+            "board_id": plan.board_id,
         },
-        candidates=_candidate_rows(settings, plan.candidate_ids) if plan.status == "draft" else [],
         items=[_item_dict(plan, it) for it in plan.items],
         script=script,
         warnings=validate_script(script, plan) if script else [],
+        chars_per_minute=load_channel(settings).script.chars_per_minute,
     )
     return out
 
 
-def _candidate_rows(settings: Settings, ids: list[str]) -> list[dict[str, Any]]:
-    """주제 고르기 화면의 다른 후보(저장소에서 최신 상태로)."""
+def board_info(settings: Settings) -> dict[str, Any]:
+    """가장 최근 주제판(없으면 board=None)."""
     with open_store(settings) as store:
-        topics = [t for t in (store.get_topic(i) for i in ids) if t is not None]
-    return [
-        {
-            "id": t.id,
-            "name": t.name,
-            "category": t.category,
-            "total": round(t.total, 1),
-            "buzz": buzz_cell(t),
-            "articles": len(t.news_signals()),
-            "links": t.top_links(2),
-            "reason": next(iter(t.scores.values())).reason if t.scores else "",
-        }
-        for t in topics
-    ]
+        board = store.latest_board()
+    if board is None:
+        return {"board": None}
+    return {"board": _board_dict(board)}
+
+
+def _board_dict(board: Board) -> dict[str, Any]:
+    names = {t.topic_id: t.name for t in board.topics}
+    age = (now_kst() - board.created_at).total_seconds() / 60
+    return {
+        "id": board.id,
+        "created_label": _when(board.created_at),
+        "age_minutes": round(age),
+        "window": f"{board.window_start:%m-%d %H:%M} ~ {board.window_end:%m-%d %H:%M}",
+        "window_hours": round((board.window_end - board.window_start).total_seconds() / 3600),
+        "llm_mode": board.llm_mode,
+        "notes": board.notes,
+        "topics": [
+            {
+                "id": t.topic_id,
+                "rank": n,
+                "name": t.name,
+                "category": t.category,
+                "score": round(t.score),
+                "reason": t.reason,
+                "trend": t.trend,
+                "articles": t.articles,
+                "links": t.links,
+                "covered": [label_for(x) for x in t.covered_in if PROJECT_RE.match(x)],
+                "opinion": _opinion_dict(t.opinion),
+            }
+            for n, t in enumerate(board.topics, start=1)
+        ],
+        "bundles": [
+            {"topic_ids": b.topic_ids, "names": [names.get(i, i) for i in b.topic_ids], "link": b.link}
+            for b in board.bundles
+        ],
+    }
 
 
 def save_script(settings: Settings, pid: str, text: str) -> list[str]:
@@ -354,32 +373,6 @@ def save_script(settings: Settings, pid: str, text: str) -> list[str]:
     rel = path.relative_to(settings.root) if path.is_relative_to(settings.root) else path
     (d / "report.md").write_text(render_report(plan, rel, warnings), encoding="utf-8")
     return warnings
-
-
-def replace_candidates(settings: Settings, pid: str, order: int, limit: int = 20) -> list[dict[str, Any]]:
-    """교체 후보: 이 편성 윈도우 앞뒤로 보도된 주제 중 아직 편성 안 된 것, 총점 순."""
-    d = project_path(settings, pid)
-    plan = load_plan(d)
-    if not any(i.order == order for i in plan.items):
-        raise KeyError(f"순서 {order} 항목 없음")
-    used = plan.topic_ids()
-    start = plan.window_start or datetime.combine(plan.date, time(0), tzinfo=KST)
-    since = start - timedelta(days=7 if plan.slot == "weekly" else 2)
-    with open_store(settings) as store:
-        topics = [t for t in store.topics_since(since) if t.id not in used and t.news_signals()]
-    topics.sort(key=lambda t: -t.total)
-    return [
-        {
-            "id": t.id,
-            "name": t.name,
-            "category": t.category,
-            "total": round(t.total, 1),
-            "buzz": buzz_cell(t),
-            "last_seen": f"{t.last_seen:%m-%d %H:%M}",
-            "articles": len(t.news_signals()),
-        }
-        for t in topics[:limit]
-    ]
 
 
 _YT_RE = re.compile(r"(?:v=|youtu\.be/|shorts/|live/|embed/)([A-Za-z0-9_-]{11})")
@@ -418,9 +411,10 @@ def settings_info(settings: Settings) -> dict[str, Any]:
             "competitors": cfg.channel.competitors,
             "slack_webhook": cfg.channel.slack_webhook,
             "tone": cfg.script.tone,
-            "weights": {k: round(v) for k, v in cfg.scoring.weights.items()},
-            "selection_mode": cfg.selection.mode,
+            "chars_per_minute": cfg.script.chars_per_minute,
+            "window_hours": cfg.board.window_hours,
         },
+        "formats": {k: {"name": v.name, "minutes": v.minutes} for k, v in FORMATS.items()},
         "tones": [{"name": n, "rules": r} for n, r in TONES.items()],
         "communities": [
             {
@@ -461,17 +455,16 @@ def save_channel(settings: Settings, data: dict[str, Any]) -> None:
         set_channel_value(settings, "channel", "competitors", [x.strip() for x in items if x.strip()])
     if "tone" in data:
         set_channel_value(settings, "script", "tone", data["tone"])
-    if "selection_mode" in data:
-        if data["selection_mode"] not in ("hottest", "balanced"):
-            raise ValueError("선정 방식은 hottest | balanced")
-        set_channel_value(settings, "selection", "mode", data["selection_mode"])
-    if "weights" in data:
-        w = {k: float(v) for k, v in data["weights"].items()}
-        if set(w) != set(WEIGHT_KEYS) or any(not 0 <= v <= 100 for v in w.values()) or sum(w.values()) <= 0:
-            raise ValueError("가중치는 관심도·공백도·지속성·적합도 네 개, 각각 0~100")
-        set_channel_value(
-            settings, "scoring", "weights", {k: int(w[k]) if w[k].is_integer() else w[k] for k in WEIGHT_KEYS}
-        )
+    if "chars_per_minute" in data:
+        cpm = int(data["chars_per_minute"])
+        if not 120 <= cpm <= 600:
+            raise ValueError("분당 글자 수는 120~600")
+        set_channel_value(settings, "script", "chars_per_minute", cpm)
+    if "window_hours" in data:
+        wh = int(data["window_hours"])
+        if not 3 <= wh <= 72:
+            raise ValueError("주제판 구간은 3~72시간")
+        set_channel_value(settings, "board", "window_hours", wh)
 
 
 def toggle_community(settings: Settings, name: str, enabled: bool) -> None:
@@ -490,7 +483,7 @@ def save_raw(settings: Settings, text: str) -> None:
 def job_collect(settings: Settings, say: Say, since: datetime | None = None) -> dict[str, Any]:
     """수집."""
     cfg = load_channel(settings)
-    say("커뮤니티 게시판·뉴스·경쟁 채널 수집 중…")
+    say("커뮤니티 게시판(글·본문·댓글)·뉴스 수집 중…")
     with open_store(settings) as store:
         rep = asyncio.run(tr.run_collect(settings, cfg, store, since))
     for k, v in sorted(rep.counts.items()):
@@ -518,60 +511,46 @@ def _collect_if_stale(settings: Settings, say: Say) -> None:
     job_collect(settings, say)
 
 
-def job_slot(
-    settings: Settings, say: Say, slot: str, day: date, collect: bool = True, draft: bool = True
-) -> dict[str, Any]:
-    """편성 만들기(필요하면 먼저 수집). draft=True(화면 기본)면 주제 후보까지만 — 대본은 고른 뒤에."""
+def job_board(settings: Settings, say: Say, collect: bool = True) -> dict[str, Any]:
+    """주제판 만들기(필요하면 먼저 수집): 지금 뜨는 주제 + 커뮤니티 의견 + 10분 묶음 추천."""
     if collect:
         _collect_if_stale(settings, say)
     cfg = load_channel(settings)
     llm = get_llm(settings)
-    say(f"{label_for(day, slot)} 주제 고르는 중… ({'Claude' if llm else '오프라인 휴리스틱'})")
+    say(f"주제 묶고 커뮤니티 의견 정리하는 중… ({'Claude' if llm else '오프라인 휴리스틱'})")
     with open_store(settings) as store:
-        res = tr.run_slot(settings, cfg, store, slot, day, llm, draft=draft)  # type: ignore[arg-type]
-    if draft:
-        say(
-            f"추천 편성 {len(res.plan.items)}개 + 다른 후보 {len(res.plan.candidate_ids)}개 — 화면에서 골라 주세요"
-        )
-    else:
-        say(f"대본 초안 작성 완료 — 점검 {len(res.warnings)}건")
+        board = tr.run_board(cfg, store, llm)
+    say(f"주제 {len(board.topics)}개 · 10분 묶음 추천 {len(board.bundles)}개 — 화면에서 골라 주세요")
     if cfg.channel.slack_webhook:
         try:
-            if asyncio.run(tr.send_slack(cfg, res)):
+            if asyncio.run(tr.send_slack(cfg, board_text(board))):
                 say("Slack 전송 완료")
-        except Exception as e:  # 알림 실패는 편성 결과에 영향 없음
+        except Exception as e:  # 알림 실패는 결과에 영향 없음
             say(f"⚠️ Slack 전송 실패: {e}")
-    return {"project": res.plan.plan_id, "warnings": res.warnings, "draft": draft}
+    return {"board": board.id, "topics": len(board.topics), "bundles": len(board.bundles)}
 
 
-def job_finalize(settings: Settings, say: Say, pid: str, picks: list[list[str]]) -> dict[str, Any]:
-    """고른 주제로 편성 확정 → 예상·회수·제목 → 대본."""
-    d = project_path(settings, pid)
+def job_video(settings: Settings, say: Say, board_id: str, topic_ids: list[str], fmt: str) -> dict[str, Any]:
+    """판에서 고른 주제로 영상 대본(10분 묶음 / 3분 단독)."""
+    if fmt not in FORMATS:
+        raise ValueError("형식은 long(10분 묶음) | short(3분 단독)")
     cfg = load_channel(settings)
     llm = get_llm(settings)
-    say(f"고른 주제 {len(picks)}개로 대본 쓰는 중… ({'Claude' if llm else '오프라인 휴리스틱'})")
+    say(
+        f"{FORMATS[fmt].name} 대본 쓰는 중(주제 {len(topic_ids)}개)… ({'Claude' if llm else '오프라인 골격'})"
+    )
     with open_store(settings) as store:
-        res = tr.run_finalize(settings, cfg, store, d, [(t, r) for t, r in picks], llm)
+        res = tr.run_video(settings, cfg, store, board_id, topic_ids, fmt, llm)
     say(f"대본 초안 작성 완료 — 점검 {len(res.warnings)}건")
-    return {"project": pid, "warnings": res.warnings}
-
-
-def job_pick(settings: Settings, say: Say, pid: str, order: int, topic_id: str) -> dict[str, Any]:
-    """항목 교체 후 대본 다시 쓰기."""
-    d = project_path(settings, pid)
-    cfg = load_channel(settings)
-    with open_store(settings) as store:
-        res = tr.run_pick(settings, cfg, store, d, order, topic_id, get_llm(settings))
-    return {"project": pid, "warnings": res.warnings}
+    return {"project": res.plan.id, "warnings": res.warnings}
 
 
 def job_rewrite(settings: Settings, say: Say, pid: str) -> dict[str, Any]:
-    """같은 편성으로 대본만 다시 쓰기(키를 넣은 뒤 Claude 대본으로 바꿀 때)."""
+    """같은 계획으로 대본만 다시 쓰기(키를 넣은 뒤 Claude 대본으로 바꿀 때)."""
     d = project_path(settings, pid)
     cfg = load_channel(settings)
     with open_store(settings) as store:
-        plan = tr.plan_from_project(store, d)
-        res = tr.write_project(settings, store, plan, get_llm(settings), cfg.script.tone)
+        res = tr.run_rewrite(settings, cfg, store, d, get_llm(settings))
     return {"project": pid, "warnings": res.warnings}
 
 
@@ -612,14 +591,13 @@ def job_made(settings: Settings, say: Say, pid: str, video: str, title: str | No
 
 def job_history(settings: Settings, say: Say, weeks: int) -> dict[str, Any]:
     """성과 분석."""
-    cfg = load_channel(settings)
     with open_store(settings) as store:
-        text = asyncio.run(tr.run_history(store, cfg, weeks))
+        text = asyncio.run(tr.run_history(store, weeks))
     return {"markdown": text}
 
 
 def job_probe(settings: Settings, say: Say, name: str | None = None) -> dict[str, Any]:
-    """커뮤니티 게시판 점검 → data/probe.json."""
+    """커뮤니티 게시판 점검(목록 + 글 상세 하나) → data/probe.json."""
     cfg = load_channel(settings)
     results = asyncio.run(tr.probe_communities(cfg, name))
     out = [
@@ -631,18 +609,38 @@ def job_probe(settings: Settings, say: Say, name: str | None = None) -> dict[str
             "kept": r.kept,
             "error": r.error,
             "samples": [
-                {"at": f"{p.posted_at:%m-%d %H:%M}", "comments": p.comments, "title": p.title}
+                {
+                    "at": f"{p.posted_at:%m-%d %H:%M}",
+                    "comments": p.comments,
+                    "votes": p.votes,
+                    "title": p.title,
+                }
                 for p in r.posts[:5]
             ],
+            "detail": {
+                "url": r.detail_url,
+                "body_chars": r.body_chars,
+                "comments": r.comments_found,
+                "comment_votes": r.comment_votes,
+                "post_votes": r.post_votes,
+                "error": r.detail_error,
+                "comment_samples": [{"votes": v, "text": t} for v, t in r.comment_samples],
+            },
             "ok": r.allowed and not r.error and bool(r.posts),
         }
         for r in results
     ]
     for r in out:
+        dd = r["detail"]
+        detail = (
+            f" · 글 상세: 본문 {dd['body_chars']}자, 댓글 {dd['comments']}개"
+            if dd["url"] and not dd["error"]
+            else (f" · 글 상세 실패: {dd['error']}" if dd["error"] else "")
+        )
         say(
             f"{r['name']}: "
             + (
-                "정상"
+                "정상" + detail
                 if r["ok"]
                 else r["error"] or ("robots.txt 금지" if not r["allowed"] else "글을 못 찾음")
             )
@@ -655,15 +653,10 @@ def job_probe(settings: Settings, say: Say, name: str | None = None) -> dict[str
     return data
 
 
-def job_daily(settings: Settings, say: Say, now: datetime) -> dict[str, Any]:
-    """자동 실행: 시각별 수집·편성(CLI daily와 같은 규칙)."""
-    made: list[str] = []
-    for action, slot, day in tr.daily_actions(now):
-        if action == "collect":
-            job_collect(settings, say)
-        elif slot and day:
-            made.append(job_slot(settings, say, slot, day, collect=False)["project"])
-    return {"projects": made}
+def job_auto(settings: Settings, say: Say, now: datetime) -> dict[str, Any]:
+    """자동 수집: 커뮤니티·뉴스를 모아 둔다(주제판이 하루 흐름을 놓치지 않게). 주제판·대본은 원할 때."""
+    res = job_collect(settings, say)
+    return {"collected_at": now.isoformat(), "new": res["new"]}
 
 
 # ---- AI 음성(타입캐스트 웹 등) -------------------------------------------------------------------
@@ -715,6 +708,12 @@ def make_autosub(settings: Settings, pid: str) -> dict[str, Any]:
         raise ValueError("대본에 읽을 문장이 없습니다")
     (d / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
     sentences = len(script_sentences(script))
+    from newsclip.autosub import narration_text
+
+    chars = len(narration_text(script).replace("\n", ""))
+    speech = max(
+        info.duration - sum(b - a for a, b in info.silences if a <= 0.05 or b >= info.duration - 0.05), 1.0
+    )
     result = {
         "cues": len(cues),
         "duration": round(info.duration, 1),
@@ -722,6 +721,8 @@ def make_autosub(settings: Settings, pid: str) -> dict[str, Any]:
         "matched": matched,
         "boundaries": max(0, sentences - 1),
         "pauses": len(info.silences),
+        "chars": chars,
+        "chars_per_minute": round(chars / (speech / 60)),  # 앞뒤 무음을 뺀 실제 읽는 속도
     }
     (d / AUTO_MARK).write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
     return result

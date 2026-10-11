@@ -227,8 +227,8 @@ def _norm_token(t: str) -> str:
 
 
 def signal_tokens(sig: Signal) -> set[str]:
-    """군집용 토큰(제목 + 요약 첫 문장 + 키워드)."""
-    first = split_sentences(sig.summary)[:1]
+    """군집용 토큰(제목 + 요약 첫 문장 + 키워드). 커뮤니티 글은 제목만(본문은 잡담이 섞여 연결을 흐린다)."""
+    first = split_sentences(sig.summary)[:1] if sig.kind != "community" else []
     raw = set(tokenize(sig.title)) | set(tokenize(" ".join(first))) | {k for k in sig.keywords if len(k) >= 2}
     out = {_norm_token(t) for t in raw}
     # 법 이름은 줄기도 같이('지역의료법' ↔ '지역의료', '정치자금법' ↔ '정치자금')
@@ -627,6 +627,8 @@ def _group_name(group: list[Signal]) -> str:
 
     best = max(range(len(group)), key=centrality)
     name = group[best].title
+    if group[best].kind == "community":  # 커뮤니티 글 제목의 말투(ㅋㅋ·ㅠㅠ)는 주제명에서 뺀다
+        name = re.sub(r"\s*[ㅋㅎㅠㅜ]{2,}\s*", " ", name).strip()
     return name if len(name) <= 40 else name[:39] + "…"
 
 

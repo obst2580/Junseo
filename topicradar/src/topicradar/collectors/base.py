@@ -60,6 +60,8 @@ async def collect_all(collectors: list[Collector], since: datetime) -> CollectRe
             report.counts[f"{c.name}:{site}"] = n
         for site, err in getattr(c, "site_errors", {}).items():
             report.errors[f"{c.name}:{site}"] = err
+        for site, n in getattr(c, "detail_counts", {}).items():
+            report.counts[f"{c.name}:{site}(본문·댓글)"] = n
 
     await asyncio.gather(*(_one(c) for c in collectors))
     # URL 기준 중복 제거(먼저 들어온 것 유지)

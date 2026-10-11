@@ -1,10 +1,10 @@
 # 시연용 channel.yaml — 피드 URL은 fixture 전송계층이 가로챈다(실제 접속 없음).
 channel:
   youtube_channel_id: "UCdemoOWNCHANNEL0000000000"
-  stance: "진보 성향 데일리 정치 해설 채널. 매일 아침 오늘 벌어질 일을 예고하고 저녁에 결과를 설명한다. 모든 이슈에 '왜 벌어졌나'와 '다음에 뭐가 오나'를 답한다. 감정이 아니라 인과로 말한다. 진보의 시각은 사실 배열과 원인 지목에서 드러나고, 구호로 드러내지 않는다. 시청자는 진보 성향 40~60대, 뉴스는 보지만 맥락을 모르겠다고 느끼는 사람."
+  stance: "진보 커뮤니티의 목소리를 대신 전하는 정치 채널. 다룰 주제와 채널의 주장은 커뮤니티 글·댓글·공감 수로 정하고, 사실은 기사로 받친다. 연관 주제 2~3개를 묶은 10분 영상과 주제 하나를 빠르게 다루는 3분 영상."
   categories: [국회, 정부, 사법, 선거, 외교안보, 국제, 경제, 노동, 복지]
   competitors: [UCcompAAAAAAAAAAAAAAAAAA, UCcompBBBBBBBBBBBBBBBBBB]
-  past_titles: ["플랫폼노동자 기본법 의결, 오늘 결론 나면 생기는 일", "대통령실 지역의료 강화, 진짜 이유", "새한당 전 의원 A씨, 오늘 결론 나면 생기는 일", "새한당 지지율 3주 연속, 진짜 이유", "플랫폼노동자 기본법 의결, 한 주를 꿴 진짜 이유"]   # 업로드 후 자동 추가
+  past_titles: ["플랫폼노동자 기본법 본회의 통과 축하합니다 + 새한당 본회의 표결 불참 검토", "A씨 정치자금 선고 연기 이게 말이 됩니까", "새한당 지지율 3주 연속 하락 여론조사"]   # 업로드 후 자동 추가
   slack_webhook: "https://hooks.slack.com/services/DEMO/DEMO/DEMO"
 sources:
   rss:
@@ -21,8 +21,6 @@ images:
 videos:
   preferred_channels: [KTV 국민방송, 국회방송 NATV, 가상정당 공식채널]
   blocked_channels: [KBS News, MBCNEWS, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, TV CHOSUN, 채널A, MBN]
-scoring:
-  weights: {interest: 40, gap: 20, persistence: 10, fit: 30}
 clustering:
   generic_tokens: [새한당, 한빛당]   # 가상 정당명: 어디에나 나와서 연결 근거로 약하게만 친다
 
@@ -31,10 +29,10 @@ script:
 
 communities:
   - {name: 다모앙, list_url: "https://damoang.net/free?page={page}", post_pattern: "damoang\\.net/free/\\d+", politics_filter: true}
-  - {name: 보배드림, list_url: "https://www.bobaedream.co.kr/list?code=politic&page={page}", post_pattern: "/view\\?code=politic&No=\\d+", comment_pattern: "class=\"totreply\">(\\d+)<"}
+  - {name: 보배드림, list_url: "https://www.bobaedream.co.kr/list?code=politic&page={page}", post_pattern: "/view\\?code=politic&No=\\d+", comment_pattern: "class=\"totreply\">(\\d+)<", vote_pattern: "class=\"recomm\">(\\d+)<", comment_selector: "div.commentArea li"}
   - {name: 뽐뿌, list_url: "https://www.ppomppu.co.kr/zboard/zboard.php?id=politics&page={page}", post_pattern: "(view|zboard)\\.php\\?id=politics.*no=\\d+", comment_pattern: "class=\"baseList-c\">(\\d+)<"}
   - {name: 더쿠, list_url: "https://theqoo.net/hot?page={page}", post_pattern: "theqoo\\.net/hot/\\d+", politics_filter: true, comment_pattern: "class=\"replyNum\">(\\d+)<"}
-selection:
-  mode: hottest               # hottest: 가장 이슈인 순(영상마다 이슈 4~5개) | balanced: 관심·공백·지속·적합 가중합
-  community_gate: true
+board:
+  window_hours: 24
+  min_posts: 2
   derived_queries: 10

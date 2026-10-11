@@ -43,23 +43,24 @@ def test_channel_tone_community_raw(client, root):
     assert cfg.channel.youtube_channel_id == "UCmine" and cfg.channel.competitors == ["UCa", "UCb"]
     assert cfg.script.tone == "해설형"
     assert client.put("/api/settings/channel", json={"tone": "막말형"}).status_code == 400
-    w = {"interest": 45, "gap": 15, "persistence": 10, "fit": 30}
-    assert client.put("/api/settings/channel", json={"weights": w}).json()["ok"]
-    assert load_channel(Settings(root=root)).scoring.weights == {k: float(v) for k, v in w.items()}
-    assert client.get("/api/settings").json()["channel"]["weights"] == w
-    assert client.put("/api/settings/channel", json={"weights": {"interest": 50}}).status_code == 400
-    assert client.get("/api/settings").json()["channel"]["selection_mode"] == "hottest"
-    assert client.put("/api/settings/channel", json={"selection_mode": "balanced"}).json()["ok"]
-    assert load_channel(Settings(root=root)).selection.mode == "balanced"
-    assert client.put("/api/settings/channel", json={"selection_mode": "random"}).status_code == 400
-    assert client.put("/api/settings/channel", json={"weights": {**w, "fit": 300}}).status_code == 400
+    # 영상 길이(분당 글자 수)와 주제판 구간
+    assert client.put("/api/settings/channel", json={"chars_per_minute": 330, "window_hours": 12}).json()[
+        "ok"
+    ]
+    cfg = load_channel(Settings(root=root))
+    assert cfg.script.chars_per_minute == 330 and cfg.board.window_hours == 12
+    info = client.get("/api/settings").json()
+    assert info["channel"]["chars_per_minute"] == 330 and info["channel"]["window_hours"] == 12
+    assert info["formats"]["long"] == {"name": "10분 묶음", "minutes": 10.0}
+    assert client.put("/api/settings/channel", json={"chars_per_minute": 50}).status_code == 400
+    assert client.put("/api/settings/channel", json={"window_hours": 200}).status_code == 400
     assert client.put("/api/settings/community", json={"name": "더쿠", "enabled": False}).json()["ok"]
     comm = {c["name"]: c["enabled"] for c in client.get("/api/settings").json()["communities"]}
     assert comm["더쿠"] is False and comm["다모앙"] is True
     assert client.put("/api/settings/community", json={"name": "없는곳", "enabled": False}).status_code == 400
     raw = client.get("/api/settings").json()["raw"]
     assert client.put("/api/settings/raw", json={"text": "channel: [깨진"}).status_code == 400
-    assert client.put("/api/settings/raw", json={"text": "scoring:\n  weights: 3\n"}).status_code == 400
+    assert client.put("/api/settings/raw", json={"text": "board:\n  window_hours: 많이\n"}).status_code == 400
     assert (root / "channel.yaml").read_text(encoding="utf-8") == raw  # 실패하면 그대로
     assert client.put("/api/settings/raw", json={"text": raw.replace("UCmine", "UCnew")}).json()["ok"]
     assert load_channel(Settings(root=root)).channel.youtube_channel_id == "UCnew"
@@ -115,15 +116,18 @@ def test_auto_runner(tmp_path):
     at = datetime(2026, 10, 8, 17, 5, tzinfo=KST)
     assert ar.tick(at) is None  # 꺼져 있음
     assert ar.set_enabled(True)["enabled"]
-    assert ar.tick(at) == "2026-10-08 17:00" and ar.tick(at) is None  # 하루 한 번
+    assert ar.tick(at) == "2026-10-08 17:00" and ar.tick(at) is None  # 같은 시각은 한 번
     assert ar.tick(datetime(2026, 10, 8, 17, 40, tzinfo=KST)) is None  # 유예 시간 지남
-    assert ar.tick(datetime(2026, 10, 9, 5, 31, tzinfo=KST)) == "2026-10-09 05:30"
+    assert ar.tick(datetime(2026, 10, 8, 18, 5, tzinfo=KST)) is None  # 짝수 시는 쉼(2시간마다)
+    assert ar.tick(datetime(2026, 10, 9, 7, 1, tzinfo=KST)) == "2026-10-09 07:00"
+    assert ar.tick(datetime(2026, 10, 9, 5, 31, tzinfo=KST)) is None  # 새벽은 쉼
     assert len(fired) == 2
     busy = AutoRunner(tmp_path / "b.json", lambda now: False)
     busy.set_enabled(True)
     assert busy.tick(at) is None and busy.state()["done"] == []  # 다른 작업 중이면 다음 점검에서
     info = ar.info()
-    assert info["times"] == ["05:30", "12:00", "17:00"] and info["next"]
+    assert info["times"] == ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00", "21:00", "23:00"]
+    assert info["next"]
 
 
 def test_auto_endpoint(client):

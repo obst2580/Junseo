@@ -39,54 +39,34 @@
   "likeCount": 1300,
   "commentCount": 260
  },
- "demo_m1007": {
+ "demo_long1008": {
   "title": "placeholder",
   "description": "",
   "channelId": "UCdemoOWNCHANNEL0000000000",
   "channelTitle": "내 채널(시연)",
   "publishedAt": "2026-10-08T10:00:00Z",
-  "viewCount": 12000,
-  "likeCount": 400,
-  "commentCount": 80
+  "viewCount": 52000,
+  "likeCount": 1733,
+  "commentCount": 346
  },
- "demo_e1007": {
+ "demo_short1008a": {
   "title": "placeholder",
   "description": "",
   "channelId": "UCdemoOWNCHANNEL0000000000",
   "channelTitle": "내 채널(시연)",
   "publishedAt": "2026-10-08T10:00:00Z",
-  "viewCount": 31000,
-  "likeCount": 1033,
-  "commentCount": 206
+  "viewCount": 23000,
+  "likeCount": 766,
+  "commentCount": 153
  },
- "demo_m1008": {
+ "demo_short1008b": {
   "title": "placeholder",
   "description": "",
   "channelId": "UCdemoOWNCHANNEL0000000000",
   "channelTitle": "내 채널(시연)",
   "publishedAt": "2026-10-08T10:00:00Z",
-  "viewCount": 15000,
-  "likeCount": 500,
-  "commentCount": 100
- },
- "demo_e1008": {
-  "title": "placeholder",
-  "description": "",
-  "channelId": "UCdemoOWNCHANNEL0000000000",
-  "channelTitle": "내 채널(시연)",
-  "publishedAt": "2026-10-08T10:00:00Z",
-  "viewCount": 44000,
-  "likeCount": 1466,
-  "commentCount": 293
- },
- "demo_w1011": {
-  "title": "placeholder",
-  "description": "",
-  "channelId": "UCdemoOWNCHANNEL0000000000",
-  "channelTitle": "내 채널(시연)",
-  "publishedAt": "2026-10-08T10:00:00Z",
-  "viewCount": 58000,
-  "likeCount": 1933,
-  "commentCount": 386
+  "viewCount": 14000,
+  "likeCount": 466,
+  "commentCount": 93
  }
 }
