@@ -54,13 +54,17 @@ export type Grid = {
 }
 
 -- kind가 "i16"이면 값마다 2바이트(부호 있음), "u8"이면 1바이트
-function GridCodec.decodeGrid(s: string, nx: number, nz: number, kind: "i16" | "u8"): Grid
+-- yieldFn을 주면 64줄마다 불러서 오래 걸리는 작업 중에 양보한다
+function GridCodec.decodeGrid(s: string, nx: number, nz: number, kind: "i16" | "u8", yieldFn: (() -> ())?): Grid
 	local src = GridCodec.base64Decode(s)
 	local size = if kind == "i16" then 2 else 1
 	local out = buffer.create(nx * nz * size)
 	local pos = 0
 	local idx = 0
-	for _ = 1, nz do
+	for row = 1, nz do
+		if yieldFn and row % 64 == 0 then
+			yieldFn()
+		end
 		local prev = 0
 		local i = 0
 		while i < nx do

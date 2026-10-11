@@ -10,9 +10,10 @@
 1. [`dist/SeoulRP.rbxl`](dist/SeoulRP.rbxl)을 내려받아 Roblox Studio에서 엽니다.
 2. **지형 굽기 (처음 한 번):** Studio 메뉴에서 보기(View) → 명령줄(Command Bar)을 열고 아래 한 줄을 붙여 넣어 실행합니다.
    ```lua
-   require(game.ServerScriptService.MapRuntime.TerrainBuilder).build()
+   require(game.ServerScriptService.MapRuntime.TerrainBuilder).build({ yield = true })
    ```
-   산·한강·바다 지형을 만들고 도로를 따라 땅을 깎고 채웁니다. 컴퓨터에 따라 1~몇 분 걸리고, 그동안 Studio가 멈춘 것처럼 보일 수 있습니다. 출력(Output) 창에 `[맵] 지형 생성 끝`이 나오면 **저장**하세요.
+   산·한강·바다 지형을 만들고 도로를 따라 땅을 깎고 채웁니다. 컴퓨터에 따라 1~몇 분 걸리며, 출력(Output) 창(View → Output)에 `[맵] 지형 10%`… 진행 상황이 나옵니다. `[맵] 지형 생성 끝`이 나오면 **저장**하세요.
+   - 굽기 전에는 지형이 없어서 도로가 하늘에 떠 있는 것처럼 보입니다.
    - 굽지 않고 바로 실행(Play)해도 서버가 시작할 때 자동으로 만들지만, 그때마다 시간이 걸립니다.
    - 게임 파일을 새로 받으면(맵 버전이 바뀌면) 다시 구워야 합니다.
 3. 스폰 위치는 서울시청 앞입니다. 편집 화면의 노란·파란 이름표(구 이름, 랜드마크)는 게임을 실행하면 사라집니다.

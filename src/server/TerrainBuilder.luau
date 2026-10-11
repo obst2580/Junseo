@@ -5,7 +5,8 @@
 -- 도로 파트를 따라 지형을 깎고 채워 도로·인도 높이를 맞춘다.
 --
 -- Studio에서 한 번 구워 두려면 명령줄(View > Command Bar)에 아래 한 줄을 넣고 실행한 뒤 저장한다.
---   require(game.ServerScriptService.MapRuntime.TerrainBuilder).build()
+--   require(game.ServerScriptService.MapRuntime.TerrainBuilder).build({ yield = true })
+-- (yield = true: 중간중간 쉬어 가며 만들어 Studio의 스크립트 시간 제한에 걸리지 않게 한다)
 -- 구워 두지 않으면 서버가 시작할 때 Bootstrap 스크립트가 자동으로 만든다(시간이 걸림).
 
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -71,9 +72,9 @@ end
 -- 지형 격자 → 지형
 local function buildGround(terrain: Terrain, info: Info, folder: Instance, yieldFn: () -> ())
 	local nx, nz = info.nx, info.nz
-	local H = GridCodec.decodeGrid(join(folder, info.height), nx, nz, "i16")
-	local W = GridCodec.decodeGrid(join(folder, info.waterTop), nx, nz, "i16")
-	local M = GridCodec.decodeGrid(join(folder, info.material), nx, nz, "u8")
+	local H = GridCodec.decodeGrid(join(folder, info.height), nx, nz, "i16", yieldFn)
+	local W = GridCodec.decodeGrid(join(folder, info.waterTop), nx, nz, "i16", yieldFn)
+	local M = GridCodec.decodeGrid(join(folder, info.material), nx, nz, "u8", yieldFn)
 	local materials: { [number]: Enum.Material } = {}
 	for i, name in info.materials do
 		materials[i - 1] = (Enum.Material :: any)[name]
@@ -232,7 +233,7 @@ local function buildGround(terrain: Terrain, info: Info, folder: Instance, yield
 				terrain:WriteVoxels(region, VOX, mArr, oArr)
 			end
 			done += 1
-			if done % 150 == 0 then
+			if done % 100 == 0 then
 				yieldFn()
 			end
 			if done / total >= nextReport then
@@ -268,7 +269,7 @@ local function carveRoads(terrain: Terrain, roads: Instance, yieldFn: () -> ())
 			local base = if kind == "viaduct" then -(p.Size.Y + 2) else -0.05
 			terrain:FillBlock(topCf * CFrame.new(0, base + height / 2, 0), Vector3.new(width, height, p.Size.Z + 4), AIR)
 		end
-		if i % 400 == 0 then
+		if i % 200 == 0 then
 			yieldFn()
 		end
 	end
@@ -288,7 +289,7 @@ local function carveRoads(terrain: Terrain, roads: Instance, yieldFn: () -> ())
 		elseif p:GetAttribute("CarveFill") then
 			terrain:FillBlock(topCf * CFrame.new(0, -p.Size.Y - 6, 0), Vector3.new(width, 12, p.Size.Z + 2), Enum.Material.Ground)
 		end
-		if i % 400 == 0 then
+		if i % 200 == 0 then
 			yieldFn()
 		end
 	end

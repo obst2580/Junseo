@@ -118,7 +118,7 @@ local function sites(parent, meta)
 	end
 end
 
-local function billboard(parent, name, pos, text, size, color, height)
+local function billboard(parent, name, pos, text, size, color, height, maxDistance)
 	local anchor = B.part(parent, name, Vector3.new(1, 1, 1), CFrame.new(pos.X, pos.Y + height, pos.Z), Color3.fromRGB(255, 255, 255), B.MAT.smooth, {
 		Transparency = 1,
 		CanCollide = false,
@@ -130,7 +130,7 @@ local function billboard(parent, name, pos, text, size, color, height)
 	g.Size = UDim2.fromOffset(size * 8, size)
 	g.AlwaysOnTop = true
 	g.LightInfluence = 0
-	g.MaxDistance = 100000
+	g.MaxDistance = maxDistance
 	g.Parent = anchor
 	local l = textLabel(g, text, UDim2.fromScale(0, 0), UDim2.fromScale(1, 1), color)
 	l.TextStrokeTransparency = 0.2
@@ -147,11 +147,11 @@ local function labels(parent, meta)
 				sz += p[2]
 			end
 			local short = string.gsub(d.name, "^%S+%s", "")
-			billboard(f, d.name, Vector3.new(sx / #ring, 0, sz / #ring), short, 34, Color3.fromRGB(255, 255, 255), 220)
+			billboard(f, d.name, Vector3.new(sx / #ring, 0, sz / #ring), short, 30, Color3.fromRGB(255, 255, 255), 220, 6000)
 		end
 	end
 	for _, lm in meta.landmarks do
-		billboard(f, lm.name, Vector3.new(lm.x, lm.y, lm.z), lm.name, 26, Color3.fromRGB(255, 214, 90), 90)
+		billboard(f, lm.name, Vector3.new(lm.x, lm.y, lm.z), lm.name, 24, Color3.fromRGB(255, 214, 90), 90, 2500)
 	end
 end
 
