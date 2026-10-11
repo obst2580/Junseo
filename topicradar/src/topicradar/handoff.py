@@ -21,7 +21,7 @@ from topicradar.db import Store
 from topicradar.models import FORMATS, Board, Opinion, VideoFormat, target_chars
 from topicradar.opinion import opinion_rows
 from topicradar.planner import THUMB_MAX
-from topicradar.risk import topic_risks
+from topicradar.risk import LEGAL_WORDS, POLL_WORDS, topic_risks
 from topicradar.script import (
     BANNED,
     LINE_LIMIT,
@@ -74,13 +74,23 @@ def export_board(cfg: ChannelConfig, store: Store, board: Board) -> dict:
                 "risk_notes": [f.message for f in topic_risks(t) if f.kind in ("법적", "여론조사")],
             }
         )
-    cpm = cfg.script.chars_per_minute
     return {
         "kind": EXPORT_KIND,
         "version": VERSION,
         "board_id": board.id,
         "created_at": board.created_at.isoformat(),
         "window": [start.isoformat(), end.isoformat()],
+        **channel_rules(cfg),
+        "topics": topics,
+        "bundles": [b.model_dump() for b in board.bundles],
+        "notes": board.notes,
+    }
+
+
+def channel_rules(cfg: ChannelConfig) -> dict:
+    """대본을 쓸 때 필요한 채널 규칙: 정체성·말투, 형식별 길이, Claude에 줄 규칙(프롬프트), 점검 기준."""
+    cpm = cfg.script.chars_per_minute
+    return {
         "stance": cfg.channel.stance,
         "tone": cfg.script.tone,
         "chars_per_minute": cpm,
@@ -98,6 +108,7 @@ def export_board(cfg: ChannelConfig, store: Store, board: Board) -> dict:
         "rules": {
             "identity": prompts.IDENTITY,
             "opinion_task": prompts.OPINION_TASK,
+            "group_task": prompts.GROUP_TASK,
             "plan_task": prompts.PLAN_TASK,
             "script_rules": prompts.SCRIPT_RULES,
             "structure_rules": prompts.SCRIPT_STRUCTURE_RULES,
@@ -107,10 +118,14 @@ def export_board(cfg: ChannelConfig, store: Store, board: Board) -> dict:
             "line_limit": LINE_LIMIT,
             "banned": BANNED,
             "slang": SLANG,
+            # 표시 전용 리스크(대본 규칙에 같이 넘긴다)
+            "risk": {
+                "legal_words": LEGAL_WORDS,
+                "legal_note": "수사·재판 진행 중: '확인된 사실'과 '의혹·주장'을 구분해 쓰고 확정 표현 금지",
+                "poll_words": POLL_WORDS,
+                "poll_note": "여론조사 인용 시 조사의뢰자·조사기관·조사기간·조사방법·표본크기·오차범위 명시",
+            },
         },
-        "topics": topics,
-        "bundles": [b.model_dump() for b in board.bundles],
-        "notes": board.notes,
     }
 
 

@@ -14,7 +14,7 @@ studio/
   topicradar/           collect / board / video / rewrite / export / import-script / made / history / probe
   newsclip/             run / review / xml / search
   app/                  studio 화면(브라우저): 아래 모든 단계를 버튼으로 — studio.command(맥) · studio.bat(윈도우)
-  daebonsil/            claude.ai 대본실(아티팩트) 원본: Claude API 없이 내 Claude로 의견 정리·대본 쓰기
+  daebonsil/            claude.ai 아티팩트 원본: 제작실(주제→대본→음성→자료·XML 한 화면), 대본실(대본만)
   data/                 studio.db, logs/llm_usage.jsonl, schedule/날짜.yaml, 검색 캐시·API 사용량
   projects/날짜_시각_형식/  (예: 2026-10-08_1805_long) report.md script.txt narration.wav* narration.srt* scenes.json assets/ assets.json timeline.xml
   docs/sources.md       데이터 소스 조사 메모   docs/demo/ 시연 결과
@@ -52,6 +52,28 @@ studio/
 - **자동 수집**: 화면을 켜 둔 채 스위치를 켜면 07시부터 2시간마다 커뮤니티·뉴스를 모아 둔다(게시판 목록 1~2쪽만 읽으므로
   오래 안 모으면 그 사이 글을 놓친다). 주제판과 대본은 원할 때 만든다. Slack 주소를 넣으면 주제판 요약이 간다.
 - 키는 `.env`, 나머지 설정은 `channel.yaml`에 저장됩니다(화면에서 고쳐도 파일 주석은 그대로). 아래 명령어 방식과 같은 데이터를 씁니다.
+
+## 한 화면으로 다 하기 — claude.ai 제작실
+
+**제작실:** https://claude.ai/artifact/4c9nubZb4WfXA7jiHq9Rr8 (내 계정에서만 열린다)
+
+설치 없이 claude.ai 화면 하나로 **주제 고르기 → 대본 → 음성 → 자료·timeline.xml**까지. 생각하는 일(주제 묶기·
+커뮤니티 의견 정리·대본·제목)은 **내 Claude**가, 인터넷이 필요한 일(커뮤니티·뉴스 수집, 사진·영상 자료,
+timeline.xml)은 **클라우드 작업자**(Claude Code 세션, 네트워크 Full)가 한다. 화면의 버튼이 Claude Code Remote
+커넥터로 작업자에게 요청을 보내고, 작업자는 [docs/workroom.md](docs/workroom.md) 절차대로 `studio_app.workroom`을
+돌려 결과를 아티팩트 데이터·자산에 올린다.
+
+1. **주제 고르기**: [새로 모으기] → 사이트별 글 수 확인(막힌 사이트 표시, 눌러서 빼기) → [Claude로 주제 묶기·의견 정리]
+   → 주제 하나 [3분 단독] / 2~3개 [10분 묶음](추천 묶음은 한 번에)
+2. **대본**: [Claude로 대본 쓰기] → 길이·25자 줄·헤더·출처·그대로 옮김 점검 → [점검대로 고쳐 쓰기] → 제목·썸네일
+3. **음성**: [타입캐스트용 복사] → 타입캐스트에서 받은 음성을 올리면 **브라우저 안에서** 길이·문장 사이 쉼을 분석
+   (음성 파일은 어디에도 올라가지 않는다)
+4. **자료·XML**: [자료 모으고 timeline.xml 만들기] → 작업자가 자막 맞추기·장면 나누기·사진·영상 받기·timeline.xml
+   → 장면별 자료를 화면에서 확인 → 압축을 풀 폴더를 적고 [압축 파일 받기](timeline.xml + 자료 + 음성) → 프리미어에서 가져오기
+
+사진·영상 검색에는 클라우드 환경 설정의 Environment variables에 `NAVER_CLIENT_ID`·`NAVER_CLIENT_SECRET`
+(그리고 `YOUTUBE_API_KEY`)가 있어야 한다. 클라우드 서버는 해외에 있어 더쿠·오늘의유머·다모앙은 막힌다
+(클리앙·뽐뿌·보배드림은 읽힌다). 화면 원본은 `daebonsil/workroom.html`, 만들기는 `uv run python daebonsil/build.py`.
 
 ## Claude API 없이 쓰기 — claude.ai 대본실
 

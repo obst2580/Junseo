@@ -1,4 +1,8 @@
-"""대본실 페이지(claude.ai 아티팩트) 만들기: page.html + 예시(가상) 주제판 → dist/daebonsil.html.
+"""claude.ai 아티팩트 페이지 만들기.
+
+- 대본실: page.html + 예시(가상) 주제판 → dist/daebonsil.html
+- 제작실: workroom.html + worker.json(요청을 보낼 작업자 세션) → dist/workroom.html
+
 
 예시는 시연 데이터(docs/demo/studio-주제판-예시.json, 가상의 정당·인물)에서 주소를 example.com으로 바꿔 넣는다
 (실제 커뮤니티·언론사 주소로 이어지지 않게).
@@ -41,6 +45,18 @@ def build() -> Path:
     return OUT
 
 
+def build_workroom() -> Path:
+    """제작실 페이지: workroom.html + 작업자 기본값(worker.json: 요청을 보낼 세션·아티팩트 주소)."""
+    page = (HERE / "workroom.html").read_text(encoding="utf-8")
+    worker = json.loads((HERE / "worker.json").read_text(encoding="utf-8"))
+    marker = "/*__WORKER__*/{}"
+    assert page.count(marker) == 1, "workroom.html에 작업자 자리가 없습니다"
+    out = HERE / "dist" / "workroom.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(page.replace(marker, json.dumps(worker, ensure_ascii=False)), encoding="utf-8")
+    return out
+
+
 if __name__ == "__main__":
-    out = build()
-    print(f"{out} ({out.stat().st_size / 1024:.0f} KB)")
+    for out in (build(), build_workroom()):
+        print(f"{out} ({out.stat().st_size / 1024:.0f} KB)")
