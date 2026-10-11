@@ -21,7 +21,7 @@ def _cell(text: str | None) -> str:
 
 def _detail(plan_item_scores: dict) -> str:
     parts = []
-    for k in ("interest", "gap", "persistence", "fit"):
+    for k in ("issue", "repeat", "interest", "gap", "persistence", "fit"):
         if k in plan_item_scores:
             parts.append(f"{SCORE_LABELS[k][:2]}{plan_item_scores[k].score:.0f}")
     return " ".join(parts)

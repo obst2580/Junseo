@@ -215,3 +215,52 @@ def test_score_topics_with_llm_and_competitors():
         (out[0].scores["interest"].score * 40 + 60 * 20 + 20 * 10 + 10 * 30) / 100, 1
     )
     _ = SimpleNamespace, timedelta
+
+
+def test_issue_score_hottest_mode():
+    from datetime import date
+
+    from topicradar.score import Coverage, issue_score
+
+    s, e = kst("2026-10-08 05:30"), kst("2026-10-08 17:00")
+    hot = topic(
+        "hot",
+        "본회의 가결",
+        [
+            sig("본회의 가결", "2026-10-08 14:50", url="https://a.example/1"),
+            sig("본회의서 법안 통과", "2026-10-08 15:00", url="https://b.example/2"),
+            sig("가결 축하", "2026-10-08 15:10", kind="community", site="다모앙", comments=200),
+            sig("드디어 통과", "2026-10-08 15:20", kind="community", site="보배드림", comments=100),
+            sig("[해설] 본회의 가결", "2026-10-08 16:00", kind="competitor"),
+        ],
+    )
+    quiet = topic("q", "세수 결손", [sig("세수 결손 전망", "2026-10-08 10:00", url="https://a.example/3")])
+    d, rise = issue_score(hot, s, e, 0, 1, True)
+    assert (
+        "커뮤니티 글 2건(댓글 300)" in d.reason
+        and "기사 2건(언론 2곳)" in d.reason
+        and "다른 채널 1편" in d.reason
+    )
+    assert rise > 0 and "직전 대비" in d.reason
+    q, _ = issue_score(quiet, s, e, 0, 0, True)
+    assert d.score > q.score and q.reason.startswith("커뮤니티 글 0건")
+    n, _ = issue_score(quiet, s, e, 0, 0, False)  # 커뮤니티 데이터 없으면 보도량만
+    assert "커뮤니티" not in n.reason and n.score > q.score
+    out = score_topics(
+        [hot, quiet],
+        window_start=s,
+        window_end=e,
+        prev_counts={},
+        target_day=date(2026, 10, 8),
+        coverage={
+            "q": [
+                Coverage(
+                    plan_id="2026-10-07_evening", day=date(2026, 10, 7), window_end=kst("2026-10-07 17:00")
+                )
+            ]
+        },
+        community_mode=True,
+        mode="hottest",
+    )
+    assert out[0].id == "hot" and set(out[0].scores) == {"issue"} and out[0].trend == "↑"
+    assert out[1].scores["repeat"].score == -25 and out[1].total == max(0.0, q.score - 25)

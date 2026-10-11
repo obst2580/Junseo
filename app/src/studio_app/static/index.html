@@ -465,7 +465,7 @@ function planSection(pid, d) {
     const hit = it.hit ? `<div class="hit ${it.hit === 'hit' ? 'hit_' : it.hit}">${{ hit: '✅ 적중', miss: '❌ 빗나감', pending: '⏳ 결과 대기' }[it.hit]}</div>` : '';
     const third = it.role === '포인트회수' ? `${hit}<div class="small">${esc(it.actual || '')}</div><div class="small muted">아침: ${esc(it.expected || '')}</div>`
       : it.expected ? `<div>${esc(it.expected)}</div><div class="small muted">${esc(it.impact || '')}</div>` : it.chain ? esc(it.chain) : '<span class="muted">-</span>';
-    const reasons = Object.entries(t.scores).map(([k, v]) => `<span class="muted">${{ interest: '관심도', gap: '공백도', persistence: '지속성', fit: '적합도' }[k] || k}</span><b>${v.score}</b><span>${esc(v.reason)}</span>`).join('');
+    const reasons = Object.entries(t.scores).map(([k, v]) => `<span class="muted">${{ issue: '이슈도', repeat: '중복', interest: '관심도', gap: '공백도', persistence: '지속성', fit: '적합도' }[k] || k}</span><b>${v.score}</b><span>${esc(v.reason)}</span>`).join('');
     return `<tr>
       <td>${it.order}</td>
       <td><span class="role ${esc(it.role)}">${esc(it.role)}</span></td>
@@ -680,7 +680,7 @@ async function historyPage() {
       <button class="btn primary" id="run-h">분석하기</button></div>
       <div class="md" id="md" style="margin-top:10px"></div></div>`;
   $('#run-h').onclick = () => runJob('/api/jobs/history', { weeks: Number($('#weeks').value) }, job => {
-    if (job.status === 'done') $('#md').innerHTML = md(job.result.markdown) + '<div class="note info" style="margin-top:12px">가중치는 <a href="#/settings">설정 → 점수 가중치</a>에서 바꿉니다.</div>';
+    if (job.status === 'done') $('#md').innerHTML = md(job.result.markdown) + '<div class="note info" style="margin-top:12px">주제 고르는 기준(가장 이슈인 순 / 균형)과 가중치는 <a href="#/settings">설정</a>에서 바꿉니다.</div>';
   });
 }
 function inline(s) {
@@ -726,7 +726,19 @@ async function settingsPage() {
       <label class="field" style="margin-top:12px">경쟁 채널 ID<span class="hint">한 줄에 하나(UC…)</span><textarea id="ch-comp" rows="4">${esc(s.channel.competitors.join('\n'))}</textarea></label>
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-ch">채널 저장</button></div></div>
 
-    <div class="card"><h2>점수 가중치</h2><p class="sub">주제 총점 = 네 점수의 가중합(합계로 나눔). 성과 탭의 조정 제안을 보고 바꾸세요.</p>
+    <div class="card"><h2>주제 고르는 기준</h2><p class="sub">누르면 바로 저장되고 다음 편성부터 적용됩니다.</p>
+      <div class="tones">
+        <div class="tone ${s.channel.selection_mode === 'hottest' ? 'on' : ''}" data-sel="hottest"><b>가장 이슈인 순</b> <span class="badge opt">기본</span>
+          <pre>지금 제일 뜨거운 주제부터.
+이슈도 = 커뮤니티 반응(글·댓글) 60% + 보도량(기사·언론사 수) 40%
++ 급상승·다른 채널도 다룸 가점, 최근 다룬 주제 반복은 감점.
+영상마다 이슈 여러 개(저녁: 헤드라인 + 서브 2~4 + 아침 예상 회수 + 내일 쟁점).</pre></div>
+        <div class="tone ${s.channel.selection_mode === 'balanced' ? 'on' : ''}" data-sel="balanced"><b>균형</b>
+          <pre>관심도·공백도(경쟁 채널이 안 다룸)·지속성·적합도의 가중합.
+덜 다뤄진 주제, 오래 갈 주제에 가점. 가중치는 아래에서.</pre></div>
+      </div></div>
+
+    <div class="card" ${s.channel.selection_mode === 'hottest' ? 'hidden' : ''} id="w-card"><h2>점수 가중치</h2><p class="sub">'균형' 방식의 총점 = 네 점수의 가중합(합계로 나눔). 성과 탭의 조정 제안을 보고 바꾸세요.</p>
       <div class="weights">${[['interest', '관심도', '커뮤니티 반응·상승세'], ['gap', '공백도', '경쟁 채널이 안 다룸'], ['persistence', '지속성', '후속 일정·며칠째'], ['fit', '적합도', '정치 핵심·원인 설명']].map(([k, l, h]) => `
         <label class="field">${l}<span class="hint">${h}</span><input type="number" min="0" max="100" step="5" data-w="${k}" value="${esc(s.channel.weights[k] ?? 0)}"></label>`).join('')}</div>
       <div class="row" style="margin-top:10px"><span class="small muted" id="w-sum"></span><span class="spacer"></span><button class="btn primary" id="save-w">가중치 저장</button></div></div>
@@ -768,6 +780,14 @@ async function settingsPage() {
     const weights = {}; $$('[data-w]').forEach(i => { weights[i.dataset.w] = Number(i.value || 0); });
     try { await api('/api/settings/channel', { method: 'PUT', body: { weights } }); toast('가중치 저장 — 다음 편성부터 반영'); } catch (e) { fail(e); }
   };
+  $$('[data-sel]').forEach(el => el.onclick = async () => {
+    try {
+      await api('/api/settings/channel', { method: 'PUT', body: { selection_mode: el.dataset.sel } });
+      $$('[data-sel]').forEach(x => x.classList.toggle('on', x === el));
+      $('#w-card').hidden = el.dataset.sel === 'hottest';
+      toast(el.dataset.sel === 'hottest' ? '가장 이슈인 순으로 고릅니다' : '균형 방식으로 고릅니다');
+    } catch (e) { fail(e); }
+  });
   $$('[data-tone]').forEach(el => el.onclick = async () => {
     try { await api('/api/settings/channel', { method: 'PUT', body: { tone: el.dataset.tone } }); $$('[data-tone]').forEach(x => x.classList.toggle('on', x === el)); toast(`말투: ${el.dataset.tone}`); } catch (e) { fail(e); }
   });

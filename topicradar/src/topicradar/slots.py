@@ -23,7 +23,7 @@ from studio_core.text import idf_table
 from topicradar.cluster import cluster_signals, find_schedule, has_korean, signal_tokens
 from topicradar.db import Store
 from topicradar.models import ECON_CATEGORY, RiskFlag, Role, SlotItem, SlotName, SlotPlan, Topic
-from topicradar.planner import fill_plan_text
+from topicradar.planner import _persistence, fill_plan_text
 from topicradar.risk import plan_risks
 from topicradar.score import Coverage, score_topics
 
@@ -37,6 +37,8 @@ ROLE_WEIGHT: dict[str, float] = {
     "줄기": 2.0,
 }
 MIN_SUB_TOTAL = 40.0
+HOT_BODY = 5  # hottest 모드 저녁 본문 최대 이슈 수(헤드라인 1 + 서브 최대 4)
+HOT_MIN_SUB = 20.0  # 서브로 넣을 최소 이슈도(이보다 낮으면 '조용한 날 최소 2개'를 채울 때만)
 
 
 def window_for(slot: SlotName, day: date) -> tuple[datetime, datetime]:
@@ -215,6 +217,7 @@ def prepare_topics(ctx: SlotContext, slot: SlotName, day: date) -> tuple[list[To
         weights=ctx.cfg.scoring.weights,
         has_competitors=bool(ctx.cfg.channel.competitors),
         llm=ctx.llm,
+        mode=ctx.cfg.selection.mode,
     )
     for t in topics:
         ctx.store.save_topic(t)
@@ -232,8 +235,12 @@ def select_morning(
     prev_evening_ids: set[str],
     allow_foreign: bool = True,
     prefer_buzz: bool = False,
+    hottest: bool = False,
 ) -> tuple[list[SlotItem], list[str], list[RiskFlag]]:
-    """아침 편성. allow_foreign=False(오프라인)면 한국어 기사가 없는 해외 주제는 제외한다."""
+    """아침 편성. allow_foreign=False(오프라인)면 한국어 기사가 없는 해외 주제는 제외한다.
+
+    hottest=True: 서브를 '아침 발표'로 한정하지 않고 밤사이 가장 이슈인 주제 2개로 채운다(영상 하나에 여러 이슈).
+    """
     notes: list[str] = []
     flags: list[RiskFlag] = []
     eligible: list[Topic] = []
@@ -263,6 +270,13 @@ def select_morning(
     ]
     picks_overseas = overseas[:1] + [t for t in overseas[1:2] if t.total >= 45]
     picks_announce = [t for t in announce if t.total >= 45][:2]
+    if hottest:
+        announce = [
+            t
+            for t in by_total
+            if t.kind != "overseas" and not _sched_on(t, day) and t.id not in prev_evening_ids
+        ]
+        picks_announce = announce[:2]
     points = sched[:3]
     if len(points) < 3:
         used = {t.id for t in [*picks_overseas, *picks_announce, *points]}
@@ -304,6 +318,7 @@ def select_evening(
     morning: SlotPlan | None,
     store: Store,
     gate: bool = False,
+    body: int = 0,
 ) -> tuple[list[SlotItem], list[str], list[RiskFlag]]:
     """저녁 편성. gate=True면 헤드라인·서브는 커뮤니티 반응(윈도우 12시간 전부터)이 있는 주제만."""
     notes: list[str] = []
@@ -339,11 +354,17 @@ def select_evening(
     if events:
         items.append(SlotItem(topic=events[0], order=0, role="헤드라인"))
         subs = [t for t in events[1:] if t.total >= MIN_SUB_TOTAL][:4]
-        if len(subs) < 2:
+        if body:  # 가장 이슈인 순으로 본문 이슈를 채운다 — 한 주제에 갇히지 않게(서브 2~4개)
+            subs = [t for t in events[1:] if t.total >= HOT_MIN_SUB][: body - 1]
+            if len(subs) < 2:  # 조용한 날도 최소 2개
+                subs += [t for t in events[1:] if t not in subs and t.total > 0][: 2 - len(subs)]
+        elif len(subs) < 2:
             subs = events[1:3]
         if len(subs) < 2:
             flags.append(
-                RiskFlag(kind="구성", message=f"서브 {len(subs)}개뿐(목표 2~4) — 오늘 반응 있는 주제가 적음")
+                RiskFlag(
+                    kind="구성", message=f"서브 {len(subs)}개뿐(목표 2~4) — 오늘 다룰 만한 새 사건이 적음"
+                )
             )
         items += [SlotItem(topic=t, order=0, role="서브") for t in subs]
     else:
@@ -402,7 +423,7 @@ def select_weekly(
             continue
         anchor = max(
             members,
-            key=lambda t: (t.scores["persistence"].score if "persistence" in t.scores else 0, t.total),
+            key=lambda t: (_persistence(t), t.total),
         )
         for t in sorted(members, key=lambda t: t.first_seen):
             role: Role = "줄기" if t.id == anchor.id else "서브"
@@ -446,6 +467,7 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
     """슬롯 편성안 생성(점수·선정·문장 요소·리스크)."""
     topics, start, end = prepare_topics(ctx, slot, day)
     plan = SlotPlan(date=day, slot=slot, window_start=start, window_end=end)
+    hottest = ctx.cfg.selection.mode == "hottest"
     if slot == "morning":
         prev = ctx.store.get_plan(day - timedelta(days=1), "evening")
         items, notes, flags = select_morning(
@@ -455,7 +477,8 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
             end,
             prev.topic_ids() if prev else set(),
             allow_foreign=ctx.llm is not None,
-            prefer_buzz=ctx.community_mode,
+            prefer_buzz=ctx.community_mode and not hottest,
+            hottest=hottest,
         )
         plan.items = items
     elif slot == "evening":
@@ -466,7 +489,8 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
             end,
             ctx.store.get_plan(day, "morning"),
             ctx.store,
-            gate=ctx.community_mode and ctx.cfg.selection.community_gate,
+            gate=ctx.community_mode and ctx.cfg.selection.community_gate and not hottest,
+            body=HOT_BODY if hottest else 0,
         )
         plan.items = items
     else:
@@ -486,7 +510,11 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
                 except Exception:  # Claude 실패 시 휴리스틱
                     pass
             anchors = None
-            if ctx.community_mode and ctx.cfg.selection.community_gate:
+            if hottest:  # 이번 주 가장 이슈였던 주제들을 사슬의 축으로
+                anchors = {
+                    t.id for t in sorted((t for t in ts if t.news_signals()), key=lambda t: -t.total)[:5]
+                }
+            elif ctx.community_mode and ctx.cfg.selection.community_gate:
                 anchors = {t.id for t in ts if t.buzz(start, end)}
             return heuristic_chains(ts, generic=set(ctx.cfg.clustering.generic_tokens), anchor_ids=anchors)
 

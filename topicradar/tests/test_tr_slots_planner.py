@@ -269,3 +269,28 @@ def test_risks_and_seconds():
     assert len(plan_risks(plan)) == 3
     allocate_seconds(plan.items, "evening")
     assert plan.items[0].est_seconds > plan.items[1].est_seconds
+
+
+def test_evening_hottest_body_covers_several_issues(tmp_path):
+    store = Store(tmp_path / "h.db")
+    s, e = window_for("evening", DAY)
+
+    def ev(i, total, cat="국회"):
+        return scored(
+            topic(f"e{i}", f"사건{i}", [sig(f"사건 {i} 기사", "2026-10-08 11:00")], category=cat), total
+        )
+
+    many = [
+        ev(0, 90),
+        ev(1, 60, "선거"),
+        ev(2, 30, "사법"),
+        ev(3, 25, "외교안보"),
+        ev(4, 21, "노동"),
+        ev(5, 10),
+    ]
+    items, _n, _f = select_evening(many, DAY, s, e, None, store, body=5)
+    body = [i.topic.id for i in items if i.role in ("헤드라인", "서브")]
+    assert body == ["e0", "e1", "e2", "e3", "e4"]  # 헤드라인 + 이슈도 20 이상 서브 최대 4
+    few = [ev(0, 90), ev(5, 10), ev(6, 5, "선거")]
+    items, _n, flags = select_evening(few, DAY, s, e, None, store, body=5)
+    assert [i.topic.id for i in items if i.role == "서브"] == ["e5", "e6"]  # 조용한 날도 최소 2개

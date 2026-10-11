@@ -76,7 +76,10 @@ class CommunitySpec(BaseModel):
 class SelectionSection(BaseModel):
     """주제 선정 방식."""
 
-    community_gate: bool = True  # 저녁 헤드라인·서브, 주간 줄기는 커뮤니티 반응이 있는 주제만
+    # hottest: 가장 이슈인 순(커뮤니티 반응 + 보도량 + 급상승 + 다른 채널도 다룸) — 영상마다 이슈 4~5개
+    # balanced: 관심·공백·지속·적합 가중합(scoring.weights)
+    mode: Literal["hottest", "balanced"] = "hottest"
+    community_gate: bool = True  # balanced 모드: 저녁 헤드라인·서브, 주간 줄기는 커뮤니티 반응이 있는 주제만
     derived_queries: int = 10  # 커뮤니티 화제에서 뽑는 네이버 뉴스 검색어 수(근거 기사 확보용)
 
 

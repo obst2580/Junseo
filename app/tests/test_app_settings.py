@@ -48,6 +48,10 @@ def test_channel_tone_community_raw(client, root):
     assert load_channel(Settings(root=root)).scoring.weights == {k: float(v) for k, v in w.items()}
     assert client.get("/api/settings").json()["channel"]["weights"] == w
     assert client.put("/api/settings/channel", json={"weights": {"interest": 50}}).status_code == 400
+    assert client.get("/api/settings").json()["channel"]["selection_mode"] == "hottest"
+    assert client.put("/api/settings/channel", json={"selection_mode": "balanced"}).json()["ok"]
+    assert load_channel(Settings(root=root)).selection.mode == "balanced"
+    assert client.put("/api/settings/channel", json={"selection_mode": "random"}).status_code == 400
     assert client.put("/api/settings/channel", json={"weights": {**w, "fit": 300}}).status_code == 400
     assert client.put("/api/settings/community", json={"name": "더쿠", "enabled": False}).json()["ok"]
     comm = {c["name"]: c["enabled"] for c in client.get("/api/settings").json()["communities"]}

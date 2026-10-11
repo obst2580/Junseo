@@ -83,7 +83,7 @@ def test_full_flow(demo_env, monkeypatch):
     wk2 = json.loads((root / "projects/2026-10-11_weekly/plan.json").read_text(encoding="utf-8"))
     assert next(i for i in wk2["items"] if i["order"] == sub["order"])["topic"]["id"] == other
     hist = _run(monkeypatch, "2026-10-11T21:00", "history", "--weeks", "2")
-    assert "아침 포인트 적중률" in hist and "가중치 조정 제안" in hist
+    assert "아침 포인트 적중률" in hist and "주제 선정 방식" in hist
     cfg = (root / "channel.yaml").read_text(encoding="utf-8")
     assert "법사위 통과가 바꾸는 것" in cfg
     out = _run(monkeypatch, "2026-10-08T12:00", "daily")

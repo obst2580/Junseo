@@ -115,7 +115,9 @@ def hit_rates(plans: list[SlotPlan]) -> dict[str, Counter[str]]:
     return out
 
 
-def history_report(store: Store, weights: dict[str, float], weeks: int, now: datetime) -> str:
+def history_report(
+    store: Store, weights: dict[str, float], weeks: int, now: datetime, mode: str = "balanced"
+) -> str:
     """history 마크다운."""
     since = now - timedelta(weeks=weeks)
     rows = _rows(store, store.uploads(since))
@@ -165,6 +167,15 @@ def history_report(store: Store, weights: dict[str, float], weeks: int, now: dat
         judged = cnt["hit"] + cnt["miss"]
         rate = f"{cnt['hit'] / judged:.0%}" if judged else "-"
         out.append(f"| {wk} | {cnt['hit']} | {cnt['miss']} | {cnt['pending']} | {rate} |")
+    if mode == "hottest":
+        out += [
+            "",
+            "## 주제 선정 방식",
+            "",
+            "- 가장 이슈인 순(이슈도 = 커뮤니티 반응 60% + 보도량 40% + 급상승·다른 채널 가점, 중복 감점).",
+            "- 위 '예측 점수 vs 실제 조회수' 상관이 이슈도와 조회수의 관계입니다. 가중치는 '균형' 방식에서만 씁니다.",
+        ]
+        return "\n".join(out) + "\n"
     new, why = suggest_weights(rows, weights)
     out += [
         "",

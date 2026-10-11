@@ -175,6 +175,14 @@ def thumbnail_for(base: str) -> str:
 # ---- 주간 사슬 ------------------------------------------------------------
 
 
+def _persistence(t: Topic) -> float:
+    """지속성: 판정 점수가 있으면 그대로, 없으면(hottest 모드) 보도된 날 수로(하루 50, 이틀 60, … 최대 100)."""
+    if t.scores.get("persistence"):
+        return t.scores["persistence"].score
+    days = {s.published_at.date() for s in t.news_signals()}
+    return min(100.0, 40.0 + 10.0 * len(days) + (10.0 if t.follow_up else 0.0))
+
+
 def heuristic_chains(
     topics: list[Topic],
     max_chains: int = 2,
@@ -192,9 +200,7 @@ def heuristic_chains(
         for t in topics
     }
     idf = idf_table(list(docs.values()), prior=IDF_PRIOR)
-    persist = {
-        t.id: t.scores.get("persistence").score if t.scores.get("persistence") else 50.0 for t in topics
-    }
+    persist = {t.id: _persistence(t) for t in topics}
     # 정치 중심: 경제 주제는 사슬의 축으로는 마지막 순위(구성원으로는 들어갈 수 있음)
     pool = sorted(topics, key=lambda t: (t.category == "경제", -persist[t.id], -t.total))
     used: set[str] = set()

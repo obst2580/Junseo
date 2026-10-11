@@ -1,5 +1,12 @@
-"""주제 점수(0~100 가중합). 세부 점수마다 근거 한 문장을 저장한다.
+"""주제 점수(0~100). 세부 점수마다 근거 한 문장을 저장한다.
 
+기본(selection.mode=hottest): **이슈도** 하나 — 가장 이슈인 순
+- 커뮤니티 반응(글 수 + 댓글/20) 60% + 보도량(기사 수 + 보도한 언론사 수) 40%
+  (커뮤니티 데이터가 없으면 보도량만)
+- 가점: 직전 같은 길이 구간보다 급상승(최대 +10), 다른 채널도 다룸(편당 +5, 최대 +10)
+- 감점: 최근 7일 안에 다뤘는데 새 전개가 없음(−25, '중복')
+
+balanced 모드(예전 방식, scoring.weights):
 1. 관심도 40%: 윈도우 기사 수 + 상승률(절대량보다 상승률에 더 큰 비중)
 2. 공백도 20%: 경쟁 채널이 최근 24시간에 다뤘으면 감점, 아무도 안 다뤘고 관심도도 낮으면 감점
 3. 지속성 10%: Claude 판정(오프라인은 휴리스틱)
@@ -24,7 +31,14 @@ from topicradar import prompts
 from topicradar.models import POLITICS_CORE, ScoreDetail, Topic
 
 DEFAULT_WEIGHTS = {"interest": 40.0, "gap": 20.0, "persistence": 10.0, "fit": 30.0}
-SCORE_LABELS = {"interest": "관심도", "gap": "공백도", "persistence": "지속성", "fit": "적합도"}
+SCORE_LABELS = {
+    "interest": "관심도",
+    "gap": "공백도",
+    "persistence": "지속성",
+    "fit": "적합도",
+    "issue": "이슈도",
+    "repeat": "중복",
+}
 
 _INSTITUTIONAL = re.compile(
     r"(법안|법률|개정|제도|정책|예산|개혁|시행령|재판|수사|협상|선거|국정감사|특검|입법|헌법)"
@@ -206,23 +220,66 @@ class Coverage:
     window_end: datetime | None
 
 
-def coverage_adjust(t: Topic, fit: ScoreDetail, coverage: list[Coverage], target_day: date) -> ScoreDetail:
-    """최근 7일 내 다룬 주제: 새 전개 없으면 −25, 새 전개 있으면 시리즈 연속 +10."""
+def coverage_delta(t: Topic, coverage: list[Coverage], target_day: date) -> tuple[float, str] | None:
+    """최근 7일 내 다룬 주제: 새 전개 없으면 (−25, 사유), 새 전개 있으면 (+10, 사유). 안 다뤘으면 None."""
     recent = [c for c in coverage if 0 <= (target_day - c.day).days <= 7]
     if not recent:
-        return fit
+        return None
     last = max(recent, key=lambda c: (c.day, c.window_end or datetime.min.replace(tzinfo=KST)))
     cutoff = last.window_end or datetime.combine(last.day, datetime.min.time(), tzinfo=KST)
-    new_sigs = [s for s in t.signals if s.kind != "competitor" and s.published_at >= cutoff]
+    new_sigs = [
+        s for s in t.signals if s.kind not in ("competitor", "community") and s.published_at >= cutoff
+    ]
     scheduled_today = t.scheduled_at is not None and t.scheduled_at.date() == target_day
-    label = last.plan_id
     if len(new_sigs) >= 2 or scheduled_today:
-        return ScoreDetail(
-            score=clamp(fit.score + 10), reason=f"{fit.reason} / 시리즈 연속({label} 이후 새 전개)"
-        )
-    return ScoreDetail(
-        score=clamp(fit.score - 25), reason=f"{fit.reason} / 최근 7일 내 다룸({label}), 새 전개 없음"
-    )
+        return 10.0, f"시리즈 연속({last.plan_id} 이후 새 전개)"
+    return -25.0, f"최근 7일 내 다룸({last.plan_id}), 새 전개 없음"
+
+
+def coverage_adjust(t: Topic, fit: ScoreDetail, coverage: list[Coverage], target_day: date) -> ScoreDetail:
+    """balanced 모드: 적합도에 coverage_delta 반영."""
+    d = coverage_delta(t, coverage, target_day)
+    if d is None:
+        return fit
+    return ScoreDetail(score=clamp(fit.score + d[0]), reason=f"{fit.reason} / {d[1]}")
+
+
+def _host(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(url).netloc.removeprefix("www.")
+
+
+def issue_score(
+    t: Topic,
+    start: datetime,
+    end: datetime,
+    prev_n: int,
+    competitor_hits: int,
+    community_mode: bool,
+) -> tuple[ScoreDetail, float]:
+    """이슈도(0~100)와 상승률. 사유 문장에 근거 숫자를 모두 적는다."""
+    buzz = t.buzz(start, end)
+    posts, comments = len(buzz), sum(int(s.metric.get("comments", 0)) for s in buzz)
+    news = t.news_signals(start, end)
+    outlets = len({_host(s.url) or s.source for s in news})
+    c = 100.0 * min(1.0, math.log1p(posts + comments / 20.0) / math.log1p(20))
+    n = 100.0 * min(1.0, math.log1p(len(news) + outlets) / math.log1p(20))
+    now_n = posts if community_mode else len(t.window_signals(start, end))
+    rise = max(-1.0, min(3.0, (now_n - prev_n) / max(prev_n, 1)))
+    rise_bonus = 10.0 * max(0.0, min(rise, 2.0)) / 2.0
+    comp_bonus = 5.0 * min(2, competitor_hits)
+    base = 0.6 * c + 0.4 * n if community_mode else n
+    score = round(clamp(base + rise_bonus + comp_bonus), 1)
+    parts = []
+    if community_mode:
+        parts.append(f"커뮤니티 글 {posts}건(댓글 {comments:,})")
+    parts.append(f"기사 {len(news)}건(언론 {outlets}곳)")
+    if competitor_hits:
+        parts.append(f"다른 채널 {competitor_hits}편")
+    if rise_bonus:
+        parts.append(f"직전 대비 {rise:+.0%}")
+    return ScoreDetail(score=score, reason=" · ".join(parts)), rise
 
 
 def total_score(scores: dict[str, ScoreDetail], weights: dict[str, float] | None = None) -> float:
@@ -245,21 +302,40 @@ def score_topics(
     llm: ClaudeLLM | None = None,
     trend_ratios: dict[str, float] | None = None,
     community_mode: bool = False,
+    mode: str = "balanced",
 ) -> list[Topic]:
     """주제마다 scores·total·trend를 채운다(제자리 갱신 후 반환).
 
-    community_mode: 커뮤니티 정치 게시판 데이터가 있으면 관심도를 커뮤니티 반응(글 수·댓글·상승률)으로 잰다.
+    mode=hottest: 이슈도 하나(+중복 감점). balanced: 관심·공백·지속·적합 가중합.
+    community_mode: 커뮤니티 정치 게시판 데이터가 있으면 커뮤니티 반응을 주된 근거로 쓴다.
     prev_counts는 같은 기준(커뮤니티 모드면 커뮤니티 글 수)이어야 한다.
     """
+    coverage = coverage or {}
+    gap_from = window_end - timedelta(hours=24)
+    if mode == "hottest":
+        for t in topics:
+            t.competitor_hits = sum(
+                1 for s in t.signals if s.kind == "competitor" and gap_from <= s.published_at <= window_end
+            )
+            detail, rise = issue_score(
+                t, window_start, window_end, prev_counts.get(t.id, 0), t.competitor_hits, community_mode
+            )
+            t.scores = {"issue": detail}
+            total = detail.score
+            d = coverage_delta(t, coverage.get(t.id, []), target_day)
+            if d is not None and d[0] < 0:
+                t.scores["repeat"] = ScoreDetail(score=d[0], reason=d[1])
+                total = clamp(total + d[0])
+            t.trend = "↑" if rise >= 0.3 else "↓" if rise <= -0.3 else "→"  # type: ignore[assignment]
+            t.total = round(total, 1)
+        return sorted(topics, key=lambda t: -t.total)
     judged: dict[str, tuple[ScoreDetail, ScoreDetail]] = {}
     if llm is not None and topics:
         try:
             judged = llm_judge(llm, topics)
         except LLMError:
             judged = {}
-    coverage = coverage or {}
     trend_ratios = trend_ratios or {}
-    gap_from = window_end - timedelta(hours=24)
     for t in topics:
         if community_mode:
             buzz = t.buzz(window_start, window_end)

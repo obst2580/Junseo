@@ -278,7 +278,7 @@ async def refresh_stats(store: Store, ids: list[str] | None = None) -> int:
 async def run_history(store: Store, cfg: ChannelConfig, weeks: int) -> str:
     """history: 통계 갱신 후 분석."""
     await refresh_stats(store)
-    return history_report(store, cfg.scoring.weights, weeks, now_kst())
+    return history_report(store, cfg.scoring.weights, weeks, now_kst(), cfg.selection.mode)
 
 
 async def send_slack(cfg: ChannelConfig, result: SlotResult) -> bool:

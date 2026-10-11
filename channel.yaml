@@ -82,5 +82,6 @@ communities:
     enabled: false             # 시사게시판. probe로 확인 후 켜기
 
 selection:
-  community_gate: true         # 저녁 헤드라인·서브, 주간 줄기는 커뮤니티 반응이 있는 주제만
+  mode: hottest               # hottest: 가장 이슈인 순(영상마다 이슈 4~5개) | balanced: 관심·공백·지속·적합 가중합
+  community_gate: true         # balanced 모드에서만: 저녁 헤드라인·서브, 주간 줄기는 커뮤니티 반응이 있는 주제만
   derived_queries: 10          # 커뮤니티 화제로 만든 네이버 뉴스 검색어 수(근거 기사 확보용)

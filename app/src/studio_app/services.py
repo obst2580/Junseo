@@ -383,6 +383,7 @@ def settings_info(settings: Settings) -> dict[str, Any]:
             "slack_webhook": cfg.channel.slack_webhook,
             "tone": cfg.script.tone,
             "weights": {k: round(v) for k, v in cfg.scoring.weights.items()},
+            "selection_mode": cfg.selection.mode,
         },
         "tones": [{"name": n, "rules": r} for n, r in TONES.items()],
         "communities": [
@@ -424,6 +425,10 @@ def save_channel(settings: Settings, data: dict[str, Any]) -> None:
         set_channel_value(settings, "channel", "competitors", [x.strip() for x in items if x.strip()])
     if "tone" in data:
         set_channel_value(settings, "script", "tone", data["tone"])
+    if "selection_mode" in data:
+        if data["selection_mode"] not in ("hottest", "balanced"):
+            raise ValueError("선정 방식은 hottest | balanced")
+        set_channel_value(settings, "selection", "mode", data["selection_mode"])
     if "weights" in data:
         w = {k: float(v) for k, v in data["weights"].items()}
         if set(w) != set(WEIGHT_KEYS) or any(not 0 <= v <= 100 for v in w.values()) or sum(w.values()) <= 0:

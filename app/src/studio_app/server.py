@@ -94,6 +94,7 @@ class ChannelBody(BaseModel):
     slack_webhook: str | None = None
     tone: str | None = None
     weights: dict[str, float] | None = None
+    selection_mode: str | None = None
 
 
 class CommunityBody(BaseModel):
