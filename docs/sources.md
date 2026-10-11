@@ -58,15 +58,25 @@
 
 ## 6. 네이버
 
-| API | 내용 |
-|---|---|
-| 뉴스 검색 `GET /v1/search/news.json` | `query, display(≤100), start, sort=date`. 응답 `title, originallink, link, description, pubDate` |
-| 이미지 검색 `GET /v1/search/image` | `query, display, sort, filter=large`. 응답 `title, link, thumbnail, sizewidth, sizeheight` — **게시 페이지 URL이 없다** → 출처는 이미지 호스트 도메인으로 기록 |
-| 데이터랩 검색어 트렌드 `POST /v1/datalab/search` (2차) | `startDate, endDate, timeUnit, keywordGroups(≤5)`. 응답 ratio는 구간 최대=100 상대값 → 상승률 계산용 |
+> **2026-07-31부터 검색 API 키는 NAVER API HUB(네이버 클라우드)에서만 새로 발급된다.** 개발자센터 키는 2027-06-30까지 동작.
+> 쇼핑·책·전문자료 검색은 대체 없이 종료, 뉴스·이미지·블로그 등은 HUB로 이관(파라미터·응답 형식 동일).
 
-- 인증 헤더 `X-Naver-Client-Id`, `X-Naver-Client-Secret`.
-- **키 발급처 변경**: 신규 키는 네이버 클라우드 콘솔의 NAVER API HUB에서 발급된다([NAVER API HUB 개요](https://api.ncloud-docs.com/docs/naver-api-hub-overview.md)). 호스트·헤더 이름이 다르면 `.env`의 `NAVER_API_BASE`, `NAVER_HEADER_ID`, `NAVER_HEADER_SECRET`으로 바꾼다.
-- 일일 한도는 발급처 대시보드에서 확인(검색 API는 통상 하루 25,000회로 알려져 있으나 이미지 검색 한도는 확인 못 함).
+| 항목 | NAVER API HUB(새 키, 기본) | 예전 개발자센터 |
+|---|---|---|
+| 발급 | 네이버 클라우드 콘솔 → Services → Application Service → NAVER API HUB → 이용 신청 → 애플리케이션 등록(검색 API 선택) → Client ID/Secret | developers.naver.com(신규 발급 종료) |
+| 뉴스 검색 | `GET https://naverapihub.apigw.ntruss.com/search/v1/news` | `GET https://openapi.naver.com/v1/search/news.json` |
+| 이미지 검색 | `GET https://naverapihub.apigw.ntruss.com/search/v1/image` | `GET https://openapi.naver.com/v1/search/image` |
+| 인증 헤더 | `X-NCP-APIGW-API-KEY-ID`, `X-NCP-APIGW-API-KEY` | `X-Naver-Client-Id`, `X-Naver-Client-Secret` |
+| 한도·요금 | 한시 무료, 검색 카테고리 합산 **월 775,000건**, 키당 50 RPS(유료 전환 시 사전 공지) | 검색 하루 25,000건 |
+
+- 파라미터: 뉴스 `query, display(≤100), start, sort=date`, 이미지 `query, display, sort, filter=large`. 응답은 `title, originallink, link, description, pubDate` / `title, link, thumbnail, sizewidth, sizeheight`.
+  이미지 검색은 **게시 페이지 URL이 없다** → 출처는 이미지 호스트 도메인으로 기록.
+- 구현: `studio_core.keys.naver_get` — `NAVER_API=auto`(기본)면 HUB로 부르고 401/403이면 예전 주소로 다시 부른 뒤 성공한 방식을 기억. `hub`·`legacy`로 고정 가능.
+  인증 실패는 수집 결과 표에 '실패'로 보인다.
+- 데이터랩 검색어 트렌드(2차)도 HUB로 이관됨 — 붙일 때 HUB 문서에서 경로 확인.
+- 출처(2차 자료 포함, 공식 문서는 이 환경에서 열지 못함): [NAVER API HUB 이미지 검색 문서](https://api.ncloud-docs.com/docs/en/naver-api-hub-search-image),
+  [NAVER API HUB 개요(가이드)](https://guide.ncloud-docs.com/docs/apihub-overview), [이관 사례 PR](https://github.com/joymin5655/omybrand-intelligence/pull/14),
+  [이관 정리](https://keywordcockpit.com/naver-api-hub-migration/).
 
 ## 7. Google
 

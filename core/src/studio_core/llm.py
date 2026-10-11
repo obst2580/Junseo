@@ -15,6 +15,7 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel
@@ -85,6 +86,11 @@ def strict_schema(model: type[BaseModel]) -> dict[str, Any]:
     return schema
 
 
+def auth_marker(settings: Settings) -> Path:
+    """Claude 키가 거부됐을 때(401/403) 남기는 표시 파일. 다음 성공 호출이나 새 키 저장 때 지운다."""
+    return settings.logs_dir / "llm_auth_error.txt"
+
+
 class ClaudeLLM:
     """Anthropic SDK 기반 클라이언트."""
 
@@ -153,7 +159,10 @@ class ClaudeLLM:
         try:
             resp = self.client.beta.messages.create(**kwargs)
         except Exception as e:  # SDK의 타입별 예외는 상위로 메시지만 전달
+            if getattr(e, "status_code", None) in (401, 403):  # 만료·삭제·잘못된 키 → 화면에 알린다
+                self._auth_marker().write_text(f"{type(e).__name__}: {e}", encoding="utf-8")
             raise LLMError(f"{task}: Claude 호출 실패: {type(e).__name__}: {e}") from e
+        self._auth_marker().unlink(missing_ok=True)
         self._log_usage(task, model, resp)
         if resp.stop_reason == "refusal":
             raise LLMRefusal(f"{task}: 모델이 요청을 거절했습니다({getattr(resp, 'stop_details', None)})")
@@ -163,6 +172,9 @@ class ClaudeLLM:
         if not texts:
             raise LLMError(f"{task}: 텍스트 응답이 없습니다")
         return texts[0] if schema is not None else "".join(texts)
+
+    def _auth_marker(self) -> Path:
+        return auth_marker(self.settings)
 
     def _log_usage(self, task: str, model: str, resp: Any) -> None:
         usage = getattr(resp, "usage", None)

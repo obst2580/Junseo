@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from newsclip.models import Asset, SceneKind, asset_id
 from newsclip.sources.base import Source, domain_of
-from studio_core.http import get_json
-from studio_core.keys import naver_base, naver_headers
+from studio_core.keys import naver_credentials, naver_get
 from studio_core.text import strip_html
 
 
@@ -48,13 +47,10 @@ class NaverImageSource(Source):
 
     def check_ready(self) -> None:
         """키 확인(없으면 Unavailable)."""
-        naver_headers()
+        naver_credentials()
 
     async def _search(self, query: str, kind: SceneKind) -> list[Asset]:
-        payload = await get_json(
-            self.client,
-            f"{naver_base()}/v1/search/image",
-            params={"query": query, "display": 10, "sort": "sim", "filter": "large"},
-            headers=naver_headers(),
+        payload = await naver_get(
+            self.client, "image", {"query": query, "display": 10, "sort": "sim", "filter": "large"}
         )
         return parse_items(payload)

@@ -10,7 +10,7 @@ routes:
   file: rss/bbc.xml
 - match: https://press\.example\.go\.kr/rss/press\.xml
   file: rss/press.xml
-- match: openapi\.naver\.com/v1/search/news\.json
+- match: (openapi\.naver\.com/v1/search/news\.json|naverapihub\.apigw\.ntruss\.com/search/v1/news)
   generate: naver_news
   data: naver/index.json
 - match: https://damoang\.net/free\?page=1
@@ -46,7 +46,7 @@ routes:
   generate: youtube_search
 - match: googleapis\.com/customsearch/v1
   generate: google_image
-- match: openapi\.naver\.com/v1/search/image
+- match: (openapi\.naver\.com/v1/search/image|naverapihub\.apigw\.ntruss\.com/search/v1/image)
   generate: naver_image
 - match: commons\.wikimedia\.org/w/api\.php
   generate: wikimedia

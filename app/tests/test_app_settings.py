@@ -168,3 +168,17 @@ def test_running_probe_false():
     from studio_app.cli import _running
 
     assert _running("http://127.0.0.1:9/") is False
+
+
+def test_rejected_claude_key_is_shown(client, root):
+    from studio_core.llm import auth_marker
+
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-expired-0000"}})
+    st = Settings(root=root)
+    auth_marker(st).write_text("AuthenticationError: 401", encoding="utf-8")
+    status = client.get("/api/status").json()
+    # STUDIO_LLM=offline인 테스트 환경에서도 거부 표시는 설정 안내에 뜬다
+    assert any("거부" in x for x in status["setup"])
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-new-1111"}})
+    assert not auth_marker(st).exists()
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": ""}})

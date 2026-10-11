@@ -82,17 +82,53 @@ def test_parse_news():
 
 
 @respx.mock
-async def test_naver_collector_headers(monkeypatch):
+async def test_naver_collector_hub_first_then_legacy(monkeypatch):
+    from studio_core import keys
+
+    keys._working.clear()
     monkeypatch.setenv("NAVER_CLIENT_ID", "id1")
     monkeypatch.setenv("NAVER_CLIENT_SECRET", "sec1")
-    route = respx.get("https://openapi.naver.com/v1/search/news.json").mock(
+    hub = respx.get("https://naverapihub.apigw.ntruss.com/search/v1/news").mock(
         return_value=httpx.Response(200, json=NAVER)
     )
     async with httpx.AsyncClient() as c:
         sigs = await NaverNewsCollector(["국회"], c).fetch(kst("2026-10-08 00:00"))
     assert len(sigs) == 1
-    req = route.calls[0].request
-    assert req.headers["X-Naver-Client-Id"] == "id1" and req.url.params["sort"] == "date"
+    req = hub.calls[0].request
+    assert req.headers["X-NCP-APIGW-API-KEY-ID"] == "id1" and req.headers["X-NCP-APIGW-API-KEY"] == "sec1"
+    assert req.url.params["sort"] == "date"
+    # 예전 개발자센터 키: HUB가 401이면 예전 주소로, 이후로는 예전 주소부터
+    keys._working.clear()
+    hub.mock(return_value=httpx.Response(401, json={"error": "unauthorized"}))
+    legacy = respx.get("https://openapi.naver.com/v1/search/news.json").mock(
+        return_value=httpx.Response(200, json=NAVER)
+    )
+    async with httpx.AsyncClient() as c:
+        assert len(await NaverNewsCollector(["국회"], c).fetch(kst("2026-10-08 00:00"))) == 1
+        assert legacy.calls[0].request.headers["X-Naver-Client-Id"] == "id1"
+        n_hub = hub.call_count
+        await NaverNewsCollector(["국회"], c).fetch(kst("2026-10-08 00:00"))
+        assert hub.call_count == n_hub  # 성공한 방식을 기억
+    keys._working.clear()
+
+
+@respx.mock
+async def test_naver_auth_failure_is_reported(monkeypatch):
+    from studio_core import keys
+
+    keys._working.clear()
+    monkeypatch.setenv("NAVER_CLIENT_ID", "bad")
+    monkeypatch.setenv("NAVER_CLIENT_SECRET", "bad")
+    respx.get("https://naverapihub.apigw.ntruss.com/search/v1/news").mock(return_value=httpx.Response(401))
+    respx.get("https://openapi.naver.com/v1/search/news.json").mock(return_value=httpx.Response(401))
+    async with httpx.AsyncClient() as c:
+        rep = await collect_all([NaverNewsCollector(["국회", "법사위"], c)], kst("2026-10-08 00:00"))
+    assert "NAVER API HUB" in rep.errors["naver_news"]
+    monkeypatch.setenv("NAVER_API", "legacy")
+    async with httpx.AsyncClient() as c:
+        rep = await collect_all([NaverNewsCollector(["국회"], c)], kst("2026-10-08 00:00"))
+    assert "401" in rep.errors["naver_news"]
+    keys._working.clear()
 
 
 async def test_naver_collector_disabled_without_keys(monkeypatch):

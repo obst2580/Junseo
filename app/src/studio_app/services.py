@@ -24,7 +24,7 @@ from studio_core.config import (
     set_community_enabled,
 )
 from studio_core.envfile import mask, read_env, set_env
-from studio_core.llm import get_llm
+from studio_core.llm import auth_marker, get_llm
 from topicradar import pipeline as tr
 from topicradar.db import Store
 from topicradar.models import SlotPlan
@@ -45,24 +45,24 @@ KEYS: list[dict[str, Any]] = [
         "label": "Claude API 키",
         "required": True,
         "why": "주제 판단·대본(입담 말투)·장면 나누기. 없으면 기사 문장을 옮긴 골격 대본만 나옵니다.",
-        "how": "Claude Console → API Keys → Create Key",
+        "how": "Claude Console → API Keys → Create Key(만료는 '없음' 또는 90일 이상 권장) · Billing에서 월 사용 한도 설정",
         "url": "https://console.anthropic.com/settings/keys",
     },
     {
         "key": "NAVER_CLIENT_ID",
         "label": "네이버 Client ID",
         "required": True,
-        "why": "뉴스 검색(근거 기사)과 이미지 검색(1순위 자료).",
-        "how": "네이버 개발자센터 → 애플리케이션 등록 → 사용 API '검색'",
-        "url": "https://developers.naver.com/apps/#/register",
+        "why": "뉴스 검색(근거 기사)과 이미지 검색(1순위 자료). 지금은 무료(검색 합산 월 77만 5천 건까지).",
+        "how": "네이버 클라우드 콘솔 → Services → Application Service → NAVER API HUB → 이용 신청 → 애플리케이션 등록(검색 API 선택). 개발자센터 신규 발급은 2026-07-31 종료",
+        "url": "https://console.ncloud.com/",
     },
     {
         "key": "NAVER_CLIENT_SECRET",
         "label": "네이버 Client Secret",
         "required": True,
-        "why": "위 애플리케이션의 Secret.",
-        "how": "같은 화면의 Client Secret",
-        "url": "https://developers.naver.com/apps/#/list",
+        "why": "위 애플리케이션의 Secret. 예전 개발자센터 키도 그대로 쓸 수 있습니다(2027-06-30까지).",
+        "how": "NAVER API HUB 애플리케이션 상세의 Client Secret",
+        "url": "https://console.ncloud.com/",
     },
     {
         "key": "YOUTUBE_API_KEY",
@@ -153,6 +153,12 @@ def status(settings: Settings) -> dict[str, Any]:
     with open_store(settings) as store:
         last = store.get_meta("last_collect")
     setup: list[str] = []
+    rejected = auth_marker(settings).exists() and bool(settings.env("ANTHROPIC_API_KEY"))
+    if rejected:
+        setup.append(
+            "Claude API 키가 거부됐습니다(만료·삭제됐거나 잘못된 키) — 설정에서 새 키를 넣으세요. "
+            "그동안 대본은 오프라인 초안으로 나옵니다"
+        )
     if missing:
         setup.append("API 키 입력: " + ", ".join(missing))
     if not shutil.which("ffmpeg"):
@@ -166,6 +172,8 @@ def status(settings: Settings) -> dict[str, Any]:
     llm = (
         "offline"
         if settings.env("STUDIO_LLM").lower() == "offline" or not settings.env("ANTHROPIC_API_KEY")
+        else "rejected"
+        if rejected
         else "claude"
     )
     return {
@@ -399,6 +407,8 @@ def save_keys(settings: Settings, values: dict[str, str]) -> None:
     if bad:
         raise ValueError(f"알 수 없는 키: {', '.join(sorted(bad))}")
     set_env(settings.root / ".env", values, template=settings.root / ".env.example")
+    if values.get("ANTHROPIC_API_KEY"):
+        auth_marker(settings).unlink(missing_ok=True)
 
 
 def save_channel(settings: Settings, data: dict[str, Any]) -> None:

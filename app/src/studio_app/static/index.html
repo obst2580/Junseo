@@ -41,6 +41,7 @@ nav a.on { background: var(--ink); color: var(--surface); }
 .mode { font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
 .mode.claude { background: var(--ok-soft); color: var(--ok); }
 .mode.offline { background: var(--warn-soft); color: var(--warn); }
+.mode.rejected { background: var(--bad-soft); color: var(--bad); }
 
 main { max-width: 1160px; margin: 0 auto; padding: 24px 20px 120px; }
 @media (max-width: 640px) {
@@ -341,8 +342,12 @@ async function loadStatus() {
   STATUS = await api('/api/status');
   const m = $('#mode');
   m.className = 'mode ' + STATUS.llm;
-  m.textContent = STATUS.llm === 'claude' ? 'Claude 연결됨' : '오프라인 모드(키 없음)';
-  m.title = STATUS.llm === 'claude' ? '대본·판단을 Claude가 씁니다' : 'Claude 키가 없어 기사 문장을 옮긴 골격 대본만 나옵니다 — 설정에서 키를 넣으세요';
+  m.textContent = { claude: 'Claude 연결됨', offline: '오프라인 모드(키 없음)', rejected: 'Claude 키 확인 필요' }[STATUS.llm];
+  m.title = {
+    claude: '대본·판단을 Claude가 씁니다',
+    offline: 'Claude 키가 없어 기사 문장을 옮긴 골격 대본만 나옵니다 — 설정에서 키를 넣으세요',
+    rejected: 'Claude가 키를 거부했습니다(만료·삭제·오타) — 설정에서 새 키를 넣으세요',
+  }[STATUS.llm];
   if (STATUS.busy) watchJob();
 }
 async function route() {

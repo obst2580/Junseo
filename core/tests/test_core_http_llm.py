@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from studio_core import http as h
 from studio_core.config import Settings
 from studio_core.fixtures import FixtureTransport
-from studio_core.keys import Unavailable, naver_headers, require
+from studio_core.keys import Unavailable, naver_credentials, naver_endpoints, require
 from studio_core.llm import ClaudeLLM, LLMConfig, LLMError, LLMRefusal, get_llm, strict_schema, usage_summary
 
 
@@ -147,9 +147,37 @@ def test_get_llm_modes(tmp_path, monkeypatch):
 def test_keys(monkeypatch):
     monkeypatch.delenv("NAVER_CLIENT_ID", raising=False)
     with pytest.raises(Unavailable):
-        naver_headers()
+        naver_credentials()
     monkeypatch.setenv("NAVER_CLIENT_ID", "i")
     monkeypatch.setenv("NAVER_CLIENT_SECRET", "s")
-    assert naver_headers()["X-Naver-Client-Id"] == "i"
+    assert naver_credentials() == ("i", "s")
+    eps = naver_endpoints("image")
+    assert [e.mode for e in eps] == ["hub", "legacy"] and eps[0].url.endswith("/search/v1/image")
+    monkeypatch.setenv("NAVER_API", "hub")
+    assert [e.mode for e in naver_endpoints("news")] == ["hub"]
+    monkeypatch.setenv("NAVER_API", "legacy")
+    assert naver_endpoints("news")[0].url == "https://openapi.naver.com/v1/search/news.json"
     with pytest.raises(Unavailable):
         require("DEFINITELY_MISSING_KEY")
+
+
+def test_claude_auth_error_marker(tmp_path):
+    from studio_core.llm import auth_marker
+
+    settings = Settings(root=tmp_path)
+    settings.ensure_dirs()
+
+    class Expired(Exception):
+        status_code = 401
+
+    class Boom:
+        def create(self, **kw):
+            raise Expired("invalid x-api-key")
+
+    bad = ClaudeLLM(settings, client=SimpleNamespace(beta=SimpleNamespace(messages=Boom())))
+    with pytest.raises(LLMError):
+        bad.text("script", "s", "p")
+    assert "invalid x-api-key" in auth_marker(settings).read_text(encoding="utf-8")
+    good, _ = fake_client(text="ok")
+    ClaudeLLM(settings, client=good, config=LLMConfig()).text("script", "s", "p")
+    assert not auth_marker(settings).exists()  # 성공하면 지운다

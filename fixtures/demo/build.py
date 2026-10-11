@@ -220,7 +220,7 @@ def build_routes(spec: dict) -> None:
     # 네이버 뉴스: 설정 검색어든 커뮤니티 화제에서 뽑은 검색어든 같은 색인에서 찾는다
     routes.append(
         {
-            "match": r"openapi\.naver\.com/v1/search/news\.json",
+            "match": r"(openapi\.naver\.com/v1/search/news\.json|naverapihub\.apigw\.ntruss\.com/search/v1/news)",
             "generate": "naver_news",
             "data": "naver/index.json",
         }
@@ -252,7 +252,10 @@ def build_routes(spec: dict) -> None:
         {"match": r"youtube/v3/videos", "generate": "youtube_videos"},
         {"match": r"youtube/v3/search", "generate": "youtube_search"},
         {"match": r"googleapis\.com/customsearch/v1", "generate": "google_image"},
-        {"match": r"openapi\.naver\.com/v1/search/image", "generate": "naver_image"},
+        {
+            "match": r"(openapi\.naver\.com/v1/search/image|naverapihub\.apigw\.ntruss\.com/search/v1/image)",
+            "generate": "naver_image",
+        },
         {"match": r"commons\.wikimedia\.org/w/api\.php", "generate": "wikimedia"},
         {"match": r"img\.example\.com/", "generate": "image"},
         {"match": r"hooks\.slack\.com/", "file": "slack_ok.txt", "content_type": "text/plain"},

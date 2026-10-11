@@ -4,7 +4,7 @@
 네이버 데이터랩 검색어 트렌드 API를 2차에 붙인다.
 
 조사 메모(docs/sources.md 참고):
-- POST {NAVER_API_BASE}/v1/datalab/search, 네이버 검색 API와 같은 Client ID/Secret
+- NAVER API HUB의 검색어 트렌드(데이터랩) API, 네이버 검색과 같은 Client ID/Secret(경로는 붙일 때 HUB 문서로 확인)
 - body: startDate, endDate, timeUnit(date|week|month), keywordGroups(최대 5개, 그룹당 키워드 최대 20개)
 - 응답 ratio는 요청 구간 내 최대값=100 상대지표 → '상승률' 계산에 적합(절대량 아님)
 - 일 호출 한도는 검색 API와 별도로 관리됨(개발자센터/API HUB 대시보드 확인)

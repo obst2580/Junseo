@@ -1,9 +1,8 @@
 """네이버 뉴스 검색 API 수집기 (NAVER_CLIENT_ID / NAVER_CLIENT_SECRET).
 
-- 엔드포인트: {NAVER_API_BASE}/v1/search/news.json (기본 https://openapi.naver.com)
-- 헤더: X-Naver-Client-Id, X-Naver-Client-Secret
-- 2026년부터 신규 키는 NAVER API HUB(네이버 클라우드 콘솔)에서 발급된다.
-  호스트·헤더가 다르면 NAVER_API_BASE / NAVER_HEADER_ID / NAVER_HEADER_SECRET으로 바꾼다.
+- 엔드포인트·헤더는 studio_core.keys.naver_get이 고른다: NAVER API HUB(새 키, 기본)
+  naverapihub.apigw.ntruss.com/search/v1/news, 안 되면 예전 개발자센터 openapi.naver.com/v1/search/news.json.
+- 인증 실패는 수집 결과 표에 '실패'로 드러나게 올리고, 그 밖의 오류는 검색어 단위로 격리한다.
 """
 
 from __future__ import annotations
@@ -16,8 +15,8 @@ from email.utils import parsedate_to_datetime
 import httpx
 
 from studio_core.config import KST, now_kst
-from studio_core.http import get_json
-from studio_core.keys import naver_base, naver_headers
+from studio_core.http import HttpError
+from studio_core.keys import naver_credentials, naver_get
 from studio_core.text import extract_keywords, normalize_title, strip_html
 from topicradar.collectors.base import Collector
 from topicradar.models import Signal
@@ -64,14 +63,16 @@ class NaverNewsCollector(Collector):
         self.client = client
         self.display = display
 
-    async def _one(self, query: str, headers: dict[str, str], since: datetime) -> list[Signal]:
+    async def _one(self, query: str, since: datetime) -> list[Signal]:
         try:
-            payload = await get_json(
-                self.client,
-                f"{naver_base()}/v1/search/news.json",
-                params={"query": query, "display": self.display, "start": 1, "sort": "date"},
-                headers=headers,
+            payload = await naver_get(
+                self.client, "news", {"query": query, "display": self.display, "start": 1, "sort": "date"}
             )
+        except HttpError as e:
+            if e.status in (401, 403):  # 키 문제는 모든 검색어가 같이 실패하므로 바로 알린다
+                raise
+            log.warning("네이버 뉴스 실패 %s: %s", query, e)
+            return []
         except Exception as e:  # 검색어 단위 실패 격리
             log.warning("네이버 뉴스 실패 %s: %s", query, e)
             return []
@@ -79,6 +80,6 @@ class NaverNewsCollector(Collector):
 
     async def fetch(self, since: datetime) -> list[Signal]:
         """검색어별 결과 합치기."""
-        headers = naver_headers()
-        chunks = await asyncio.gather(*(self._one(q, headers, since) for q in self.queries))
+        naver_credentials()
+        chunks = await asyncio.gather(*(self._one(q, since) for q in self.queries))
         return [s for c in chunks for s in c]

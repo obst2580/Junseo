@@ -156,7 +156,7 @@ async def test_google_naver_wikimedia_sources(monkeypatch, tmp_path):
             await GoogleImageSource(c).search("국회", "photo")
         monkeypatch.setenv("NAVER_CLIENT_ID", "i")
         monkeypatch.setenv("NAVER_CLIENT_SECRET", "s")
-        nr = respx.get("https://openapi.naver.com/v1/search/image").mock(
+        nr = respx.get("https://naverapihub.apigw.ntruss.com/search/v1/image").mock(
             return_value=httpx.Response(200, json={"items": []})
         )
         await NaverImageSource(c).search("국회", "photo")

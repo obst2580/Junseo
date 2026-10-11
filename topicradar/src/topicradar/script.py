@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 from studio_core.config import KST
@@ -26,6 +27,8 @@ from studio_core.text import (
 from topicradar import prompts
 from topicradar.cluster import window_title
 from topicradar.models import Signal, SlotItem, SlotPlan
+
+log = logging.getLogger("topicradar.script")
 
 CHAR_RANGE = {"morning": (900, 1100), "evening": (1500, 1800), "weekly": (2500, 3000)}
 LINE_LIMIT = 25
@@ -306,8 +309,8 @@ def draft_script(plan: SlotPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFA
     if llm is not None:
         try:
             return llm_script(llm, plan, tone)
-        except LLMError:
-            pass
+        except LLMError as e:
+            log.warning("Claude 대본 실패 → 오프라인 초안으로 대신: %s", e)
     return heuristic_script(plan, tone)
 
 

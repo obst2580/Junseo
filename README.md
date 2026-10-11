@@ -60,9 +60,9 @@ uv run pytest --cov        # 테스트(시연 fixture 포함, 네트워크 불�
 
 | 변수 | 용도 | 발급처 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | 군집·판정·편성 문장·대본·장면 분할 | Claude Console(console.anthropic.com) → API Keys |
+| `ANTHROPIC_API_KEY` | 군집·판정·편성 문장·대본·장면 분할 | Claude Console(console.anthropic.com) → API Keys. 만료는 '없음'이나 90일 이상 권장(만료되면 화면에 'Claude 키 확인 필요'), Billing에서 월 사용 한도 설정 |
 | `STUDIO_MODEL_ANALYSIS` / `STUDIO_MODEL_SCRIPT` | 역할별 모델(기본 `claude-opus-5-5`) | 비용을 줄이려면 분석만 `claude-sonnet-5-5` |
-| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 검색, 이미지 검색(1순위), 데이터랩(2차) | 네이버 개발자센터 → 애플리케이션 등록(검색·데이터랩). **신규 키는 네이버 클라우드 콘솔의 NAVER API HUB**에서 발급 — 호스트·헤더가 다르면 `NAVER_API_BASE`·`NAVER_HEADER_*` |
+| `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 검색, 이미지 검색(1순위), 데이터랩(2차) | **네이버 클라우드 콘솔 → Services → Application Service → NAVER API HUB → 이용 신청 → 애플리케이션 등록(검색 API 선택)**. 개발자센터(developers.naver.com) 신규 발급은 2026-07-31 종료, 기존 키는 2027-06-30까지. 어느 키든 그대로 넣으면 된다(`NAVER_API=auto`가 HUB → 예전 주소 순으로 알아서 고름) |
 | `YOUTUBE_API_KEY` | 경쟁 채널·내 채널 통계, 영상 검색 | Google Cloud Console → YouTube Data API v3 사용 설정 → 사용자 인증 정보 → API 키 |
 | `GOOGLE_API_KEY` / `GOOGLE_CSE_ID` | Google 이미지 검색(키가 있을 때만 1순위) | 아래 "Google Custom Search" 참고 |
 | `DATA_GO_KR_KEY` | 공공데이터포털(2차: 국회 일정, 정책방송원) | data.go.kr 회원가입 → 활용신청 → 일반 인증키 |
