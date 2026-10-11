@@ -15,6 +15,7 @@ from typing import Any
 
 from studio_app.jobs import Say
 from studio_core.config import (
+    ENV_OVERRIDDEN,
     KST,
     Settings,
     load_channel,
@@ -24,7 +25,7 @@ from studio_core.config import (
     set_community_enabled,
 )
 from studio_core.envfile import mask, read_env, set_env
-from studio_core.llm import auth_marker, get_llm
+from studio_core.llm import auth_marker, auth_reason, check_connection, get_llm, key_problem
 from topicradar import pipeline as tr
 from topicradar.db import Store
 from topicradar.models import FORMATS, Board, VideoPlan
@@ -152,10 +153,13 @@ def status(settings: Settings) -> dict[str, Any]:
     setup: list[str] = []
     rejected = auth_marker(settings).exists() and bool(settings.env("ANTHROPIC_API_KEY"))
     if rejected:
+        why = auth_reason(settings) or "만료·삭제됐거나 잘못된 키"
         setup.append(
-            "Claude API 키가 거부됐습니다(만료·삭제됐거나 잘못된 키) — 설정에서 새 키를 넣으세요. "
+            f"Claude API 키가 거부됐습니다: {why} — 설정 → API 키에서 새 키를 넣고 [연결 확인]을 누르세요. "
             "그동안 의견 정리·대본은 오프라인 골격으로 나옵니다"
         )
+    elif settings.env("ANTHROPIC_API_KEY") and key_problem(settings.env("ANTHROPIC_API_KEY")):
+        setup.append(f"Claude API 키 확인: {key_problem(settings.env('ANTHROPIC_API_KEY'))}")
     if missing:
         setup.append("API 키 입력: " + ", ".join(missing))
     if not shutil.which("ffmpeg"):
@@ -308,11 +312,14 @@ def project_detail(settings: Settings, pid: str) -> dict[str, Any]:
             ),
             "llm_mode": plan.llm_mode,
             "board_id": plan.board_id,
+            "script_mode": plan.script_mode,
+            "script_note": plan.script_note,
         },
         items=[_item_dict(plan, it) for it in plan.items],
         script=script,
         warnings=validate_script(script, plan) if script else [],
         chars_per_minute=load_channel(settings).script.chars_per_minute,
+        timeline=load_channel(settings).timeline.model_dump(),
     )
     return out
 
@@ -398,7 +405,10 @@ def settings_info(settings: Settings) -> dict[str, Any]:
     keys = []
     for k in KEYS:
         value = settings.env(k["key"]) or env_file.get(k["key"], "")
-        keys.append({**k, "set": bool(value), "masked": mask(value)})
+        note = ""
+        if k["key"] in ENV_OVERRIDDEN:
+            note = "운영체제 환경변수에 다른 값이 있어 무시하고 .env(이 화면에서 저장한 값)를 씁니다"
+        keys.append({**k, "set": bool(value), "masked": mask(value), "note": note})
     cfg = load_channel(settings)
     probe_path = settings.data_dir / "probe.json"
     probe = json.loads(probe_path.read_text(encoding="utf-8")) if probe_path.exists() else None
@@ -413,6 +423,8 @@ def settings_info(settings: Settings) -> dict[str, Any]:
             "tone": cfg.script.tone,
             "chars_per_minute": cfg.script.chars_per_minute,
             "window_hours": cfg.board.window_hours,
+            "subtitles": cfg.timeline.subtitles,
+            "attribution": cfg.timeline.attribution,
         },
         "formats": {k: {"name": v.name, "minutes": v.minutes} for k, v in FORMATS.items()},
         "tones": [{"name": n, "rules": r} for n, r in TONES.items()],
@@ -432,14 +444,27 @@ def settings_info(settings: Settings) -> dict[str, Any]:
 
 
 def save_keys(settings: Settings, values: dict[str, str]) -> None:
-    """.env 저장(알려진 키만)."""
+    """.env 저장(알려진 키만). Claude 키는 모양부터 검사한다(관리자 키·다른 값·공백)."""
     allowed = {k["key"] for k in KEYS}
     bad = set(values) - allowed
     if bad:
         raise ValueError(f"알 수 없는 키: {', '.join(sorted(bad))}")
+    values = {k: v.strip() for k, v in values.items()}
+    if values.get("ANTHROPIC_API_KEY") and key_problem(values["ANTHROPIC_API_KEY"]):
+        raise ValueError(key_problem(values["ANTHROPIC_API_KEY"]))
     set_env(settings.root / ".env", values, template=settings.root / ".env.example")
     if values.get("ANTHROPIC_API_KEY"):
         auth_marker(settings).unlink(missing_ok=True)
+
+
+def test_claude(settings: Settings) -> dict[str, Any]:
+    """설정 화면 [연결 확인]: 키로 모델 정보를 조회한다(토큰 비용 없음)."""
+    if settings.env("STUDIO_LLM").lower() == "offline":
+        return {
+            "ok": False,
+            "message": "오프라인 모드(STUDIO_LLM=offline)로 실행 중이라 Claude를 쓰지 않습니다",
+        }
+    return check_connection(settings)
 
 
 def save_channel(settings: Settings, data: dict[str, Any]) -> None:
@@ -460,6 +485,9 @@ def save_channel(settings: Settings, data: dict[str, Any]) -> None:
         if not 120 <= cpm <= 600:
             raise ValueError("분당 글자 수는 120~600")
         set_channel_value(settings, "script", "chars_per_minute", cpm)
+    for key in ("subtitles", "attribution"):
+        if key in data:
+            set_channel_value(settings, "timeline", key, bool(data[key]))
     if "window_hours" in data:
         wh = int(data["window_hours"])
         if not 3 <= wh <= 72:
@@ -626,6 +654,7 @@ def job_probe(settings: Settings, say: Say, name: str | None = None) -> dict[str
                 "error": r.detail_error,
                 "comment_samples": [{"votes": v, "text": t} for v, t in r.comment_samples],
             },
+            "board_hints": [{"name": n, "url": u} for n, u in r.board_hints],
             "ok": r.allowed and not r.error and bool(r.posts),
         }
         for r in results

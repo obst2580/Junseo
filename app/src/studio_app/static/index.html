@@ -449,6 +449,8 @@ async function homePage() {
     ${!board ? `<div class="card"><h2>주제판 만들기</h2><p class="sub">커뮤니티 정치 게시판의 글·댓글·공감 수와 뉴스를 모아, <b>지금 가장 뜨거운 주제</b>와 그 주제에 대한 <b>커뮤니티의 주장</b>을 보여 줍니다.
       거기서 하나를 골라 <b>3분</b>, 이어지는 2~3개를 골라 <b>10분</b> 대본을 바로 만듭니다. 보통 1~2분 걸립니다.</p>
       <button class="btn primary big" id="mk-board2">주제판 만들기</button></div>` : `
+    ${board.llm_mode !== 'claude' && s.llm !== 'offline' ? `<div class="note warn" style="margin-bottom:16px"><b class="t">커뮤니티 의견을 Claude가 정리하지 못했습니다</b>${esc((board.notes.find(x => x.startsWith('Claude')) || 'Claude 키가 거부됐습니다').replace(/^Claude 의견 정리 실패 → 공감 많은 글을 그대로 옮김: /, ''))}
+      — 지금 보이는 '커뮤니티 주장'은 공감 많은 글 제목을 그대로 옮긴 것입니다. <a href="#/settings">설정</a>에서 키를 확인한 뒤 <b>새로 모으기</b>를 누르세요.</div>` : ''}
     ${board.age_minutes > 180 ? `<div class="note info" style="margin-bottom:16px">이 주제판은 ${Math.round(board.age_minutes / 60)}시간 전 것입니다 — <b>새로 모으기</b>를 누르면 지금 기준으로 다시 짭니다.</div>` : ''}
     <div class="card"><h2>10분 묶음 추천</h2><p class="sub" style="margin:0">서로 이어지는 주제 2~3개입니다. 누르면 바로 10분 대본을 씁니다.</p>
       ${board.bundles.length ? `<div class="bundles">${board.bundles.map((b, i) => `<div class="bundle">
@@ -505,7 +507,7 @@ async function projectPage(pid) {
   const secIds = { plan: 's-script', audio: 's-audio', assets: 's-assets', xml: 's-xml', upload: 's-upload' };
   app.innerHTML = `
     <div class="head"><div><div class="eyebrow"><a href="#/">← 주제판</a> · ${esc(p.label)}</div><h1>${esc(plan.titles[0] || p.label)}</h1>
-      <div class="small muted" style="margin-top:4px"><span class="fmt">${esc(plan.format_name)}</span> 대본 ${plan.target_chars[0].toLocaleString()}~${plan.target_chars[1].toLocaleString()}자 · 주제판 구간 ${esc(plan.window)} · ${plan.llm_mode === 'claude' ? 'Claude' : '오프라인 골격'}</div></div>
+      <div class="small muted" style="margin-top:4px"><span class="fmt">${esc(plan.format_name)}</span> 대본 ${plan.target_chars[0].toLocaleString()}~${plan.target_chars[1].toLocaleString()}자 · 주제판 구간 ${esc(plan.window)} · 대본 ${plan.script_mode === 'claude' ? 'Claude' : '<b style="color:var(--warn)">오프라인 골격</b>'}</div></div>
       <button class="btn" id="open-folder">폴더 열기</button></div>
     <div class="stepper">
       <button class="step done" data-go="s-plan"><div class="n">1 ✓</div><div class="l">계획</div></button>
@@ -515,7 +517,7 @@ async function projectPage(pid) {
     <section class="card sec" id="s-script">${scriptSection(p, d)}</section>
     <section class="card sec" id="s-audio">${audioSection(p, d)}</section>
     <section class="card sec" id="s-assets"><div class="sec-h"><span class="num">4</span><h2>자료(사진·영상)</h2></div><div id="assets-body"><div class="loading">…</div></div></section>
-    <section class="card sec" id="s-xml">${xmlSection(pid, p)}</section>
+    <section class="card sec" id="s-xml">${xmlSection(pid, p, d.timeline)}</section>
     <section class="card sec" id="s-upload">${uploadSection(p, plan)}</section>`;
   $$('[data-go]').forEach(b => b.onclick = () => document.getElementById(b.dataset.go).scrollIntoView({ behavior: 'smooth' }));
   $('#open-folder').onclick = () => api(`/api/projects/${pid}/open-folder`, { body: {} }).then(r => toast('폴더 열기: ' + r.path)).catch(fail);
@@ -558,6 +560,9 @@ function scriptSection(p, d) {
   return `
     <div class="sec-h"><span class="num">2</span><h2>대본</h2></div>
     <p class="sub">고친 뒤 <b>저장</b>하면 다시 점검합니다. <code>#출처:</code> 줄은 녹음 때 읽지 않고, <code>#TODO</code>·<code>#확인</code>은 처리한 뒤 지우세요. 커뮤니티 글은 사실 근거가 아니라 주장의 근거입니다.</p>
+    ${d.plan.script_mode === 'offline' && d.script ? `<div class="note warn" style="margin-bottom:12px"><b class="t">이 대본은 오프라인 골격입니다 — Claude가 쓴 대본이 아닙니다</b>
+      ${esc(d.plan.script_note || '')}<div class="small" style="margin-top:6px">기사 문장과 공감 많은 글을 옮겨 둔 것이라 짧고 투박합니다.
+      <a href="#/settings">설정 → API 키</a>에서 Claude 키를 넣고 <b>[연결 확인]</b> → 여기서 <b>[대본 다시 쓰기]</b>를 누르면 Claude가 ${d.plan.target_chars[0].toLocaleString()}자 안팎으로 씁니다.</div></div>` : ''}
     <div id="warn-box">${warnBox(w)}</div>
     <textarea class="script" id="script" spellcheck="false">${esc(d.script)}</textarea>
     <div class="row" style="margin-top:10px"><div class="meter" id="meter"></div><span class="spacer"></span>
@@ -729,11 +734,11 @@ function bindScene(pid, el, sc) {
   $('.skip', el).onchange = e => api(`/api/projects/${pid}/scenes/${sc.id}/skip`, { body: { skipped: e.target.checked } }).then(() => el.classList.toggle('skipped', e.target.checked)).catch(fail);
 }
 
-function xmlSection(pid, p) {
+function xmlSection(pid, p, tl = { subtitles: false, attribution: true }) {
   return `
     <div class="sec-h"><span class="num">5</span><h2>프리미어</h2></div>
     ${p.steps.xml ? `<div class="row" style="margin:6px 0 10px"><a class="btn primary big" href="/files/${esc(pid)}/timeline.xml" download="${esc(pid)}_timeline.xml">timeline.xml 내려받기</a></div>
-      <ol class="steps"><li>프리미어 <b>파일 → 가져오기</b> → timeline.xml</li><li>V1 화면(줌 포함) · V2 출처 표시(왼쪽 위) · <b>V3 대본 자막(음성에 맞춤)</b> · A1 내레이션 · 장면 마커가 깔립니다.</li>
+      <ol class="steps"><li>프리미어 <b>파일 → 가져오기</b> → timeline.xml</li><li>V1 화면(줌 포함)${tl.attribution ? ' · V2 출처 표시(왼쪽 위)' : ''}${tl.subtitles ? ' · 대본 자막(음성에 맞춤)' : ' · 자막 없음'} · A1 내레이션 · 장면 마커가 깔립니다. <a href="#/settings">설정에서 바꾸기</a></li>
       <li>사진·영상 파일은 프로젝트 폴더(<a href="#" id="of2">폴더 열기</a>)에 그대로 두세요. XML이 그 위치를 가리킵니다.</li></ol>`
       : `<div class="note info">자료 수집이 끝나면 여기서 timeline.xml을 받습니다.</div>`}`;
 }
@@ -803,7 +808,9 @@ async function settingsPage() {
     <div class="card"><h2>API 키</h2><p class="sub">이 컴퓨터의 <code>.env</code> 파일에만 저장됩니다. 바꿀 키만 입력하고 저장하세요.</p>
       ${s.keys.map(k => `<div class="keyrow">
         <div><div class="k">${esc(k.label)}</div>${k.set ? `<span class="badge ok">설정됨 ${esc(k.masked)}</span>` : k.required ? '<span class="badge no">없음</span>' : '<span class="badge opt">선택</span>'}</div>
-        <div class="small"><div>${esc(k.why)}</div><div class="muted" style="margin-top:2px">${esc(k.how)}${k.url ? ` · <a href="${esc(k.url)}" target="_blank" rel="noopener">발급 페이지</a>` : ''}</div></div>
+        <div class="small"><div>${esc(k.why)}</div><div class="muted" style="margin-top:2px">${esc(k.how)}${k.url ? ` · <a href="${esc(k.url)}" target="_blank" rel="noopener">발급 페이지</a>` : ''}</div>
+          ${k.note ? `<div style="color:var(--warn);margin-top:2px">${esc(k.note)}</div>` : ''}
+          ${k.key === 'ANTHROPIC_API_KEY' ? `<div class="row" style="margin-top:6px"><button class="btn small" id="test-claude">연결 확인</button><span id="claude-result" class="small"></span></div>` : ''}</div>
         <input type="password" data-key="${esc(k.key)}" placeholder="${k.set ? '바꿀 때만 입력' : '붙여넣기'}" autocomplete="off">
       </div>`).join('')}
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-keys">키 저장</button></div></div>
@@ -826,6 +833,12 @@ async function settingsPage() {
       </div>
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-len">저장</button></div></div>
 
+    <div class="card"><h2>프리미어 timeline.xml</h2><p class="sub">자료 수집·저장 때 만드는 XML에 깔 글자 트랙. 누르면 바로 저장되고 다음 XML부터 적용됩니다.</p>
+      <div class="comm"><label class="switch" title="대본 자막"><input type="checkbox" id="tl-sub" ${s.channel.subtitles ? 'checked' : ''}><span></span></label>
+        <b>대본 자막</b><div class="small muted">음성에 맞춘 줄 자막(화면 아래). 기본 끔 — 자막은 넣지 않습니다</div><span></span></div>
+      <div class="comm"><label class="switch" title="출처 표시"><input type="checkbox" id="tl-attr" ${s.channel.attribution ? 'checked' : ''}><span></span></label>
+        <b>출처 표시</b><div class="small muted">사진·영상마다 왼쪽 위에 '출처: …'. 끄면 영상에 출처를 밝히지 않습니다(저작권 대응이 약해짐)</div><span></span></div></div>
+
     <div class="card"><h2>대본 말투</h2><p class="sub">형식(25자 줄, 사실→원인→다음, 출처 주석)은 같고 목소리만 바뀝니다. 누르면 바로 저장됩니다.</p>
       <div class="tones">${s.tones.map(t => `<div class="tone ${t.name === s.channel.tone ? 'on' : ''}" data-tone="${esc(t.name)}"><b>${esc(t.name)}</b>${t.name === '확신형+입담형' ? ' <span class="badge opt">기본</span>' : ''}<pre>${esc(t.rules)}</pre></div>`).join('')}</div></div>
 
@@ -836,6 +849,7 @@ async function settingsPage() {
         <b>${esc(c.name)}</b>
         <div><div class="u">${esc(c.list_url)}${c.politics_filter ? ' · 정치글만 거름' : ''}</div>${c.note ? `<div class="small" style="color:var(--warn)">${esc(c.note)}</div>` : ''}
           ${r ? `<div class="small">${r.ok ? `<span style="color:var(--ok)">✓ 목록</span> 글 ${r.posts}개 · 정치 ${r.kept}개 — ${esc(r.samples.slice(0, 2).map(x => x.title).join(' / '))}` : `<span style="color:var(--bad)">✕ ${esc(r.error || (!r.allowed ? 'robots.txt가 막음' : '글을 못 찾음 — 주소·패턴 확인'))}</span>`}</div>
+            ${!r.ok && r.board_hints && r.board_hints.length ? `<div class="small muted">이 페이지에 보이는 게시판: ${r.board_hints.map(h => `${esc(h.name)} <code>${esc(h.url)}</code>`).join(' · ')} — 맞는 주소를 알려 주시면 고칩니다</div>` : ''}
             ${r.ok && r.detail ? `<div class="small">${r.detail.error ? `<span style="color:var(--bad)">✕ 글 상세</span> ${esc(r.detail.error)}`
               : r.detail.url ? `<span style="color:${r.detail.body_chars && r.detail.comments ? 'var(--ok)' : 'var(--warn)'}">${r.detail.body_chars && r.detail.comments ? '✓' : '△'} 글 상세</span> 본문 ${r.detail.body_chars}자 · 댓글 ${r.detail.comments}개(공감 읽힘 ${r.detail.comment_votes}) · 글 공감 ${r.detail.post_votes ?? '-'}${!r.detail.comments ? ' — 댓글을 따로 불러오는 사이트면 못 읽습니다(반응은 목록 댓글 수로)' : ''}` : ''}</div>` : ''}` : ''}</div>
         <span class="small muted">${r ? '점검됨' : '미점검'}</span></div>`; }).join('')}</div>
@@ -848,10 +862,29 @@ async function settingsPage() {
       <textarea class="code" id="raw" spellcheck="false">${esc(s.raw)}</textarea>
       <div class="row" style="margin-top:10px"><span class="spacer"></span><button class="btn primary" id="save-raw">검사 후 저장</button></div></details></div>`;
 
+  const testClaude = async () => {
+    const out = $('#claude-result'); if (!out) return null;
+    out.textContent = '확인 중…'; out.style.color = 'var(--muted)';
+    try {
+      const r = await api('/api/settings/test-claude', { body: {} });
+      out.textContent = (r.ok ? '✓ ' : '✕ ') + r.message; out.style.color = r.ok ? 'var(--ok)' : 'var(--bad)';
+      return r;
+    } catch (e) { out.textContent = '✕ ' + e.message; out.style.color = 'var(--bad)'; return null; }
+  };
+  $('#test-claude').onclick = async () => { const r = await testClaude(); if (r && r.ok) loadStatus(); };
   $('#save-keys').onclick = async () => {
     const values = {}; $$('[data-key]').forEach(i => { if (i.value.trim()) values[i.dataset.key] = i.value.trim(); });
     if (!Object.keys(values).length) { toast('입력한 키가 없습니다', true); return; }
-    try { await api('/api/settings/keys', { method: 'PUT', body: { values } }); toast('키 저장'); route(); } catch (e) { fail(e); }
+    try {
+      await api('/api/settings/keys', { method: 'PUT', body: { values } });
+      toast('키 저장');
+      if (values.ANTHROPIC_API_KEY) {  // 새 Claude 키는 바로 연결 확인
+        const r = await testClaude();
+        if (r) toast(r.ok ? 'Claude 연결됨 — 대본 화면에서 [대본 다시 쓰기]를 누르면 Claude 대본으로 바뀝니다' : 'Claude 연결 실패: ' + r.message, !r.ok);
+        $$('[data-key]').forEach(i => { i.value = ''; }); await loadStatus(); return;
+      }
+      route();
+    } catch (e) { fail(e); }
   };
   $('#save-ch').onclick = async () => {
     try {
@@ -861,6 +894,13 @@ async function settingsPage() {
   };
   const lens = () => { const c = Number($('#cpm').value || 300); $('#len-long').textContent = (c * 10).toLocaleString(); $('#len-short').textContent = (c * 3).toLocaleString(); };
   $('#cpm').oninput = lens; lens();
+  [['#tl-sub', 'subtitles', '대본 자막'], ['#tl-attr', 'attribution', '출처 표시']].forEach(([id, key, label]) => {
+    const el = $(id);
+    el.onchange = async () => {
+      try { await api('/api/settings/channel', { method: 'PUT', body: { [key]: el.checked } }); toast(`${label} ${el.checked ? '켬' : '끔'} — 다음 XML부터`); }
+      catch (e) { fail(e); el.checked = !el.checked; }
+    };
+  });
   $('#save-len').onclick = async () => {
     try { await api('/api/settings/channel', { method: 'PUT', body: { chars_per_minute: Number($('#cpm').value), window_hours: Number($('#wh').value) } }); toast('저장 — 다음 주제판·대본부터 반영'); } catch (e) { fail(e); }
   };

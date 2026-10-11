@@ -17,7 +17,7 @@ from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from pydantic import BaseModel, Field
 
 
@@ -135,6 +135,13 @@ class ScriptSection(BaseModel):
     )
 
 
+class TimelineSection(BaseModel):
+    """timeline.xml에 깔 글자 트랙."""
+
+    subtitles: bool = False  # 대본 자막(음성에 맞춘 줄 자막 PNG 트랙). 기본 끔
+    attribution: bool = True  # 출처 표시(왼쪽 위, 자료마다)
+
+
 class ClusteringSection(BaseModel):
     """군집 보조 설정."""
 
@@ -159,6 +166,7 @@ class ChannelConfig(BaseModel):
     budget: BudgetSection = Field(default_factory=BudgetSection)
     clustering: ClusteringSection = Field(default_factory=ClusteringSection)
     script: ScriptSection = Field(default_factory=ScriptSection)
+    timeline: TimelineSection = Field(default_factory=TimelineSection)
     communities: list[CommunitySpec] = Field(default_factory=list)
     board: BoardSection = Field(default_factory=BoardSection)
 
@@ -217,12 +225,30 @@ def find_root(start: Path | None = None) -> Path:
     return here
 
 
+# 화면 설정이 .env에 저장하는 API 키. 운영체제 환경변수에 예전 키가 남아 있어도 .env 값을 쓴다
+# (새 키를 넣었는데 예전 키로 계속 거부되는 일을 막는다).
+API_KEY_NAMES = (
+    "ANTHROPIC_API_KEY",
+    "NAVER_CLIENT_ID",
+    "NAVER_CLIENT_SECRET",
+    "YOUTUBE_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_CSE_ID",
+)
+ENV_OVERRIDDEN: set[str] = set()  # 운영체제 환경변수 대신 .env 값을 쓴 키 이름
+
+
 def load_settings(start: Path | None = None) -> Settings:
-    """루트를 찾고 .env를 읽어 Settings를 만든다."""
+    """루트를 찾고 .env를 읽어 Settings를 만든다(API 키는 .env가 우선)."""
     root = find_root(start)
     env_file = root / ".env"
     if env_file.exists():
         load_dotenv(env_file, override=False)
+        for name, value in dotenv_values(env_file).items():
+            value = (value or "").strip()
+            if name in API_KEY_NAMES and value and os.environ.get(name, "").strip() != value:
+                os.environ[name] = value
+                ENV_OVERRIDDEN.add(name)
     settings = Settings(root=root)
     settings.ensure_dirs()
     return settings

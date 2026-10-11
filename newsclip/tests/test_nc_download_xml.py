@@ -222,7 +222,20 @@ def test_subtitle_track_follows_voice(tmp_path):
     assert img.size == (1920, 1080) and img.getbbox()[1] > 1080 * 0.7  # 화면 아래쪽
     cap = Image.open(next((tmp_path / "captions").glob("cap_*.png")))
     assert cap.getbbox()[3] < 1080 * 0.2  # 출처 표시는 왼쪽 위(자막과 안 겹침)
-    # write_xml은 narration.srt가 있으면 자막 트랙을 자동으로 붙인다
+    # write_xml: 자막은 기본으로 넣지 않고(narration.srt가 있어도), 설정에서 켰을 때만 붙인다
+    from studio_core.config import TimelineSection
+
     (tmp_path / "narration.srt").write_text(write_srt(cues[:3]), encoding="utf-8")
-    assert write_xml(tmp_path, s) == []
+    assert write_xml(tmp_path, s, options=TimelineSection()) == []
+    plain = (tmp_path / "timeline.xml").read_text(encoding="utf-8")
+    assert "clipitem-v3-" not in plain and "clipitem-v2-" in plain  # 출처 표시는 그대로
+    assert write_xml(tmp_path, s, options=TimelineSection(subtitles=True)) == []
     assert (tmp_path / "timeline.xml").read_text(encoding="utf-8").count("clipitem-v3-") == 3
+    assert write_xml(tmp_path, s, options=TimelineSection(attribution=False)) == []
+    bare = (tmp_path / "timeline.xml").read_text(encoding="utf-8")
+    assert "clipitem-v2-" not in bare and "clipitem-v3-" not in bare and validate_xmeml(bare) == []
+    # 설정 파일에서 읽기: channel.yaml timeline.subtitles
+    (tmp_path / "channel.yaml").write_text("timeline:\n  subtitles: true\n", encoding="utf-8")
+    from newsclip.pipeline import timeline_options
+
+    assert timeline_options(tmp_path).subtitles is True

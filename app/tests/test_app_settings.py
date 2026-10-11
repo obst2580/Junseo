@@ -52,6 +52,11 @@ def test_channel_tone_community_raw(client, root):
     info = client.get("/api/settings").json()
     assert info["channel"]["chars_per_minute"] == 330 and info["channel"]["window_hours"] == 12
     assert info["formats"]["long"] == {"name": "10분 묶음", "minutes": 10.0}
+    # timeline.xml: 자막 기본 끔, 출처 표시 기본 켬 — 화면에서 바꿈
+    assert info["channel"]["subtitles"] is False and info["channel"]["attribution"] is True
+    assert client.put("/api/settings/channel", json={"subtitles": True, "attribution": False}).json()["ok"]
+    tl = load_channel(Settings(root=root)).timeline
+    assert tl.subtitles is True and tl.attribution is False
     assert client.put("/api/settings/channel", json={"chars_per_minute": 50}).status_code == 400
     assert client.put("/api/settings/channel", json={"window_hours": 200}).status_code == 400
     assert client.put("/api/settings/community", json={"name": "더쿠", "enabled": False}).json()["ok"]
@@ -272,6 +277,20 @@ def test_rejected_claude_key_is_shown(client, root):
     status = client.get("/api/status").json()
     # STUDIO_LLM=offline인 테스트 환경에서도 거부 표시는 설정 안내에 뜬다
     assert any("거부" in x for x in status["setup"])
+    auth_marker(st).write_text(
+        "키가 맞지 않습니다(오타이거나 삭제·만료된 키)\nAuthenticationError: 401", encoding="utf-8"
+    )
+    assert any("거부됐습니다: 키가 맞지 않습니다" in x for x in client.get("/api/status").json()["setup"])
     client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-new-1111"}})
     assert not auth_marker(st).exists()
+    # 키 모양이 틀리면 저장하지 않는다(관리자 키·다른 서비스 키)
+    r = client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-admin01-xyz"}})
+    assert r.status_code == 400 and "관리자 키" in r.json()["error"]
+    assert (
+        client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "AIza-google"}}).status_code
+        == 400
+    )
+    # 연결 확인: 테스트 환경은 오프라인 모드라 호출 없이 안내만
+    t = client.post("/api/settings/test-claude").json()
+    assert t["ok"] is False and "오프라인 모드" in t["message"]
     client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": ""}})

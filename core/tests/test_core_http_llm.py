@@ -181,3 +181,72 @@ def test_claude_auth_error_marker(tmp_path):
     good, _ = fake_client(text="ok")
     ClaudeLLM(settings, client=good, config=LLMConfig()).text("script", "s", "p")
     assert not auth_marker(settings).exists()  # 성공하면 지운다
+
+
+def test_key_problem_and_explain_error():
+    from studio_core.llm import explain_error, key_problem
+
+    assert "없습니다" in key_problem("")
+    assert "관리자 키" in key_problem("sk-ant-admin01-abc")
+    assert "sk-ant-" in key_problem("AIzaSyD-google-key")
+    assert "공백" in key_problem("sk-ant-api03-ab cd")
+    assert key_problem(" sk-ant-api03-abcdef ") is None
+
+    def err(code, msg="x"):
+        e = Exception(msg)
+        e.status_code = code
+        return e
+
+    assert "삭제·만료" in explain_error(err(401))
+    assert "권한이 없습니다" in explain_error(err(403))
+    assert "claude-x" in explain_error(err(404), "claude-x")
+    assert "크레딧" in explain_error(err(400, "Your credit balance is too low"))
+    assert "연결하지 못했습니다" in explain_error(type("APIConnectionError", (Exception,), {})("down"))
+
+
+def test_check_connection(tmp_path, monkeypatch):
+    from studio_core.llm import auth_marker, auth_reason, check_connection
+
+    settings = Settings(root=tmp_path)
+    settings.ensure_dirs()
+    monkeypatch.delenv("STUDIO_MODEL_ANALYSIS", raising=False)
+    monkeypatch.setenv("STUDIO_MODEL_SCRIPT", "claude-sonnet-5-5")
+    seen = []
+
+    class Models:
+        def __init__(self, fail=None):
+            self.fail = fail
+
+        def retrieve(self, model):
+            seen.append(model)
+            if self.fail:
+                e = Exception("invalid x-api-key")
+                e.status_code = self.fail
+                raise e
+            return SimpleNamespace(id=model)
+
+    ok = check_connection(settings, client=SimpleNamespace(models=Models()))
+    assert ok["ok"] and seen == ["claude-opus-5-5", "claude-sonnet-5-5"] and "사용 가능" in ok["message"]
+    bad = check_connection(settings, client=SimpleNamespace(models=Models(fail=401)))
+    assert not bad["ok"] and bad["status"] == 401 and "삭제·만료" in bad["message"]
+    assert auth_marker(settings).exists() and "삭제·만료" in auth_reason(settings)
+    assert check_connection(settings, client=SimpleNamespace(models=Models()))["ok"]
+    assert not auth_marker(settings).exists() and auth_reason(settings) == ""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "not-a-key")
+    assert "sk-ant-" in check_connection(settings)["message"]  # 호출 전에 모양부터
+
+
+def test_env_file_key_wins_over_os_env(tmp_path, monkeypatch):
+    from studio_core.config import ENV_OVERRIDDEN, load_settings
+
+    (tmp_path / "channel.yaml").write_text("channel: {}\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("ANTHROPIC_API_KEY=sk-ant-new-key\nOTHER_SETTING=file\n", encoding="utf-8")
+    monkeypatch.setenv("STUDIO_ROOT", str(tmp_path))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-old-expired")  # 운영체제에 남은 예전 키
+    monkeypatch.setenv("OTHER_SETTING", "os")
+    load_settings()
+    import os
+
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-new-key" and "ANTHROPIC_API_KEY" in ENV_OVERRIDDEN
+    assert os.environ["OTHER_SETTING"] == "os"  # 키가 아닌 설정은 운영체제 값 그대로
+    ENV_OVERRIDDEN.discard("ANTHROPIC_API_KEY")

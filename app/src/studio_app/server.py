@@ -94,6 +94,8 @@ class ChannelBody(BaseModel):
     tone: str | None = None
     chars_per_minute: int | None = None
     window_hours: int | None = None
+    subtitles: bool | None = None
+    attribution: bool | None = None
 
 
 class CommunityBody(BaseModel):
@@ -395,6 +397,10 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     def put_keys(body: KeysBody) -> dict:
         guard(sv.save_keys, settings, body.values)
         return {"ok": True}
+
+    @app.post("/api/settings/test-claude")
+    def test_claude() -> dict:
+        return sv.test_claude(settings)
 
     @app.put("/api/settings/channel")
     def put_channel(body: ChannelBody) -> dict:

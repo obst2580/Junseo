@@ -23,7 +23,7 @@ from newsclip.sources.naver_image import NaverImageSource
 from newsclip.sources.wikimedia import WikimediaSource
 from newsclip.sources.youtube_video import YouTubeVideoSource
 from newsclip.srt import parse_srt
-from studio_core.config import ChannelConfig, Settings
+from studio_core.config import ChannelConfig, Settings, TimelineSection, find_root, load_channel
 from studio_core.http import make_client
 from studio_core.keys import Unavailable
 from studio_core.llm import ClaudeLLM
@@ -183,6 +183,7 @@ async def run_project(
         size=size,
         audio=audio if audio.exists() else None,
         video_max_sec=video_max_sec,
+        options=cfg.timeline,
     )
     return sset, report
 
@@ -199,6 +200,14 @@ def load_scenes(project: Path) -> SceneSet:
     return SceneSet.model_validate_json((project / "scenes.json").read_text(encoding="utf-8"))
 
 
+def timeline_options(project: Path) -> TimelineSection:
+    """channel.yaml의 timeline(자막·출처 표시 여부). 없으면 기본값(자막 끔, 출처 켬)."""
+    try:
+        return load_channel(Settings(root=find_root(project))).timeline
+    except Exception:  # 설정 파일이 깨졌어도 XML은 만든다
+        return TimelineSection()
+
+
 def write_xml(
     project: Path,
     sset: SceneSet,
@@ -208,10 +217,16 @@ def write_xml(
     zoom: float = 1.04,
     audio: Path | None = None,
     video_max_sec: float = 20.0,
+    options: TimelineSection | None = None,
 ) -> list[str]:
-    """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환. narration.srt가 있으면 V3에 대본 자막."""
+    """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환.
+
+    자막은 기본으로 넣지 않는다(timeline.subtitles=true일 때만 narration.srt로 대본 자막 트랙).
+    출처 표시(V2)는 timeline.attribution(기본 켬)을 따른다.
+    """
+    opts = options or timeline_options(project)
     srt = project / "narration.srt"
-    subtitles = parse_srt(srt.read_text(encoding="utf-8")) if srt.exists() else None
+    subtitles = parse_srt(srt.read_text(encoding="utf-8")) if opts.subtitles and srt.exists() else None
     xml = build_xmeml(
         sset,
         project,
@@ -221,6 +236,7 @@ def write_xml(
         audio=audio,
         video_max_sec=video_max_sec,
         subtitles=subtitles,
+        attribution=opts.attribution,
     )
     (project / "timeline.xml").write_text(xml, encoding="utf-8")
     return validate_xmeml(xml)

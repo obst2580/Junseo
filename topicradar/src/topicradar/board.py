@@ -172,6 +172,7 @@ def build_board(ctx: BoardContext, now: datetime) -> Board:
             mode = "claude"
         except LLMError as e:
             log.warning("Claude 의견 정리 실패 → 휴리스틱으로 대신: %s", e)
+            notes.insert(0, f"Claude 의견 정리 실패 → 공감 많은 글을 그대로 옮김: {e}")
     if not bundles:
         bundles = heuristic_bundles(hot, set(ctx.cfg.clustering.generic_tokens))
     no_news = [t for t in hot if not t.news_signals()]

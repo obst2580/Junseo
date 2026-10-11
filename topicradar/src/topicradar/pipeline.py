@@ -26,7 +26,7 @@ from topicradar.db import Store, UploadRow
 from topicradar.history import history_report
 from topicradar.models import Board, Signal, VideoPlan
 from topicradar.report import notify_slack, render_report
-from topicradar.script import draft_script, validate_script
+from topicradar.script import validate_script, write_script
 
 
 def open_store(settings: Settings) -> Store:
@@ -158,13 +158,16 @@ class ProbeResult:
     post_votes: int | None = None
     detail_error: str = ""
     comment_samples: list = field(default_factory=list)
+    board_hints: list = field(default_factory=list)  # 글을 못 찾았을 때 페이지의 정치·시사 게시판 링크
 
 
 async def probe_communities(cfg: ChannelConfig, name: str | None = None) -> list[ProbeResult]:
     """설정된 게시판 목록 1쪽 + 댓글 가장 많은 글 하나의 상세를 읽어 패턴이 맞는지 보여 준다(저장하지 않음)."""
     from topicradar.collectors.community import (
         RobotsCache,
+        board_hints,
         decode_html,
+        explain_fetch_error,
         is_political,
         parse_board,
         parse_post,
@@ -182,8 +185,11 @@ async def probe_communities(cfg: ChannelConfig, name: str | None = None) -> list
                 try:
                     resp = await client.get(url)
                     resp.raise_for_status()
-                    posts = parse_board(decode_html(resp), spec, url, now_kst())
+                    page = decode_html(resp)
+                    posts = parse_board(page, spec, url, now_kst())
                     res.posts = posts
+                    if not posts:
+                        res.board_hints = board_hints(page, url)
                     kept = [
                         p
                         for p in posts
@@ -203,9 +209,9 @@ async def probe_communities(cfg: ChannelConfig, name: str | None = None) -> list
                             res.post_votes = d.votes
                             res.comment_samples = [(c.votes, c.text[:60]) for c in d.comments[:3]]
                         except Exception as e:  # 진단용
-                            res.detail_error = f"{type(e).__name__}: {e}"
+                            res.detail_error = explain_fetch_error(e)
                 except Exception as e:  # 진단용
-                    res.error = f"{type(e).__name__}: {e}"
+                    res.error = explain_fetch_error(e)
             out.append(res)
     return out
 
@@ -245,7 +251,7 @@ def write_project(
 ) -> VideoResult:
     """대본 생성·점검 후 report.md / script.txt / plan.json 저장."""
     proj = project_dir(settings, plan.id)
-    script = draft_script(plan, llm, tone)
+    script, plan.script_mode, plan.script_note = write_script(plan, llm, tone)
     warnings = validate_script(script, plan)
     script_path = proj / "script.txt"
     script_path.write_text(script, encoding="utf-8")

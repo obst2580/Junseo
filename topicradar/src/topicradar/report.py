@@ -35,6 +35,11 @@ def render_report(plan: VideoPlan, script_path: Path, warnings: list[str]) -> st
         out.append(f"- 주제판 구간: {p.window_start:%m-%d %H:%M} ~ {p.window_end:%m-%d %H:%M} (KST)")
     out.append(f"- 판정 엔진: {'Claude' if p.llm_mode == 'claude' else '오프라인 휴리스틱(키 없음)'}")
     out.append(f"- 대본 목표: {p.target_chars[0]:,}~{p.target_chars[1]:,}자")
+    out.append(
+        "- 대본: Claude"
+        if p.script_mode == "claude"
+        else f"- 대본: ⚠️ 오프라인 골격 — {p.script_note or '이유 미상'}"
+    )
     if p.link:
         out.append(f"- 주제를 잇는 고리: {p.link}")
     out += [

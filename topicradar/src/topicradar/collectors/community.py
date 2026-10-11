@@ -238,6 +238,7 @@ def parse_board(html_text: str, spec: CommunitySpec, base_url: str, now: datetim
 
 # ---- 글 상세: 본문·댓글·공감 ---------------------------------------------------
 
+MAX_VOTES = 100_000  # 글 하나의 공감 수로는 말이 안 되는 숫자(글 번호·조회수를 잘못 읽은 것)
 COMMENTISH = re.compile(r"(comment|reply|cmt|memo|댓글)", re.I)
 _NAVISH = re.compile(
     r"(^|[-_ ])(nav|menu|header|footer|side|aside|gnb|lnb|banner|login|best|popular|related|list)", re.I
@@ -438,6 +439,8 @@ def parse_post(html_text: str, spec: CommunitySpec) -> PostDetail:
             votes = _vote_of(row, spec.vote_selector) if row is not n else None
         comments.append(Comment(text=text[:300], votes=votes or 0))
     votes = _post_votes(root, spec, skip, body_node)
+    if votes is not None and votes > MAX_VOTES:  # 글 번호·조회수를 잘못 읽은 것
+        votes = None
     order = {id(c): i for i, c in enumerate(comments)}
     comments.sort(key=lambda c: (-c.votes, order[id(c)]))
     return PostDetail(body=body[:2000], votes=votes, comments=comments)
@@ -466,6 +469,34 @@ class RobotsCache:
                 self.parsers[host] = None
         rp = self.parsers[host]
         return True if rp is None else rp.can_fetch(user_agent(), url)
+
+
+def explain_fetch_error(e: Exception) -> str:
+    """게시판 접속 실패 → 쉬운 설명."""
+    status = getattr(getattr(e, "response", None), "status_code", None)
+    if status == 403:
+        return "사이트가 프로그램 접속을 막았습니다(403) — 이 게시판은 끄세요(설정 → 커뮤니티 게시판)"
+    if status == 404:
+        return "게시판 주소가 없습니다(404) — list_url 확인"
+    if status in (429, 503):
+        return f"사이트가 잠시 접속을 제한했습니다({status}) — 나중에 다시"
+    return f"{type(e).__name__}: {e}"
+
+
+_BOARD_WORDS = re.compile(r"(정치|시사|토론|이슈|사회)")
+
+
+def board_hints(html_text: str, base_url: str, limit: int = 6) -> list[tuple[str, str]]:
+    """목록에서 글을 못 찾았을 때: 페이지 안의 '정치·시사' 게시판 링크(이름, 주소) — 게시판 id 찾기용."""
+    out: list[tuple[str, str]] = []
+    for m in _A_RE.finditer(html_text):
+        text = strip_html(m.group(2)).strip()
+        href = urljoin(base_url, htmllib.unescape(m.group(1)))
+        if text and len(text) <= 20 and _BOARD_WORDS.search(text) and all(h != href for _t, h in out):
+            out.append((text, href))
+        if len(out) >= limit:
+            break
+    return out
 
 
 def post_heat(s: Signal) -> float:
@@ -518,7 +549,7 @@ class CommunityCollector(Collector):
             try:
                 resp = await request(self.client, "GET", url)
             except Exception as e:  # 게시판 단위 실패 격리
-                self.site_errors[spec.name] = str(e)
+                self.site_errors[spec.name] = explain_fetch_error(e)
                 log.warning("[%s] 목록 실패: %s", spec.name, e)
                 return out
             posts = parse_board(decode_html(resp), spec, url, now)

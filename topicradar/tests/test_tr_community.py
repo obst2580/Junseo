@@ -374,3 +374,20 @@ async def test_probe_communities(monkeypatch):
     assert not res["금지"].allowed and "500" in res["오류"].error
     only = await probe_communities(cfg, "테스트")
     assert [r.name for r in only] == ["테스트"]
+
+
+def test_fetch_error_hints_and_vote_cap():
+    from topicradar.collectors.community import MAX_VOTES, board_hints, explain_fetch_error
+
+    resp = httpx.Response(403, request=httpx.Request("GET", "https://damoang.net/free?page=1"))
+    e = httpx.HTTPStatusError("403 Forbidden", request=resp.request, response=resp)
+    assert "프로그램 접속을 막았습니다(403)" in explain_fetch_error(e)
+    assert explain_fetch_error(ValueError("x")) == "ValueError: x"
+    menu = (
+        '<a href="zboard.php?id=freeboard">자유게시판</a><a href="zboard.php?id=issue">정치/시사</a>'
+        '<a href="/zboard/zboard.php?id=issue">정치/시사</a><a href="x">로그인</a>'
+    )
+    hints = board_hints(menu, "https://www.ppomppu.co.kr/zboard/zboard.php?id=politics")
+    assert hints == [("정치/시사", "https://www.ppomppu.co.kr/zboard/zboard.php?id=issue")]
+    huge = POST_GNU.replace("<strong>87</strong>", f"<strong>{MAX_VOTES * 12}</strong>")
+    assert parse_post(huge, _spec()).votes is None  # 글 번호·조회수를 공감으로 잘못 읽은 것

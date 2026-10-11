@@ -87,8 +87,79 @@ def strict_schema(model: type[BaseModel]) -> dict[str, Any]:
 
 
 def auth_marker(settings: Settings) -> Path:
-    """Claude 키가 거부됐을 때(401/403) 남기는 표시 파일. 다음 성공 호출이나 새 키 저장 때 지운다."""
+    """Claude 키가 거부됐을 때(401/403) 남기는 표시 파일(첫 줄 = 쉬운 설명). 다음 성공 호출이나 새 키 저장 때 지운다."""
     return settings.logs_dir / "llm_auth_error.txt"
+
+
+def key_problem(key: str) -> str | None:
+    """붙여넣은 값이 Claude API 키 모양인지(호출 전에 잡을 수 있는 실수)."""
+    key = key.strip()
+    if not key:
+        return "Claude API 키가 없습니다 — 설정에서 붙여넣고 저장하세요"
+    if key.startswith("sk-ant-admin"):
+        return "관리자 키(Admin key)입니다 — 대본에는 못 씁니다. Claude Console → API Keys에서 일반 키를 만드세요"
+    if not key.startswith("sk-ant-"):
+        return "Claude API 키 모양이 아닙니다(sk-ant-로 시작해야 함) — 다른 값을 붙여넣은 것 같습니다"
+    if any(c.isspace() for c in key):
+        return "키 중간에 공백·줄바꿈이 들어 있습니다 — 다시 복사해 붙여넣으세요"
+    return None
+
+
+def explain_error(e: Exception, model: str = "") -> str:
+    """SDK 예외 → 화면에 보여 줄 쉬운 설명."""
+    status = getattr(e, "status_code", None)
+    if status == 401:
+        return (
+            "키가 맞지 않습니다(오타이거나 삭제·만료된 키). Claude Console → API Keys에서 새 키를 만들어 "
+            "설정에 붙여넣으세요(만료 기간은 '없음' 또는 길게)"
+        )
+    if status == 403:
+        return (
+            "이 키로는 권한이 없습니다(키가 속한 조직·워크스페이스 권한 또는 사용 제한). "
+            "Claude Console에서 키의 워크스페이스·Limits·Billing을 확인하세요"
+        )
+    if status == 404:
+        return f"모델 '{model}'을(를) 찾을 수 없습니다 — .env의 STUDIO_MODEL_ANALYSIS·STUDIO_MODEL_SCRIPT를 확인하세요"
+    if status == 400 and "credit" in str(e).lower():
+        return "크레딧(잔액)이 부족합니다 — Claude Console → Billing에서 충전하세요"
+    if status == 429:
+        return "요청이 너무 많습니다(사용 한도) — 잠시 뒤 다시 하거나 Console → Limits를 확인하세요"
+    if status is None and "connect" in type(e).__name__.lower():
+        return "Claude 서버에 연결하지 못했습니다(인터넷·방화벽·회사 보안 프로그램 확인)"
+    return f"{type(e).__name__}: {e}"
+
+
+def check_connection(settings: Settings, client: Any = None) -> dict[str, Any]:
+    """키 확인: 쓰려는 모델 정보를 조회한다(토큰을 쓰지 않음). 성공하면 거부 표시를 지운다."""
+    cfg = LLMConfig.from_env()
+    if client is None:
+        problem = key_problem(os.environ.get("ANTHROPIC_API_KEY", ""))
+        if problem:
+            return {"ok": False, "message": problem}
+        import anthropic
+
+        client = anthropic.Anthropic(timeout=30.0, max_retries=1)
+    models = list(dict.fromkeys([cfg.analysis_model, cfg.script_model]))
+    marker = auth_marker(settings)
+    for m in models:
+        try:
+            client.models.retrieve(m)
+        except Exception as e:  # 원인별 설명을 화면에 보여 준다
+            msg = explain_error(e, m)
+            if getattr(e, "status_code", None) in (401, 403):
+                marker.write_text(f"{msg}\n{type(e).__name__}: {e}", encoding="utf-8")
+            return {"ok": False, "status": getattr(e, "status_code", None), "message": msg}
+    marker.unlink(missing_ok=True)
+    return {"ok": True, "message": f"연결됨 — {', '.join(models)} 사용 가능", "models": models}
+
+
+def auth_reason(settings: Settings) -> str:
+    """거부 표시 파일의 첫 줄(쉬운 설명). 없으면 빈 문자열."""
+    path = auth_marker(settings)
+    try:
+        return path.read_text(encoding="utf-8").splitlines()[0].strip()
+    except (OSError, IndexError):
+        return ""
 
 
 class ClaudeLLM:
@@ -160,8 +231,10 @@ class ClaudeLLM:
             resp = self.client.beta.messages.create(**kwargs)
         except Exception as e:  # SDK의 타입별 예외는 상위로 메시지만 전달
             if getattr(e, "status_code", None) in (401, 403):  # 만료·삭제·잘못된 키 → 화면에 알린다
-                self._auth_marker().write_text(f"{type(e).__name__}: {e}", encoding="utf-8")
-            raise LLMError(f"{task}: Claude 호출 실패: {type(e).__name__}: {e}") from e
+                self._auth_marker().write_text(
+                    f"{explain_error(e, model)}\n{type(e).__name__}: {e}", encoding="utf-8"
+                )
+            raise LLMError(f"{task}: Claude 호출 실패 — {explain_error(e, model)}") from e
         self._auth_marker().unlink(missing_ok=True)
         self._log_usage(task, model, resp)
         if resp.stop_reason == "refusal":

@@ -331,3 +331,53 @@ def test_choppy_script_warning():
         "짧은 문장이 연달아" in w
         for w in validate_script("## 국방위 국감 질타\n" + "\n".join(choppy), _plan("short"))
     )
+
+
+def test_write_script_reports_why_it_is_a_skeleton():
+    from studio_core.llm import LLMError
+    from topicradar.script import OFFLINE_NOTE, write_script
+
+    plan = _plan("short")
+    text, mode, note = write_script(plan, None)
+    assert mode == "offline" and note == OFFLINE_NOTE and text.startswith("## ")
+
+    class Rejected:
+        def text(self, *a, **k):
+            raise LLMError("script: Claude 호출 실패 — 키가 맞지 않습니다(오타이거나 삭제·만료된 키)")
+
+    _t, mode, note = write_script(plan, Rejected())
+    assert mode == "offline" and "Claude 대본 실패" in note and "삭제·만료" in note
+    seen = {}
+
+    class Good:
+        def text(self, task, system, prompt, role="script", **kw):
+            seen["max_tokens"] = kw.get("max_tokens")
+            return "## 국방위 국감 질타\n가.\n"
+
+    assert write_script(plan, Good())[1:] == ("claude", None)
+    assert seen["max_tokens"] == 32000  # 깊게 생각해도 잘리지 않게
+    md = render_report(plan.model_copy(update={"script_mode": "offline", "script_note": "이유"}), "s.txt", [])
+    assert "- 대본: ⚠️ 오프라인 골격 — 이유" in md
+
+
+def test_clean_sentence_drops_photo_captions_and_cut_text():
+    from topicradar.script import clean_sentence
+
+    caption = (
+        "박원순 전 시장과의 일화 소개하며 SNS 상 악성 댓글 비판 이재명 대통령이 8일 국방과학연구소의 "
+        "극초음속 활공비행체(HGV) 최초 시험발사 성공 모습을 참관하며 박수를 치고 있다."
+    )
+    assert clean_sentence(caption) is None  # 사진 설명
+    assert clean_sentence("뉴시스(청와대 제공) 이재명 대통령은...") is None  # 사진 출처 + 잘린 문장
+    assert (
+        clean_sentence("[서울=뉴시스] 홍길동 기자 = 대통령은 11일 일화를 소개했다.")
+        == "대통령은 11일 일화를 소개했다."
+    )
+    assert clean_sentence("(서울=연합뉴스) 국회는 8일 본회의를 열었다.") == "국회는 8일 본회의를 열었다."
+    assert clean_sentence("짧다.") is None
+    head, _ = _topics()
+    head.signals[0].summary = caption + " 뉴시스(청와대 제공) 이재명 대통령은..."
+    plan = _plan("short")
+    plan.items[0].topic = head
+    text = heuristic_script(plan)
+    assert "박수를 치고" not in text and "#확인: 기사 제목뿐" in text  # 쓸 문장이 없으면 제목 + 확인 표시

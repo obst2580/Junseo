@@ -33,6 +33,7 @@ from topicradar.models import Signal, VideoItem, VideoPlan
 log = logging.getLogger("topicradar.script")
 
 LINE_LIMIT = 25
+SCRIPT_MAX_TOKENS = 32000  # 깊게 생각(effort high)하는 10분 대본도 잘리지 않게
 BANNED = ["충격", "경악", "난리", "대박", "소름", "어이없", "한심"]
 HEDGES = ["로 보입니다", "것 같습니다", "듯합니다", "아닐까"]
 _CAUSE_RE = re.compile(r"(때문|이유|배경|책임|탓|반발|여파|원인|면서|따른 것)")
@@ -81,17 +82,35 @@ def _ranked_signals(item: VideoItem, plan: VideoPlan) -> list[Signal]:
     )
 
 
+# 네이버 뉴스 요약에 섞이는 사진 설명·통신사 머리말·잘린 문장(대본 사실 문장으로 쓰지 않는다)
+_PRESS_HEAD_RE = re.compile(
+    r"^\s*(?:[\[(（【][^\])）】]{0,30}=[^\])）】]{0,30}[\])）】]\s*)?(?:\S{2,4} 기자 = )?"
+)
+_CAPTION_RE = re.compile(
+    r"(제공\)|사진=|\(사진|자료사진|무단 전재|재배포 금지|구독하기|"
+    r"(?:하고|치고|듣고|보고|하며|웃고|서고|들어서고|입장하고|나서고|발언하고|앉아 있고|기다리고|살펴보고) 있(?:다|습니다)\.?$)"
+)
+
+
+def clean_sentence(sent: str) -> str | None:
+    """사실 문장으로 쓸 수 있게 다듬는다. 사진 설명·잘린 문장('…', '...')·너무 짧은 조각이면 None."""
+    sent = _PRESS_HEAD_RE.sub("", sent).strip()
+    if sent.endswith(("...", "…", "..")) or len(sent) < 12 or _CAPTION_RE.search(sent):
+        return None
+    return sent
+
+
 def _pick(
     sigs: list[Signal], pattern: re.Pattern[str] | None, used: set[str], limit: int, per_signal: int = 1
 ) -> list[tuple[str, str]]:
     """(문장, URL) 최대 limit개.
 
     pattern이 있으면 그 패턴에 맞는 문장, None이면 '사실' 문장(원인·다음 수순 표지가 없는 문장)을
-    기사 순서대로 per_signal개까지 고른다. 이미 쓴 문장은 건너뛴다.
+    기사 순서대로 per_signal개까지 고른다. 이미 쓴 문장, 사진 설명·잘린 문장은 건너뛴다.
     """
     out: list[tuple[str, str]] = []
     for s in sigs:
-        sents = split_sentences(s.summary) or [s.title]
+        sents = [c for c in (clean_sentence(x) for x in split_sentences(s.summary)) if c]
         if pattern is not None:
             cands = [x for x in sents if pattern.search(x)]
         else:
@@ -161,8 +180,13 @@ def topic_block(
     lines = [f"## {section_heading(item, plan)}"]
     fact_sents = _pick(sigs, None, used, facts)
     if len(fact_sents) < facts:  # 기사가 적으면 같은 기사의 다음 사실 문장까지
-        fact_sents += _pick(sigs, None, used, facts - len(fact_sents), per_signal=2)
-    if not fact_sents:
+        fact_sents += _pick(sigs, None, used, facts - len(fact_sents), per_signal=3)
+    if not fact_sents and sigs:  # 요약이 사진 설명·잘린 문장뿐이면 기사 제목이라도
+        lines += wrap_subtitle(sigs[0].title, LINE_LIMIT) + [
+            f"#출처: {sigs[0].url}",
+            "#확인: 기사 제목뿐 — 사실 문장 보강",
+        ]
+    elif not fact_sents:
         lines.append("#TODO: 사실 확인 — 기사 없음")
     for n, (sent, url) in enumerate(fact_sents):
         lines += _sentence_lines(sent, url, force_source=(n == 0))
@@ -178,8 +202,9 @@ def topic_block(
 def heuristic_script(plan: VideoPlan, tone: str = prompts.DEFAULT_TONE) -> str:
     """오프라인 골격(말투는 연결 문장 정도만 — 입담과 주장 다듬기는 Claude 경로에서)."""
     lines: list[str] = []
-    for n, it in enumerate(plan.items):
-        block = topic_block(it, plan, facts=3 if n == 0 else 2, tone=tone)
+    many = plan.format == "short" or len(plan.items) == 1
+    for n, it in enumerate(plan.items):  # 목표 분량에 가깝게: 3분은 사실 6문장, 10분은 첫 주제 6·나머지 4
+        block = topic_block(it, plan, facts=6 if many or n == 0 else 4, tone=tone)
         if n == 0 and plan.format == "long" and plan.link:
             block[1:1] = wrap_subtitle(plan.link, LINE_LIMIT)  # 첫 문장: 묶은 주제들을 잇는 고리
         lines += block + [""]
@@ -257,7 +282,7 @@ def llm_script(llm: ClaudeLLM, plan: VideoPlan, tone: str = prompts.DEFAULT_TONE
         ]
     )
     prompt = "영상 계획과 근거 기사·커뮤니티 의견:\n" + json.dumps(payload, ensure_ascii=False)
-    text = normalize_script(llm.text("script", system, prompt, role="script"))
+    text = normalize_script(llm.text("script", system, prompt, role="script", max_tokens=SCRIPT_MAX_TOKENS))
     problems = structure_problems(text, plan)
     if problems:  # 계획과 다른 대본이면 한 번 고쳐 쓰게 한다
         log.warning("대본이 영상 계획과 다름 → 다시 씀: %s", "; ".join(problems))
@@ -267,18 +292,31 @@ def llm_script(llm: ClaudeLLM, plan: VideoPlan, tone: str = prompts.DEFAULT_TONE
             + "; ".join(problems)
             + "\nitems 순서대로, 항목마다 heading을 `## heading` 그대로 달고 그 항목 기사·의견으로만 다시 써라."
         )
-        text = normalize_script(llm.text("script_retry", system, retry, role="script"))
+        text = normalize_script(
+            llm.text("script_retry", system, retry, role="script", max_tokens=SCRIPT_MAX_TOKENS)
+        )
     return text
 
 
-def draft_script(plan: VideoPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFAULT_TONE) -> str:
-    """대본 초안(실패 시 오프라인 초안)."""
+OFFLINE_NOTE = "Claude를 쓰지 않아(키 없음·오프라인 모드) 기사 문장과 공감 많은 글을 옮겨 둔 골격입니다"
+
+
+def write_script(
+    plan: VideoPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFAULT_TONE
+) -> tuple[str, str, str | None]:
+    """(대본, 'claude'|'offline', 골격이 된 이유). Claude가 실패하면 이유를 남기고 오프라인 골격으로."""
     if llm is not None:
         try:
-            return llm_script(llm, plan, tone)
+            return llm_script(llm, plan, tone), "claude", None
         except LLMError as e:
-            log.warning("Claude 대본 실패 → 오프라인 초안으로 대신: %s", e)
-    return heuristic_script(plan, tone)
+            log.warning("Claude 대본 실패 → 오프라인 골격으로 대신: %s", e)
+            return heuristic_script(plan, tone), "offline", f"Claude 대본 실패 — {e}"
+    return heuristic_script(plan, tone), "offline", OFFLINE_NOTE
+
+
+def draft_script(plan: VideoPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFAULT_TONE) -> str:
+    """대본 초안(실패 시 오프라인 골격)."""
+    return write_script(plan, llm, tone)[0]
 
 
 # ---- 정리·점검 -----------------------------------------------------------

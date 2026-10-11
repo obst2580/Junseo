@@ -161,7 +161,7 @@ def llm_opinions(
     """상위 주제의 의견 정리 + 10분 묶음 추천(한 번의 호출). 휴리스틱 숫자·대표 글은 그대로 붙인다."""
     system = prompts.IDENTITY + "\n" + prompts.OPINION_TASK
     prompt = "주제별 커뮤니티 글:\n" + json.dumps(_payload(topics, start, end), ensure_ascii=False)
-    res = llm.json("opinion", system, prompt, LLMOpinions)
+    res = llm.json("opinion", system, prompt, LLMOpinions, max_tokens=24000)
     assert isinstance(res, LLMOpinions)
     by_id = {t.id: t for t in topics}
     out: dict[str, Opinion] = {}

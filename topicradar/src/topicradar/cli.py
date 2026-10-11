@@ -198,6 +198,8 @@ def probe(name: str = typer.Option(None, "--name", help="커뮤니티 이름(기
             console.print(
                 "  [yellow]글을 하나도 못 찾았습니다 → post_pattern을 실제 글 주소 형식에 맞게 고치세요[/yellow]"
             )
+            for name, url in r.board_hints:
+                console.print(f"  이 페이지의 게시판 링크: {name} {url}")
         t = Table(show_header=True)
         for col in ("시각", "댓글", "추천", "제목", "주소"):
             t.add_column(col)

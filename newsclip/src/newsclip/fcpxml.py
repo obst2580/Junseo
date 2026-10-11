@@ -198,8 +198,9 @@ def build_xmeml(
     audio: Path | None = None,
     video_max_sec: float = 20.0,
     subtitles: list | None = None,
+    attribution: bool = True,
 ) -> str:
-    """xmeml v5 문자열. subtitles(자막 큐 목록)가 있으면 V3에 대본 자막을 깐다."""
+    """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막."""
     segs, marks = plan_segments(sset, video_max_sec)
     seq_end = max([s.end_sec for s in sset.scenes] + [0.0])
     a_dur = audio_duration(audio) if audio else None
@@ -230,7 +231,7 @@ def build_xmeml(
 
     files = _Files()
     v1 = ET.SubElement(video, "track")
-    v2 = ET.SubElement(video, "track")
+    v2 = ET.SubElement(video, "track") if attribution else None
     cap_dir = project_dir / "captions"
     for n, seg in enumerate(segs, start=1):
         a = seg.asset
@@ -262,7 +263,9 @@ def build_xmeml(
             files.add(ci, a.local_path or "", fps, src_frames, a.width, a.height)
             if a.width and a.width != size[0]:
                 _motion(ci, zoom_in=True, zoom=1.0, frames=length, base=round(100.0 * size[0] / a.width, 2))
-        # V2 출처 자막
+        # V2 출처 표시
+        if v2 is None:
+            continue
         text = a.attribution_text or attribution_text(a)
         png = cap_dir / f"cap_{hashlib.sha1(text.encode()).hexdigest()[:8]}.png"
         if not png.exists():

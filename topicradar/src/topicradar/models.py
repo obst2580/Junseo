@@ -236,6 +236,8 @@ class VideoPlan(BaseModel):
     window_start: datetime | None = None
     window_end: datetime | None = None
     llm_mode: Literal["claude", "offline"] = "offline"
+    script_mode: Literal["claude", "offline"] = "offline"  # 대본을 누가 썼나
+    script_note: str | None = None  # 오프라인 골격이 된 이유(키 없음·Claude 실패 사유)
 
     @property
     def date(self) -> dt.date:

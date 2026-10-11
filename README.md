@@ -99,7 +99,7 @@ uv run pytest --cov        # 테스트(시연 fixture 포함, 네트워크 불�
    (`newsclip/autosub.py`, ffmpeg silencedetect). 직접 녹음했다면 프리미어 전사 → 캡션 → **SRT 내보내기** → `narration.srt`
 6. `newsclip run --project projects/<영상 ID>`
 7. `newsclip review --project …` (http://localhost:8765) — 후보 교체·건너뛰기·영상 시작 초 조정 → 저장 시 XML 재생성
-8. 프리미어 **파일 → 가져오기 → `timeline.xml`** (V1 화면, V2 출처 표시, V3 대본 자막, A1 내레이션)
+8. 프리미어 **파일 → 가져오기 → `timeline.xml`** (V1 화면, V2 출처 표시, A1 내레이션. 자막은 넣지 않는다 — 필요하면 `channel.yaml timeline.subtitles: true`)
 9. 업로드 → `topicradar made --project … --video-id <유튜브ID> [--title "실제 제목"]`
 10. 가끔 `topicradar history --weeks 4` — 반응도와 조회수, 10분·3분 형식별 성과
 
