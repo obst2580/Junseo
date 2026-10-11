@@ -83,3 +83,23 @@ def test_rank_penalizes_assets_used_by_earlier_scenes():
     first = rank(scene("s001", 0, 5), [a, b], cfg)[0]
     again = rank(scene("s002", 5, 9), [a, b], cfg, used={first.id: 1})
     assert again[0].id != first.id and any("앞 장면에서 이미 씀" in n for x in again for n in x.score_notes)
+
+
+async def test_queries_from_reading_the_script(monkeypatch):
+    """대사를 읽고 정한 검색어: 사진은 장면 검색어, 영상은 주제 검색어. 비유로 든 말 대신 실제 대상을 찾는다."""
+    from newsclip.pipeline import apply_queries
+
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    sc = scene("s008", 0, 5, kind="photo", topic="SNS 공방", keywords_ko=["명절", "잔소리"])
+    apply_queries(
+        [sc],
+        {
+            "scenes": {"s008": {"q": "이재명 대통령 엑스 게시글", "video": True}},
+            "videos": {"SNS 공방": "이재명 SNS 소통"},
+        },
+    )
+    assert sc.query == "이재명 대통령 엑스 게시글" and sc.kind == "video" and sc.keywords_ko[0] == "이재명"
+    yt = _Src({"이재명 SNS 소통": [_vid(1)]})
+    nv = _Src({"이재명 대통령 엑스 게시글": [_img(1), _img(2)]})
+    await gather_candidates(sc, {"youtube_video": yt, "naver_image": nv}, RunReport(), want=2)
+    assert yt.queries == ["이재명 SNS 소통"] and nv.queries == ["이재명 대통령 엑스 게시글"]

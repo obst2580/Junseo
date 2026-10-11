@@ -65,7 +65,28 @@ def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClie
 
 def topic_query(scene: Scene) -> str:
     """같은 주제 장면이 함께 쓰는 검색어(영상 검색·사진 보충, 캐시로 한 번만 부른다)."""
-    return " ".join(scene.topic_keywords[:2]) or " ".join(scene.keywords_ko[:2])
+    return scene.video_query or " ".join(scene.topic_keywords[:2]) or " ".join(scene.keywords_ko[:2])
+
+
+def apply_queries(scenes: list[Scene], queries: dict | None) -> None:
+    """장면별 검색어 적용. queries = {"scenes": {장면 ID: 검색어 또는 {"q": 검색어, "video": true}},
+    "videos": {주제: 유튜브 검색어}} — 대사를 읽고 '화면에 무엇이 보여야 하나'를 정한 검색어."""
+    if not queries:
+        return
+    per_scene, per_topic = queries.get("scenes") or {}, queries.get("videos") or {}
+    for sc in scenes:
+        item = per_scene.get(sc.id)
+        q, video = (
+            (item.get("q", ""), bool(item.get("video"))) if isinstance(item, dict) else (item or "", False)
+        )
+        if q.strip():
+            sc.query = q.strip()
+            words = [w for w in sc.query.split() if len(w) >= 2]
+            sc.keywords_ko = list(dict.fromkeys([*words, *sc.keywords_ko]))[:3]
+        if video:
+            sc.kind = "video"
+        if per_topic.get(sc.topic, "").strip():
+            sc.video_query = per_topic[sc.topic].strip()
 
 
 def query_for(scene: Scene, source: str) -> str:
@@ -75,6 +96,8 @@ def query_for(scene: Scene, source: str) -> str:
         return " ".join(scene.keywords_en[:2]) or " ".join(scene.keywords_ko[:2])
     if source == "youtube_video":
         return topic_query(scene)
+    if scene.query:
+        return scene.query
     anchor = scene.topic_keywords[:1]
     own = [k for k in scene.keywords_ko if k not in anchor][:1]
     return " ".join([*anchor, *own]) or " ".join(scene.keywords_ko[:2])
@@ -135,11 +158,13 @@ async def run_project(
     fps: int = 30,
     size: tuple[int, int] = (1920, 1080),
     videos: bool = True,
+    queries: dict | None = None,
 ) -> tuple[SceneSet, RunReport]:
     """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳)."""
     script = (project / "script.txt").read_text(encoding="utf-8")
     cues = parse_srt((project / "narration.srt").read_text(encoding="utf-8"))
     scenes = build_scenes(cues, script, llm)
+    apply_queries(scenes, queries)
     sset = SceneSet(
         project=project.name,
         fps=fps,

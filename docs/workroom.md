@@ -58,21 +58,41 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 ## kind = sources (자료·timeline.xml)
 
 1. `ArtifactData get` — `projects/<프로젝트 ID>`를 `out_dir`로 받아 파일로 둡니다(문서가 큼).
-2. 실행합니다. `--project`에는 그 JSON 파일을 그대로 넘깁니다(`id`·`script`·`audio`만 씁니다).
+2. 장면부터 나눕니다. `--project`에는 그 JSON 파일을 그대로 넘깁니다(`id`·`script`·`audio`만 씁니다).
 
    ```bash
-   uv run python -m studio_app.workroom sources --project /tmp/wr/projects/<ID>.json --out /tmp/wr-src
+   uv run python -m studio_app.workroom scenes --project /tmp/wr/projects/<ID>.json --out /tmp/wr-src
    ```
 
    `audio`는 화면이 브라우저에서 분석한 값(`duration`, `silences` = 문장 사이 쉼 구간)입니다. 음성 파일은
    사용자 컴퓨터에만 있고, 작업자는 같은 길이의 무음 wav로 timeline.xml을 만듭니다.
-3. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
+3. **장면별 검색어 쓰기(가장 중요 — 사진이 대본과 맞는지가 여기서 갈립니다).** `/tmp/wr-src/scenes-plan.json`의
+   장면마다 대사(`text`)를 읽고 "이 대사가 나올 때 화면에 무엇이 보여야 하나"를 정해 `/tmp/wr-src/queries.json`에 씁니다.
+
+   ```json
+   {"scenes": {"s001": "이재명 대통령 엑스 게시글", "s002": {"q": "국민의힘 대변인 논평 브리핑", "video": true}},
+    "videos": {"<주제 이름(topic) 그대로>": "이재명 대통령 SNS 소통 발언"}}
+   ```
+
+   - 대사가 **실제로 말하는 대상**을 찾는 말: 실명 인물+직함(대본에 나온 사람만), 정당·기관, 장소, 실제 장면
+     (기자회견·국회 본회의·SNS 게시글·브리핑). 2~4단어, 인물 이름을 앞에.
+   - **비유·예시·농담으로 든 말은 검색어로 쓰지 않습니다**("명절 잔소리", "드라마", "손님", "오물", "황제" 같은 것).
+     그 문장이 빗대어 말하는 실제 대상(대통령, 국민의힘 의원 등)을 찾습니다.
+   - 같은 주제 안에서도 장면마다 조금씩 다르게(인물 얼굴 / 발언 장면 / 기관 건물 / 상대 인물) — 같은 사진만 반복되지 않게.
+   - 채널은 진보 진영 편: 이재명 대통령·정부·민주당 인물에는 조롱·논란 사진이 나올 말('굴욕', '논란', '망신')을 붙이지 않습니다.
+   - 발언·회의·현장이 나오는 장면은 `{"q": …, "video": true}`로 영상 후보도 찾습니다. `videos`에는 주제마다 유튜브 검색어 하나.
+4. 검색어를 넣어 자료와 timeline.xml을 만듭니다(장면 ID는 2단계와 같습니다).
+
+   ```bash
+   uv run python -m studio_app.workroom sources --project /tmp/wr/projects/<ID>.json --queries /tmp/wr-src/queries.json --out /tmp/wr-src
+   ```
+5. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
    (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다):
    `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`와 `narration.srt.txt`는
    텍스트라 한 번에 하나씩 `file_path`로 올립니다(`.xml`은 자산 형식이 아니라 `.txt`로 올리고 화면이 이름을 바꿉니다).
-4. 프로젝트에 이전 결과(`result.files`, `result.timeline_id`)가 있으면, 새 결과를 쓴 뒤 그 옛 자산을 지웁니다
+6. 프로젝트에 이전 결과(`result.files`, `result.timeline_id`)가 있으면, 새 결과를 쓴 뒤 그 옛 자산을 지웁니다
    (`Artifact delete`, `url` + `path`=자산 ID). 아무 문서도 가리키지 않는 자산만 지웁니다.
-5. `ArtifactData update` — `projects/<ID>`에
+7. `ArtifactData update` — `projects/<ID>`에
 
    ```json
    {"status": "ready", "result": {"made_at": "…", "scenes": [...], "files": [{"name": "assets/s001_1.jpg", "id": "<자산 ID>", "media": "image"}],
@@ -82,7 +102,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    `scenes`·`report`·`base_token`은 manifest 그대로, `files`는 manifest의 `files`에서 `path`를 빼고 올린 자산 ID를 붙입니다.
    `update`는 안쪽 객체까지 합치므로(예전 `report.skipped_sources`가 남음), 이전 result가 있으면 먼저
    `{"result": {"__delete__": true}}`로 지운 뒤 새 result를 씁니다.
-6. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장 · 영상 후보 9장면(링크)`.
+8. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장 · 영상 후보 9장면(링크)`.
 
 화면은 `/_blob/<자산 ID>`로 자료를 보여 주고, 받을 때 사용자가 적은 폴더 경로로 timeline.xml의
 `file://localhost/__STUDIO_BASE__`를 바꿔 압축 파일(timeline.xml + 자료 + 음성)을 만듭니다.

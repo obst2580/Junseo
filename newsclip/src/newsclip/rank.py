@@ -139,9 +139,11 @@ def rank(
         if prev_key and asset_key(a) == prev_key:
             s -= 10
             notes.append("직전 장면과 같은 출처 −10")
-        if used and used.get(a.id):
-            s -= 25 * used[a.id]
-            notes.append(f"앞 장면에서 이미 씀 −{25 * used[a.id]}")
+        if used and used.get(
+            a.id
+        ):  # 관련 없는 사진보다는 되풀이가 낫다 — 키워드 일치 점수를 뒤집지 않을 만큼만
+            s -= 15 * used[a.id]
+            notes.append(f"앞 장면에서 이미 씀 −{15 * used[a.id]}")
         if clip_scorer is not None:
             sim = clip_scorer(a, scene)
             s += 20 * sim

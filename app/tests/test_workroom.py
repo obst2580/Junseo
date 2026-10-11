@@ -96,3 +96,22 @@ def test_sources_makes_timeline_with_placeholder(root, tmp_path):
     assert chosen and set(chosen) <= {f["name"] for f in man["files"]}
     assert "-->" in (out / "narration.srt.txt").read_text(encoding="utf-8")
     assert json.loads((out / "manifest.json").read_text(encoding="utf-8"))["project"] == req["id"]
+
+
+def test_scene_plan_then_queries(root, tmp_path):
+    """장면 나누기만 먼저(작업자가 읽고 검색어를 씀) → 같은 장면 ID로 검색어를 넣어 자료 만들기."""
+    script = (DEMO / "2026-10-08_1810_short" / "script.txt").read_text(encoding="utf-8")
+    req = {
+        "id": "2026-10-08_1910_short",
+        "script": script,
+        "audio": {"duration": 175.0, "silences": [[6.0 * i + 5.5, 6.0 * i + 6.0] for i in range(28)]},
+    }
+    plan = wr.plan_scenes(req, tmp_path / "plan")
+    assert plan and json.loads((tmp_path / "plan" / "scenes-plan.json").read_text(encoding="utf-8")) == plan
+    queries = {
+        "scenes": {plan[0]["id"]: "가상정당 대표 기자회견"},
+        "videos": {plan[0]["topic"]: "가상정당 대표 발언"},
+    }
+    man = asyncio.run(wr.sources(req, tmp_path / "out", queries=queries))
+    assert [s["id"] for s in man["scenes"]] == [p["id"] for p in plan]
+    assert man["scenes"][0]["query"] == "가상정당 대표 기자회견" and man["audio_name"] == "narration.wav"

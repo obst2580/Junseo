@@ -220,14 +220,12 @@ def rebase_xml(xml: str, project: Path) -> str:
     return xml.replace(path_url(project), f"file://localhost/{BASE}")
 
 
-async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
-    """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약)."""
+def _prepare(req: dict) -> tuple:
+    """프로젝트 폴더에 대본·자막(음성 분석값으로 맞춤)·무음 wav를 쓴다."""
     from newsclip.autosub import AudioInfo, align, script_sentences
-    from newsclip.pipeline import run_project
     from newsclip.srt import write_srt
 
     settings = load_settings()
-    cfg = load_channel(settings)
     pid = re.sub(r"[^0-9A-Za-z_-]", "_", req["id"])
     script = req["script"].replace("\r\n", "\n")
     audio = req["audio"]
@@ -238,8 +236,39 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
     cues, matched = align(script_sentences(script), info)
     (proj / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
     silent_wav(proj / "narration.wav", info.duration)
+    return settings, pid, proj, script, cues, matched
+
+
+def plan_scenes(req: dict, out: Path) -> list[dict]:
+    """장면 나누기만(자료 검색 없이) → out/scenes-plan.json. 작업자 Claude가 이걸 읽고 장면별 검색어를 쓴다.
+    sources와 같은 규칙으로 나누므로 장면 ID가 그대로 맞는다."""
+    from newsclip.scenes import build_scenes
+
+    _settings, _pid, _proj, script, cues, _matched = _prepare(req)
+    plan = [
+        {
+            "id": sc.id,
+            "start": round(sc.start_sec, 2),
+            "end": round(sc.end_sec, 2),
+            "topic": sc.topic,
+            "text": sc.text,
+        }
+        for sc in build_scenes(cues, script)
+    ]
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "scenes-plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+    return plan
+
+
+async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None = None) -> dict:
+    """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약).
+    queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식)."""
+    from newsclip.pipeline import run_project
+
+    settings, pid, proj, _script, cues, matched = _prepare(req)
+    cfg = load_channel(settings)
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
-    sset, report = await run_project(settings, cfg, proj, per_scene=per_scene, videos=False)
+    sset, report = await run_project(settings, cfg, proj, per_scene=per_scene, videos=False, queries=queries)
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
     files: list[dict] = []
@@ -265,6 +294,7 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
                 "end": round(sc.end_sec, 2),
                 "text": sc.text[:80],
                 "topic": sc.topic,
+                "query": sc.query,
                 "chosen": next((n for n in names if chosen and n.endswith(chosen)), None),
                 "attribution": sc.chosen.attribution_text if sc.chosen else "",
                 "files": names,
@@ -291,7 +321,7 @@ async def sources(req: dict, out: Path, per_scene: int = 2) -> dict:
             "skipped_sources": report.skipped_sources,
             "errors": report.errors + report.xml_errors,
         },
-        "audio_name": "narration" + (audio.get("ext") or ".wav"),
+        "audio_name": "narration" + (req["audio"].get("ext") or ".wav"),
         "base_token": f"file://localhost/{BASE}",
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -331,6 +361,10 @@ def main() -> None:
     s.add_argument("--project", type=Path, required=True)
     s.add_argument("--out", type=Path, required=True)
     s.add_argument("--per-scene", type=int, default=2)
+    s.add_argument("--queries", type=Path, help="장면별 검색어 JSON(scenes 단계 뒤 작업자가 쓴 것)")
+    p = sub.add_parser("scenes", help="장면 나누기만 → scenes-plan.json")
+    p.add_argument("--project", type=Path, required=True)
+    p.add_argument("--out", type=Path, required=True)
     a = ap.parse_args()
     if a.cmd == "collect":
         meta = asyncio.run(collect(a.out, a.hours))
@@ -339,12 +373,17 @@ def main() -> None:
                 {k: meta[k] for k in ("posts", "articles", "article_bodies", "sites")}, ensure_ascii=False
             )
         )
-    else:
-        req = json.loads(a.project.read_text(encoding="utf-8"))
-        if "script" not in req and isinstance(req.get("data"), dict):  # ArtifactData out_dir 파일이 감싼 경우
-            req = req["data"]
-        man = asyncio.run(sources(req, a.out, a.per_scene))
-        print(json.dumps({"files": len(man["files"]), **man["report"]}, ensure_ascii=False))
+        return
+    req = json.loads(a.project.read_text(encoding="utf-8"))
+    if "script" not in req and isinstance(req.get("data"), dict):  # ArtifactData out_dir 파일이 감싼 경우
+        req = req["data"]
+    if a.cmd == "scenes":
+        plan = plan_scenes(req, a.out)
+        print(json.dumps({"scenes": len(plan), "file": str(a.out / "scenes-plan.json")}, ensure_ascii=False))
+        return
+    queries = json.loads(a.queries.read_text(encoding="utf-8")) if a.queries else None
+    man = asyncio.run(sources(req, a.out, a.per_scene, queries))
+    print(json.dumps({"files": len(man["files"]), **man["report"]}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

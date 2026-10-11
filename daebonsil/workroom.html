@@ -990,7 +990,7 @@ function renderResult() {
     const f = s.chosen && byName[s.chosen];
     const media = f ? (f.media === 'video' ? `<video src="/_blob/${esc(f.id)}" muted preload="metadata" playsinline></video>` : `<img src="/_blob/${esc(f.id)}" alt="" loading="lazy">`) : '자료 없음';
     const vids = (s.videos || []).map(v => `<li><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.title || v.url)}</a> <span class="muted">· ${esc(v.channel || '')}${v.start ? ` · ${fmtSec(v.start)}부터` : ''}</span></li>`).join('');
-    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}${vids ? `<span class="small">영상 후보</span><ul class="vids small">${vids}</ul>` : ''}</div></div>`;
+    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.query ? `<span class="small muted">사진 검색어: ${esc(s.query)}</span>` : ''}${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}${vids ? `<span class="small">영상 후보</span><ul class="vids small">${vids}</ul>` : ''}</div></div>`;
   }).join('');
   const vidScenes = (res.scenes || []).filter(s => (s.videos || []).length).length;
   const skipped = Object.entries(rep.skipped_sources || {});

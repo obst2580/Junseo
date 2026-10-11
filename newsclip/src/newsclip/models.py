@@ -51,9 +51,12 @@ class Scene(BaseModel):
     topic: str
     keywords_ko: list[str] = Field(default_factory=list)
     keywords_en: list[str] = Field(default_factory=list)
-    topic_keywords: list[str] = Field(
-        default_factory=list
-    )  # 같은 주제 장면이 함께 쓰는 검색어(영상 검색·사진 보충)
+    # 같은 주제 장면이 함께 쓰는 검색어(영상 검색·사진 보충)
+    topic_keywords: list[str] = Field(default_factory=list)
+    # 이 장면 화면에 보일 것을 찾는 사진 검색어(대사를 읽은 Claude·편집자가 정함, 비면 키워드로)
+    query: str = ""
+    # 이 장면 주제의 유튜브 검색어(비면 topic_keywords)
+    video_query: str = ""
     kind: SceneKind = "broll"
     candidates: list[Asset] = Field(default_factory=list)
     chosen: Asset | None = None
