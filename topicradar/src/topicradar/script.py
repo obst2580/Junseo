@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime
 
 from studio_core.config import KST
 from studio_core.llm import ClaudeLLM, LLMError
@@ -28,7 +29,7 @@ from studio_core.text import (
 )
 from topicradar import prompts
 from topicradar.cluster import signal_tokens
-from topicradar.models import Signal, VideoItem, VideoPlan
+from topicradar.models import Signal, Topic, VideoItem, VideoPlan
 
 log = logging.getLogger("topicradar.script")
 
@@ -64,22 +65,39 @@ def _core_tokens(topic: object) -> set[str]:
     return {t for t in toks if t not in GENERIC_TOKENS and len(t) >= 2}
 
 
-def _ranked_signals(item: VideoItem, plan: VideoPlan) -> list[Signal]:
+def ranked_articles(topic: Topic, start: datetime | None, end: datetime | None) -> list[Signal]:
+    """대본 사실 근거 기사(구간 안 국내 기사 우선, 나머지는 최신순)."""
     # 수동 일정(schedule)은 편집 메모라 대본 사실 문장으로 쓰지 않는다.
-    sigs = [s for s in item.topic.signals if s.kind not in ("competitor", "own", "schedule", "community")]
+    sigs = [s for s in topic.signals if s.kind not in ("competitor", "own", "schedule", "community")]
     # 주제 이름과 고유어가 하나도 안 겹치는 기사는 빼고 쓴다(잘못 묶인 기사가 대본에 섞이지 않게).
-    core = _core_tokens(item.topic)
+    core = _core_tokens(topic)
     if core:
         related = [s for s in sigs if signal_tokens(s) & core]
         if len(related) >= min(2, len(sigs)):
             sigs = related
-    start, end = plan.window_start, plan.window_end
     in_win = [s for s in sigs if start and end and start <= s.published_at < end]
     rest = [s for s in sigs if s not in in_win]
     key = {"domestic": 0, "press": 1, "overseas": 2, "schedule": 3}
     return sorted(in_win, key=lambda s: (key.get(s.kind, 5), s.published_at)) + sorted(
         rest, key=lambda s: s.published_at, reverse=True
     )
+
+
+def _ranked_signals(item: VideoItem, plan: VideoPlan) -> list[Signal]:
+    return ranked_articles(item.topic, plan.window_start, plan.window_end)
+
+
+def article_rows(sigs: list[Signal]) -> list[dict]:
+    """대본 입력용 기사 목록(URL·시각·제목·요약)."""
+    return [
+        {
+            "url": s.url,
+            "time": s.published_at.astimezone(KST).strftime("%m-%d %H:%M"),
+            "title": s.title,
+            "summary": s.summary,
+        }
+        for s in sigs
+    ]
 
 
 # 네이버 뉴스 요약에 섞이는 사진 설명·통신사 머리말·잘린 문장(대본 사실 문장으로 쓰지 않는다)
@@ -254,15 +272,7 @@ def llm_script(llm: ClaudeLLM, plan: VideoPlan, tone: str = prompts.DEFAULT_TONE
                 "est_seconds": it.est_seconds,
                 "opinion": _opinion_payload(it),
                 "follow_up": it.topic.follow_up,
-                "articles": [
-                    {
-                        "url": s.url,
-                        "time": s.published_at.astimezone(KST).strftime("%m-%d %H:%M"),
-                        "title": s.title,
-                        "summary": s.summary,
-                    }
-                    for s in sigs
-                ],
+                "articles": article_rows(sigs),
             }
         )
     payload = {

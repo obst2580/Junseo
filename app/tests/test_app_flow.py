@@ -30,7 +30,9 @@ def test_status_and_index(client):
     assert "studio" in client.get("/").text
     st = client.get("/api/status").json()
     assert st["llm"] == "offline" and not st["busy"] and st["board_id"] is None
-    assert any("Claude API 키" in x for x in st["setup"]) and any("게시판 점검" in x for x in st["setup"])
+    # Claude API 키는 선택(없으면 claude.ai 대본실로 쓴다)
+    assert not any("Claude" in x for x in st["setup"]) and any("게시판 점검" in x for x in st["setup"])
+    assert "daebonsil_url" in st
     assert st["chars_per_minute"] == 300
     assert client.get("/api/jobs/current").json() == {"job": None}
     assert client.get("/api/projects").json() == {"projects": []}

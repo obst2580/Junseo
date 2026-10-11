@@ -11,6 +11,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -239,6 +240,19 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     @app.get("/api/board")
     def board() -> dict:
         return sv.board_info(settings)
+
+    @app.get("/api/board/export")
+    def board_export(board_id: str | None = None) -> JSONResponse:
+        data, name = guard(sv.board_export, settings, board_id)
+        disp = f"attachment; filename=\"studio-board.json\"; filename*=UTF-8''{quote(name)}"
+        return JSONResponse(data, headers={"Content-Disposition": disp})
+
+    @app.post("/api/import-script")
+    async def import_script(request: Request) -> dict:
+        raw = await request.body()
+        if not raw.strip():
+            raise HTTPException(400, "대본실에서 저장한 파일을 넣어 주세요")
+        return guard(sv.import_script, settings, raw)
 
     @app.post("/api/jobs/video")
     def video_job(body: VideoBody) -> dict:

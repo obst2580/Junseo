@@ -37,14 +37,17 @@ PROJECT_RE = tr.PROJECT_RE
 UPLOAD_NAMES = {"narration.srt", "narration.wav"}
 AUTO_MARK = "narration.srt.auto"  # 자막을 음성에서 자동으로 맞췄다는 표시(결과 요약 JSON)
 WEEKDAYS = "월화수목금토일"
+# claude.ai 대본실(주제판 파일 → 내 Claude로 의견 정리·대본 → studio로 가져갈 파일). Claude API를 쓰지 않는다.
+DAEBONSIL_URL = "https://claude.ai/artifact/L3irRh49iREEYdqMe4cApP"
 COLLECT_FRESH = timedelta(minutes=20)  # 이보다 최근에 수집했으면 주제판 전에 다시 수집하지 않는다
 
 KEYS: list[dict[str, Any]] = [
     {
         "key": "ANTHROPIC_API_KEY",
-        "label": "Claude API 키",
-        "required": True,
-        "why": "커뮤니티 의견 정리·10분 묶음 추천·대본(입담 말투)·장면 나누기. 없으면 기사 문장과 공감 많은 글을 옮긴 골격만 나옵니다.",
+        "label": "Claude API 키 (선택)",
+        "required": False,
+        "why": "있으면 studio 안에서 의견 정리·10분 묶음 추천·대본·장면 나누기를 바로 합니다(API 요금 따로). "
+        "없어도 됩니다: 주제판을 내보내 claude.ai 대본실에서 내 Claude로 대본을 쓰고 가져오면 됩니다.",
         "how": "Claude Console → API Keys → Create Key(만료는 '없음' 또는 90일 이상 권장) · Billing에서 월 사용 한도 설정",
         "url": "https://console.anthropic.com/settings/keys",
     },
@@ -184,6 +187,7 @@ def status(settings: Settings) -> dict[str, Any]:
         "board_id": board.id if board else None,
         "board_label": _when(board.created_at) if board else "",
         "chars_per_minute": cfg.script.chars_per_minute,
+        "daebonsil_url": DAEBONSIL_URL,
         "setup": setup,
         "root": str(settings.root),
     }
@@ -328,12 +332,17 @@ def board_info(settings: Settings) -> dict[str, Any]:
     """가장 최근 주제판(없으면 board=None)."""
     with open_store(settings) as store:
         board = store.latest_board()
-    if board is None:
-        return {"board": None}
-    return {"board": _board_dict(board)}
+        if board is None:
+            return {"board": None}
+        # 판을 만든 뒤에 만든 영상도 '만든 영상'으로 바로 보이게(판에는 만든 시점 값만 있다)
+        covered = {}
+        for t in board.topics:
+            topic = store.get_topic(t.topic_id)
+            covered[t.topic_id] = list(dict.fromkeys([*t.covered_in, *(topic.covered_in if topic else [])]))
+    return {"board": _board_dict(board, covered)}
 
 
-def _board_dict(board: Board) -> dict[str, Any]:
+def _board_dict(board: Board, covered: dict[str, list[str]] | None = None) -> dict[str, Any]:
     names = {t.topic_id: t.name for t in board.topics}
     age = (now_kst() - board.created_at).total_seconds() / 60
     return {
@@ -355,7 +364,9 @@ def _board_dict(board: Board) -> dict[str, Any]:
                 "trend": t.trend,
                 "articles": t.articles,
                 "links": t.links,
-                "covered": [label_for(x) for x in t.covered_in if PROJECT_RE.match(x)],
+                "covered": [
+                    label_for(x) for x in (covered or {}).get(t.topic_id, t.covered_in) if PROJECT_RE.match(x)
+                ],
                 "opinion": _opinion_dict(t.opinion),
             }
             for n, t in enumerate(board.topics, start=1)
@@ -570,6 +581,21 @@ def job_video(settings: Settings, say: Say, board_id: str, topic_ids: list[str],
     with open_store(settings) as store:
         res = tr.run_video(settings, cfg, store, board_id, topic_ids, fmt, llm)
     say(f"대본 초안 작성 완료 — 점검 {len(res.warnings)}건")
+    return {"project": res.plan.id, "warnings": res.warnings}
+
+
+def board_export(settings: Settings, board_id: str | None = None) -> tuple[dict[str, Any], str]:
+    """대본실용 파일(내용, 파일 이름)."""
+    cfg = load_channel(settings)
+    with open_store(settings) as store:
+        return tr.run_export(cfg, store, board_id)
+
+
+def import_script(settings: Settings, data: bytes | str | dict[str, Any]) -> dict[str, Any]:
+    """대본실에서 저장한 파일 → 영상 프로젝트(Claude API 안 씀)."""
+    cfg = load_channel(settings)
+    with open_store(settings) as store:
+        res = tr.run_import(settings, cfg, store, data)
     return {"project": res.plan.id, "warnings": res.warnings}
 
 

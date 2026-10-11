@@ -127,7 +127,8 @@ class LLMOpinions(BaseModel):
     bundles: list[LLMBundle]
 
 
-def _payload(topics: list[Topic], start: datetime | None, end: datetime | None) -> list[dict]:
+def opinion_rows(topics: list[Topic], start: datetime | None, end: datetime | None) -> list[dict]:
+    """의견 정리 입력(주제별 공감 많은 글 6개 + 글마다 공감 많은 댓글 5개)."""
     rows = []
     for t in topics:
         posts = ranked_posts(t, start, end)[:POSTS_PER_TOPIC]
@@ -160,7 +161,7 @@ def llm_opinions(
 ) -> tuple[dict[str, Opinion], list[Bundle]]:
     """상위 주제의 의견 정리 + 10분 묶음 추천(한 번의 호출). 휴리스틱 숫자·대표 글은 그대로 붙인다."""
     system = prompts.IDENTITY + "\n" + prompts.OPINION_TASK
-    prompt = "주제별 커뮤니티 글:\n" + json.dumps(_payload(topics, start, end), ensure_ascii=False)
+    prompt = "주제별 커뮤니티 글:\n" + json.dumps(opinion_rows(topics, start, end), ensure_ascii=False)
     res = llm.json("opinion", system, prompt, LLMOpinions, max_tokens=24000)
     assert isinstance(res, LLMOpinions)
     by_id = {t.id: t for t in topics}

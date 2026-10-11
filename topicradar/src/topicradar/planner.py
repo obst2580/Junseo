@@ -74,7 +74,7 @@ def heuristic_link(topics: list[Topic], generic: set[str] | None = None) -> str:
     ]
     idf = idf_table(docs, prior=IDF_PRIOR)
     common = set.intersection(*docs) - gen if docs else set()
-    words = sorted((w for w in common if len(w) >= 2), key=lambda w: -idf.get(w, 0.0))[:2]
+    words = sorted((w for w in common if len(w) >= 2), key=lambda w: (-idf.get(w, 0.0), w))[:2]
     return link_sentence([short_name(t.name, 14) for t in topics], words)
 
 

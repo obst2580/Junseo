@@ -36,7 +36,7 @@ def render_report(plan: VideoPlan, script_path: Path, warnings: list[str]) -> st
     out.append(f"- 판정 엔진: {'Claude' if p.llm_mode == 'claude' else '오프라인 휴리스틱(키 없음)'}")
     out.append(f"- 대본 목표: {p.target_chars[0]:,}~{p.target_chars[1]:,}자")
     out.append(
-        "- 대본: Claude"
+        "- 대본: Claude" + (f" ({p.script_note})" if p.script_note else "")
         if p.script_mode == "claude"
         else f"- 대본: ⚠️ 오프라인 골격 — {p.script_note or '이유 미상'}"
     )

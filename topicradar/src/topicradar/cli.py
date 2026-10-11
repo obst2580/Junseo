@@ -1,8 +1,9 @@
-"""topicradar CLI: collect / board / video / rewrite / made / history / probe."""
+"""topicradar CLI: collect / board / video / rewrite / export / import-script / made / history / probe."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -153,6 +154,33 @@ def rewrite(project: Path = typer.Option(..., "--project", help="projects/<영�
     """같은 계획으로 대본만 다시 쓰기."""
     settings, cfg, store = _setup()
     _print_video(pipeline.run_rewrite(settings, cfg, store, project, get_llm(settings)))
+
+
+@app.command()
+def export(
+    out: Path = typer.Option(None, "--out", help="저장할 파일(기본: 현재 폴더에 studio-주제판-….json)"),
+    board_id: str = typer.Option(None, "--board", help="주제판 ID(기본: 가장 최근 판)"),
+) -> None:
+    """주제판을 claude.ai 대본실용 파일로 내보내기(Claude API 안 씀)."""
+    _settings, cfg, store = _setup()
+    try:
+        data, name = pipeline.run_export(cfg, store, board_id)
+    except FileNotFoundError as e:
+        raise typer.BadParameter(str(e)) from e
+    path = out or Path(name)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    console.print(f"대본실용 파일: {path} (주제 {len(data['topics'])}개) — 대본실에 올려 주세요")
+
+
+@app.command("import-script")
+def import_script(file: Path = typer.Argument(..., help="대본실에서 저장한 studio-대본-….json")) -> None:
+    """대본실에서 쓴 대본 가져오기 → projects/<영상 ID>/."""
+    settings, cfg, store = _setup()
+    try:
+        res = pipeline.run_import(settings, cfg, store, file.read_bytes())
+    except (ValueError, KeyError, FileNotFoundError) as e:
+        raise typer.BadParameter(str(e)) from e
+    _print_video(res)
 
 
 @app.command()

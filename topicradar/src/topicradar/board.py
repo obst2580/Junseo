@@ -23,6 +23,7 @@ from topicradar.models import (
     Board,
     BoardTopic,
     Bundle,
+    Opinion,
     RiskFlag,
     Topic,
     VideoItem,
@@ -118,7 +119,7 @@ def heuristic_bundles(topics: list[Topic], generic: set[str] | None = None, limi
 
     def shared(a: Topic, b: Topic) -> list[str]:
         both = (docs[a.id] & docs[b.id]) - gen
-        return sorted((x for x in both if len(x) >= 2), key=lambda x: -idf.get(x, 0.0))
+        return sorted((x for x in both if len(x) >= 2), key=lambda x: (-idf.get(x, 0.0), x))
 
     def rel(a: Topic, b: Topic) -> float:
         return sum(idf.get(x, 0.0) for x in shared(a, b)[:5])
@@ -218,9 +219,22 @@ def allocate_seconds(items: list[VideoItem], minutes: float) -> None:
 
 
 def make_plan(
-    ctx: BoardContext, board: Board, topic_ids: list[str], fmt: str, plan_id: str, now: datetime
+    ctx: BoardContext,
+    board: Board,
+    topic_ids: list[str],
+    fmt: str,
+    plan_id: str,
+    now: datetime,
+    *,
+    opinions: dict[str, Opinion] | None = None,
+    titles: list[str] | None = None,
+    thumbnail_text: str = "",
+    link: str | None = None,
 ) -> VideoPlan:
-    """판에서 고른 주제로 영상 계획(제목·고리·리스크까지)."""
+    """판에서 고른 주제로 영상 계획(제목·고리·리스크까지).
+
+    opinions·titles·thumbnail_text·link: 바깥(claude.ai 대본실)에서 정한 값. 비어 있는 것만 여기서 채운다.
+    """
     if fmt not in FORMATS:
         raise ValueError("형식은 long(10분 묶음) | short(3분 단독)")
     spec = FORMATS[fmt]
@@ -239,16 +253,22 @@ def make_plan(
         topic = ctx.store.get_topic(tid)
         if bt is None or topic is None:
             raise KeyError(f"주제 {tid}가 이 판에 없습니다")
-        items.append(VideoItem(topic=topic, order=n, opinion=bt.opinion))
+        items.append(VideoItem(topic=topic, order=n, opinion=(opinions or {}).get(tid, bt.opinion)))
     allocate_seconds(items, spec.minutes)
     bundle = next((b for b in board.bundles if set(b.topic_ids) == set(ids)), None)
+    if fmt != "long":
+        link = None
+    elif not link and bundle:
+        link = bundle.link
     plan = VideoPlan(
         id=plan_id,
         format=fmt,  # type: ignore[arg-type]
         created_at=now,
         board_id=board.id,
         items=items,
-        link=bundle.link if bundle and fmt == "long" else None,
+        link=link,
+        titles=[t for t in (titles or []) if t][:3],
+        thumbnail_text=thumbnail_text,
         target_chars=target_chars(fmt, ctx.cfg.script.chars_per_minute),
         window_start=board.window_start,
         window_end=board.window_end,

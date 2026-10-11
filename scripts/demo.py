@@ -64,12 +64,15 @@ def prepare() -> None:
 
 
 BOARD_AT = "2026-10-08T18:00"  # 이 시각의 주제판(최근 24시간 커뮤니티 글)
+EXPORT_NAME = "studio-주제판-예시.json"
 
 
 def topicradar_flow() -> None:
-    """수집 → 주제판 → 10분 묶음(추천 묶음 1) + 3분 단독 2편(판 1·2위) → made → history."""
+    """수집 → 주제판(+ 대본실용 내보내기) → 10분 묶음(추천 묶음 1) + 3분 단독 2편(판 1·2위) → made → history."""
     run(["topicradar.cli", "collect", "--since", "2026-10-05T00:00"], "2026-10-10T17:00")
     run(["topicradar.cli", "board", "--notify"], BOARD_AT)
+    # API 없이 쓸 때: 이 파일을 claude.ai 대본실에 올린다(대본실의 '예시(가상)'가 이 파일)
+    run(["topicradar.cli", "export", "--out", f"demo_root/{EXPORT_NAME}"], "2026-10-08T18:01")
     run(["topicradar.cli", "video", "--format", "long", "--bundle", "1"], "2026-10-08T18:05")
     run(["topicradar.cli", "video", "--format", "short", "--pick", "1"], "2026-10-08T18:10")
     run(["topicradar.cli", "video", "--format", "short", "--pick", "3"], "2026-10-08T18:15")
@@ -122,6 +125,7 @@ def export() -> None:
             if (proj / name).exists():
                 shutil.copy(proj / name, dst / name)
     shutil.copy(DEMO / "data" / "history.md", OUT / "history.md")
+    shutil.copy(DEMO / EXPORT_NAME, OUT / EXPORT_NAME)
     shutil.copy(DEMO / "channel.yaml", OUT / "channel.after_made.yaml")
     (OUT / "demo_log.md").write_text("# 시연 실행 로그\n\n" + "\n".join(log_lines), encoding="utf-8")
 

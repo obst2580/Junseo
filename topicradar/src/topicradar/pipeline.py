@@ -14,6 +14,7 @@ from pathlib import Path
 from studio_core.config import ChannelConfig, Settings, append_past_title, now_kst
 from studio_core.http import make_client
 from studio_core.llm import ClaudeLLM
+from topicradar import handoff
 from topicradar.board import BoardContext, build_board, make_plan
 from topicradar.collectors.base import Collector, CollectorDisabled, CollectReport, collect_all
 from topicradar.collectors.community import CommunityCollector
@@ -247,11 +248,19 @@ class VideoResult:
 
 
 def write_project(
-    settings: Settings, store: Store, plan: VideoPlan, llm: ClaudeLLM | None, tone: str = "확신형+입담형"
+    settings: Settings,
+    store: Store,
+    plan: VideoPlan,
+    llm: ClaudeLLM | None,
+    tone: str = "확신형+입담형",
+    script: str | None = None,
 ) -> VideoResult:
-    """대본 생성·점검 후 report.md / script.txt / plan.json 저장."""
+    """대본 생성·점검 후 report.md / script.txt / plan.json 저장. script: 바깥(대본실)에서 쓴 대본."""
     proj = project_dir(settings, plan.id)
-    script, plan.script_mode, plan.script_note = write_script(plan, llm, tone)
+    if script is None:
+        script, plan.script_mode, plan.script_note = write_script(plan, llm, tone)
+    else:
+        plan.script_mode, plan.script_note = "claude", handoff.SCRIPT_NOTE
     warnings = validate_script(script, plan)
     script_path = proj / "script.txt"
     script_path.write_text(script, encoding="utf-8")
@@ -287,6 +296,50 @@ def run_video(
     ctx = BoardContext(store=store, cfg=cfg, llm=llm)
     plan = make_plan(ctx, board, topic_ids, fmt, new_video_id(settings, store, fmt, now), now)
     res = write_project(settings, store, plan, llm, cfg.script.tone)
+    for it in plan.items:
+        store.mark_covered(it.topic.id, plan.id)
+    return res
+
+
+def run_export(cfg: ChannelConfig, store: Store, board_id: str | None = None) -> tuple[dict, str]:
+    """주제판 → 대본실용 파일(내용, 파일 이름). board_id가 없으면 최신 판."""
+    board = store.get_board(board_id) if board_id else store.latest_board()
+    if board is None:
+        raise FileNotFoundError("주제판이 없습니다 — 먼저 수집하고 주제판을 만들어 주세요")
+    return handoff.export_board(cfg, store, board), handoff.export_filename(board)
+
+
+def run_import(
+    settings: Settings,
+    cfg: ChannelConfig,
+    store: Store,
+    data: dict | str | bytes,
+    now: datetime | None = None,
+) -> VideoResult:
+    """대본실에서 저장한 파일 → 영상 프로젝트. 고른 주제에는 이 영상을 '다룸'으로 표시한다."""
+    sf = handoff.parse_script_file(data)
+    board = store.get_board(sf.board_id)
+    if board is None:
+        raise FileNotFoundError(
+            f"주제판 {sf.board_id}이 이 studio에 없습니다 — 같은 컴퓨터에서 내보낸 파일인지 확인해 주세요"
+        )
+    now = now or now_kst()
+    opinions = handoff.imported_opinions(board, sf)
+    plan = make_plan(
+        BoardContext(store=store, cfg=cfg, llm=None),
+        board,
+        sf.topic_ids,
+        sf.format,
+        new_video_id(settings, store, sf.format, now),
+        now,
+        opinions=opinions,
+        titles=[t.strip() for t in sf.titles if t.strip()],
+        thumbnail_text=sf.thumbnail_text.strip()[: handoff.THUMB_MAX],
+        link=(sf.link or "").strip() or None,
+    )
+    if opinions:
+        plan.llm_mode = "claude"
+    res = write_project(settings, store, plan, None, cfg.script.tone, script=sf.script)
     for it in plan.items:
         store.mark_covered(it.topic.id, plan.id)
     return res

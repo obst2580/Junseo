@@ -11,9 +11,10 @@ studio/
   channel.yaml          채널 정체성·피드·커뮤니티 게시판·주제판·대본 길이·선호/차단 출처·API 예산
   .env.example          키 목록
   core/                 studio-core: 설정, Claude 래퍼(토큰 로그), HTTP 재시도, 텍스트 유틸, 시연용 fixture 전송계층
-  topicradar/           collect / board / video / rewrite / made / history / probe
+  topicradar/           collect / board / video / rewrite / export / import-script / made / history / probe
   newsclip/             run / review / xml / search
   app/                  studio 화면(브라우저): 아래 모든 단계를 버튼으로 — studio.command(맥) · studio.bat(윈도우)
+  daebonsil/            claude.ai 대본실(아티팩트) 원본: Claude API 없이 내 Claude로 의견 정리·대본 쓰기
   data/                 studio.db, logs/llm_usage.jsonl, schedule/날짜.yaml, 검색 캐시·API 사용량
   projects/날짜_시각_형식/  (예: 2026-10-08_1805_long) report.md script.txt narration.wav* narration.srt* scenes.json assets/ assets.json timeline.xml
   docs/sources.md       데이터 소스 조사 메모   docs/demo/ 시연 결과
@@ -29,7 +30,7 @@ studio/
    처음 한 번은 uv(파이썬 도구)·파이썬·패키지를 자동으로 설치하느라 몇 분 걸리고, 끝나면 브라우저가 열립니다.
    - 맥에서 "확인되지 않은 개발자" 경고가 뜨면: 파일을 **우클릭 → 열기**. ZIP으로 받았다면 터미널에서 `chmod +x studio.command`가 필요할 수 있습니다.
    - 영상 자료를 쓰려면 ffmpeg 설치(맥 `brew install ffmpeg`, 윈도우 `winget install Gyan.FFmpeg`). 없으면 화면이 알려 줍니다.
-3. **설정 탭**: API 키 붙여넣기 → 내 채널 ID → **게시판 점검**(목록·본문·댓글이 읽히는지 확인) → 말투·분당 글자 수.
+3. **설정 탭**: API 키 붙여넣기(네이버·YouTube. **Claude API 키는 선택** — 없으면 아래 '대본실'로) → 내 채널 ID → **게시판 점검**(목록·본문·댓글이 읽히는지 확인) → 말투·분당 글자 수.
 4. **주제판 탭(홈)**: **[주제판 만들기 / 새로 모으기]** — 수집 → 최근 24시간 커뮤니티 글로 **지금 뜨는 주제**를 반응도 순으로(1~2분).
    주제마다 **커뮤니티 주장**(공감 많은 글·댓글로 정리한 다수 의견 = 그 영상에서 채널이 할 말), 근거 논리, 소수 의견,
    대표 글·댓글(공감 수), 기사 수가 보인다. 위에는 서로 이어지는 주제 2~3개의 **10분 묶음 추천**이 있다.
@@ -52,6 +53,29 @@ studio/
   오래 안 모으면 그 사이 글을 놓친다). 주제판과 대본은 원할 때 만든다. Slack 주소를 넣으면 주제판 요약이 간다.
 - 키는 `.env`, 나머지 설정은 `channel.yaml`에 저장됩니다(화면에서 고쳐도 파일 주석은 그대로). 아래 명령어 방식과 같은 데이터를 씁니다.
 
+## Claude API 없이 쓰기 — claude.ai 대본실
+
+Claude API 키(요금 따로) 없이, **claude.ai 구독의 내 Claude**로 생각하는 일(커뮤니티 의견 정리·주제 고르기·제목·대본)을 하고
+studio는 **수집과 소스 만들기**(음성·자료·timeline.xml)만 한다.
+
+**대본실:** https://claude.ai/artifact/L3irRh49iREEYdqMe4cApP (내 계정에서만 열린다. 처음 Claude를 쓸 때 허락 창이 뜨고, 사용량은 내 Claude 요금제에서 나간다)
+
+1. studio 주제판 화면 → **[주제판 파일 내보내기]** → `studio-주제판-….json`
+   (주제별 공감 많은 글·댓글, 근거 기사, 채널 규칙·말투·분량 기준이 들어 있다. 글쓴이 정보는 없다)
+2. 대본실에 파일을 올린다 → **[Claude로 의견 정리·묶음 추천]**(선택, 주장은 직접 고쳐도 된다)
+3. 주제 하나 → **[3분 단독으로]**, 이어지는 2~3개 → **[10분 묶음으로]**(추천 묶음은 한 번에) → **[Claude로 대본 쓰기]**
+   - 쓰는 동안 글자 수·예상 길이·25자 넘는 줄·`## 헤더`·`#출처`(주제판 기사 주소만)·커뮤니티 글 그대로 옮김을 바로 점검하고,
+     **[점검대로 고쳐 쓰기]**로 걸린 것만 고쳐 다시 쓰게 할 수 있다. 직접 쓰거나 붙여 넣어도 된다.
+4. **[Claude로 제목·썸네일 만들기]**(선택) → **[studio로 가져갈 파일 저장]**(또는 [내용 복사]) → `studio-대본-….json`
+5. studio 주제판(또는 프로젝트) 화면 → **[대본 가져오기]** → 파일 선택/붙여 넣기 → 영상 프로젝트가 생기고
+   음성 → 자료 → timeline.xml은 평소대로. 가져온 주제엔 '만든 영상' 표시, 리포트엔 `대본: Claude (claude.ai 대본실에서 씀)`.
+
+명령어로는 `topicradar export --out 주제판.json` → (대본실) → `topicradar import-script studio-대본-….json`.
+대본실에서 쓰는 규칙(채널 정체성·의견 정리·대본 규칙·말투)은 studio의 `topicradar/prompts.py`와 같은 것을 파일에 실어 보낸다.
+키가 없으면 studio 안의 [3분 만들기]·[10분 만들기]는 기사 문장과 공감 많은 글을 옮긴 '골격'만 쓰고, 자료 수집의 장면 나누기는 규칙 기반으로 한다.
+대본실 페이지를 고치려면 `daebonsil/page.html`을 고치고 `uv run python scripts/demo.py && uv run python daebonsil/build.py`
+(예시(가상) 주제판을 넣어 `daebonsil/dist/daebonsil.html`을 만든다) 후 같은 아티팩트에 다시 올린다.
+
 ## 설치 (명령어로 쓸 때)
 
 ```bash
@@ -68,7 +92,7 @@ uv run pytest --cov        # 테스트(시연 fixture 포함, 네트워크 불�
 
 | 변수 | 용도 | 발급처 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | 군집·커뮤니티 의견 정리·10분 묶음 추천·제목·대본·장면 분할 | Claude Console(console.anthropic.com) → API Keys. 만료는 '없음'이나 90일 이상 권장(만료되면 화면에 'Claude 키 확인 필요'), Billing에서 월 사용 한도 설정 |
+| `ANTHROPIC_API_KEY` (선택) | 군집·커뮤니티 의견 정리·10분 묶음 추천·제목·대본·장면 분할을 studio 안에서. 없으면 claude.ai 대본실로 | Claude Console(console.anthropic.com) → API Keys. 만료는 '없음'이나 90일 이상 권장(만료되면 화면에 'Claude 키 확인 필요'), Billing에서 월 사용 한도 설정 |
 | `STUDIO_MODEL_ANALYSIS` / `STUDIO_MODEL_SCRIPT` | 역할별 모델(기본 `claude-opus-5-5`) | 비용을 줄이려면 분석만 `claude-sonnet-5-5` |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 검색, 이미지 검색(1순위), 데이터랩(2차) | **네이버 클라우드 콘솔 → Services → Application Service → NAVER API HUB → 이용 신청 → 애플리케이션 등록(검색 API 선택)**. 개발자센터(developers.naver.com) 신규 발급은 2026-07-31 종료, 기존 키는 2027-06-30까지. 어느 키든 그대로 넣으면 된다(`NAVER_API=auto`가 HUB → 예전 주소 순으로 알아서 고름) |
 | `YOUTUBE_API_KEY` | 내 채널 통계(성과), 영상 검색, 경쟁 채널 영상 | Google Cloud Console → YouTube Data API v3 사용 설정 → 사용자 인증 정보 → API 키 |
@@ -120,6 +144,8 @@ CRON_TZ=Asia/Seoul
 | `board [--notify]` | 주제판: 최근 `board.window_hours`(기본 24)시간 신호를 군집 → 100% 커뮤니티 반응도 → 주제별 커뮤니티 의견 → 10분 묶음 추천(저장, Slack 요약) |
 | `video --format long\|short (--topics ID,ID \| --pick 1,3 \| --bundle 1) [--board ID]` | 판에서 고른 주제로 영상 계획 → 제목·고리 → 대본 → `report.md`·`script.txt`·`plan.json` |
 | `rewrite --project <폴더>` | 같은 계획으로 대본만 다시 쓰기 |
+| `export [--out 파일] [--board ID]` | 주제판 → claude.ai 대본실용 파일(Claude API 안 씀) |
+| `import-script <파일>` | 대본실에서 저장한 파일 → 영상 프로젝트(`report.md`·`script.txt`·`plan.json`), 고른 주제에 '다룸' 표시 |
 | `made --project <폴더> --video-id <ID> [--title]` | 업로드 기록, covered_in 갱신, past_titles 추가(주석 보존) |
 | `history [--weeks 4]` | 반응도 vs 조회수 상관, 10분·3분 형식별·카테고리별 성과 |
 | `probe [--name 다모앙]` | 커뮤니티 게시판 점검: robots.txt 허용 여부, 인식한 글 수·추천 수, 정치 필터 통과 수, 댓글 가장 많은 글 하나의 본문 길이·댓글 수·공감(저장 안 함) |
