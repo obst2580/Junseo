@@ -11,6 +11,7 @@ dependencies = [
     "pyyaml>=6.0",
     "rich>=13.0",
     "pillow>=10.0",
+    "tzdata>=2024.1; sys_platform == 'win32'",  # 윈도우에는 시간대 DB가 없다
 ]
 
 [build-system]

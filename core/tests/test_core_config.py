@@ -61,3 +61,17 @@ def test_append_past_title_block_list(tmp_path, monkeypatch):
 def test_now_kst_override(monkeypatch):
     monkeypatch.setenv("STUDIO_NOW", "2026-10-08T05:30")
     assert now_kst().hour == 5 and now_kst().utcoffset().total_seconds() == 9 * 3600
+
+
+def test_kst_fallback_without_tz_database():
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfoNotFoundError
+
+    from studio_core.config import load_kst
+
+    def missing(_key):
+        raise ZoneInfoNotFoundError("No time zone found with key Asia/Seoul")
+
+    tz = load_kst(missing)  # type: ignore[arg-type]
+    assert tz.utcoffset(None) == timedelta(hours=9)
+    assert load_kst().utcoffset(datetime(2026, 7, 1)) == timedelta(hours=9)

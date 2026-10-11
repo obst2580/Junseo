@@ -40,7 +40,9 @@ class Budget:
     def __init__(self, path: Path, limits: dict[str, int]) -> None:
         self.path = path
         self.limits = limits
-        self.data: dict[str, dict[str, int]] = json.loads(path.read_text()) if path.exists() else {}
+        self.data: dict[str, dict[str, int]] = (
+            json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+        )
 
     def _today(self) -> dict[str, int]:
         return self.data.setdefault(now_kst().date().isoformat(), {})
@@ -53,7 +55,7 @@ class Budget:
             raise SourceUnavailable(f"{source} 일일 예산({limit}) 소진")
         self._today()[source] = used + cost
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=1))
+        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8")
 
     def used(self, source: str) -> int:
         """오늘 사용량."""
@@ -66,7 +68,7 @@ class SearchCache:
     def __init__(self, path: Path, ttl_days: int = 7) -> None:
         self.path = path
         self.ttl = ttl_days * 86400
-        self.data: dict[str, dict] = json.loads(path.read_text()) if path.exists() else {}
+        self.data: dict[str, dict] = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
     def get(self, key: str) -> list[Asset] | None:
         """캐시된 후보."""
@@ -79,7 +81,7 @@ class SearchCache:
         """저장."""
         self.data[key] = {"at": time.time(), "assets": [a.model_dump() for a in assets]}
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self.data, ensure_ascii=False))
+        self.path.write_text(json.dumps(self.data, ensure_ascii=False), encoding="utf-8")
 
 
 class Source(ABC):

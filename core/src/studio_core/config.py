@@ -11,16 +11,28 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta, timezone, tzinfo
 from pathlib import Path
 from typing import Literal
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 
-KST = ZoneInfo("Asia/Seoul")
+
+def load_kst(zone: type[ZoneInfo] = ZoneInfo) -> tzinfo:
+    """한국 시간대. 윈도우는 시간대 DB가 없을 수 있어(tzdata 미설치) UTC+9 고정으로 대신한다.
+
+    한국은 서머타임이 없으므로 고정 +9와 결과가 같다.
+    """
+    try:
+        return zone("Asia/Seoul")
+    except (ZoneInfoNotFoundError, OSError, ValueError):
+        return timezone(timedelta(hours=9), "KST")
+
+
+KST = load_kst()
 
 
 def now_kst() -> datetime:

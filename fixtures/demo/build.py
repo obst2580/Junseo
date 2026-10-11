@@ -12,15 +12,15 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta, timezone
 from email.utils import format_datetime
 from pathlib import Path
 from xml.sax.saxutils import escape
-from zoneinfo import ZoneInfo
 
 import yaml
 
-KST = ZoneInfo("Asia/Seoul")
+KST = timezone(timedelta(hours=9), "KST")  # 윈도우에서도 시간대 DB 없이 돌게(한국은 서머타임 없음)
+UTC = UTC
 HERE = Path(__file__).parent
 
 FEEDS = {
@@ -59,7 +59,7 @@ def build_rss(articles: list[dict]) -> None:
         for a in sorted((a for a in articles if a["src"] == key), key=lambda a: a["at"], reverse=True):
             pub = _dt(a["at"])
             if key == "bbc":
-                pub = pub.astimezone(ZoneInfo("UTC"))
+                pub = pub.astimezone(UTC)
             items.append(
                 "    <item>\n"
                 f"      <title>{escape(a['title'])}</title>\n"
@@ -85,7 +85,7 @@ def build_youtube(spec: dict) -> dict:
     for ch in spec["competitors"]:
         items = []
         for v in ch["videos"]:
-            utc = _dt(v["at"]).astimezone(ZoneInfo("UTC")).strftime("%Y-%m-%dT%H:%M:%SZ")
+            utc = _dt(v["at"]).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             items.append({"contentDetails": {"videoId": v["id"], "videoPublishedAt": utc}})
             stats[v["id"]] = {
                 "title": v["title"],
