@@ -77,10 +77,12 @@ class SlotResult:
     warnings: list[str]
 
 
-def write_project(settings: Settings, store: Store, plan: SlotPlan, llm: ClaudeLLM | None) -> SlotResult:
+def write_project(
+    settings: Settings, store: Store, plan: SlotPlan, llm: ClaudeLLM | None, tone: str = "확신형+입담형"
+) -> SlotResult:
     """대본 생성·점검 후 report.md / script.txt / plan.json 저장."""
     proj = project_dir(settings, plan.plan_id)
-    script = draft_script(plan, llm)
+    script = draft_script(plan, llm, tone)
     warnings = validate_script(script, plan)
     script_path = proj / "script.txt"
     script_path.write_text(script, encoding="utf-8")
@@ -106,7 +108,7 @@ def run_slot(
 ) -> SlotResult:
     """slot: 편성 + 대본 + 리포트."""
     plan = build_plan(SlotContext(store=store, cfg=cfg, llm=llm), slot, day)
-    return write_project(settings, store, plan, llm)
+    return write_project(settings, store, plan, llm, cfg.script.tone)
 
 
 def plan_from_project(store: Store, project: Path) -> SlotPlan:
@@ -134,7 +136,7 @@ def run_pick(
     if topic is None:
         raise KeyError(f"주제 {topic_id} 없음")
     plan = replace_item(SlotContext(store=store, cfg=cfg, llm=llm), plan, order, topic)
-    return write_project(settings, store, plan, llm)
+    return write_project(settings, store, plan, llm, cfg.script.tone)
 
 
 async def run_made(

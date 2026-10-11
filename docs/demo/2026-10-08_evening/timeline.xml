@@ -3,7 +3,7 @@
 <xmeml version="5">
   <sequence id="sequence-1">
     <name>2026-10-08_evening</name>
-    <duration>3769</duration>
+    <duration>3945</duration>
     <rate>
       <timebase>30</timebase>
       <ntsc>FALSE</ntsc>
@@ -34,7 +34,7 @@
         </format>
         <track>
           <clipitem id="clipitem-v1-1">
-            <name>s001_1.mp4</name>
+            <name>s001_3.mp4</name>
             <enabled>TRUE</enabled>
             <duration>337</duration>
             <rate>
@@ -46,8 +46,8 @@
             <in>60</in>
             <out>277</out>
             <file id="file-1">
-              <name>s001_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s001_1.mp4</pathurl>
+              <name>s001_3.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s001_3.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -132,15 +132,15 @@
           <clipitem id="clipitem-v1-3">
             <name>s003_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>154</duration>
+            <duration>208</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
             <start>404</start>
-            <end>558</end>
+            <end>612</end>
             <in>0</in>
-            <out>154</out>
+            <out>208</out>
             <file id="file-5">
               <name>s003_1.jpg</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s003_1.jpg</pathurl>
@@ -148,7 +148,7 @@
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>154</duration>
+              <duration>208</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -176,19 +176,19 @@
                     <value>100.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>38</when>
+                    <when>52</when>
                     <value>102.31</value>
                   </keyframe>
                   <keyframe>
-                    <when>77</when>
+                    <when>104</when>
                     <value>103.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>116</when>
+                    <when>156</when>
                     <value>103.94</value>
                   </keyframe>
                   <keyframe>
-                    <when>154</when>
+                    <when>208</when>
                     <value>104.0</value>
                   </keyframe>
                 </parameter>
@@ -203,8 +203,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>558</start>
-            <end>744</end>
+            <start>612</start>
+            <end>798</end>
             <in>0</in>
             <out>186</out>
             <file id="file-6">
@@ -269,8 +269,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>744</start>
-            <end>909</end>
+            <start>798</start>
+            <end>963</end>
             <in>0</in>
             <out>165</out>
             <file id="file-7">
@@ -335,8 +335,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>909</start>
-            <end>1100</end>
+            <start>963</start>
+            <end>1154</end>
             <in>0</in>
             <out>191</out>
             <file id="file-7" />
@@ -385,8 +385,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1100</start>
-            <end>1245</end>
+            <start>1154</start>
+            <end>1299</end>
             <in>0</in>
             <out>145</out>
             <file id="file-8">
@@ -451,8 +451,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1245</start>
-            <end>1436</end>
+            <start>1299</start>
+            <end>1490</end>
             <in>0</in>
             <out>191</out>
             <file id="file-9">
@@ -517,8 +517,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1436</start>
-            <end>1568</end>
+            <start>1490</start>
+            <end>1622</end>
             <in>0</in>
             <out>132</out>
             <file id="file-10">
@@ -578,15 +578,15 @@
           <clipitem id="clipitem-v1-10">
             <name>s009_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>133</duration>
+            <duration>187</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1568</start>
-            <end>1701</end>
+            <start>1622</start>
+            <end>1809</end>
             <in>0</in>
-            <out>133</out>
+            <out>187</out>
             <file id="file-10" />
             <filter>
               <effect>
@@ -606,19 +606,19 @@
                     <value>104.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>33</when>
+                    <when>47</when>
                     <value>101.69</value>
                   </keyframe>
                   <keyframe>
-                    <when>66</when>
+                    <when>94</when>
                     <value>100.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>100</when>
+                    <when>140</when>
                     <value>100.06</value>
                   </keyframe>
                   <keyframe>
-                    <when>133</when>
+                    <when>187</when>
                     <value>100.0</value>
                   </keyframe>
                 </parameter>
@@ -633,8 +633,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1701</start>
-            <end>1874</end>
+            <start>1809</start>
+            <end>1982</end>
             <in>0</in>
             <out>173</out>
             <file id="file-10" />
@@ -678,15 +678,15 @@
           <clipitem id="clipitem-v1-12">
             <name>s012_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>111</duration>
+            <duration>110</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1874</start>
-            <end>1985</end>
+            <start>1982</start>
+            <end>2092</end>
             <in>0</in>
-            <out>111</out>
+            <out>110</out>
             <file id="file-11">
               <name>s012_1.jpg</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s012_1.jpg</pathurl>
@@ -694,7 +694,7 @@
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>111</duration>
+              <duration>110</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -726,15 +726,15 @@
                     <value>101.69</value>
                   </keyframe>
                   <keyframe>
-                    <when>56</when>
+                    <when>55</when>
                     <value>100.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>83</when>
+                    <when>82</when>
                     <value>100.06</value>
                   </keyframe>
                   <keyframe>
-                    <when>111</when>
+                    <when>110</when>
                     <value>100.0</value>
                   </keyframe>
                 </parameter>
@@ -744,15 +744,15 @@
           <clipitem id="clipitem-v1-13">
             <name>s013_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>225</duration>
+            <duration>226</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1985</start>
-            <end>2210</end>
+            <start>2092</start>
+            <end>2318</end>
             <in>0</in>
-            <out>225</out>
+            <out>226</out>
             <file id="file-12">
               <name>s013_1.jpg</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s013_1.jpg</pathurl>
@@ -760,7 +760,7 @@
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>225</duration>
+              <duration>226</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -792,15 +792,15 @@
                     <value>102.31</value>
                   </keyframe>
                   <keyframe>
-                    <when>112</when>
+                    <when>113</when>
                     <value>103.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>169</when>
+                    <when>170</when>
                     <value>103.94</value>
                   </keyframe>
                   <keyframe>
-                    <when>225</when>
+                    <when>226</when>
                     <value>104.0</value>
                   </keyframe>
                 </parameter>
@@ -808,20 +808,20 @@
             </filter>
           </clipitem>
           <clipitem id="clipitem-v1-14">
-            <name>s014_1.mp4</name>
+            <name>s014_2.mp4</name>
             <enabled>TRUE</enabled>
             <duration>306</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2210</start>
-            <end>2396</end>
+            <start>2318</start>
+            <end>2504</end>
             <in>60</in>
             <out>246</out>
             <file id="file-13">
-              <name>s014_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s014_1.mp4</pathurl>
+              <name>s014_2.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s014_2.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -845,8 +845,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2396</start>
-            <end>2609</end>
+            <start>2504</start>
+            <end>2717</end>
             <in>60</in>
             <out>273</out>
             <file id="file-15">
@@ -875,8 +875,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2609</start>
-            <end>2824</end>
+            <start>2717</start>
+            <end>2932</end>
             <in>60</in>
             <out>275</out>
             <file id="file-16">
@@ -905,8 +905,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2824</start>
-            <end>3015</end>
+            <start>2932</start>
+            <end>3123</end>
             <in>0</in>
             <out>191</out>
             <file id="file-17">
@@ -971,8 +971,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3015</start>
-            <end>3169</end>
+            <start>3123</start>
+            <end>3277</end>
             <in>60</in>
             <out>214</out>
             <file id="file-18">
@@ -1001,8 +1001,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3169</start>
-            <end>3334</end>
+            <start>3277</start>
+            <end>3442</end>
             <in>0</in>
             <out>165</out>
             <file id="file-19">
@@ -1067,8 +1067,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3334</start>
-            <end>3542</end>
+            <start>3442</start>
+            <end>3650</end>
             <in>0</in>
             <out>208</out>
             <file id="file-20">
@@ -1128,15 +1128,15 @@
           <clipitem id="clipitem-v1-21">
             <name>s020_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>205</duration>
+            <duration>147</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3542</start>
-            <end>3747</end>
+            <start>3650</start>
+            <end>3797</end>
             <in>0</in>
-            <out>205</out>
+            <out>147</out>
             <file id="file-20" />
             <filter>
               <effect>
@@ -1156,20 +1156,70 @@
                     <value>100.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>51</when>
+                    <when>37</when>
                     <value>102.31</value>
                   </keyframe>
                   <keyframe>
-                    <when>102</when>
+                    <when>74</when>
                     <value>103.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>154</when>
+                    <when>110</when>
                     <value>103.94</value>
                   </keyframe>
                   <keyframe>
-                    <when>205</when>
+                    <when>147</when>
                     <value>104.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-22">
+            <name>s020_1.jpg</name>
+            <enabled>TRUE</enabled>
+            <duration>125</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>3797</start>
+            <end>3922</end>
+            <in>0</in>
+            <out>125</out>
+            <file id="file-20" />
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>104.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>104.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>31</when>
+                    <value>101.69</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>62</when>
+                    <value>100.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>94</when>
+                    <value>100.06</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>125</when>
+                    <value>100.0</value>
                   </keyframe>
                 </parameter>
               </effect>
@@ -1240,15 +1290,15 @@
           <clipitem id="clipitem-v2-3">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>154</duration>
+            <duration>208</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
             <start>404</start>
-            <end>558</end>
+            <end>612</end>
             <in>0</in>
-            <out>154</out>
+            <out>208</out>
             <file id="file-4" />
           </clipitem>
           <clipitem id="clipitem-v2-4">
@@ -1259,8 +1309,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>558</start>
-            <end>744</end>
+            <start>612</start>
+            <end>798</end>
             <in>0</in>
             <out>186</out>
             <file id="file-4" />
@@ -1273,8 +1323,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>744</start>
-            <end>909</end>
+            <start>798</start>
+            <end>963</end>
             <in>0</in>
             <out>165</out>
             <file id="file-4" />
@@ -1287,8 +1337,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>909</start>
-            <end>1100</end>
+            <start>963</start>
+            <end>1154</end>
             <in>0</in>
             <out>191</out>
             <file id="file-4" />
@@ -1301,8 +1351,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1100</start>
-            <end>1245</end>
+            <start>1154</start>
+            <end>1299</end>
             <in>0</in>
             <out>145</out>
             <file id="file-4" />
@@ -1315,8 +1365,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1245</start>
-            <end>1436</end>
+            <start>1299</start>
+            <end>1490</end>
             <in>0</in>
             <out>191</out>
             <file id="file-4" />
@@ -1329,8 +1379,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1436</start>
-            <end>1568</end>
+            <start>1490</start>
+            <end>1622</end>
             <in>0</in>
             <out>132</out>
             <file id="file-4" />
@@ -1338,15 +1388,15 @@
           <clipitem id="clipitem-v2-10">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>133</duration>
+            <duration>187</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1568</start>
-            <end>1701</end>
+            <start>1622</start>
+            <end>1809</end>
             <in>0</in>
-            <out>133</out>
+            <out>187</out>
             <file id="file-4" />
           </clipitem>
           <clipitem id="clipitem-v2-11">
@@ -1357,8 +1407,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1701</start>
-            <end>1874</end>
+            <start>1809</start>
+            <end>1982</end>
             <in>0</in>
             <out>173</out>
             <file id="file-4" />
@@ -1366,29 +1416,29 @@
           <clipitem id="clipitem-v2-12">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>111</duration>
+            <duration>110</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1874</start>
-            <end>1985</end>
+            <start>1982</start>
+            <end>2092</end>
             <in>0</in>
-            <out>111</out>
+            <out>110</out>
             <file id="file-4" />
           </clipitem>
           <clipitem id="clipitem-v2-13">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>225</duration>
+            <duration>226</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1985</start>
-            <end>2210</end>
+            <start>2092</start>
+            <end>2318</end>
             <in>0</in>
-            <out>225</out>
+            <out>226</out>
             <file id="file-4" />
           </clipitem>
           <clipitem id="clipitem-v2-14">
@@ -1399,8 +1449,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2210</start>
-            <end>2396</end>
+            <start>2318</start>
+            <end>2504</end>
             <in>0</in>
             <out>186</out>
             <file id="file-14">
@@ -1429,8 +1479,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2396</start>
-            <end>2609</end>
+            <start>2504</start>
+            <end>2717</end>
             <in>0</in>
             <out>213</out>
             <file id="file-2" />
@@ -1443,8 +1493,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2609</start>
-            <end>2824</end>
+            <start>2717</start>
+            <end>2932</end>
             <in>0</in>
             <out>215</out>
             <file id="file-14" />
@@ -1457,8 +1507,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2824</start>
-            <end>3015</end>
+            <start>2932</start>
+            <end>3123</end>
             <in>0</in>
             <out>191</out>
             <file id="file-4" />
@@ -1471,8 +1521,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3015</start>
-            <end>3169</end>
+            <start>3123</start>
+            <end>3277</end>
             <in>0</in>
             <out>154</out>
             <file id="file-14" />
@@ -1485,8 +1535,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3169</start>
-            <end>3334</end>
+            <start>3277</start>
+            <end>3442</end>
             <in>0</in>
             <out>165</out>
             <file id="file-4" />
@@ -1499,8 +1549,8 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3334</start>
-            <end>3542</end>
+            <start>3442</start>
+            <end>3650</end>
             <in>0</in>
             <out>208</out>
             <file id="file-4" />
@@ -1508,15 +1558,29 @@
           <clipitem id="clipitem-v2-21">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>205</duration>
+            <duration>147</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3542</start>
-            <end>3747</end>
+            <start>3650</start>
+            <end>3797</end>
             <in>0</in>
-            <out>205</out>
+            <out>147</out>
+            <file id="file-4" />
+          </clipitem>
+          <clipitem id="clipitem-v2-22">
+            <name>출처: img.example.com</name>
+            <enabled>TRUE</enabled>
+            <duration>125</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>3797</start>
+            <end>3922</end>
+            <in>0</in>
+            <out>125</out>
             <file id="file-4" />
           </clipitem>
         </track>
@@ -1532,15 +1596,15 @@
           <clipitem id="clipitem-a1-1">
             <name>narration.wav</name>
             <enabled>TRUE</enabled>
-            <duration>3769</duration>
+            <duration>3945</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
             <start>0</start>
-            <end>3769</end>
+            <end>3945</end>
             <in>0</in>
-            <out>3769</out>
+            <out>3945</out>
             <file id="file-21">
               <name>narration.wav</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/narration.wav</pathurl>
@@ -1548,7 +1612,7 @@
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>3769</duration>
+              <duration>3945</duration>
               <media>
                 <audio>
                   <samplecharacteristics>

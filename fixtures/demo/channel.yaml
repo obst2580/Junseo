@@ -25,3 +25,6 @@ scoring:
   weights: {interest: 40, gap: 20, persistence: 10, fit: 30}
 clustering:
   generic_tokens: [새한당, 한빛당]   # 가상 정당명: 어디에나 나와서 연결 근거로 약하게만 친다
+
+script:
+  tone: 확신형+입담형

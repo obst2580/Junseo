@@ -183,3 +183,29 @@ def test_history_helpers():
     assert suggest_weights([], {"interest": 40, "gap": 20, "persistence": 10, "fit": 30})[0] is None
     rates = hit_rates([_plan()])
     assert rates["2026-W41"]["hit"] == 1 and rates["2026-W41"]["miss"] == 1
+
+
+def test_tone_presets_in_prompt_and_offline():
+    from topicradar import prompts
+
+    plan = _plan()
+    seen = {}
+
+    class LLM:
+        def text(self, task, system, prompt, role="script", **kw):
+            seen["system"] = system
+            return "## a\n결론부터 말씀드립니다.\n"
+
+    llm_script(LLM(), plan, "확신형+입담형")
+    assert "확신형 구어 + 예능 입담" in seen["system"] and "인신공격" in seen["system"]
+    llm_script(LLM(), plan, "없는말투")
+    assert prompts.TONES[prompts.DEFAULT_TONE] in seen["system"]
+    assert "근데 왜 이렇게 됐을까요?" in heuristic_script(plan, "확신형+입담형")
+    assert "근데 왜 이렇게 됐을까요?" not in heuristic_script(plan, "해설형")
+
+
+def test_validate_tone_checks():
+    plan = _plan()
+    text = "## a\n그는 반대했다고 밝혔습니다.\n입장을 밝혔다.\n결과였다.\n존나 웃기죠.\n"
+    warns = " | ".join(validate_script(text, plan))
+    assert "기사체 종결 3줄" in warns and "비속어" in warns

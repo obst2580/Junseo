@@ -36,6 +36,9 @@ _NEXT_RE = re.compile(
     r"(예정|전망|방침|계획|다음 달|다음 주|내주|내달|후속|수순|할 것으로|되면|하면|시행된다|준비에 들어|검토하겠다|검토한다)"
 )
 _ORDINALS = ["첫째", "둘째", "셋째", "넷째"]
+_CAUSE_QUESTION = "근데 왜 이렇게 됐을까요?"
+_ARTICLE_ENDING_RE = re.compile(r"(밝혔습니다|알려졌습니다|전해졌습니다|밝혔다|했다|였다|이다)[.]?$")
+SLANG = ["존나", "씨발", "시발", "개새", "병신", "좆"]
 
 
 # ---- 공통 줄 만들기 --------------------------------------------------------
@@ -109,7 +112,13 @@ def _cited(text: str, item: SlotItem, prefix: str = "") -> list[str]:
     return lines
 
 
-def topic_block(item: SlotItem, plan: SlotPlan, facts: int = 2, header: str | None = None) -> list[str]:
+def topic_block(
+    item: SlotItem,
+    plan: SlotPlan,
+    facts: int = 2,
+    header: str | None = None,
+    tone: str = prompts.DEFAULT_TONE,
+) -> list[str]:
     """주제 하나: 사실 → 원인 → 다음 수순."""
     sigs = _ranked_signals(item, plan)
     used: set[str] = set()
@@ -126,6 +135,8 @@ def topic_block(item: SlotItem, plan: SlotPlan, facts: int = 2, header: str | No
         lines += _sentence_lines(sent, url, force_source=(n == 0))
     cause = _pick(sigs, _CAUSE_RE, used, 1)
     if cause:
+        if tone != "해설형":  # 확신형 구어: 시청자의 의문을 대신 던지고 답한다
+            lines.append(_CAUSE_QUESTION)
         lines += _sentence_lines(*cause[0])
     else:
         lines.append("#TODO: 원인 문장 보강 — 수집 기사에 원인 서술 없음")
@@ -142,14 +153,14 @@ def topic_block(item: SlotItem, plan: SlotPlan, facts: int = 2, header: str | No
 # ---- 슬롯별 오프라인 초안 ---------------------------------------------------
 
 
-def _morning(plan: SlotPlan) -> list[str]:
+def _morning(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> list[str]:
     lines: list[str] = []
     for it in plan.items:
         if it.role in ("헤드라인", "서브"):
-            lines += topic_block(it, plan, facts=3 if it.role == "헤드라인" else 2) + [""]
+            lines += topic_block(it, plan, facts=3 if it.role == "헤드라인" else 2, tone=tone) + [""]
     points = plan.items_by_role("오늘의포인트")
     for it in points:
-        lines += topic_block(it, plan, facts=2) + [""]
+        lines += topic_block(it, plan, facts=2, tone=tone) + [""]
     if points:
         lines += [
             "## 오늘 볼 포인트",
@@ -195,18 +206,20 @@ def _recall_lines(it: SlotItem, plan: SlotPlan) -> list[str]:
     return lines
 
 
-def _evening(plan: SlotPlan) -> list[str]:
+def _evening(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> list[str]:
     lines: list[str] = []
     for it in plan.items_by_role("헤드라인", "서브"):
-        lines += topic_block(it, plan, facts=3 if it.role == "헤드라인" else 2) + [""]
+        lines += topic_block(it, plan, facts=3 if it.role == "헤드라인" else 2, tone=tone) + [""]
     for it in plan.items_by_role("포인트회수"):
         lines += _recall_lines(it, plan) + [""]
     for it in plan.items_by_role("내일쟁점"):
-        lines += topic_block(it, plan, facts=1, header=f"내일 쟁점: {short_name(it.topic.name, 14)}")
+        lines += topic_block(
+            it, plan, facts=1, header=f"내일 쟁점: {short_name(it.topic.name, 14)}", tone=tone
+        )
     return lines
 
 
-def _weekly(plan: SlotPlan) -> list[str]:
+def _weekly(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> list[str]:
     lines: list[str] = []
     if plan.chains:
         lines += ["## 이번 주 인과 사슬", "이번 주는 하나의 흐름으로 읽힙니다."]
@@ -216,25 +229,30 @@ def _weekly(plan: SlotPlan) -> list[str]:
                 lines += wrap_subtitle(f"{step}.", LINE_LIMIT)
         lines += ["#확인: 사슬 연결은 키워드 기반 추정 — 인과 관계를 녹음 전 검토", ""]
     for it in plan.items_by_role("줄기", "서브"):
-        lines += topic_block(it, plan, facts=5 if it.role == "줄기" else 3) + [""]
+        lines += topic_block(it, plan, facts=5 if it.role == "줄기" else 3, tone=tone) + [""]
     nxt = plan.items_by_role("내일쟁점")
     if nxt:
         lines += ["## 다음 주 전망"]
         for it in nxt:
-            lines += topic_block(it, plan, facts=1)[1:]
+            lines += topic_block(it, plan, facts=1, tone=tone)[1:]
     return lines
 
 
-def heuristic_script(plan: SlotPlan) -> str:
-    """오프라인 추출형 초안."""
-    body = {"morning": _morning, "evening": _evening, "weekly": _weekly}[plan.slot](plan)
+def heuristic_script(plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> str:
+    """오프라인 추출형 초안(말투는 연결 문장 정도만 반영 — 입담은 Claude 경로에서)."""
+    body = {"morning": _morning, "evening": _evening, "weekly": _weekly}[plan.slot](plan, tone)
     return normalize_script("\n".join(body))
 
 
 # ---- Claude 경로 ---------------------------------------------------------
 
 
-def llm_script(llm: ClaudeLLM, plan: SlotPlan) -> str:
+def tone_rules(tone: str) -> str:
+    """말투 프리셋 본문(모르는 이름이면 기본값)."""
+    return prompts.TONES.get(tone, prompts.TONES[prompts.DEFAULT_TONE])
+
+
+def llm_script(llm: ClaudeLLM, plan: SlotPlan, tone: str = prompts.DEFAULT_TONE) -> str:
     """Claude로 대본 생성."""
     items = []
     for it in plan.items:
@@ -270,21 +288,23 @@ def llm_script(llm: ClaudeLLM, plan: SlotPlan) -> str:
         "risk_notes": [f.message for f in plan.risk_flags if f.kind in ("법적", "여론조사")],
         "items": items,
     }
-    system = prompts.IDENTITY + "\n" + prompts.SCRIPT_RULES + "\n" + prompts.SLOT_SCRIPT_RULES[plan.slot]
+    system = "\n".join(
+        [prompts.IDENTITY, prompts.SCRIPT_RULES, tone_rules(tone), prompts.SLOT_SCRIPT_RULES[plan.slot]]
+    )
     text = llm.text(
         "script", system, "편성안과 근거 기사:\n" + json.dumps(payload, ensure_ascii=False), role="script"
     )
     return normalize_script(text)
 
 
-def draft_script(plan: SlotPlan, llm: ClaudeLLM | None) -> str:
+def draft_script(plan: SlotPlan, llm: ClaudeLLM | None, tone: str = prompts.DEFAULT_TONE) -> str:
     """대본 초안(실패 시 오프라인 초안)."""
     if llm is not None:
         try:
-            return llm_script(llm, plan)
+            return llm_script(llm, plan, tone)
         except LLMError:
             pass
-    return heuristic_script(plan)
+    return heuristic_script(plan, tone)
 
 
 # ---- 정리·점검 -----------------------------------------------------------
@@ -351,6 +371,12 @@ def validate_script(text: str, plan: SlotPlan) -> list[str]:
     banned = sorted({w for w in BANNED if any(w in ln for ln in spoken)})
     if banned:
         warns.append(f"금지 표현: {', '.join(banned)}")
+    slang = sorted({w for w in SLANG if any(w in ln for ln in spoken)})
+    if slang:
+        warns.append(f"비속어: {', '.join(slang)}")
+    article = [ln for ln in spoken if _ARTICLE_ENDING_RE.search(ln)]
+    if len(article) >= 3:
+        warns.append(f"기사체 종결 {len(article)}줄(예: '{article[0][-12:]}') — 말하듯 바꿀 것")
     hedges = sum(1 for ln in spoken for h in HEDGES if h in ln)
     if hedges > 2:
         warns.append(f"완충 표현 {hedges}회 — 사실관계가 불확실한 곳에만")

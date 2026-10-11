@@ -88,6 +88,12 @@ class ScoringSection(BaseModel):
     )
 
 
+class ScriptSection(BaseModel):
+    """대본 설정."""
+
+    tone: str = "확신형+입담형"  # 확신형+입담형 | 확신형 | 해설형
+
+
 class ClusteringSection(BaseModel):
     """군집 보조 설정."""
 
@@ -112,6 +118,7 @@ class ChannelConfig(BaseModel):
     scoring: ScoringSection = Field(default_factory=ScoringSection)
     budget: BudgetSection = Field(default_factory=BudgetSection)
     clustering: ClusteringSection = Field(default_factory=ClusteringSection)
+    script: ScriptSection = Field(default_factory=ScriptSection)
 
 
 @dataclass(frozen=True)

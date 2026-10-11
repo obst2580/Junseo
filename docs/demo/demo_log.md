@@ -39,7 +39,6 @@
 제목: 플랫폼노동자 기본법 의결, 오늘 결론 나면 생기는 일 / 오늘 플랫폼노동자 기본법 의결을 봐야 하는 이유 / 플랫폼노동자
 기본법 의결 다음 수순은 결국 이것  ·  썸네일: 플랫폼노동자 왜?
 → /home/user/Junseo/demo_root/projects/2026-10-07_morning/report.md, script.txt
-⚠ 글자 수 888자 — 목표 900~1,100자
 ⚠ 편집자 확인 주석 1개(#TODO/#확인) — 녹음 전 처리
 ```
 
@@ -68,7 +67,7 @@
 제목: 대통령실 지역의료 강화, 진짜 이유 / 대통령실 지역의료 강화 다음에 오는 것 / 결국 대통령실 지역의료 강화가 바꾸는 
 것  ·  썸네일: 대통령실 왜?
 → /home/user/Junseo/demo_root/projects/2026-10-07_evening/report.md, script.txt
-⚠ 글자 수 716자 — 목표 1,500~1,800자
+⚠ 글자 수 758자 — 목표 1,500~1,800자
 ⚠ 편집자 확인 주석 6개(#TODO/#확인) — 녹음 전 처리
 ```
 
@@ -130,7 +129,7 @@
 제목: 국방부 국감 미사일 탐지, 진짜 이유 / 국방부 국감 미사일 탐지 다음에 오는 것 / 결국 국방부 국감 미사일 탐지가 
 바꾸는 것  ·  썸네일: 국방부 국감 왜?
 → /home/user/Junseo/demo_root/projects/2026-10-08_evening/report.md, script.txt
-⚠ 글자 수 779자 — 목표 1,500~1,800자
+⚠ 글자 수 821자 — 목표 1,500~1,800자
 ⚠ 편집자 확인 주석 3개(#TODO/#확인) — 녹음 전 처리
 Slack 전송 완료
 ```
@@ -157,7 +156,7 @@ Slack 전송 완료
 제목: 플랫폼노동자 기본법 의결, 한 주를 꿴 진짜 이유 / 플랫폼노동자 기본법 의결 다음 주에 오는 것 / 결국 플랫폼노동자 
 기본법 의결로 이어진 이유  ·  썸네일: 플랫폼노동자 왜?
 → /home/user/Junseo/demo_root/projects/2026-10-11_weekly/report.md, script.txt
-⚠ 글자 수 1,071자 — 목표 2,500~3,000자
+⚠ 글자 수 1,141자 — 목표 2,500~3,000자
 ⚠ 수치·인용 줄 3곳에 `#출처:` 주석 없음
 ⚠ 편집자 확인 주석 1개(#TODO/#확인) — 녹음 전 처리
 ```
@@ -229,41 +228,43 @@ Slack 전송 완료
 │      │             │ 탐지                   │       │                        │               │ (YouTube)             │
 │ s002 │ 7.2-13.5    │ 국방부 국감 미사일     │ photo │ 국회, 국방위, 국방부   │ naver_image   │ 출처: img.example.com │
 │      │             │ 탐지                   │       │                        │               │                       │
-│ s003 │ 13.5-18.6   │ 국방부 국감 미사일     │ photo │ 국방부, 미사일, 국감   │ naver_image   │ 출처: img.example.com │
+│ s003 │ 13.5-20.4   │ 국방부 국감 미사일     │ photo │ 국방부, 미사일, 국감   │ naver_image   │ 출처: img.example.com │
 │      │             │ 탐지                   │       │                        │               │                       │
-│ s004 │ 18.6-24.8   │ 국방부 국감 미사일     │ photo │ 국방부, 국감, 미사일   │ naver_image   │ 출처: img.example.com │
+│ s004 │ 20.4-26.6   │ 국방부 국감 미사일     │ photo │ 국방부, 국감, 미사일   │ naver_image   │ 출처: img.example.com │
 │      │             │ 탐지                   │       │                        │               │                       │
-│ s005 │ 24.8-30.3   │ 새한당 지지율 3주 연 … │ broll │ 새한당, 지지율, 하락   │ naver_image   │ 출처: img.example.com │
-│ s006 │ 30.3-36.7   │ 새한당 지지율 3주 연 … │ broll │ 새한당, 지지율, 하락   │ naver_image   │ 출처: img.example.com │
-│ s007 │ 36.7-41.5   │ 부동산 PF 부실 우려 재 │ broll │ 부동산, 부실, 우려     │ naver_image   │ 출처: img.example.com │
-│ s008 │ 41.5-47.9   │ 부동산 PF 부실 우려 재 │ broll │ 부동산, pf, 부실       │ naver_image   │ 출처: img.example.com │
-│ s009 │ 47.9-52.3   │ 원·달러 환율 1440원    │ photo │ 환율, 원·달러,         │ naver_image   │ 출처: img.example.com │
+│ s005 │ 26.6-32.1   │ 새한당 지지율 3주 연 … │ broll │ 새한당, 지지율, 하락   │ naver_image   │ 출처: img.example.com │
+│ s006 │ 32.1-38.5   │ 새한당 지지율 3주 연 … │ broll │ 새한당, 지지율, 하락   │ naver_image   │ 출처: img.example.com │
+│ s007 │ 38.5-43.3   │ 부동산 PF 부실 우려 재 │ broll │ 부동산, 부실, 우려     │ naver_image   │ 출처: img.example.com │
+│ s008 │ 43.3-49.7   │ 부동산 PF 부실 우려 재 │ broll │ 부동산, pf, 부실       │ naver_image   │ 출처: img.example.com │
+│ s009 │ 49.7-54.1   │ 원·달러 환율 1440원    │ photo │ 환율, 원·달러,         │ naver_image   │ 출처: img.example.com │
 │      │             │                        │       │ 넘어섰습니다           │               │                       │
-│ s010 │ 52.3-56.7   │ 원·달러 환율 1440원    │ photo │ 환율, 원·달러, 상승    │ naver_image   │ 출처: img.example.com │
-│ s011 │ 56.7-62.5   │ 원·달러 환율 1440원    │ photo │ 환율, 원·달러,         │ naver_image   │ 출처: img.example.com │
+│ s010 │ 54.1-60.3   │ 원·달러 환율 1440원    │ photo │ 환율, 원·달러, 상승    │ naver_image   │ 출처: img.example.com │
+│ s011 │ 60.3-66.1   │ 원·달러 환율 1440원    │ photo │ 환율, 원·달러,         │ naver_image   │ 출처: img.example.com │
 │      │             │                        │       │ 넘어서면서             │               │                       │
-│ s012 │ 62.5-66.2   │ 원·달러 환율 1440원    │ photo │ 한국은행, 환율,        │ naver_image   │ 출처: img.example.com │
+│ s012 │ 66.1-69.8   │ 원·달러 환율 1440원    │ photo │ 한국은행, 환율,        │ naver_image   │ 출처: img.example.com │
 │      │             │                        │       │ 원·달러                │               │                       │
-│ s013 │ 66.2-73.7   │ 아침 포인트 회수:      │ photo │ 서울중앙지법, 새한당,  │ naver_image   │ 출처: img.example.com │
+│ s013 │ 69.8-77.2   │ 아침 포인트 회수:      │ photo │ 서울중앙지법, 새한당,  │ naver_image   │ 출처: img.example.com │
 │      │             │ 새한당                 │       │ 의원                   │               │                       │
-│ s014 │ 73.7-79.9   │ 아침 포인트 회수:      │ video │ 검찰, 선고, 새한당     │ youtube_video │ 출처: 가상정당        │
+│ s014 │ 77.2-83.5   │ 아침 포인트 회수:      │ video │ 검찰, 선고, 새한당     │ youtube_video │ 출처: 가상정당        │
 │      │             │ 새한당                 │       │                        │               │ 공식채널 (YouTube)    │
-│ s015 │ 79.9-87.0   │ 아침 포인트 회수:      │ video │ 새한당, 의원, A씨      │ youtube_video │ 출처: KTV 국민방송    │
+│ s015 │ 83.5-90.6   │ 아침 포인트 회수:      │ video │ 새한당, 의원, A씨      │ youtube_video │ 출처: KTV 국민방송    │
 │      │             │ 새한당                 │       │                        │               │ (YouTube)             │
-│ s016 │ 87.0-94.1   │ 아침 포인트 회수:      │ video │ 국회, 본회의,          │ youtube_video │ 출처: 가상정당        │
+│ s016 │ 90.6-97.7   │ 아침 포인트 회수:      │ video │ 국회, 본회의,          │ youtube_video │ 출처: 가상정당        │
 │      │             │ 플랫폼                 │       │ 플랫폼노동자           │               │ 공식채널 (YouTube)    │
-│ s017 │ 94.1-100.5  │ 아침 포인트 회수:      │ broll │ 플랫폼노동자, 기본법,  │ naver_image   │ 출처: img.example.com │
+│ s017 │ 97.7-104.1  │ 아침 포인트 회수:      │ broll │ 플랫폼노동자, 기본법,  │ naver_image   │ 출처: img.example.com │
 │      │             │ 플랫폼                 │       │ 의결                   │               │                       │
-│ s018 │ 100.5-105.6 │ 아침 포인트 회수:      │ video │ 국무회의, 대통령실,    │ youtube_video │ 출처: 가상정당        │
+│ s018 │ 104.1-109.2 │ 아침 포인트 회수:      │ video │ 국무회의, 대통령실,    │ youtube_video │ 출처: 가상정당        │
 │      │             │ 대통령                 │       │ 지역의료               │               │ 공식채널 (YouTube)    │
-│ s019 │ 105.6-111.1 │ 아침 포인트 회수:      │ photo │ 국회, 대통령실,        │ naver_image   │ 출처: img.example.com │
+│ s019 │ 109.2-114.7 │ 아침 포인트 회수:      │ photo │ 국회, 대통령실,        │ naver_image   │ 출처: img.example.com │
 │      │             │ 대통령                 │       │ 지역의료               │               │                       │
-│ s020 │ 111.1-118.0 │ 내일 쟁점: 기획재정부  │ photo │ 기획재정부, 세수, 결손 │ naver_image   │ 출처: img.example.com │
+│ s020 │ 114.7-121.7 │ 내일 쟁점: 기획재정부  │ photo │ 기획재정부, 세수, 결손 │ naver_image   │ 출처: img.example.com │
 │      │             │ 올                     │       │                        │               │                       │
-│ s021 │ 118.0-124.9 │ 내일 쟁점: 기획재정부  │ photo │ 기획재정부, 세수, 결손 │ naver_image   │ 출처: img.example.com │
+│ s021 │ 121.7-126.6 │ 내일 쟁점: 기획재정부  │ photo │ 기획재정부, 세수, 결손 │ naver_image   │ 출처: img.example.com │
+│      │             │ 올                     │       │                        │               │                       │
+│ s022 │ 126.6-130.7 │ 내일 쟁점: 기획재정부  │ photo │ 기획재정부, 세수, 결손 │ naver_image   │ 출처: img.example.com │
 │      │             │ 올                     │       │                        │               │                       │
 └──────┴─────────────┴────────────────────────┴───────┴────────────────────────┴───────────────┴───────────────────────┘
-장면 21개 · 자료 확보 21개 · 다운로드 63개 · 소스별 선택 {'youtube_video': 5, 'naver_image': 16}
+장면 22개 · 자료 확보 22개 · 다운로드 66개 · 소스별 선택 {'youtube_video': 5, 'naver_image': 17}
 건너뛴 소스 google_image: GOOGLE_API_KEY/GOOGLE_CSE_ID 미설정 → 네이버 이미지가 1순위
 → demo_root/projects/2026-10-08_evening/scenes.json, assets.json, timeline.xml (검사 통과)
 ```
@@ -271,5 +272,5 @@ Slack 전송 완료
 ### `newsclip xml --project demo_root/projects/2026-10-08_evening --audio narration.wav`  (STUDIO_NOW=2026-10-08T18:40)
 
 ```
-→ demo_root/projects/2026-10-08_evening/timeline.xml (30fps, 1920x1080, zoom 1.04, 장면 21/21, 검사 통과)
+→ demo_root/projects/2026-10-08_evening/timeline.xml (30fps, 1920x1080, zoom 1.04, 장면 22/22, 검사 통과)
 ```
