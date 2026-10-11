@@ -21,7 +21,6 @@ import asyncio
 import html as htmllib
 import json
 import re
-import wave
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -204,15 +203,6 @@ async def collect(out: Path, hours: int = 24) -> dict:
 # ---- sources ---------------------------------------------------------------------------------
 
 
-def silent_wav(path: Path, seconds: float, rate: int = 8000) -> None:
-    """길이만 맞춘 무음 wav(timeline.xml의 내레이션 길이용 — 실제 음성은 사용자가 가진 파일)."""
-    with wave.open(str(path), "wb") as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(rate)
-        w.writeframes(b"\x00\x00" * int(seconds * rate))
-
-
 def rebase_xml(xml: str, project: Path) -> str:
     """timeline.xml 안의 이 서버 경로 → file://localhost/__STUDIO_BASE__ (화면이 사용자 폴더로 바꾼다)."""
     from newsclip.fcpxml import path_url
@@ -221,21 +211,28 @@ def rebase_xml(xml: str, project: Path) -> str:
 
 
 def _prepare(req: dict) -> tuple:
-    """프로젝트 폴더에 대본·자막(음성 분석값으로 맞춤)·무음 wav를 쓴다."""
-    from newsclip.autosub import AudioInfo, align, script_sentences
+    """프로젝트 폴더에 대본·장면 시각(말 덩어리마다)을 쓴다. 음성 분석값이 있으면 그 쉼에 맞추고, 없으면
+    대본 글자 수와 분당 글자 수로 어림한다. 음성·자막은 사용자가 직접 넣으므로 timeline.xml에 음성 트랙은 없다."""
+    from newsclip.autosub import AudioInfo, align, narration_text, script_phrases
     from newsclip.srt import write_srt
 
     settings = load_settings()
     pid = re.sub(r"[^0-9A-Za-z_-]", "_", req["id"])
     script = req["script"].replace("\r\n", "\n")
-    audio = req["audio"]
+    audio = req.get("audio") or {}
     proj = settings.projects_dir / pid
     proj.mkdir(parents=True, exist_ok=True)
     (proj / "script.txt").write_text(script if script.endswith("\n") else script + "\n", encoding="utf-8")
-    info = AudioInfo(float(audio["duration"]), [(float(a), float(b)) for a, b in audio.get("silences", [])])
-    cues, matched = align(script_sentences(script), info)
+    if audio.get("duration"):
+        info = AudioInfo(
+            float(audio["duration"]), [(float(a), float(b)) for a, b in audio.get("silences", [])]
+        )
+    else:
+        cpm = load_channel(settings).script.chars_per_minute
+        info = AudioInfo(round(len(narration_text(script).replace("\n", "")) / cpm * 60, 2), [])
+    cues, matched = align(script_phrases(script), info)
     (proj / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
-    silent_wav(proj / "narration.wav", info.duration)
+    (proj / "narration.wav").unlink(missing_ok=True)  # 예전 결과의 무음 wav가 남아 음성 트랙이 생기지 않게
     return settings, pid, proj, script, cues, matched
 
 
@@ -253,7 +250,7 @@ def plan_scenes(req: dict, out: Path) -> list[dict]:
             "topic": sc.topic,
             "text": sc.text,
         }
-        for sc in build_scenes(cues, script)
+        for sc in build_scenes(cues, script, phrases=True)
     ]
     out.mkdir(parents=True, exist_ok=True)
     (out / "scenes-plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -268,7 +265,9 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
     settings, pid, proj, _script, cues, matched = _prepare(req)
     cfg = load_channel(settings)
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
-    sset, report = await run_project(settings, cfg, proj, per_scene=per_scene, videos=False, queries=queries)
+    sset, report = await run_project(
+        settings, cfg, proj, per_scene=per_scene, videos=False, queries=queries, phrases=True
+    )
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
     files: list[dict] = []
@@ -326,7 +325,8 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
             "skipped_sources": report.skipped_sources,
             "errors": report.errors + report.xml_errors,
         },
-        "audio_name": "narration" + (req["audio"].get("ext") or ".wav"),
+        "audio_name": "narration" + ((req.get("audio") or {}).get("ext") or ".wav"),
+        "timing": "voice" if (req.get("audio") or {}).get("duration") else "estimated",
         "base_token": f"file://localhost/{BASE}",
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -121,3 +121,14 @@ def test_scene_plan_then_queries(root, tmp_path):
     man = asyncio.run(wr.sources(req, tmp_path / "out", queries=queries))
     assert [s["id"] for s in man["scenes"]] == [p["id"] for p in plan]
     assert man["scenes"][0]["query"] == "가상정당 대표 기자회견" and man["audio_name"] == "narration.wav"
+
+
+def test_sources_without_voice_and_no_audio_track(root, tmp_path):
+    """음성·자막은 사용자가 넣는다: 음성 분석값 없이도 장면 시각을 어림해 자료를 만들고, timeline.xml에 음성 트랙은 없다."""
+    script = (DEMO / "2026-10-08_1810_short" / "script.txt").read_text(encoding="utf-8")
+    man = asyncio.run(
+        wr.sources({"id": "2026-10-08_1920_short", "script": script, "audio": None}, tmp_path / "out")
+    )
+    xml = (tmp_path / "out" / "timeline.xml.txt").read_text(encoding="utf-8")
+    assert man["timing"] == "estimated" and man["scenes"] and "narration.wav" not in xml
+    assert all(s["end"] > s["start"] for s in man["scenes"])

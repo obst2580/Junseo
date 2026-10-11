@@ -159,11 +159,12 @@ async def run_project(
     size: tuple[int, int] = (1920, 1080),
     videos: bool = True,
     queries: dict | None = None,
+    phrases: bool = False,
 ) -> tuple[SceneSet, RunReport]:
     """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳)."""
     script = (project / "script.txt").read_text(encoding="utf-8")
     cues = parse_srt((project / "narration.srt").read_text(encoding="utf-8"))
-    scenes = build_scenes(cues, script, llm)
+    scenes = build_scenes(cues, script, llm, phrases=phrases)
     apply_queries(scenes, queries)
     sset = SceneSet(
         project=project.name,

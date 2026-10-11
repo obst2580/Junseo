@@ -201,6 +201,34 @@ def segment(
     return merged
 
 
+def segment_phrases(cues: list[Cue], topics: list[str], min_sec: float = 2.0) -> list[list[int]]:
+    """큐 하나(말 덩어리 하나) = 장면 하나. min_sec보다 짧은 덩어리만 다음 덩어리와 묶는다(같은 주제 안,
+    마지막이면 앞 장면에). 사진 한 장에 대사가 너무 많지도, 화면이 너무 자주 바뀌지도 않게."""
+    groups: list[list[int]] = []
+    cur: list[int] = []
+
+    def close(force: bool) -> None:
+        nonlocal cur
+        if not cur:
+            return
+        dur = cues[cur[-1]].end - cues[cur[0]].start
+        if dur < min_sec and not force:
+            return
+        if dur < min_sec and groups and topics[groups[-1][0]] == topics[cur[0]]:
+            groups[-1].extend(cur)
+        else:
+            groups.append(cur)
+        cur = []
+
+    for i in range(len(cues)):
+        if cur and topics[i] != topics[cur[0]]:
+            close(force=True)
+        cur.append(i)
+        close(force=False)
+    close(force=True)
+    return groups
+
+
 def heuristic_keywords(text: str, topic: str) -> tuple[list[str], list[str]]:
     """고유명사 우선 키워드(ko 3, en 3)."""
     topic = _HEADER_PREFIX_RE.sub("", topic).replace("·", " ")
@@ -340,12 +368,14 @@ def _to_scenes(groups: list[list[int]], cues: list[Cue], topics: list[str]) -> l
     return scenes
 
 
-def build_scenes(cues: list[Cue], script_text: str, llm: ClaudeLLM | None = None) -> list[Scene]:
-    """장면 목록 생성."""
+def build_scenes(
+    cues: list[Cue], script_text: str, llm: ClaudeLLM | None = None, phrases: bool = False
+) -> list[Scene]:
+    """장면 목록 생성. phrases=True면 큐가 말 덩어리(autosub.script_phrases)라서 큐 하나가 장면 하나."""
     topics = align_topics(cues, parse_script(script_text))
-    groups = segment(cues, topics)
+    groups = segment_phrases(cues, topics) if phrases else segment(cues, topics)
     scenes = _to_scenes(groups, cues, topics)
-    if llm is None or not cues:
+    if llm is None or not cues or phrases:
         mark_video_scenes(scenes)
         return scenes
     payload = [

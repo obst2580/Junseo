@@ -92,3 +92,42 @@ def test_analyze_wav_without_ffmpeg(tmp_path, monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda _n: None)
     info = analyze(wav)
     assert info.duration == pytest.approx(1.0) and info.silences == []
+
+
+def test_phrases_cut_at_sentence_and_quote_not_in_the_middle():
+    """장면 = 말 덩어리: 문장 끝, 쉼표 뒤, 인용이 시작하는 곳 앞에서만 자르고 인용·낱말 나열은 쪼개지 않는다."""
+    from newsclip.autosub import script_phrases, split_phrases
+
+    old = (  # 25자 자막 줄로 쓴 예전 대본도 줄바꿈과 상관없이 같은 곳에서 나뉜다
+        '국민의힘이 10월 11일 일요일\n이재명 대통령의 SNS 메시지를 두고\n"소통이 아니라 지지율 방어용\n'
+        "'왼쪽' 챙기기\"라고 했습니다.\n비판한다고 차단하지는 않는다\"고 못\n박았습니다. 비판하는 손님은 들이고\n"
+        "마당에 오물 뿌리는 사람만 내보내겠다는 거죠. 이걸 문제 삼으면 욕설할 권리를 달라는 말밖에 안 됩니다.\n"
+    )
+    flat = [p for s in script_phrases(old) for p in s]
+    assert flat[:2] == [
+        "국민의힘이 10월 11일 일요일 이재명 대통령의 SNS 메시지를 두고",
+        "\"소통이 아니라 지지율 방어용 '왼쪽' 챙기기\"라고 했습니다.",
+    ]
+    assert "비판하는 손님은 들이고 마당에 오물 뿌리는 사람만 내보내겠다는 거죠." in flat
+    assert flat[-1] == "이걸 문제 삼으면 욕설할 권리를 달라는 말밖에 안 됩니다."
+    assert split_phrases("폭언, 욕설, 비아냥, 반말, 멸칭, 가짜뉴스 유포를 하면 잠깐 시원할지 몰라도") == [
+        "폭언, 욕설, 비아냥, 반말, 멸칭, 가짜뉴스 유포를 하면 잠깐 시원할지 몰라도"
+    ]
+    # 한 줄 한 문장으로 쓴 대본은 글쓴이 줄바꿈도 자르는 곳
+    good = (
+        "여러분, 솔직히 웃기잖아요?\n말장난 한 글자에 정색하는 쪽이 품격을 따지고 있으니까요.\n"
+        "국민의힘이 단어 하나에서 '왼쪽'을 찾는 동안\n대통령은 욕 대신 설득으로 이기자고 했습니다.\n"
+    )
+    assert script_phrases(good)[-1] == [
+        "국민의힘이 단어 하나에서 '왼쪽'을 찾는 동안",
+        "대통령은 욕 대신 설득으로 이기자고 했습니다.",
+    ]
+
+
+def test_segment_phrases_one_scene_each_but_not_too_short():
+    from newsclip.scenes import segment_phrases
+    from newsclip.srt import Cue
+
+    cues = [Cue(1, 0, 3, "a"), Cue(2, 3, 4, "b"), Cue(3, 4, 7, "c"), Cue(4, 7, 8, "d"), Cue(5, 8, 9.5, "e")]
+    assert segment_phrases(cues, ["A", "A", "A", "B", "B"]) == [[0], [1, 2], [3, 4]]
+    assert segment_phrases(cues[:2], ["A", "A"]) == [[0, 1]]  # 짧은 꼬리는 앞 장면에
