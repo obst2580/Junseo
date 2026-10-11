@@ -111,7 +111,8 @@ def test_heuristic_long_script():
     assert lines[1].startswith("국감과 본회의,")  # 첫 문장 = 묶은 주제들을 잇는 고리
     assert "안보 예산 깎은 건 새한당이다." in text and "회의록에 다 나온다." in text  # 커뮤니티 주장
     assert "#출처" not in text and "#확인: 커뮤니티 주장(글 2 · 댓글 120 · 공감 100)" in text
-    assert all(len(ln) <= 25 for ln in spoken_lines(text))
+    # 한 줄 = 한 문장(자막용 25자로 끊지 않는다): 줄이 문장 중간에서 끝나지 않는다
+    assert all(ln.endswith((".", "?", "!", ",", "요", "다", "죠")) for ln in spoken_lines(text))
     warns = validate_script(text, plan)
     assert any("글자 수" in w and "10분 묶음" in w for w in warns)
     assert not any("수집 기사에 없는 수치" in w for w in warns) and not any("계획과 다름" in w for w in warns)
@@ -144,7 +145,6 @@ def test_validate_catches_violations():
         "수집 기사에 없는 수치",
         "수집 기사에 없는 인용",
         "출처·주석 줄 1개",
-        "25자 초과",
         "고른 주제가 대본에 없음: '본회의 표결'",
     ):
         assert frag in warns
@@ -177,6 +177,7 @@ def test_llm_script_gets_opinion_format_and_falls_back():
     )
     assert "출처·URL·편집 주석" in seen["system"]
     assert "사실을 또렷하게" in seen["system"] and "예고편처럼 감추지" in seen["system"]
+    assert "한 줄에 한 문장" in seen["system"] and "25자 안쪽" not in seen["system"]
     assert (
         '"stance": "안보 예산 깎은 건 새한당이다"' in seen["prompt"]
         and '"target_chars": [2700, 3300]' in seen["prompt"]

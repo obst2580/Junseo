@@ -4,7 +4,7 @@
 - Claude 경로: 채널 규칙 + 형식 규칙을 시스템 프롬프트로, 영상 계획(주제·의견·근거 기사)을 입력으로 한 번 호출.
 - 오프라인 경로: 기사 문장(사실) + 공감 많은 커뮤니티 글·댓글(주장)을 옮겨 놓은 '골격'.
   근거가 없으면 지어내지 않고 `#TODO`, 말로 다듬어야 할 곳은 `#확인` 주석을 남긴다.
-- 어느 경로든 `validate_script()`가 규칙(글자 수, 25자, 출처 주석, 수집 밖 수치·인용,
+- 어느 경로든 `validate_script()`가 규칙(글자 수, 출처 주석, 수집 밖 수치·인용,
   커뮤니티 글 그대로 옮김, 금지 표현)을 점검해 리포트에 싣는다.
 """
 
@@ -25,7 +25,6 @@ from studio_core.text import (
     split_sentences,
     to_polite,
     tokenize,
-    wrap_subtitle,
 )
 from topicradar import prompts
 from topicradar.cluster import signal_tokens
@@ -33,7 +32,7 @@ from topicradar.models import Signal, Topic, VideoItem, VideoPlan
 
 log = logging.getLogger("topicradar.script")
 
-LINE_LIMIT = 25
+LINE_LIMIT = 25  # 예전 자막용 줄 길이(이제 대본은 한 줄 한 문장 — 점검하지 않는다)
 SCRIPT_MAX_TOKENS = 32000  # 깊게 생각(effort high)하는 10분 대본도 잘리지 않게
 BANNED = ["충격", "경악", "난리", "대박", "소름", "어이없", "한심"]
 HEDGES = ["로 보입니다", "것 같습니다", "듯합니다", "아닐까"]
@@ -52,9 +51,15 @@ VAGUE_MAX = 2
 # ---- 공통 줄 만들기 --------------------------------------------------------
 
 
+def _one_line(text: str) -> list[str]:
+    """대본 한 줄 = 한 문장(자막용으로 짧게 끊지 않는다)."""
+    text = (text or "").strip()
+    return [text] if text else []
+
+
 def _sentence_lines(sentence: str, url: str | None = None, force_source: bool = False) -> list[str]:
     """한 문장 → 존댓말·자막 단위 줄. 대본에는 출처 줄을 넣지 않는다(근거 기사는 리포트·계획에 남는다)."""
-    return wrap_subtitle(to_polite(sentence), LINE_LIMIT)
+    return _one_line(to_polite(sentence))
 
 
 def _core_tokens(topic: object) -> set[str]:
@@ -160,7 +165,7 @@ def _source_for(text: str, item: VideoItem) -> str | None:
 def _cited(text: str, item: VideoItem, prefix: str = "") -> list[str]:
     """출처를 찾아 붙이는 줄 만들기(수치·인용이 있을 때)."""
     url = _source_for(text, item)
-    lines = wrap_subtitle(f"{prefix}{to_polite(text)}", LINE_LIMIT)
+    lines = _one_line(f"{prefix}{to_polite(text)}")
     if url and (numbers_in(text) or quotes_in(text)):
         lines.append(f"#출처: {url}")
     return lines
@@ -184,7 +189,7 @@ def _opinion_lines(item: VideoItem, tone: str) -> list[str]:
         op.stance,
         *op.points[:2],
     ]:  # 커뮤니티 말 그대로(존댓말 변환은 하지 않는다 — 다듬을 곳으로 표시)
-        lines += wrap_subtitle(text.rstrip(".") + ".", LINE_LIMIT)
+        lines += _one_line(text.rstrip(".") + ".")
     lines.append(f"#확인: 커뮤니티 주장({op.heat_label}) — 글·댓글을 옮겨 둔 것, 채널의 말로 다듬기")
     return lines
 
@@ -200,7 +205,7 @@ def topic_block(
     if len(fact_sents) < facts:  # 기사가 적으면 같은 기사의 다음 사실 문장까지
         fact_sents += _pick(sigs, None, used, facts - len(fact_sents), per_signal=3)
     if not fact_sents and sigs:  # 요약이 사진 설명·잘린 문장뿐이면 기사 제목이라도
-        lines += wrap_subtitle(sigs[0].title, LINE_LIMIT) + [
+        lines += _one_line(sigs[0].title) + [
             f"#출처: {sigs[0].url}",
             "#확인: 기사 제목뿐 — 사실 문장 보강",
         ]
@@ -213,7 +218,7 @@ def topic_block(
     if nxt:
         lines += _sentence_lines(*nxt[0])
     elif item.topic.follow_up and re.sub(r"\s+", "", item.topic.follow_up) not in used:
-        lines += wrap_subtitle(to_polite(item.topic.follow_up), LINE_LIMIT)
+        lines += _one_line(to_polite(item.topic.follow_up))
     return lines
 
 
@@ -224,14 +229,14 @@ def heuristic_script(plan: VideoPlan, tone: str = prompts.DEFAULT_TONE) -> str:
     for n, it in enumerate(plan.items):  # 목표 분량에 가깝게: 3분은 사실 6문장, 10분은 첫 주제 6·나머지 4
         block = topic_block(it, plan, facts=6 if many or n == 0 else 4, tone=tone)
         if n == 0 and plan.format == "long" and plan.link:
-            block[1:1] = wrap_subtitle(plan.link, LINE_LIMIT)  # 첫 문장: 묶은 주제들을 잇는 고리
+            block[1:1] = _one_line(plan.link)  # 첫 문장: 묶은 주제들을 잇는 고리
         lines += block + [""]
     if plan.format == "long":
         lead = plan.items[0].opinion if plan.items else None
         lines += ["## 정리"]
-        lines += wrap_subtitle(plan.link, LINE_LIMIT) if plan.link else []
+        lines += _one_line(plan.link) if plan.link else []
         if lead is not None and lead.posts:
-            lines += wrap_subtitle(lead.stance.rstrip(".") + ".", LINE_LIMIT)
+            lines += _one_line(lead.stance.rstrip(".") + ".")
         lines.append("#확인: 마무리 — 묶은 주제들을 하나의 주장으로 맺기")
     return normalize_script("\n".join(lines))
 
@@ -424,9 +429,6 @@ def validate_script(text: str, plan: VideoPlan) -> list[str]:
         warns.append(
             f"짧은 문장이 연달아 끊김 {choppy}곳(20자 미만 '~다.'·'~요.' 3번 연속) — 연결어미로 이어 쓰기"
         )
-    long_lines = [ln for ln in spoken if len(ln) > LINE_LIMIT]
-    if long_lines:
-        warns.append(f"25자 초과 줄 {len(long_lines)}개 (예: '{long_lines[0][:30]}…')")
     if not any(ln.startswith("## ") for ln in lines):
         warns.append("`## 주제명` 헤더 없음(newsclip 장면 분할 불가)")
     else:

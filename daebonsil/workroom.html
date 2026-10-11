@@ -250,8 +250,8 @@ footer { font-size: 13px; color: var(--muted); }
   <section class="card" id="p-voice" data-panel="voice" hidden>
     <div class="sec-h"><h2>음성</h2></div>
     <ol class="small" style="margin:0;padding-left:20px;color:var(--ink-2)">
-      <li><b>[타입캐스트용 복사]</b>를 눌러 타입캐스트에 붙여 넣고 음성(mp3·wav)을 받습니다. 출처 줄과 헤더는 빠집니다.</li>
-      <li>받은 파일을 아래에 올리면 길이와 문장 사이 쉼을 이 브라우저에서 분석합니다(파일은 어디에도 올라가지 않습니다).</li>
+      <li><b>[타입캐스트용 복사]</b>를 눌러 타입캐스트에 붙여 넣고 음성(mp3·wav)을 받습니다. 헤더는 빠집니다.</li>
+      <li>(선택) 받은 파일을 아래에 올리면 길이와 문장 사이 쉼을 이 브라우저에서 분석해 장면 시각을 음성에 맞춥니다(파일은 어디에도 올라가지 않습니다). 안 올려도 자료는 받을 수 있고, 그때 시각은 대본 길이로 어림합니다.</li>
     </ol>
     <div class="row"><button class="btn primary" id="copy-tts" type="button">타입캐스트용 복사</button><span class="small muted" id="tts-n"></span></div>
     <pre class="tts" id="tts"></pre>
@@ -664,8 +664,6 @@ function checkScript() {
   if (!spoken.length) return [{ bad: true, text: '대본이 비어 있습니다' }];
   const chars = spoken.reduce((n, l) => n + [...l].length, 0), [lo, hi] = spec.target_chars, out = [];
   out.push(chars < lo || chars > hi ? { bad: true, text: `글자 수 ${chars.toLocaleString()}자 — 목표 ${lo.toLocaleString()}~${hi.toLocaleString()}자${chars < lo ? `, ${(lo - chars).toLocaleString()}자 더 필요` : `, ${(chars - hi).toLocaleString()}자 넘침`}` } : { bad: false, text: `글자 수 ${chars.toLocaleString()}자 — 목표 안` });
-  const lim = r.line_limit || 25, long = spoken.filter(l => [...l].length > lim);
-  if (long.length) out.push({ bad: true, text: `${lim}자 넘는 줄 ${long.length}개 (예: '${long[0].slice(0, 30)}…')` });
   const heads = lines.filter(l => l.startsWith('## ')).map(l => l.slice(3).trim()), claimed = new Set();
   for (const { t } of planItems()) {
     const want = t.heading, hit = heads.findIndex((h, i) => !claimed.has(i) && (h === want || h.startsWith(want.slice(0, 8)) || want.startsWith(h.slice(0, 8))));
@@ -695,9 +693,8 @@ function updateMeter() {
   const p = S.project; if (!p || !S.meta) return;
   const spec = S.meta.formats[p.format], cpm = (p.audio && p.audio.cpm) || S.meta.chars_per_minute || 300;
   const spoken = spokenLines(p.script), chars = spoken.reduce((n, l) => n + [...l].length, 0), [lo, hi] = spec.target_chars;
-  const long = spoken.filter(l => [...l].length > (S.meta.rules.line_limit || 25)).length;
   $('#meter').innerHTML = `<span>글자 <b class="${chars ? (chars >= lo && chars <= hi ? 'good' : 'bad') : ''}">${chars.toLocaleString()}</b> / ${lo.toLocaleString()}~${hi.toLocaleString()}</span>
-    <span>예상 길이 <b>${fmtSec(chars / cpm * 60)}</b> <span class="muted">(분당 ${cpm}자)</span></span><span>읽는 줄 <b>${spoken.length}</b></span><span>25자 넘는 줄 <b class="${long ? 'bad' : ''}">${long}</b></span>`;
+    <span>예상 길이 <b>${fmtSec(chars / cpm * 60)}</b> <span class="muted">(분당 ${cpm}자)</span></span><span>문장 줄 <b>${spoken.length}</b></span>`;
   const checks = (p.script || '').trim() ? checkScript() : [];
   $('#checks').innerHTML = checks.map(c => `<li class="${c.bad ? 'bad' : ''}">${c.bad ? '⚠ ' : c.warn ? '· ' : '✓ '}${esc(c.text)}</li>`).join('');
   $('#sc-fix').disabled = !!ctl || !checks.some(c => c.bad);
@@ -868,7 +865,7 @@ function renderVoice() {
     <div class="fact"><div class="k">목표 길이</div><div class="v">${fmtSec(target)}</div></div>
     <div class="fact"><div class="k">실제 분당 글자</div><div class="v">${a.cpm}자</div></div>
     <div class="fact"><div class="k">문장 사이 쉼</div><div class="v">${a.silences.length}곳</div></div>`;
-  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = '<div class="small muted">분석값은 저장돼 있습니다. 압축 파일을 받을 때 음성 파일을 한 번 더 골라 주시면 같이 넣습니다.</div>';
+  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = '<div class="small muted">분석값은 저장돼 있습니다. 장면 시각을 이 음성에 맞춥니다.</div>';
 }
 $('#to-sources').onclick = () => setTab('sources');
 
@@ -959,7 +956,6 @@ function renderReq() {
 $('#src-go').onclick = async () => {
   const p = S.project;
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
-  if (!p.audio) { toast('음성을 먼저 올려 주세요', true); return; }
   if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`projects/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '' }); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
   const r = await requestWork('sources', $('#src-go'));
@@ -973,7 +969,6 @@ function renderSources() {
   const p = S.project; if (!p) return;
   const ready = [];
   if (!p.script || !spokenLines(p.script).length) ready.push('대본이 아직 없습니다 — 2단계에서 써 주세요');
-  if (!p.audio) ready.push('음성이 아직 없습니다 — 3단계에서 올려 주세요');
   $('#src-ready').innerHTML = ready.length ? `<div class="note warn"><ul>${ready.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
   $('#src-go').disabled = !!ready.length;
   $('#src-go').textContent = p.result ? '자료 다시 모으기' : '자료 모으고 timeline.xml 만들기';
@@ -1003,13 +998,10 @@ function renderResult() {
     <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
       <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
     <div class="small muted">압축 파일 안의 <span class="mono">${esc(p.id)}</span> 폴더가 이 폴더 안에 풀리면 됩니다.</div>
-    ${S.audioFile ? '' : `<div class="note warn">압축 파일에 음성을 같이 넣으려면 <b>[음성 파일 고르기]</b>로 음성(${esc((p.audio && p.audio.name) || '타입캐스트에서 받은 파일')})을 한 번 더 골라 주세요. 화면을 새로 열면 음성 파일은 다시 골라야 합니다.</div>`}
-    <div class="row"><button class="btn" id="pick-audio" type="button">${S.audioFile ? '음성: ' + esc(S.audioFile.name) : '음성 파일 고르기'}</button><input type="file" id="audio2" accept="audio/*,.mp3,.wav,.m4a" hidden>
-      <span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
+    <div class="small muted">압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성과 자막은 직접 넣으세요.</div>
+    <div class="row"><span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
     <div id="zip-state" class="small"></div>`;
   $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));
-  $('#pick-audio').onclick = () => $('#audio2').click();
-  $('#audio2').onchange = e => { const f = e.target.files[0]; if (f) { S.audioFile = f; renderResult(); } };
   $('#zip').onclick = makeZip;
 }
 function folderUrl(folder) {
@@ -1022,22 +1014,15 @@ async function makeZip() {
   const folder = ($('#folder').value || '').trim();
   if (!folder || folder.includes('(사용자)')) { toast('압축을 풀 폴더 경로를 적어 주세요', true); $('#folder').focus(); return; }
   if (!window.JSZip) { st.textContent = '압축 도구를 불러오지 못했습니다. 새로 고침해 주세요.'; return; }
-  if (!S.audioFile && st.dataset.noAudio !== '1') {  // 음성 없이 받으면 프리미어가 narration 파일을 못 찾는다
-    st.dataset.noAudio = '1';
-    st.textContent = `음성 파일을 먼저 골라 주세요(${(p.audio && p.audio.name) || '타입캐스트 음성'}). 음성 없이 받으려면 [압축 파일 받기]를 한 번 더 누르세요.`;
-    $('#audio2').click(); return;
-  }
-  st.dataset.noAudio = '';
   st.innerHTML = spinner('파일을 모으는 중…');
   try {
     const zip = new JSZip(), root = zip.folder(p.id);
     const base = folderUrl(folder + '/' + p.id);
-    const audioName = S.audioFile ? 'narration' + ((S.audioFile.name.match(/\.[a-z0-9]+$/i) || ['.wav'])[0].toLowerCase()) : 'narration' + ((p.audio && p.audio.ext) || '.wav');
     let xml = await (await fetch('/_blob/' + res.timeline_id)).text();
-    xml = xml.split(res.base_token || 'file://localhost/__STUDIO_BASE__').join(base).split('narration.wav').join(audioName);
+    xml = xml.split(res.base_token || 'file://localhost/__STUDIO_BASE__').join(base);
     root.file('timeline.xml', xml);
-    if (res.srt_id) root.file('narration.srt', await (await fetch('/_blob/' + res.srt_id)).text());
-    root.file('script.txt', p.script || '');
+    root.file('장면목록.txt', `장면별 대사와 사진 — ${p.id}\n(시각은 ${res.timing === 'estimated' ? '대본 길이로 어림한 값' : '올린 음성에 맞춘 값'})\n\n` + (res.scenes || []).map(s =>
+      `[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)}\n  대사: ${s.text}\n  사진: ${s.chosen || '없음'}${s.attribution ? ` (${s.attribution})` : ''}${s.query ? `\n  검색어: ${s.query}` : ''}`).join('\n\n') + '\n');
     const vlines = (res.scenes || []).filter(s => (s.videos || []).length).map(s => [`[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)} ${s.text}`,
       ...s.videos.map(v => `  - ${v.title} (${v.channel}${v.start ? `, ${fmtSec(v.start)}부터` : ''})\n    ${v.url}`)].join('\n'));
     if (vlines.length) root.file('영상후보.txt', '장면별 유튜브 영상 후보 — 받아서 쓸 때는 출처(채널)를 밝히세요.\n\n' + vlines.join('\n\n') + '\n');
@@ -1046,11 +1031,10 @@ async function makeZip() {
       const r = await fetch('/_blob/' + f.id); if (!r.ok) continue;
       root.file(f.name, await r.blob()); n++; st.innerHTML = spinner(`파일을 모으는 중… ${n}/${res.files.length}`);
     }
-    if (S.audioFile) root.file(audioName, S.audioFile);
     const blob = await zip.generateAsync({ type: 'blob' });
     if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
     await downloads.save({ filename: `${p.id}.zip`, data: blob });
-    st.textContent = S.audioFile ? '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml' : `저장했습니다(음성 파일은 빠짐 — ${audioName} 이름으로 폴더에 넣어 주세요).`;
+    st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 음성·자막은 직접 얹으세요.';
     try { await db.doc(`projects/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
   } catch (e) {
     const code = e && e.code;

@@ -64,8 +64,9 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    uv run python -m studio_app.workroom scenes --project /tmp/wr/projects/<ID>.json --out /tmp/wr-src
    ```
 
-   `audio`는 화면이 브라우저에서 분석한 값(`duration`, `silences` = 문장 사이 쉼 구간)입니다. 음성 파일은
-   사용자 컴퓨터에만 있고, 작업자는 같은 길이의 무음 wav로 timeline.xml을 만듭니다.
+   `audio`는 화면이 브라우저에서 분석한 값(`duration`, `silences` = 문장 사이 쉼 구간)이고, 없을 수도 있습니다
+   (그러면 장면 시각을 대본 길이로 어림). 음성·자막은 사용자가 직접 넣으므로 timeline.xml에는 음성 트랙이 없습니다.
+   장면은 말 덩어리 하나(문장 끝·쉼표 뒤·인용 시작 앞에서 자름)라서, 사진 한 장에 대사 한 덩어리입니다.
 3. **장면별 검색어 쓰기(가장 중요 — 사진이 대본과 맞는지가 여기서 갈립니다).** `/tmp/wr-src/scenes-plan.json`의
    장면마다 대사(`text`)를 읽고 "이 대사가 나올 때 화면에 무엇이 보여야 하나"를 정해 `/tmp/wr-src/queries.json`에 씁니다.
 
@@ -88,7 +89,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    ```
 5. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
    (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다):
-   `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`와 `narration.srt.txt`는
+   `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`(와 쓰고 싶으면 `narration.srt.txt`)는
    텍스트라 한 번에 하나씩 `file_path`로 올립니다(`.xml`은 자산 형식이 아니라 `.txt`로 올리고 화면이 이름을 바꿉니다).
 6. 프로젝트에 이전 결과(`result.files`, `result.timeline_id`)가 있으면, 새 결과를 쓴 뒤 그 옛 자산을 지웁니다
    (`Artifact delete`, `url` + `path`=자산 ID). 아무 문서도 가리키지 않는 자산만 지웁니다.

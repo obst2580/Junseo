@@ -203,12 +203,12 @@ footer { margin-top: 26px; font-size: 13px; color: var(--muted); }
     <div id="risk"></div>
     <div class="row">
       <button class="btn primary" id="sc-go">Claude로 대본 쓰기</button>
-      <button class="btn" id="sc-fix" title="아래 점검에 걸린 것(길이·25자 줄·헤더·기사에 없는 숫자)을 고쳐 다시 씁니다">점검대로 고쳐 쓰기</button>
+      <button class="btn" id="sc-fix" title="아래 점검에 걸린 것(길이·헤더·기사에 없는 숫자·뭉뚱그린 말)을 고쳐 다시 씁니다">점검대로 고쳐 쓰기</button>
       <button class="btn" id="sc-stop" hidden>멈추기</button>
       <span class="small muted" id="sc-state"></span>
     </div>
     <div id="sc-msg"></div>
-    <textarea class="script" id="script" spellcheck="false" placeholder="여기에 대본이 들어옵니다. 직접 쓰거나 붙여 넣어도 됩니다.&#10;&#10;## 주제 이름&#10;문장은 말하듯 이어서,&#10;한 줄은 25자 안쪽으로 끊습니다."></textarea>
+    <textarea class="script" id="script" spellcheck="false" placeholder="여기에 대본이 들어옵니다. 직접 쓰거나 붙여 넣어도 됩니다.&#10;&#10;## 주제 이름&#10;한 줄에 한 문장씩,&#10;말하듯 이어서 씁니다."></textarea>
     <div class="meter" id="meter"></div>
     <ul class="checks" id="checks"></ul>
   </section>
@@ -641,9 +641,6 @@ function checkScript() {
   out.push(chars < lo || chars > hi
     ? { bad: true, text: `글자 수 ${chars.toLocaleString()}자 — 목표 ${lo.toLocaleString()}~${hi.toLocaleString()}자(${spec.name})${chars < lo ? `, ${(lo - chars).toLocaleString()}자 더 필요` : `, ${(chars - hi).toLocaleString()}자 넘침`}` }
     : { bad: false, text: `글자 수 ${chars.toLocaleString()}자 — 목표 안` });
-  const limit = r.line_limit || 25;
-  const long = spoken.filter(l => [...l].length > limit);
-  if (long.length) out.push({ bad: true, text: `${limit}자 넘는 줄 ${long.length}개 (예: '${long[0].slice(0, 30)}…') — 자막용으로 의미 단위로 끊기` });
   const heads = lines.filter(l => l.startsWith('## ')).map(l => l.slice(3).trim());
   const items = planItems().filter(x => x.t);
   const claimed = new Set();
@@ -683,11 +680,10 @@ function updateMeter() {
   const spoken = spokenLines(S.script || '');
   const chars = spoken.reduce((n, l) => n + [...l].length, 0);
   const [lo, hi] = spec.target_chars;
-  const long = spoken.filter(l => [...l].length > (S.board.rules.line_limit || 25)).length;
   const inRange = chars >= lo && chars <= hi;
   $('#meter').innerHTML = `<span>글자 <b class="${chars ? (inRange ? 'good' : 'bad') : ''}">${chars.toLocaleString()}</b> / ${lo.toLocaleString()}~${hi.toLocaleString()}</span>
     <span>예상 길이 <b>${fmtSec(chars / cpm * 60)}</b> <span class="muted">(분당 ${cpm}자)</span></span>
-    <span>읽는 줄 <b>${spoken.length}</b></span><span>${S.board.rules.line_limit || 25}자 넘는 줄 <b class="${long ? 'bad' : ''}">${long}</b></span>`;
+    <span>문장 줄 <b>${spoken.length}</b></span>`;
   const checks = S.script.trim() ? checkScript() : [];
   $('#checks').innerHTML = checks.map(c => `<li class="${c.bad ? 'bad' : ''}">${c.bad ? '⚠ ' : c.warn ? '· ' : '✓ '}${esc(c.text)}</li>`).join('');
   $('#sc-fix').disabled = !!ctl || !checks.some(c => c.bad) || !S.script.trim();
