@@ -3,7 +3,7 @@
 <xmeml version="5">
   <sequence id="sequence-1">
     <name>2026-10-08_evening</name>
-    <duration>3356</duration>
+    <duration>3148</duration>
     <rate>
       <timebase>30</timebase>
       <ntsc>FALSE</ntsc>
@@ -34,121 +34,25 @@
         </format>
         <track>
           <clipitem id="clipitem-v1-1">
-            <name>s001_3.mp4</name>
+            <name>s001_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>337</duration>
+            <duration>183</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
             <start>0</start>
-            <end>217</end>
-            <in>60</in>
-            <out>277</out>
+            <end>183</end>
+            <in>0</in>
+            <out>183</out>
             <file id="file-1">
-              <name>s001_3.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s001_3.mp4</pathurl>
+              <name>s001_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s001_1.jpg</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>337</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-          </clipitem>
-          <clipitem id="clipitem-v1-2">
-            <name>s002_1.jpg</name>
-            <enabled>TRUE</enabled>
-            <duration>187</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>217</start>
-            <end>404</end>
-            <in>0</in>
-            <out>187</out>
-            <file id="file-3">
-              <name>s002_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s002_1.jpg</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>187</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-            <filter>
-              <effect>
-                <name>Basic Motion</name>
-                <effectid>basic</effectid>
-                <effectcategory>motion</effectcategory>
-                <effecttype>motion</effecttype>
-                <mediatype>video</mediatype>
-                <parameter authoringApp="PremierePro">
-                  <parameterid>scale</parameterid>
-                  <name>Scale</name>
-                  <valuemin>0</valuemin>
-                  <valuemax>1000</valuemax>
-                  <value>104.0</value>
-                  <keyframe>
-                    <when>0</when>
-                    <value>104.0</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>47</when>
-                    <value>101.69</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>94</when>
-                    <value>100.5</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>140</when>
-                    <value>100.06</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>187</when>
-                    <value>100.0</value>
-                  </keyframe>
-                </parameter>
-              </effect>
-            </filter>
-          </clipitem>
-          <clipitem id="clipitem-v1-3">
-            <name>s003_1.jpg</name>
-            <enabled>TRUE</enabled>
-            <duration>208</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>404</start>
-            <end>612</end>
-            <in>0</in>
-            <out>208</out>
-            <file id="file-5">
-              <name>s003_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s003_1.jpg</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>208</duration>
+              <duration>183</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -174,172 +78,40 @@
                   <keyframe>
                     <when>0</when>
                     <value>100.0</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>52</when>
-                    <value>102.31</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>104</when>
-                    <value>103.5</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>156</when>
-                    <value>103.94</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>208</when>
-                    <value>104.0</value>
-                  </keyframe>
-                </parameter>
-              </effect>
-            </filter>
-          </clipitem>
-          <clipitem id="clipitem-v1-4">
-            <name>s004_1.jpg</name>
-            <enabled>TRUE</enabled>
-            <duration>186</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>612</start>
-            <end>798</end>
-            <in>0</in>
-            <out>186</out>
-            <file id="file-6">
-              <name>s004_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s004_1.jpg</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>186</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-            <filter>
-              <effect>
-                <name>Basic Motion</name>
-                <effectid>basic</effectid>
-                <effectcategory>motion</effectcategory>
-                <effecttype>motion</effecttype>
-                <mediatype>video</mediatype>
-                <parameter authoringApp="PremierePro">
-                  <parameterid>scale</parameterid>
-                  <name>Scale</name>
-                  <valuemin>0</valuemin>
-                  <valuemax>1000</valuemax>
-                  <value>104.0</value>
-                  <keyframe>
-                    <when>0</when>
-                    <value>104.0</value>
                   </keyframe>
                   <keyframe>
                     <when>46</when>
-                    <value>101.69</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>93</when>
-                    <value>100.5</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>140</when>
-                    <value>100.06</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>186</when>
-                    <value>100.0</value>
-                  </keyframe>
-                </parameter>
-              </effect>
-            </filter>
-          </clipitem>
-          <clipitem id="clipitem-v1-5">
-            <name>s005_1.jpg</name>
-            <enabled>TRUE</enabled>
-            <duration>165</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>798</start>
-            <end>963</end>
-            <in>0</in>
-            <out>165</out>
-            <file id="file-7">
-              <name>s005_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s005_1.jpg</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>165</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-            <filter>
-              <effect>
-                <name>Basic Motion</name>
-                <effectid>basic</effectid>
-                <effectcategory>motion</effectcategory>
-                <effecttype>motion</effecttype>
-                <mediatype>video</mediatype>
-                <parameter authoringApp="PremierePro">
-                  <parameterid>scale</parameterid>
-                  <name>Scale</name>
-                  <valuemin>0</valuemin>
-                  <valuemax>1000</valuemax>
-                  <value>100.0</value>
-                  <keyframe>
-                    <when>0</when>
-                    <value>100.0</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>41</when>
                     <value>102.31</value>
                   </keyframe>
                   <keyframe>
-                    <when>82</when>
+                    <when>92</when>
                     <value>103.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>124</when>
+                    <when>137</when>
                     <value>103.94</value>
                   </keyframe>
                   <keyframe>
-                    <when>165</when>
+                    <when>183</when>
                     <value>104.0</value>
                   </keyframe>
                 </parameter>
               </effect>
             </filter>
           </clipitem>
-          <clipitem id="clipitem-v1-6">
-            <name>s005_1.jpg</name>
+          <clipitem id="clipitem-v1-2">
+            <name>s001_1.jpg</name>
             <enabled>TRUE</enabled>
             <duration>191</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>963</start>
-            <end>1154</end>
+            <start>183</start>
+            <end>374</end>
             <in>0</in>
             <out>191</out>
-            <file id="file-7" />
+            <file id="file-1" />
             <filter>
               <effect>
                 <name>Basic Motion</name>
@@ -377,26 +149,106 @@
               </effect>
             </filter>
           </clipitem>
-          <clipitem id="clipitem-v1-7">
-            <name>s007_1.jpg</name>
+          <clipitem id="clipitem-v1-3">
+            <name>s001_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>145</duration>
+            <duration>130</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1154</start>
-            <end>1299</end>
+            <start>374</start>
+            <end>504</end>
             <in>0</in>
-            <out>145</out>
-            <file id="file-8">
-              <name>s007_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s007_1.jpg</pathurl>
+            <out>130</out>
+            <file id="file-1" />
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>100.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>100.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>32</when>
+                    <value>102.31</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>65</when>
+                    <value>103.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>98</when>
+                    <value>103.94</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>130</when>
+                    <value>104.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-4">
+            <name>s004_3.mp4</name>
+            <enabled>TRUE</enabled>
+            <duration>319</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>504</start>
+            <end>704</end>
+            <in>60</in>
+            <out>260</out>
+            <file id="file-3">
+              <name>s004_3.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s004_3.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>145</duration>
+              <duration>319</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v1-5">
+            <name>s005_1.jpg</name>
+            <enabled>TRUE</enabled>
+            <duration>156</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>704</start>
+            <end>860</end>
+            <in>0</in>
+            <out>156</out>
+            <file id="file-5">
+              <name>s005_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s005_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>156</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -424,19 +276,135 @@
                     <value>100.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>36</when>
+                    <when>39</when>
                     <value>102.31</value>
                   </keyframe>
                   <keyframe>
-                    <when>72</when>
+                    <when>78</when>
                     <value>103.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>109</when>
+                    <when>117</when>
                     <value>103.94</value>
                   </keyframe>
                   <keyframe>
-                    <when>145</when>
+                    <when>156</when>
+                    <value>104.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-6">
+            <name>s006_1.jpg</name>
+            <enabled>TRUE</enabled>
+            <duration>195</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>860</start>
+            <end>1055</end>
+            <in>0</in>
+            <out>195</out>
+            <file id="file-6">
+              <name>s006_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s006_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>195</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>104.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>104.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>49</when>
+                    <value>101.69</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>98</when>
+                    <value>100.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>146</when>
+                    <value>100.06</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>195</when>
+                    <value>100.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-7">
+            <name>s005_1.jpg</name>
+            <enabled>TRUE</enabled>
+            <duration>150</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1055</start>
+            <end>1205</end>
+            <in>0</in>
+            <out>150</out>
+            <file id="file-5" />
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>100.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>100.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>38</when>
+                    <value>102.31</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>75</when>
+                    <value>103.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>112</when>
+                    <value>103.94</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>150</when>
                     <value>104.0</value>
                   </keyframe>
                 </parameter>
@@ -446,18 +414,306 @@
           <clipitem id="clipitem-v1-8">
             <name>s008_1.jpg</name>
             <enabled>TRUE</enabled>
+            <duration>145</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1205</start>
+            <end>1350</end>
+            <in>0</in>
+            <out>145</out>
+            <file id="file-7">
+              <name>s008_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s008_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>145</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>104.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>104.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>36</when>
+                    <value>101.69</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>72</when>
+                    <value>100.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>109</when>
+                    <value>100.06</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>145</when>
+                    <value>100.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-9">
+            <name>s009_1.jpg</name>
+            <enabled>TRUE</enabled>
             <duration>191</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1299</start>
-            <end>1490</end>
+            <start>1350</start>
+            <end>1541</end>
             <in>0</in>
             <out>191</out>
+            <file id="file-8">
+              <name>s009_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s009_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>191</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>100.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>100.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>48</when>
+                    <value>102.31</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>96</when>
+                    <value>103.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>143</when>
+                    <value>103.94</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>191</when>
+                    <value>104.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-10">
+            <name>s010_1.jpg</name>
+            <enabled>TRUE</enabled>
+            <duration>225</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1541</start>
+            <end>1766</end>
+            <in>0</in>
+            <out>225</out>
             <file id="file-9">
-              <name>s008_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s008_1.jpg</pathurl>
+              <name>s010_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s010_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>225</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+            <filter>
+              <effect>
+                <name>Basic Motion</name>
+                <effectid>basic</effectid>
+                <effectcategory>motion</effectcategory>
+                <effecttype>motion</effecttype>
+                <mediatype>video</mediatype>
+                <parameter authoringApp="PremierePro">
+                  <parameterid>scale</parameterid>
+                  <name>Scale</name>
+                  <valuemin>0</valuemin>
+                  <valuemax>1000</valuemax>
+                  <value>104.0</value>
+                  <keyframe>
+                    <when>0</when>
+                    <value>104.0</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>56</when>
+                    <value>101.69</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>112</when>
+                    <value>100.5</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>169</when>
+                    <value>100.06</value>
+                  </keyframe>
+                  <keyframe>
+                    <when>225</when>
+                    <value>100.0</value>
+                  </keyframe>
+                </parameter>
+              </effect>
+            </filter>
+          </clipitem>
+          <clipitem id="clipitem-v1-11">
+            <name>s011_1.mp4</name>
+            <enabled>TRUE</enabled>
+            <duration>306</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1766</start>
+            <end>1952</end>
+            <in>60</in>
+            <out>246</out>
+            <file id="file-10">
+              <name>s011_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s011_1.mp4</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>306</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v1-12">
+            <name>s012_1.mp4</name>
+            <enabled>TRUE</enabled>
+            <duration>333</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1952</start>
+            <end>2165</end>
+            <in>60</in>
+            <out>273</out>
+            <file id="file-12">
+              <name>s012_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s012_1.mp4</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>333</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v1-13">
+            <name>s013_1.mp4</name>
+            <enabled>TRUE</enabled>
+            <duration>335</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2165</start>
+            <end>2380</end>
+            <in>60</in>
+            <out>275</out>
+            <file id="file-13">
+              <name>s013_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s013_1.mp4</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>335</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
+          </clipitem>
+          <clipitem id="clipitem-v1-14">
+            <name>s014_1.jpg</name>
+            <enabled>TRUE</enabled>
+            <duration>191</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2380</start>
+            <end>2571</end>
+            <in>0</in>
+            <out>191</out>
+            <file id="file-14">
+              <name>s014_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s014_1.jpg</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -509,278 +765,26 @@
               </effect>
             </filter>
           </clipitem>
-          <clipitem id="clipitem-v1-9">
-            <name>s009_1.mp4</name>
-            <enabled>TRUE</enabled>
-            <duration>335</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>1490</start>
-            <end>1705</end>
-            <in>60</in>
-            <out>275</out>
-            <file id="file-10">
-              <name>s009_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s009_1.mp4</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>335</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-          </clipitem>
-          <clipitem id="clipitem-v1-10">
-            <name>s010_1.jpg</name>
-            <enabled>TRUE</enabled>
-            <duration>145</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>1705</start>
-            <end>1850</end>
-            <in>0</in>
-            <out>145</out>
-            <file id="file-12">
-              <name>s010_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s010_1.jpg</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>145</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-            <filter>
-              <effect>
-                <name>Basic Motion</name>
-                <effectid>basic</effectid>
-                <effectcategory>motion</effectcategory>
-                <effecttype>motion</effecttype>
-                <mediatype>video</mediatype>
-                <parameter authoringApp="PremierePro">
-                  <parameterid>scale</parameterid>
-                  <name>Scale</name>
-                  <valuemin>0</valuemin>
-                  <valuemax>1000</valuemax>
-                  <value>104.0</value>
-                  <keyframe>
-                    <when>0</when>
-                    <value>104.0</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>36</when>
-                    <value>101.69</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>72</when>
-                    <value>100.5</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>109</when>
-                    <value>100.06</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>145</when>
-                    <value>100.0</value>
-                  </keyframe>
-                </parameter>
-              </effect>
-            </filter>
-          </clipitem>
-          <clipitem id="clipitem-v1-11">
-            <name>s011_1.jpg</name>
-            <enabled>TRUE</enabled>
-            <duration>225</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>1850</start>
-            <end>2075</end>
-            <in>0</in>
-            <out>225</out>
-            <file id="file-13">
-              <name>s011_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s011_1.jpg</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>225</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-            <filter>
-              <effect>
-                <name>Basic Motion</name>
-                <effectid>basic</effectid>
-                <effectcategory>motion</effectcategory>
-                <effecttype>motion</effecttype>
-                <mediatype>video</mediatype>
-                <parameter authoringApp="PremierePro">
-                  <parameterid>scale</parameterid>
-                  <name>Scale</name>
-                  <valuemin>0</valuemin>
-                  <valuemax>1000</valuemax>
-                  <value>100.0</value>
-                  <keyframe>
-                    <when>0</when>
-                    <value>100.0</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>56</when>
-                    <value>102.31</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>112</when>
-                    <value>103.5</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>169</when>
-                    <value>103.94</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>225</when>
-                    <value>104.0</value>
-                  </keyframe>
-                </parameter>
-              </effect>
-            </filter>
-          </clipitem>
-          <clipitem id="clipitem-v1-12">
-            <name>s012_1.mp4</name>
-            <enabled>TRUE</enabled>
-            <duration>306</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>2075</start>
-            <end>2262</end>
-            <in>60</in>
-            <out>247</out>
-            <file id="file-14">
-              <name>s012_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s012_1.mp4</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>306</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-          </clipitem>
-          <clipitem id="clipitem-v1-13">
-            <name>s013_1.mp4</name>
-            <enabled>TRUE</enabled>
-            <duration>333</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>2262</start>
-            <end>2475</end>
-            <in>60</in>
-            <out>273</out>
-            <file id="file-15">
-              <name>s013_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s013_1.mp4</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>333</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-          </clipitem>
-          <clipitem id="clipitem-v1-14">
-            <name>s014_1.mp4</name>
-            <enabled>TRUE</enabled>
-            <duration>289</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>2475</start>
-            <end>2644</end>
-            <in>60</in>
-            <out>229</out>
-            <file id="file-16">
-              <name>s014_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s014_1.mp4</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>289</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
-          </clipitem>
           <clipitem id="clipitem-v1-15">
-            <name>s015_1.jpg</name>
+            <name>s015_1.mp4</name>
             <enabled>TRUE</enabled>
-            <duration>208</duration>
+            <duration>274</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2644</start>
-            <end>2852</end>
-            <in>0</in>
-            <out>208</out>
-            <file id="file-17">
-              <name>s015_1.jpg</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s015_1.jpg</pathurl>
+            <start>2571</start>
+            <end>2725</end>
+            <in>60</in>
+            <out>214</out>
+            <file id="file-15">
+              <name>s015_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s015_1.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>208</duration>
+              <duration>274</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -790,63 +794,27 @@
                 </video>
               </media>
             </file>
-            <filter>
-              <effect>
-                <name>Basic Motion</name>
-                <effectid>basic</effectid>
-                <effectcategory>motion</effectcategory>
-                <effecttype>motion</effecttype>
-                <mediatype>video</mediatype>
-                <parameter authoringApp="PremierePro">
-                  <parameterid>scale</parameterid>
-                  <name>Scale</name>
-                  <valuemin>0</valuemin>
-                  <valuemax>1000</valuemax>
-                  <value>100.0</value>
-                  <keyframe>
-                    <when>0</when>
-                    <value>100.0</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>52</when>
-                    <value>102.31</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>104</when>
-                    <value>103.5</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>156</when>
-                    <value>103.94</value>
-                  </keyframe>
-                  <keyframe>
-                    <when>208</when>
-                    <value>104.0</value>
-                  </keyframe>
-                </parameter>
-              </effect>
-            </filter>
           </clipitem>
           <clipitem id="clipitem-v1-16">
             <name>s016_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>208</duration>
+            <duration>165</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2852</start>
-            <end>3060</end>
+            <start>2725</start>
+            <end>2890</end>
             <in>0</in>
-            <out>208</out>
-            <file id="file-18">
+            <out>165</out>
+            <file id="file-16">
               <name>s016_1.jpg</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s016_1.jpg</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>208</duration>
+              <duration>165</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -874,19 +842,19 @@
                     <value>104.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>52</when>
+                    <when>41</when>
                     <value>101.69</value>
                   </keyframe>
                   <keyframe>
-                    <when>104</when>
+                    <when>82</when>
                     <value>100.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>156</when>
+                    <when>124</when>
                     <value>100.06</value>
                   </keyframe>
                   <keyframe>
-                    <when>208</when>
+                    <when>165</when>
                     <value>100.0</value>
                   </keyframe>
                 </parameter>
@@ -894,18 +862,34 @@
             </filter>
           </clipitem>
           <clipitem id="clipitem-v1-17">
-            <name>s016_1.jpg</name>
+            <name>s017_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>148</duration>
+            <duration>141</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3060</start>
-            <end>3208</end>
+            <start>2890</start>
+            <end>3031</end>
             <in>0</in>
-            <out>148</out>
-            <file id="file-18" />
+            <out>141</out>
+            <file id="file-17">
+              <name>s017_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s017_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>141</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
             <filter>
               <effect>
                 <name>Basic Motion</name>
@@ -924,19 +908,19 @@
                     <value>100.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>37</when>
+                    <when>35</when>
                     <value>102.31</value>
                   </keyframe>
                   <keyframe>
-                    <when>74</when>
+                    <when>70</when>
                     <value>103.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>111</when>
+                    <when>106</when>
                     <value>103.94</value>
                   </keyframe>
                   <keyframe>
-                    <when>148</when>
+                    <when>141</when>
                     <value>104.0</value>
                   </keyframe>
                 </parameter>
@@ -944,18 +928,34 @@
             </filter>
           </clipitem>
           <clipitem id="clipitem-v1-18">
-            <name>s016_1.jpg</name>
+            <name>s018_1.jpg</name>
             <enabled>TRUE</enabled>
-            <duration>125</duration>
+            <duration>94</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3208</start>
-            <end>3333</end>
+            <start>3031</start>
+            <end>3125</end>
             <in>0</in>
-            <out>125</out>
-            <file id="file-18" />
+            <out>94</out>
+            <file id="file-18">
+              <name>s018_1.jpg</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/assets/s018_1.jpg</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>94</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
             <filter>
               <effect>
                 <name>Basic Motion</name>
@@ -974,19 +974,19 @@
                     <value>104.0</value>
                   </keyframe>
                   <keyframe>
-                    <when>31</when>
+                    <when>24</when>
                     <value>101.69</value>
                   </keyframe>
                   <keyframe>
-                    <when>62</when>
+                    <when>47</when>
                     <value>100.5</value>
                   </keyframe>
                   <keyframe>
-                    <when>94</when>
+                    <when>70</when>
                     <value>100.06</value>
                   </keyframe>
                   <keyframe>
-                    <when>125</when>
+                    <when>94</when>
                     <value>100.0</value>
                   </keyframe>
                 </parameter>
@@ -996,25 +996,25 @@
         </track>
         <track>
           <clipitem id="clipitem-v2-1">
-            <name>출처: KTV 국민방송 (YouTube)</name>
+            <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>217</duration>
+            <duration>183</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
             <start>0</start>
-            <end>217</end>
+            <end>183</end>
             <in>0</in>
-            <out>217</out>
+            <out>183</out>
             <file id="file-2">
-              <name>cap_7d041298.png</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/captions/cap_7d041298.png</pathurl>
+              <name>cap_dedb1c1d.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/captions/cap_dedb1c1d.png</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>217</duration>
+              <duration>183</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -1028,137 +1028,51 @@
           <clipitem id="clipitem-v2-2">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>187</duration>
+            <duration>191</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>217</start>
-            <end>404</end>
+            <start>183</start>
+            <end>374</end>
             <in>0</in>
-            <out>187</out>
-            <file id="file-4">
-              <name>cap_dedb1c1d.png</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/captions/cap_dedb1c1d.png</pathurl>
-              <rate>
-                <timebase>30</timebase>
-                <ntsc>FALSE</ntsc>
-              </rate>
-              <duration>187</duration>
-              <media>
-                <video>
-                  <samplecharacteristics>
-                    <width>1920</width>
-                    <height>1080</height>
-                  </samplecharacteristics>
-                </video>
-              </media>
-            </file>
+            <out>191</out>
+            <file id="file-2" />
           </clipitem>
           <clipitem id="clipitem-v2-3">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>208</duration>
+            <duration>130</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>404</start>
-            <end>612</end>
+            <start>374</start>
+            <end>504</end>
             <in>0</in>
-            <out>208</out>
-            <file id="file-4" />
+            <out>130</out>
+            <file id="file-2" />
           </clipitem>
           <clipitem id="clipitem-v2-4">
-            <name>출처: img.example.com</name>
+            <name>출처: KTV 국민방송 (YouTube)</name>
             <enabled>TRUE</enabled>
-            <duration>186</duration>
+            <duration>200</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>612</start>
-            <end>798</end>
+            <start>504</start>
+            <end>704</end>
             <in>0</in>
-            <out>186</out>
-            <file id="file-4" />
-          </clipitem>
-          <clipitem id="clipitem-v2-5">
-            <name>출처: img.example.com</name>
-            <enabled>TRUE</enabled>
-            <duration>165</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>798</start>
-            <end>963</end>
-            <in>0</in>
-            <out>165</out>
-            <file id="file-4" />
-          </clipitem>
-          <clipitem id="clipitem-v2-6">
-            <name>출처: img.example.com</name>
-            <enabled>TRUE</enabled>
-            <duration>191</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>963</start>
-            <end>1154</end>
-            <in>0</in>
-            <out>191</out>
-            <file id="file-4" />
-          </clipitem>
-          <clipitem id="clipitem-v2-7">
-            <name>출처: img.example.com</name>
-            <enabled>TRUE</enabled>
-            <duration>145</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>1154</start>
-            <end>1299</end>
-            <in>0</in>
-            <out>145</out>
-            <file id="file-4" />
-          </clipitem>
-          <clipitem id="clipitem-v2-8">
-            <name>출처: img.example.com</name>
-            <enabled>TRUE</enabled>
-            <duration>191</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>1299</start>
-            <end>1490</end>
-            <in>0</in>
-            <out>191</out>
-            <file id="file-4" />
-          </clipitem>
-          <clipitem id="clipitem-v2-9">
-            <name>출처: 가상정당 공식채널 (YouTube)</name>
-            <enabled>TRUE</enabled>
-            <duration>215</duration>
-            <rate>
-              <timebase>30</timebase>
-              <ntsc>FALSE</ntsc>
-            </rate>
-            <start>1490</start>
-            <end>1705</end>
-            <in>0</in>
-            <out>215</out>
-            <file id="file-11">
-              <name>cap_d27ba55f.png</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/captions/cap_d27ba55f.png</pathurl>
+            <out>200</out>
+            <file id="file-4">
+              <name>cap_7d041298.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/captions/cap_7d041298.png</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>215</duration>
+              <duration>200</duration>
               <media>
                 <video>
                   <samplecharacteristics>
@@ -1169,7 +1083,49 @@
               </media>
             </file>
           </clipitem>
-          <clipitem id="clipitem-v2-10">
+          <clipitem id="clipitem-v2-5">
+            <name>출처: img.example.com</name>
+            <enabled>TRUE</enabled>
+            <duration>156</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>704</start>
+            <end>860</end>
+            <in>0</in>
+            <out>156</out>
+            <file id="file-2" />
+          </clipitem>
+          <clipitem id="clipitem-v2-6">
+            <name>출처: img.example.com</name>
+            <enabled>TRUE</enabled>
+            <duration>195</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>860</start>
+            <end>1055</end>
+            <in>0</in>
+            <out>195</out>
+            <file id="file-2" />
+          </clipitem>
+          <clipitem id="clipitem-v2-7">
+            <name>출처: img.example.com</name>
+            <enabled>TRUE</enabled>
+            <duration>150</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1055</start>
+            <end>1205</end>
+            <in>0</in>
+            <out>150</out>
+            <file id="file-2" />
+          </clipitem>
+          <clipitem id="clipitem-v2-8">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
             <duration>145</duration>
@@ -1177,13 +1133,27 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1705</start>
-            <end>1850</end>
+            <start>1205</start>
+            <end>1350</end>
             <in>0</in>
             <out>145</out>
-            <file id="file-4" />
+            <file id="file-2" />
           </clipitem>
-          <clipitem id="clipitem-v2-11">
+          <clipitem id="clipitem-v2-9">
+            <name>출처: img.example.com</name>
+            <enabled>TRUE</enabled>
+            <duration>191</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>1350</start>
+            <end>1541</end>
+            <in>0</in>
+            <out>191</out>
+            <file id="file-2" />
+          </clipitem>
+          <clipitem id="clipitem-v2-10">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
             <duration>225</duration>
@@ -1191,27 +1161,43 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>1850</start>
-            <end>2075</end>
+            <start>1541</start>
+            <end>1766</end>
             <in>0</in>
             <out>225</out>
-            <file id="file-4" />
+            <file id="file-2" />
           </clipitem>
-          <clipitem id="clipitem-v2-12">
+          <clipitem id="clipitem-v2-11">
             <name>출처: 가상정당 공식채널 (YouTube)</name>
             <enabled>TRUE</enabled>
-            <duration>187</duration>
+            <duration>186</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2075</start>
-            <end>2262</end>
+            <start>1766</start>
+            <end>1952</end>
             <in>0</in>
-            <out>187</out>
-            <file id="file-11" />
+            <out>186</out>
+            <file id="file-11">
+              <name>cap_d27ba55f.png</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/captions/cap_d27ba55f.png</pathurl>
+              <rate>
+                <timebase>30</timebase>
+                <ntsc>FALSE</ntsc>
+              </rate>
+              <duration>186</duration>
+              <media>
+                <video>
+                  <samplecharacteristics>
+                    <width>1920</width>
+                    <height>1080</height>
+                  </samplecharacteristics>
+                </video>
+              </media>
+            </file>
           </clipitem>
-          <clipitem id="clipitem-v2-13">
+          <clipitem id="clipitem-v2-12">
             <name>출처: KTV 국민방송 (YouTube)</name>
             <enabled>TRUE</enabled>
             <duration>213</duration>
@@ -1219,81 +1205,95 @@
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2262</start>
-            <end>2475</end>
+            <start>1952</start>
+            <end>2165</end>
             <in>0</in>
             <out>213</out>
-            <file id="file-2" />
+            <file id="file-4" />
           </clipitem>
-          <clipitem id="clipitem-v2-14">
+          <clipitem id="clipitem-v2-13">
             <name>출처: 가상정당 공식채널 (YouTube)</name>
             <enabled>TRUE</enabled>
-            <duration>169</duration>
+            <duration>215</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2475</start>
-            <end>2644</end>
+            <start>2165</start>
+            <end>2380</end>
             <in>0</in>
-            <out>169</out>
+            <out>215</out>
             <file id="file-11" />
           </clipitem>
-          <clipitem id="clipitem-v2-15">
+          <clipitem id="clipitem-v2-14">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>208</duration>
+            <duration>191</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2644</start>
-            <end>2852</end>
+            <start>2380</start>
+            <end>2571</end>
             <in>0</in>
-            <out>208</out>
-            <file id="file-4" />
+            <out>191</out>
+            <file id="file-2" />
+          </clipitem>
+          <clipitem id="clipitem-v2-15">
+            <name>출처: 가상정당 공식채널 (YouTube)</name>
+            <enabled>TRUE</enabled>
+            <duration>154</duration>
+            <rate>
+              <timebase>30</timebase>
+              <ntsc>FALSE</ntsc>
+            </rate>
+            <start>2571</start>
+            <end>2725</end>
+            <in>0</in>
+            <out>154</out>
+            <file id="file-11" />
           </clipitem>
           <clipitem id="clipitem-v2-16">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>208</duration>
+            <duration>165</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>2852</start>
-            <end>3060</end>
+            <start>2725</start>
+            <end>2890</end>
             <in>0</in>
-            <out>208</out>
-            <file id="file-4" />
+            <out>165</out>
+            <file id="file-2" />
           </clipitem>
           <clipitem id="clipitem-v2-17">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>148</duration>
+            <duration>141</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3060</start>
-            <end>3208</end>
+            <start>2890</start>
+            <end>3031</end>
             <in>0</in>
-            <out>148</out>
-            <file id="file-4" />
+            <out>141</out>
+            <file id="file-2" />
           </clipitem>
           <clipitem id="clipitem-v2-18">
             <name>출처: img.example.com</name>
             <enabled>TRUE</enabled>
-            <duration>125</duration>
+            <duration>94</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
-            <start>3208</start>
-            <end>3333</end>
+            <start>3031</start>
+            <end>3125</end>
             <in>0</in>
-            <out>125</out>
-            <file id="file-4" />
+            <out>94</out>
+            <file id="file-2" />
           </clipitem>
         </track>
       </video>
@@ -1308,15 +1308,15 @@
           <clipitem id="clipitem-a1-1">
             <name>narration.wav</name>
             <enabled>TRUE</enabled>
-            <duration>3356</duration>
+            <duration>3148</duration>
             <rate>
               <timebase>30</timebase>
               <ntsc>FALSE</ntsc>
             </rate>
             <start>0</start>
-            <end>3356</end>
+            <end>3148</end>
             <in>0</in>
-            <out>3356</out>
+            <out>3148</out>
             <file id="file-19">
               <name>narration.wav</name>
               <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_evening/narration.wav</pathurl>
@@ -1324,7 +1324,7 @@
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
               </rate>
-              <duration>3356</duration>
+              <duration>3148</duration>
               <media>
                 <audio>
                   <samplecharacteristics>

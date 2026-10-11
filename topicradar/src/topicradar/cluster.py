@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from collections import Counter
 from collections.abc import Iterable
@@ -229,7 +230,10 @@ def signal_tokens(sig: Signal) -> set[str]:
     """군집용 토큰(제목 + 요약 첫 문장 + 키워드)."""
     first = split_sentences(sig.summary)[:1]
     raw = set(tokenize(sig.title)) | set(tokenize(" ".join(first))) | {k for k in sig.keywords if len(k) >= 2}
-    return {_norm_token(t) for t in raw}
+    out = {_norm_token(t) for t in raw}
+    # 법 이름은 줄기도 같이('지역의료법' ↔ '지역의료', '정치자금법' ↔ '정치자금')
+    out |= {t[:-1] for t in out if t.endswith("법") and len(t) >= 4}
+    return out
 
 
 def categorize(texts: Iterable[str], hints: Iterable[str] = (), categories: list[str] | None = None) -> str:
@@ -468,50 +472,148 @@ def _linked(
     return sum(_weight(t, idf, generic) for t in shared) >= min_weight
 
 
+CLUSTER_SIM = 0.30  # 기사 ↔ 주제 핵심(평균 벡터) 코사인 유사도 기준
+MERGE_SIM = 0.50  # 주제끼리 합칠 기준
+EXISTING_SIM = 0.35  # 새 묶음 ↔ 기존 주제
+EXISTING_SIM_CORE = 0.20  # 핵심어 2개 이상 공유할 때
+CORE_SHARE = 0.5  # '핵심어' = 묶음 안 기사 절반 이상에 나오는 말
+
+
+def _vec(toks: set[str], idf: dict[str, float], generic: set[str]) -> dict[str, float]:
+    return {t: _weight(t, idf, generic) for t in toks}
+
+
+class _Group:
+    """묶음: 구성원과 토큰별 등장 수(평균 벡터·핵심어 계산용)."""
+
+    def __init__(self) -> None:
+        self.members: list[int] = []
+        self.df: Counter[str] = Counter()
+
+    def add(self, i: int, toks: set[str]) -> None:
+        self.members.append(i)
+        self.df.update(toks)
+
+    def absorb(self, other: _Group) -> None:
+        self.members += other.members
+        self.df.update(other.df)
+
+    def centroid(self, idf: dict[str, float], generic: set[str]) -> dict[str, float]:
+        n = len(self.members)
+        return {t: _weight(t, idf, generic) * c / n for t, c in self.df.items()}
+
+    def core(self, generic: set[str]) -> set[str]:
+        n = len(self.members)
+        return {t for t, c in self.df.items() if t not in generic and c >= max(1.0, CORE_SHARE * n)}
+
+
+def _cos(a: dict[str, float], b: dict[str, float]) -> float:
+    if len(a) > len(b):
+        a, b = b, a
+    dot = sum(w * b.get(t, 0.0) for t, w in a.items())
+    if not dot:
+        return 0.0
+    na = math.sqrt(sum(w * w for w in a.values()))
+    nb = math.sqrt(sum(w * w for w in b.values()))
+    return dot / (na * nb)
+
+
+def _assign(
+    idx: list[int], toks: list[set[str]], idf: dict[str, float], generic: set[str], groups: list[_Group]
+) -> list[_Group]:
+    """순서대로 가장 비슷한 묶음에 넣고(핵심어를 하나 이상 공유해야 함), 없으면 새 묶음."""
+    for i in idx:
+        v = _vec(toks[i], idf, generic)
+        best, best_sim = None, 0.0
+        for g in groups:
+            if not (toks[i] & g.core(generic)) or not _linked(toks[i], set(g.df), idf, generic):
+                continue
+            sim = _cos(v, g.centroid(idf, generic))
+            if sim > best_sim:
+                best, best_sim = g, sim
+        if best is not None and best_sim >= CLUSTER_SIM:
+            best.add(i, toks[i])
+        else:
+            g = _Group()
+            g.add(i, toks[i])
+            groups.append(g)
+    return groups
+
+
 def heuristic_groups(
     signals: list[Signal],
     existing: list[Topic] | None = None,
     generic: set[str] | None = None,
 ) -> tuple[list[list[Signal]], dict[int, str]]:
-    """IDF 가중 겹침 단일연결 군집.
+    """핵심어 기반 군집(연쇄 병합 방지).
 
-    기존 주제의 신호도 같은 그래프에 넣어 IDF를 넓게 잡고, 새 신호 묶음이 기존 신호와
-    연결되면 그 주제 ID를 돌려준다(반환: 새 신호 묶음 목록, {묶음 index: 기존 topic_id}).
+    예전의 '겹치는 말이 있으면 잇는' 단일연결 방식은 기사가 수백 건이면 A~B, B~C 연결이 이어져
+    서로 다른 사건이 한 주제로 뭉쳤다. 이제는 기사를 시간순으로 보며 **묶음의 핵심어**(묶음 기사 절반 이상에
+    나오는 고유한 말)를 공유하고 묶음 평균과 충분히 비슷할 때만 넣는다. 뉴스로 먼저 묶고, 커뮤니티 글은
+    여러 사건을 섞어 말하는 일이 많아 묶음의 다리가 되지 않게 나중에 가장 맞는 묶음에 붙인다.
+    반환: (묶음 목록, {묶음 index: 기존 topic_id}).
     """
     generic = GENERIC_TOKENS | (generic or set())
     existing = existing or []
-    old_sigs: list[tuple[Signal, str]] = [
-        (s, t.id) for t in existing for s in t.signals if s.kind != "competitor"
-    ]
     toks = [signal_tokens(s) for s in signals]
-    old_toks = [signal_tokens(s) for s, _ in old_sigs]
+    old_toks = [signal_tokens(s) for t in existing for s in t.signals if s.kind != "competitor"]
     idf = idf_table(toks + old_toks, prior=IDF_PRIOR)
-    parent = list(range(len(signals)))
-
-    def find(i: int) -> int:
-        while parent[i] != i:
-            parent[i] = parent[parent[i]]
-            i = parent[i]
-        return i
-
-    for i in range(len(signals)):
-        for j in range(i + 1, len(signals)):
-            if _linked(toks[i], toks[j], idf, generic):
-                parent[find(i)] = find(j)
-    buckets: dict[int, list[int]] = {}
-    for i in range(len(signals)):
-        buckets.setdefault(find(i), []).append(i)
-    groups = sorted(buckets.values(), key=lambda g: min(signals[i].published_at for i in g))
+    order = sorted(range(len(signals)), key=lambda i: signals[i].published_at)
+    news = [i for i in order if signals[i].kind != "community"]
+    community = [i for i in order if signals[i].kind == "community"]
+    groups = _assign(news, toks, idf, generic, [])
+    # 주제끼리 합치기(같은 사건이 초반에 둘로 갈라진 경우)
+    merged = True
+    while merged:
+        merged = False
+        for a in range(len(groups)):
+            for b in range(a + 1, len(groups)):
+                ga, gb = groups[a], groups[b]
+                if (ga.core(generic) & gb.core(generic)) and _cos(
+                    ga.centroid(idf, generic), gb.centroid(idf, generic)
+                ) >= MERGE_SIM:
+                    ga.absorb(gb)
+                    del groups[b]
+                    merged = True
+                    break
+            if merged:
+                break
+    n_news = len(groups)
+    groups = _assign(community, toks, idf, generic, groups)
+    # 커뮤니티 글이 뉴스 묶음에 못 붙고 저희끼리 만든 묶음은 그대로 둔다(편성에서 '뉴스 근거 없음'으로 걸러짐)
+    del n_news
+    out = [sorted(g.members, key=lambda i: signals[i].published_at) for g in groups]
+    out.sort(key=lambda m: signals[m[0]].published_at)
+    # 기존 주제와 맞추기: 묶음 평균 ↔ 기존 주제 평균(이름·키워드 포함)
+    existing_vecs = []
+    for t in existing:
+        g = _Group()
+        for s in t.signals:
+            if s.kind not in ("competitor", "community"):
+                g.add(-1, signal_tokens(s))
+        name_toks = {_norm_token(x) for x in tokenize(t.name)} | set(t.keywords)
+        g.add(-1, name_toks)
+        existing_vecs.append((t.id, g))
     matches: dict[int, str] = {}
-    for gi, members in enumerate(groups):
-        votes: Counter[str] = Counter()
+    for gi, members in enumerate(out):
+        g = _Group()
         for i in members:
-            for (_, tid), ot in zip(old_sigs, old_toks, strict=True):
-                if _linked(toks[i], ot, idf, generic):
-                    votes[tid] += 1
-        if votes:
-            matches[gi] = votes.most_common(1)[0][0]
-    return [[signals[i] for i in g] for g in groups], matches
+            g.add(i, toks[i])
+        cen, core = g.centroid(idf, generic), g.core(generic)
+        best, best_sim = None, 0.0
+        for tid, eg in existing_vecs:
+            shared_core = core & eg.core(generic)
+            if not shared_core:
+                continue
+            sim = _cos(cen, eg.centroid(idf, generic))
+            # 핵심어를 2개 이상 공유하는 후속 기사('막말 설전 이틀째')는 유사도 기준을 낮춘다
+            if sim < (EXISTING_SIM_CORE if len(shared_core) >= 2 else EXISTING_SIM):
+                continue
+            if sim > best_sim:
+                best, best_sim = tid, sim
+        if best is not None and best_sim >= EXISTING_SIM_CORE:
+            matches[gi] = best
+    return [[signals[i] for i in m] for m in out], matches
 
 
 def _group_name(group: list[Signal]) -> str:
@@ -656,7 +758,13 @@ def llm_cluster(
 ) -> list[Topic]:
     """Claude 경로. 응답에서 빠진 신호는 휴리스틱으로 보충한다."""
     system = prompts.IDENTITY + "\n" + prompts.CLUSTER_TASK
-    result = llm.json("cluster", system, _llm_prompt(signals, competitors, existing, categories), LLMCluster)
+    result = llm.json(
+        "cluster",
+        system,
+        _llm_prompt(signals, competitors, existing, categories),
+        LLMCluster,
+        max_tokens=32000,
+    )
     assert isinstance(result, LLMCluster)
     by_sig = {s.id: s for s in signals}
     by_comp = {s.id: s for s in competitors}

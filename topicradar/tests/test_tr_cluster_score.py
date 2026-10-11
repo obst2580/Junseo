@@ -9,6 +9,7 @@ from topicradar.cluster import (
     cluster_signals,
     find_follow_up,
     find_schedule,
+    heuristic_cluster,
     heuristic_groups,
     infer_kind,
     window_title,
@@ -264,3 +265,33 @@ def test_issue_score_hottest_mode():
     )
     assert out[0].id == "hot" and set(out[0].scores) == {"issue"} and out[0].trend == "↑"
     assert out[1].scores["repeat"].score == -25 and out[1].total == max(0.0, q.score - 25)
+
+
+def test_no_chaining_on_realistic_volume():
+    """하루치 규모(사건 24개, 기사 200여 건, 여러 사건을 섞은 커뮤니티 글 40건)에서 사건이 한 주제로 뭉치지 않는다."""
+    from stress_corpus import STORIES, build, purity_report
+
+    sigs, truth = build()
+    topics = heuristic_cluster(sigs, [], kst("2026-10-10 00:00").date())
+    r = purity_report(topics, truth)
+    assert not r["impure"], r["impure"][:3]
+    assert r["max_size"] <= 14 and len(STORIES) <= r["topics"] <= len(STORIES) + 4
+    # 다음 날 후속 기사는 같은 사건의 기존 주제로 붙는다
+    later = [
+        sig(
+            "금융보안원 경고 무시한 금융사 해킹 후속 조사",
+            "2026-10-11 09:00",
+            "금융보안원 경고 이후 금융사 해킹 피해 조사가 이어졌다.",
+        ),
+        sig(
+            "자포리자 공습 사망자 늘어…젤렌스키 규탄",
+            "2026-10-11 09:30",
+            "러시아 자포리자 활공폭탄 공습 사망자가 늘었다.",
+        ),
+    ]
+    groups, matches = heuristic_groups(later, topics)
+    by_id = {t.id: t for t in topics}
+    picked = {
+        g[0].title[:6]: truth[by_id[matches[i]].signals[0].id] for i, g in enumerate(groups) if i in matches
+    }
+    assert picked == {"금융보안원 ": "hack", "자포리자 공": "ukraine"}

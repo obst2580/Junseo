@@ -209,3 +209,71 @@ def test_validate_tone_checks():
     text = "## a\n그는 반대했다고 밝혔습니다.\n입장을 밝혔다.\n결과였다.\n존나 웃기죠.\n"
     warns = " | ".join(validate_script(text, plan))
     assert "기사체 종결 3줄" in warns and "비속어" in warns
+
+
+def test_script_follows_plan_structure_and_retries():
+    from topicradar.script import section_heading, structure_problems
+
+    plan = _plan()
+    good = "\n".join(f"## {section_heading(it, plan)}\n문장입니다." for it in plan.items) + "\n"
+    assert structure_problems(good, plan) == []
+    off = "## 금융권 해킹\n금융사가 뚫렸습니다.\n## 국방위 국감 질타\n질타가 이어졌습니다.\n"
+    probs = structure_problems(off, plan)
+    assert any("편성에 없는 단락: '금융권 해킹'" in p for p in probs)
+    assert sum("편성 주제가 대본에 없음" in p for p in probs) == 2
+    assert any("편성과 다름" in w for w in validate_script(off, plan))
+
+    calls = []
+
+    class Drifting:  # 처음엔 편성과 다른 대본, 고쳐 달라고 하면 맞게
+        def text(self, task, system, prompt, role="script", **kw):
+            calls.append(task)
+            assert "편성 지키기" in system and '"heading"' in prompt
+            return off if task == "script" else good
+
+    assert llm_script(Drifting(), plan) == good and calls == ["script", "script_retry"]
+
+
+def test_script_uses_only_articles_about_the_topic():
+    from topicradar.script import _ranked_signals
+
+    s, e = window_for("evening", DAY)
+    mixed = topic(
+        "g",
+        "대통령, 골프장서 대구 붕괴사고 보고받고 신속수습 지시",
+        [
+            sig(
+                "대통령, 골프장서 대구 붕괴사고 보고받아",
+                "2026-10-08 09:00",
+                "대통령이 골프장에서 대구 붕괴사고 보고를 받았다.",
+            ),
+            sig(
+                "대구 붕괴사고 신속수습 지시",
+                "2026-10-08 10:00",
+                "대통령은 대구 붕괴사고 신속수습을 지시했다.",
+            ),
+            sig("금융보안원 경고에도 금융사 해킹", "2026-10-08 07:00", "금융보안원이 위험을 알렸다."),
+        ],
+        keywords=["골프장", "대구", "붕괴사고"],
+    )
+    item = SlotItem(topic=mixed, order=1, role="헤드라인")
+    plan = SlotPlan(date=DAY, slot="evening", items=[item], window_start=s, window_end=e)
+    titles = [x.title for x in _ranked_signals(item, plan)]
+    assert all("해킹" not in t for t in titles) and len(titles) == 2
+
+
+def test_choppy_script_warning():
+    from topicradar.script import _choppy_runs
+
+    choppy = [
+        "오늘 헤드라인은 해킹입니다.",
+        "결론부터 말씀드립니다.",
+        "금융사들이 뚫렸습니다.",
+        "경고를 받았거든요.",
+    ]
+    flowing = ["금융보안원이 2주 전에 이미", "위험을 알렸는데도", "금융사들이 그대로 뚫렸습니다."]
+    assert _choppy_runs(choppy) == 1 and _choppy_runs(flowing) == 0
+    plan = _plan()
+    assert any(
+        "짧은 문장이 연달아" in w for w in validate_script("## 국방위 국감 질타\n" + "\n".join(choppy), plan)
+    )
