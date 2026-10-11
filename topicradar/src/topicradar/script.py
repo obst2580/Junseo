@@ -50,11 +50,8 @@ SLANG = ["존나", "씨발", "시발", "개새", "병신", "좆"]
 
 
 def _sentence_lines(sentence: str, url: str | None = None, force_source: bool = False) -> list[str]:
-    """한 문장 → 존댓말·자막 단위 줄(+ 필요 시 출처 주석)."""
-    lines = wrap_subtitle(to_polite(sentence), LINE_LIMIT)
-    if url and (force_source or numbers_in(sentence) or quotes_in(sentence)):
-        lines.append(f"#출처: {url}")
-    return lines
+    """한 문장 → 존댓말·자막 단위 줄. 대본에는 출처 줄을 넣지 않는다(근거 기사는 리포트·계획에 남는다)."""
+    return wrap_subtitle(to_polite(sentence), LINE_LIMIT)
 
 
 def _core_tokens(topic: object) -> set[str]:
@@ -434,29 +431,21 @@ def validate_script(text: str, plan: VideoPlan) -> list[str]:
     # 사실 근거는 뉴스·일정만(커뮤니티 글은 출처가 될 수 없다)
     sources = " ".join(s.text for it in plan.items for s in it.topic.signals if s.kind != "community")
     src_nums = set(numbers_in(sources))
-    urls = {s.url for it in plan.items for s in it.topic.signals if s.kind != "community"}
-    bad_nums, bad_quotes, missing_src = [], [], 0
-    for i, ln in enumerate(lines):
+    bad_nums, bad_quotes = [], []
+    for ln in lines:
         if not ln or ln.startswith("#"):
             continue
-        nums = [x for x in numbers_in(ln) if x not in src_nums]
-        bad_nums += nums
+        bad_nums += [x for x in numbers_in(ln) if x not in src_nums]
         bad_quotes += [q for q in quotes_in(ln) if q not in sources]
-        if numbers_in(ln) or quotes_in(ln):
-            window = lines[i + 1 : i + 4]
-            if not any(w.startswith("#출처:") for w in window):
-                missing_src += 1
     if bad_nums:
         warns.append(
             f"수집 기사에 없는 수치 {len(bad_nums)}개: {', '.join(sorted(set(bad_nums))[:5])} — 삭제 또는 출처 확인"
         )
     if bad_quotes:
         warns.append(f"수집 기사에 없는 인용 {len(bad_quotes)}개 — 삭제 또는 출처 확인")
-    if missing_src:
-        warns.append(f"수치·인용 줄 {missing_src}곳에 `#출처:` 주석 없음")
-    foreign = [ln for ln in lines if ln.startswith("#출처:") and ln.split(":", 1)[1].strip() not in urls]
-    if foreign:
-        warns.append(f"수집되지 않은 출처 URL {len(foreign)}개(커뮤니티 글은 출처가 될 수 없음)")
+    notes = [ln for ln in lines if ln.startswith("#") and not ln.startswith(("## ", "#TODO", "#확인"))]
+    if notes:
+        warns.append(f"출처·주석 줄 {len(notes)}개(예: '{notes[0][:30]}') — 대본에서 빼기")
     copied = _copied_lines(spoken, plan)
     if copied:
         warns.append(f"커뮤니티 글·댓글을 그대로 옮긴 곳 {copied}개 — 채널의 말로 바꿀 것")

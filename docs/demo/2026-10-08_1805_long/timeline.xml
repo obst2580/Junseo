@@ -34,7 +34,7 @@
         </format>
         <track>
           <clipitem id="clipitem-v1-1">
-            <name>s001_2.mp4</name>
+            <name>s001_1.mp4</name>
             <enabled>TRUE</enabled>
             <duration>286</duration>
             <rate>
@@ -46,8 +46,8 @@
             <in>60</in>
             <out>226</out>
             <file id="file-1">
-              <name>s001_2.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s001_2.mp4</pathurl>
+              <name>s001_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s001_1.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -130,7 +130,7 @@
             </filter>
           </clipitem>
           <clipitem id="clipitem-v1-3">
-            <name>s003_1.mp4</name>
+            <name>s003_2.mp4</name>
             <enabled>TRUE</enabled>
             <duration>281</duration>
             <rate>
@@ -142,8 +142,8 @@
             <in>60</in>
             <out>221</out>
             <file id="file-5">
-              <name>s003_1.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s003_1.mp4</pathurl>
+              <name>s003_2.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s003_2.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -160,7 +160,7 @@
             </file>
           </clipitem>
           <clipitem id="clipitem-v1-4">
-            <name>s004_2.mp4</name>
+            <name>s004_1.mp4</name>
             <enabled>TRUE</enabled>
             <duration>311</duration>
             <rate>
@@ -172,8 +172,8 @@
             <in>60</in>
             <out>251</out>
             <file id="file-7">
-              <name>s004_2.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s004_2.mp4</pathurl>
+              <name>s004_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s004_1.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>
@@ -864,7 +864,7 @@
             </filter>
           </clipitem>
           <clipitem id="clipitem-v1-18">
-            <name>s018_2.mp4</name>
+            <name>s018_1.mp4</name>
             <enabled>TRUE</enabled>
             <duration>268</duration>
             <rate>
@@ -876,8 +876,8 @@
             <in>60</in>
             <out>208</out>
             <file id="file-14">
-              <name>s018_2.mp4</name>
-              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s018_2.mp4</pathurl>
+              <name>s018_1.mp4</name>
+              <pathurl>file://localhost/home/user/Junseo/demo_root/projects/2026-10-08_1805_long/assets/s018_1.mp4</pathurl>
               <rate>
                 <timebase>30</timebase>
                 <ntsc>FALSE</ntsc>

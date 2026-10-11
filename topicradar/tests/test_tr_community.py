@@ -330,12 +330,12 @@ def test_script_and_report_never_cite_community():
     )
     text = heuristic_script(plan)
     community_url = head.buzz()[0].url
-    assert community_url not in text and "https://n.example/p1" in text
+    assert community_url not in text and "https://" not in text  # 대본에는 출처·주소 줄이 없다
     assert (
         "드디어 통과 축하합니다" in text and "#확인: 커뮤니티 주장" in text
     )  # 주장은 커뮤니티에서, 다듬을 곳 표시
     warns = " | ".join(validate_script(text + f"\n300억 거래가 있었습니다.\n#출처: {community_url}\n", plan))
-    assert "수집되지 않은 출처 URL 1개" in warns  # 커뮤니티 주소는 사실 근거로 인정하지 않는다
+    assert "출처·주석 줄 1개" in warns  # 출처 줄은 대본에 남기지 않는다
     assert "수집 기사에 없는 수치" in warns and ": 300" in warns  # 커뮤니티 글 속 숫자도 기사에 없으면 경고
     assert "커뮤니티 글·댓글을 그대로 옮긴 곳" in warns
     assert (

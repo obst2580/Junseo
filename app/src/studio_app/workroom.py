@@ -47,6 +47,9 @@ def _iso(dt: datetime) -> str:
     return dt.astimezone(KST).isoformat(timespec="minutes")
 
 
+_BODY_END = re.compile(r"저작권자|송고$|무단 전재|재배포 금지")
+
+
 def article_body(page: str) -> str:
     """기사 HTML → 본문 글. 연합뉴스는 페이지 안 CONTENT_DATA.BODY, 그 밖은 긴 <p> 문단."""
     m = re.search(r'"BODY":"(.*?)","', page, re.S)
@@ -61,9 +64,13 @@ def article_body(page: str) -> str:
             htmllib.unescape(re.sub(r"<[^>]+>", "", p)).strip()
             for p in re.findall(r"<p[^>]*>(.*?)</p>", page, re.S)
         ]
-        text = "\n".join(p for p in paras if len(p) >= 30)
-    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-    lines = [ln for ln in lines if "@" not in ln and not ln.startswith("[") and "무단 전재" not in ln]
+        text = "\n".join(p for p in paras if len(p) >= 30 or _BODY_END.search(p))
+    lines: list[str] = []
+    for ln in (x.strip() for x in text.splitlines()):
+        if _BODY_END.search(ln):  # 본문 끝(뒤는 관련 기사·광고)
+            break
+        if ln and "@" not in ln and not ln.startswith("["):
+            lines.append(ln)
     return "\n".join(lines)[:ARTICLE_BODY]
 
 

@@ -600,7 +600,7 @@ function scriptSection(p, d) {
   const w = d.warnings;
   return `
     <div class="sec-h"><span class="num">2</span><h2>대본</h2></div>
-    <p class="sub">고친 뒤 <b>저장</b>하면 다시 점검합니다. <code>#출처:</code> 줄은 녹음 때 읽지 않고, <code>#TODO</code>·<code>#확인</code>은 처리한 뒤 지우세요. 커뮤니티 글은 사실 근거가 아니라 주장의 근거입니다.</p>
+    <p class="sub">고친 뒤 <b>저장</b>하면 다시 점검합니다. 대본에는 출처 줄을 넣지 않습니다(근거 기사는 1번 계획에 있음). 남아 있는 <code>#</code> 주석 줄은 녹음 때 읽지 않고, <code>#TODO</code>·<code>#확인</code>은 처리한 뒤 지우세요. 커뮤니티 글은 사실 근거가 아니라 주장의 근거입니다.</p>
     ${d.plan.script_mode === 'offline' && d.script ? `<div class="note warn" style="margin-bottom:12px"><b class="t">이 대본은 오프라인 골격입니다 — Claude가 쓴 대본이 아닙니다</b>
       ${esc(d.plan.script_note || '')}<div class="small" style="margin-top:6px">기사 문장과 공감 많은 글을 옮겨 둔 것이라 짧고 투박합니다.
       <b>API 없이:</b> <a href="#/">주제판</a>에서 <b>[주제판 파일 내보내기]</b> → claude.ai 대본실에서 같은 주제로 대본 쓰기 → <b>[대본 가져오기]</b>(새 프로젝트로 들어옵니다).

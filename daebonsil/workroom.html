@@ -178,7 +178,7 @@ footer { font-size: 13px; color: var(--muted); }
 <div class="wrap">
   <header class="top">
     <div class="brand"><h1>제작실</h1><span class="by">studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지</span></div>
-    <p class="lede">주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.</p>
+    <p class="lede">진보 진영 편에 서는 채널의 영상을 만듭니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.</p>
     <div class="row" id="status"></div>
   </header>
 
@@ -206,7 +206,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div id="bundles-wrap" hidden><h3>10분 묶음 추천</h3><div class="bundles" id="bundles" style="margin-top:8px"></div></div>
     <div id="topics-wrap" hidden>
       <h3>주제 <span class="small muted" id="tcount"></span></h3>
-      <p class="small muted" style="margin:2px 0 6px">하나를 고르면 <b>3분 단독</b>, 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다.</p>
+      <p class="small muted" style="margin:2px 0 6px">하나를 고르면 <b>3분 단독</b>, 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 채널은 진보 진영 편이라 <b>상대 비판·우리 편 방어</b> 주제가 앞에 오고, <b>진영 내부</b> 갈등은 뒤에 둡니다.</p>
       <div class="tlist" id="topics"></div>
     </div>
     <div class="pickbar" id="pickbar" hidden>
@@ -427,10 +427,19 @@ function groupPrompt() {
   const A = S.articles.slice(0, 260).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id; return { id, title: a.title }; });
   const text = [m.rules.identity, m.rules.group_task,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
-    '{"topics":[{"id":"t1","name":"…","category":"…","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}',
+    '{"topics":[{"id":"t1","name":"…","category":"…","angle":"상대 비판","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}',
     '', 'posts:', JSON.stringify(P), '', 'articles:', JSON.stringify(A)].join('\n');
   return { text, pmap, amap };
 }
+const ANGLES = ['상대 비판', '우리 편 방어', '진영 내부'];
+/* 채널 규칙이 바뀌었는지(주제 묶음·프로젝트를 만든 때의 규칙과 지금 규칙 비교) */
+function rulesKey() {
+  const r = S.meta && S.meta.rules; if (!r) return '';
+  const t = [r.identity, r.group_task, r.script_rules, r.tone_rules].join('|');
+  let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+const angleBadge = a => !a ? '' : a === '진영 내부' ? '<span class="badge warn" title="진보 진영끼리의 갈등 — 정부·여당 쪽 관점으로 씁니다">진영 내부</span>' : `<span class="badge ok">${esc(a)}</span>`;
 const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
 async function runGroup() {
   if (!claudeOk() || ctl || !S.meta) return;
@@ -447,21 +456,24 @@ async function runGroup() {
       const post_ids = [...new Set(strList(t.post_ids, 40).map(x => pmap[x]).filter(Boolean))];
       if (!post_ids.length || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
       const article_ids = [...new Set(strList(t.article_ids, 6).map(x => amap[x]).filter(Boolean))];
-      topics.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(),
+      const angle = ANGLES.includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '';
+      topics.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(), angle,
         post_ids, article_ids, stance: String(t.stance).trim(), points: strList(t.points, 4),
         minority: String(t.minority || '').trim() || null, questions: strList(t.questions, 2),
         heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean)) });
     }
     if (!topics.length) throw { code: 'invalid_json' };
-    topics.sort((a, b) => b.heat.score - a.heat.score);
+    // 진보 채널이 다루기 좋은 주제(상대 비판·우리 편 방어)를 앞에, 진영 내부 갈등은 뒤로
+    topics.sort((a, b) => (a.angle === '진영 내부') - (b.angle === '진영 내부') || b.heat.score - a.heat.score);
     topics.forEach((t, i) => { t.id = 'T' + (i + 1); });
     const keyToId = Object.fromEntries(topics.map(t => [t.key, t.id]));
     const bundles = [];
     for (const b of (res && Array.isArray(res.bundles) ? res.bundles : [])) {
       const ids = [...new Set(strList(b.topic_ids, 3).map(k => keyToId[k]).filter(Boolean))];
-      if (ids.length >= 2 && String(b.link || '').trim()) bundles.push({ topic_ids: ids, link: String(b.link).trim() });
+      const inner = ids.some(i => (topics.find(t => t.id === i) || {}).angle === '진영 내부');
+      if (ids.length >= 2 && !inner && String(b.link || '').trim()) bundles.push({ topic_ids: ids, link: String(b.link).trim() });
     }
-    const doc = { made_at: new Date().toISOString(), raw_at: S.meta.collected_at, sites_off: [...S.siteOff], topics, bundles: bundles.slice(0, 3) };
+    const doc = { made_at: new Date().toISOString(), raw_at: S.meta.collected_at, rules_key: rulesKey(), sites_off: [...S.siteOff], topics, bundles: bundles.slice(0, 3) };
     S.topics = doc; S.picked = [];
     renderTopics();
     try { await db.doc('topics/current').set(doc); } catch (e) { toast('주제를 저장하지 못했습니다(화면에는 남아 있음).', true); }
@@ -490,7 +502,9 @@ function renderTopics() {
       <ul class="postlist" style="margin-top:8px">${top.map(p => `<li><span class="num">댓글 ${p.comments}${p.votes ? `<br>공감 ${p.votes}` : ''}</span><span>${esc(p.title)} <span class="small muted">${esc(p.site)}</span></span></li>`).join('')}</ul>` : '';
     return;
   }
-  $('#topics-empty').innerHTML = fresh ? '' : `<div class="note warn">이 주제는 ${esc(when(T.raw_at))} 수집분으로 묶은 것입니다. 새로 모은 글을 반영하려면 <b>[새 글로 다시 묶기]</b>를 누르세요.</div>`;
+  const oldRules = T.rules_key !== rulesKey();
+  $('#topics-empty').innerHTML = oldRules ? '<div class="note warn"><b class="t">채널 규칙이 바뀌었습니다</b>이 주제 묶음은 바뀌기 전 규칙으로 정리한 것입니다. <b>[Claude로 다시 묶기]</b>를 누르면 진보 진영 편 관점으로 다시 정리합니다.</div>'
+    : fresh ? '' : `<div class="note warn">이 주제는 ${esc(when(T.raw_at))} 수집분으로 묶은 것입니다. 새로 모은 글을 반영하려면 <b>[새 글로 다시 묶기]</b>를 누르세요.</div>`;
   const byId = Object.fromEntries(T.topics.map(t => [t.id, t]));
   const bl = T.bundles.filter(b => b.topic_ids.every(i => byId[i]));
   $('#bundles-wrap').hidden = !bl.length;
@@ -507,7 +521,7 @@ function renderTopics() {
     const arts = t.article_ids.map(x => artById[x]).filter(Boolean);
     const sites = [...new Set(posts.map(p => p.site))].join('·');
     return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
-      <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
+      <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
       <div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>
       <div class="stance"><span class="tag">커뮤니티 주장</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
@@ -556,7 +570,7 @@ async function makeProject(fmt, link = '') {
         .map(p => ({ site: p.site, title: p.title, comments: p.comments, votes: p.votes, top_comments: (p.top_comments || []).slice(0, 3) })),
       articles: t.article_ids.map(x => artById[x]).filter(Boolean).map(a => ({ url: a.url, time: a.time, title: a.title, source: a.source, text: a.body || a.summary || '' })) };
   });
-  const doc = { id, created_at: new Date().toISOString(), format: fmt, topics, link: fmt === 'long' ? link : '', titles: [], thumb: '', script: '', script_by: '', status: 'script' };
+  const doc = { id, created_at: new Date().toISOString(), format: fmt, rules_key: rulesKey(), topics, link: fmt === 'long' ? link : '', titles: [], thumb: '', script: '', script_by: '', status: 'script' };
   try { await db.doc(`projects/${id}`).set(doc); } catch (e) { toast('프로젝트를 저장하지 못했습니다: ' + (e.code || ''), true); return; }
   S.picked = []; selectProject(id, doc); setTab('script');
 }
@@ -629,7 +643,12 @@ function scriptPrompt() {
 function normalize(text) {
   const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
   const out = [];
-  for (let ln of t.split('\n')) { ln = ln.trim(); if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; } out.push(ln); }
+  for (let ln of t.split('\n')) {
+    ln = ln.trim();
+    if (ln.startsWith('#') && !ln.startsWith('## ')) continue; // 출처·주석 줄은 대본에 남기지 않는다
+    if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
+    out.push(ln);
+  }
   return out.join('\n').trim() + '\n';
 }
 const spokenLines = text => String(text || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
@@ -648,12 +667,12 @@ function checkScript() {
   }
   heads.forEach((h, i) => { if (!claimed.has(i) && !(p.format === 'long' && h.startsWith('정리'))) out.push({ bad: true, text: `계획에 없는 단락: '## ${h}'` }); });
   if (p.format === 'long' && !heads.some(h => h.startsWith('정리'))) out.push({ bad: true, text: "마무리 '## 정리' 단락 없음" });
-  const urls = new Set(p.topics.flatMap(t => t.articles.map(a => a.url)));
-  const foreign = lines.filter(l => l.startsWith('#출처') && !urls.has(l.replace(/^#출처\s*:\s*/, '').trim()));
-  if (foreign.length) out.push({ bad: true, text: `고른 기사에 없는 출처 URL ${foreign.length}개` });
-  let missing = 0;
-  lines.forEach((l, i) => { if (!l || l.startsWith('#')) return; if (/\d/.test(l) || /["“][^"”]{2,}["”]/.test(l)) { if (!lines.slice(i + 1, i + 4).some(x => x.startsWith('#출처'))) missing++; } });
-  if (missing) out.push({ bad: true, text: `수치·인용 줄 ${missing}곳 아래에 #출처 없음` });
+  const notes = lines.filter(l => l.startsWith('#') && !l.startsWith('## '));
+  if (notes.length) out.push({ bad: true, text: `출처·주석 줄 ${notes.length}개 — 대본에서 빼기` });
+  const facts = p.topics.flatMap(t => t.articles.map(a => a.title + ' ' + a.text)).join(' ');
+  const nums = [...new Set(spoken.flatMap(l => (l.match(/\d[\d,.]*/g) || []).map(x => x.replace(/,/g, '').replace(/\.$/, ''))))]
+    .filter(x => !facts.replace(/,/g, '').includes(x));
+  if (nums.length) out.push({ bad: true, text: `고른 기사에 없는 숫자 ${nums.length}개(${nums.slice(0, 4).join(', ')}) — 지우거나 기사 확인` });
   const banned = (r.banned || []).filter(w => spoken.some(l => l.includes(w))); if (banned.length) out.push({ bad: true, text: `금지 표현: ${banned.join(', ')}` });
   const slang = (r.slang || []).filter(w => spoken.some(l => l.includes(w))); if (slang.length) out.push({ bad: true, text: `비속어: ${slang.join(', ')}` });
   const joined = spoken.join('').replace(/\s+/g, ''), keys = new Set();
@@ -689,7 +708,9 @@ function renderScript(fromSnap) {
   if (ae !== $('#thumb')) $('#thumb').value = p.thumb || '';
   thumbCount();
   const risks = riskNotes();
-  $('#risk').innerHTML = risks.length ? `<div class="note warn"><b class="t">주의</b><ul>${risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+  const stale = p.rules_key !== rulesKey();
+  $('#risk').innerHTML = (stale ? '<div class="note warn"><b class="t">이 프로젝트는 바뀌기 전 채널 규칙으로 만들었습니다</b>주제의 주장도 예전 규칙으로 정리된 것이라, <b>1 주제 고르기</b>에서 다시 묶고 새로 만드는 걸 권합니다. 이대로 쓰려면 아래 주장을 확인한 뒤 <b>[Claude로 대본 쓰기]</b>로 다시 쓰세요.</div>' : '')
+    + (risks.length ? `<div class="note warn"><b class="t">주의</b><ul>${risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '');
   updateMeter();
 }
 $('#script').addEventListener('input', e => { queueSave({ script: e.target.value, script_by: S.project.script_by || 'manual' }); updateMeter(); });

@@ -203,12 +203,12 @@ footer { margin-top: 26px; font-size: 13px; color: var(--muted); }
     <div id="risk"></div>
     <div class="row">
       <button class="btn primary" id="sc-go">Claude로 대본 쓰기</button>
-      <button class="btn" id="sc-fix" title="아래 점검에 걸린 것(길이·25자 줄·헤더·출처)을 고쳐 다시 씁니다">점검대로 고쳐 쓰기</button>
+      <button class="btn" id="sc-fix" title="아래 점검에 걸린 것(길이·25자 줄·헤더·기사에 없는 숫자)을 고쳐 다시 씁니다">점검대로 고쳐 쓰기</button>
       <button class="btn" id="sc-stop" hidden>멈추기</button>
       <span class="small muted" id="sc-state"></span>
     </div>
     <div id="sc-msg"></div>
-    <textarea class="script" id="script" spellcheck="false" placeholder="여기에 대본이 들어옵니다. 직접 쓰거나 붙여 넣어도 됩니다.&#10;&#10;## 주제 이름&#10;문장은 말하듯 이어서,&#10;한 줄은 25자 안쪽으로 끊습니다.&#10;#출처: 기사 URL"></textarea>
+    <textarea class="script" id="script" spellcheck="false" placeholder="여기에 대본이 들어옵니다. 직접 쓰거나 붙여 넣어도 됩니다.&#10;&#10;## 주제 이름&#10;문장은 말하듯 이어서,&#10;한 줄은 25자 안쪽으로 끊습니다."></textarea>
     <div class="meter" id="meter"></div>
     <ul class="checks" id="checks"></ul>
   </section>
@@ -576,7 +576,12 @@ function fixPrompt(problems) {
 function normalize(text) {
   const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
   const out = [];
-  for (let ln of t.split('\n')) { ln = ln.trim(); if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; } out.push(ln); }
+  for (let ln of t.split('\n')) {
+    ln = ln.trim();
+    if (ln.startsWith('#') && !ln.startsWith('## ')) continue; // 출처·주석 줄은 대본에 남기지 않는다
+    if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
+    out.push(ln);
+  }
   return out.join('\n').trim() + '\n';
 }
 async function runScript(mode) {
@@ -649,18 +654,11 @@ function checkScript() {
   }
   heads.forEach((h, i) => { if (!claimed.has(i) && !(S.format === 'long' && h.startsWith('정리'))) out.push({ bad: true, text: `계획에 없는 단락: '## ${h}'` }); });
   if (S.format === 'long' && !heads.some(h => h.startsWith('정리'))) out.push({ bad: true, text: "마무리 '## 정리' 단락 없음" });
-  const urls = new Set(items.flatMap(x => (x.t.articles || []).map(a => a.url)));
-  const foreign = lines.filter(l => l.startsWith('#출처:') && !urls.has(l.slice(4).trim().replace(/^:\s*/, '')));
-  const srcLines = lines.filter(l => l.startsWith('#출처:')).length;
-  if (foreign.length) out.push({ bad: true, text: `주제판 기사에 없는 출처 URL ${foreign.length}개 — 커뮤니티 글·지어낸 주소는 출처가 될 수 없습니다` });
-  let missing = 0;
-  lines.forEach((l, i) => {
-    if (!l || l.startsWith('#')) return;
-    if ((l.match(NUM_RE) || []).length || /["“][^"”]{2,}["”]/.test(l)) {
-      if (!lines.slice(i + 1, i + 4).some(w => w.startsWith('#출처:'))) missing++;
-    }
-  });
-  if (missing) out.push({ bad: true, text: `수치·인용 줄 ${missing}곳 아래에 #출처 주석 없음` });
+  const notes = lines.filter(l => l.startsWith('#') && !l.startsWith('## ') && !/^#(TODO|확인)/.test(l));
+  if (notes.length) out.push({ bad: true, text: `출처·주석 줄 ${notes.length}개 — 대본에서 빼기` });
+  const facts = items.flatMap(x => (x.t.articles || []).map(a => a.title + ' ' + a.summary)).join(' ').replace(/,/g, '');
+  const nums = [...new Set(spoken.flatMap(l => (l.match(NUM_RE) || []).map(x => x.replace(/,/g, '').replace(/\.$/, ''))))].filter(x => !facts.includes(x));
+  if (nums.length) out.push({ bad: true, text: `주제판 기사에 없는 숫자 ${nums.length}개(${nums.slice(0, 4).join(', ')}) — 지우거나 기사 확인` });
   const banned = (r.banned || []).filter(w => spoken.some(l => l.includes(w)));
   if (banned.length) out.push({ bad: true, text: `금지 표현: ${banned.join(', ')}` });
   const slang = (r.slang || []).filter(w => spoken.some(l => l.includes(w)));
@@ -674,7 +672,6 @@ function checkScript() {
   if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
   const todo = lines.filter(l => /^#(TODO|확인)/.test(l)).length;
   if (todo) out.push({ bad: false, warn: true, text: `편집자 확인 주석 ${todo}개(#TODO/#확인) — 녹음 전에 처리` });
-  out.push({ bad: false, text: `#출처 주석 ${srcLines}개` });
   return out;
 }
 function fmtSec(s) { s = Math.round(s); return `${Math.floor(s / 60)}분 ${String(s % 60).padStart(2, '0')}초`; }

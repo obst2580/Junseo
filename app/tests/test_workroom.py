@@ -17,6 +17,14 @@ def test_article_body_yna_and_generic():
         "<p>짧음</p><p>" + "가" * 40 + "</p><p>[사진] 무단 전재 금지 문단입니다 아주 길게 써 둔 문단</p>"
     )
     assert wr.article_body(generic) == "가" * 40
+    tail = (
+        "<p>"
+        + "나" * 40
+        + "</p><p>&lt;저작권자(c) 연합뉴스, 무단 전재-재배포 금지&gt;</p><p>"
+        + "관련 기사 제목 " * 5
+        + "</p>"
+    )
+    assert wr.article_body(tail) == "나" * 40  # 본문 끝 뒤의 관련 기사·광고는 버린다
 
 
 def test_related_articles_and_chunk():
