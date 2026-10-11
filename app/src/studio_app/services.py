@@ -31,6 +31,7 @@ from topicradar.models import SlotPlan
 from topicradar.prompts import TONES
 from topicradar.report import SLOT_KO, buzz_cell, render_report
 from topicradar.script import validate_script
+from topicradar.slots import PICKABLE_ROLES
 
 PROJECT_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(morning|evening|weekly)$")
 SLOT_ORDER = {"morning": 0, "evening": 1, "weekly": 2}
@@ -216,10 +217,12 @@ def project_summary(settings: Settings, pid: str, uploads: dict[str, Any]) -> di
     day, slot = date.fromisoformat(m.group(1)), m.group(2)
     d = settings.projects_dir / pid
     title = ""
+    status = ""
     if (d / "plan.json").exists():
         try:
             plan = load_plan(d)
             title = plan.titles[0] if plan.titles else ""
+            status = plan.status
         except ValueError:
             title = ""
     up = uploads.get(pid)
@@ -236,6 +239,7 @@ def project_summary(settings: Settings, pid: str, uploads: dict[str, Any]) -> di
         "slot": slot,
         "label": label_for(day, slot),
         "title": title,
+        "status": status,
         "steps": steps,
         "has_wav": (d / "narration.wav").exists(),
         "srt_auto": (d / AUTO_MARK).exists(),
@@ -307,12 +311,34 @@ def project_detail(settings: Settings, pid: str) -> dict[str, Any]:
                 else ""
             ),
             "llm_mode": plan.llm_mode,
+            "status": plan.status,
+            "pickable_roles": PICKABLE_ROLES[plan.slot],
         },
+        candidates=_candidate_rows(settings, plan.candidate_ids) if plan.status == "draft" else [],
         items=[_item_dict(plan, it) for it in plan.items],
         script=script,
         warnings=validate_script(script, plan) if script else [],
     )
     return out
+
+
+def _candidate_rows(settings: Settings, ids: list[str]) -> list[dict[str, Any]]:
+    """주제 고르기 화면의 다른 후보(저장소에서 최신 상태로)."""
+    with open_store(settings) as store:
+        topics = [t for t in (store.get_topic(i) for i in ids) if t is not None]
+    return [
+        {
+            "id": t.id,
+            "name": t.name,
+            "category": t.category,
+            "total": round(t.total, 1),
+            "buzz": buzz_cell(t),
+            "articles": len(t.news_signals()),
+            "links": t.top_links(2),
+            "reason": next(iter(t.scores.values())).reason if t.scores else "",
+        }
+        for t in topics
+    ]
 
 
 def save_script(settings: Settings, pid: str, text: str) -> list[str]:
@@ -492,23 +518,42 @@ def _collect_if_stale(settings: Settings, say: Say) -> None:
     job_collect(settings, say)
 
 
-def job_slot(settings: Settings, say: Say, slot: str, day: date, collect: bool = True) -> dict[str, Any]:
-    """편성 만들기(필요하면 먼저 수집) → 대본 초안 → (Slack 설정 시) 알림."""
+def job_slot(
+    settings: Settings, say: Say, slot: str, day: date, collect: bool = True, draft: bool = True
+) -> dict[str, Any]:
+    """편성 만들기(필요하면 먼저 수집). draft=True(화면 기본)면 주제 후보까지만 — 대본은 고른 뒤에."""
     if collect:
         _collect_if_stale(settings, say)
     cfg = load_channel(settings)
     llm = get_llm(settings)
-    say(f"{label_for(day, slot)} 편성 계산 중… ({'Claude' if llm else '오프라인 휴리스틱'})")
+    say(f"{label_for(day, slot)} 주제 고르는 중… ({'Claude' if llm else '오프라인 휴리스틱'})")
     with open_store(settings) as store:
-        res = tr.run_slot(settings, cfg, store, slot, day, llm)  # type: ignore[arg-type]
-    say(f"대본 초안 작성 완료 — 점검 {len(res.warnings)}건")
+        res = tr.run_slot(settings, cfg, store, slot, day, llm, draft=draft)  # type: ignore[arg-type]
+    if draft:
+        say(
+            f"추천 편성 {len(res.plan.items)}개 + 다른 후보 {len(res.plan.candidate_ids)}개 — 화면에서 골라 주세요"
+        )
+    else:
+        say(f"대본 초안 작성 완료 — 점검 {len(res.warnings)}건")
     if cfg.channel.slack_webhook:
         try:
             if asyncio.run(tr.send_slack(cfg, res)):
                 say("Slack 전송 완료")
         except Exception as e:  # 알림 실패는 편성 결과에 영향 없음
             say(f"⚠️ Slack 전송 실패: {e}")
-    return {"project": res.plan.plan_id, "warnings": res.warnings}
+    return {"project": res.plan.plan_id, "warnings": res.warnings, "draft": draft}
+
+
+def job_finalize(settings: Settings, say: Say, pid: str, picks: list[list[str]]) -> dict[str, Any]:
+    """고른 주제로 편성 확정 → 예상·회수·제목 → 대본."""
+    d = project_path(settings, pid)
+    cfg = load_channel(settings)
+    llm = get_llm(settings)
+    say(f"고른 주제 {len(picks)}개로 대본 쓰는 중… ({'Claude' if llm else '오프라인 휴리스틱'})")
+    with open_store(settings) as store:
+        res = tr.run_finalize(settings, cfg, store, d, [(t, r) for t, r in picks], llm)
+    say(f"대본 초안 작성 완료 — 점검 {len(res.warnings)}건")
+    return {"project": pid, "warnings": res.warnings}
 
 
 def job_pick(settings: Settings, say: Say, pid: str, order: int, topic_id: str) -> dict[str, Any]:

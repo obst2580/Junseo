@@ -33,6 +33,7 @@ class SlotBody(BaseModel):
     slot: str
     date: str | None = None
     collect: bool = True
+    draft: bool = True  # 주제 후보까지만(대본은 고른 뒤)
 
 
 class CollectBody(BaseModel):
@@ -45,6 +46,19 @@ class ScriptBody(BaseModel):
     """대본 저장."""
 
     text: str
+
+
+class FinalizePick(BaseModel):
+    """고른 주제 하나."""
+
+    topic_id: str
+    role: str
+
+
+class FinalizeBody(BaseModel):
+    """주제 고르기 결과(화면 순서대로)."""
+
+    items: list[FinalizePick]
 
 
 class PickBody(BaseModel):
@@ -243,6 +257,7 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
             slot=body.slot,
             day=day,
             collect=body.collect,
+            draft=body.draft,
         )
 
     @app.post("/api/jobs/history")
@@ -270,6 +285,14 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
     def rewrite(pid: str) -> dict:
         guard(sv.project_path, settings, pid)
         return start("rewrite", "대본 다시 쓰기", sv.job_rewrite, pid=pid)
+
+    @app.post("/api/projects/{pid}/finalize")
+    def finalize(pid: str, body: FinalizeBody) -> dict:
+        guard(sv.project_path, settings, pid)
+        if not body.items:
+            raise HTTPException(400, "주제를 하나 이상 골라 주세요")
+        picks = [[p.topic_id, p.role] for p in body.items]
+        return start("finalize", "대본 만들기", sv.job_finalize, pid=pid, picks=picks)
 
     @app.get("/api/projects/{pid}/candidates")
     def candidates(pid: str, order: int) -> dict:

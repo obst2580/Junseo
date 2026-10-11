@@ -48,10 +48,23 @@ def test_full_flow(client, root, monkeypatch):
         client.post("/api/jobs/slot", json={"slot": "morning", "date": "2026-10-07", "collect": False})
     )
     pid = job["result"]["project"]
-    assert pid == "2026-10-07_morning"
+    assert pid == "2026-10-07_morning" and job["result"]["draft"]
+    # 대본 전: 추천 편성 + 다른 후보 → 직접 고르기
+    d = client.get(f"/api/projects/{pid}").json()
+    assert d["plan"]["status"] == "draft" and not d["script"] and d["candidates"]
+    assert d["summary"]["status"] == "draft" and not d["summary"]["steps"]["plan"]
+    assert d["plan"]["pickable_roles"] == ["헤드라인", "서브", "오늘의포인트"]
+    picks = [{"topic_id": it["topic"]["id"], "role": it["role"]} for it in d["items"]]
+    picks.append({"topic_id": d["candidates"][0]["id"], "role": "서브"})  # 후보 하나 더 넣기
+    bad = client.post(f"/api/projects/{pid}/finalize", json={"items": [{**picks[0], "role": "서브"}]}).json()
+    assert bad["status"] == "error" and "헤드라인" in bad["error"]
+    assert client.post(f"/api/projects/{pid}/finalize", json={"items": []}).status_code == 400
+    _job(client.post(f"/api/projects/{pid}/finalize", json={"items": picks}))
     lst = client.get("/api/projects").json()["projects"]
     assert lst[0]["id"] == pid and lst[0]["steps"]["plan"] and not lst[0]["steps"]["audio"]
     d = client.get(f"/api/projects/{pid}").json()
+    assert d["plan"]["status"] == "final" and d["candidates"] == []
+    assert d["candidates"] == [] and any(it["topic"]["id"] == picks[-1]["topic_id"] for it in d["items"])
     assert d["plan"]["titles"] and d["items"] and d["script"].startswith("## ")
     assert all({"buzz", "links", "risks"} <= set(it) for it in d["items"])
 
@@ -76,7 +89,9 @@ def test_full_flow(client, root, monkeypatch):
     # 저녁: 편성 → SRT 올리기 → 자료 수집 → 검토 → XML
     monkeypatch.setenv("STUDIO_NOW", "2026-10-08T17:00")
     ev = _job(
-        client.post("/api/jobs/slot", json={"slot": "evening", "date": "2026-10-08", "collect": False})
+        client.post(
+            "/api/jobs/slot", json={"slot": "evening", "date": "2026-10-08", "collect": False, "draft": False}
+        )
     )["result"]["project"]
     assert client.post(f"/api/projects/{ev}/newsclip").json()["status"] == "error"  # SRT 없으면 실패 안내
     script = client.get(f"/api/projects/{ev}").json()["script"]
@@ -251,7 +266,9 @@ def test_ai_voice_flow(client, root, monkeypatch, tmp_path):
     client.post("/api/jobs/collect", json={"since": "2026-10-05T00:00"})
     monkeypatch.setenv("STUDIO_NOW", "2026-10-08T17:00")
     pid = _job(
-        client.post("/api/jobs/slot", json={"slot": "evening", "date": "2026-10-08", "collect": False})
+        client.post(
+            "/api/jobs/slot", json={"slot": "evening", "date": "2026-10-08", "collect": False, "draft": False}
+        )
     )["result"]["project"]
     n = client.get(f"/api/projects/{pid}/narration-text").json()
     assert n["chars"] > 100 and "#출처" not in n["text"] and "## " not in n["text"]

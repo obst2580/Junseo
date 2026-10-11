@@ -202,10 +202,43 @@ def default_day(slot: SlotName, now: datetime | None = None) -> date:
 
 
 def run_slot(
-    settings: Settings, cfg: ChannelConfig, store: Store, slot: SlotName, day: date, llm: ClaudeLLM | None
+    settings: Settings,
+    cfg: ChannelConfig,
+    store: Store,
+    slot: SlotName,
+    day: date,
+    llm: ClaudeLLM | None,
+    draft: bool = False,
 ) -> SlotResult:
-    """slot: 편성 + 대본 + 리포트."""
-    plan = build_plan(SlotContext(store=store, cfg=cfg, llm=llm), slot, day)
+    """slot: 편성 + 대본 + 리포트. draft=True면 추천 편성(주제 후보)만 저장하고 대본은 만들지 않는다."""
+    ctx = SlotContext(store=store, cfg=cfg, llm=llm)
+    if not draft:
+        return write_project(settings, store, build_plan(ctx, slot, day), llm, cfg.script.tone)
+    plan = build_plan(ctx, slot, day, fill_text=False)
+    proj = project_dir(settings, plan.plan_id)
+    for name in ("script.txt", "report.md"):  # 다시 만들면 예전 대본은 옆에 남겨 둔다
+        if (proj / name).exists():
+            (proj / name).replace(proj / f"{Path(name).stem}.prev{Path(name).suffix}")
+    (proj / "plan.json").write_text(
+        json.dumps(plan.model_dump(mode="json"), ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    store.save_plan(plan, str(proj))
+    return SlotResult(plan, proj, [])
+
+
+def run_finalize(
+    settings: Settings,
+    cfg: ChannelConfig,
+    store: Store,
+    project: Path,
+    picks: list[tuple[str, str]],
+    llm: ClaudeLLM | None,
+) -> SlotResult:
+    """고른 주제로 편성 확정 → 예상·회수·제목 → 대본 + 리포트."""
+    from topicradar.slots import finalize_plan
+
+    plan = plan_from_project(store, project)
+    plan = finalize_plan(SlotContext(store=store, cfg=cfg, llm=llm), plan, picks)
     return write_project(settings, store, plan, llm, cfg.script.tone)
 
 

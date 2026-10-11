@@ -37,6 +37,7 @@ ROLE_WEIGHT: dict[str, float] = {
     "줄기": 2.0,
 }
 MIN_SUB_TOTAL = 40.0
+DRAFT_CANDIDATES = 15  # 주제 고르기 화면에 추천 편성 말고 더 보여 줄 후보 수
 HOT_BODY = 5  # hottest 모드 저녁 본문 최대 이슈 수(헤드라인 1 + 서브 최대 4)
 HOT_MIN_SUB = 20.0  # 서브로 넣을 최소 이슈도(이보다 낮으면 '조용한 날 최소 2개'를 채울 때만)
 
@@ -463,8 +464,11 @@ def select_weekly(
 # ---- 진입점 ---------------------------------------------------------------
 
 
-def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
-    """슬롯 편성안 생성(점수·선정·문장 요소·리스크)."""
+def build_plan(ctx: SlotContext, slot: SlotName, day: date, fill_text: bool = True) -> SlotPlan:
+    """슬롯 편성안 생성(점수·선정·문장 요소·리스크).
+
+    fill_text=False: 추천 편성(draft)만 — 예상 문장·제목·대본은 사용자가 주제를 고른 뒤(finalize_plan).
+    """
     topics, start, end = prepare_topics(ctx, slot, day)
     plan = SlotPlan(date=day, slot=slot, window_start=start, window_end=end)
     hottest = ctx.cfg.selection.mode == "hottest"
@@ -521,7 +525,16 @@ def build_plan(ctx: SlotContext, slot: SlotName, day: date) -> SlotPlan:
         items, chains, notes, flags = select_weekly(topics, day, end, chains_from)
         plan.items, plan.chains = items, chains
     allocate_seconds(plan.items, slot)
-    fill_plan_text(plan, ctx.llm, topics if slot == "weekly" else None)
+    if fill_text:
+        fill_plan_text(plan, ctx.llm, topics if slot == "weekly" else None)
+    else:
+        plan.status = "draft"
+        used = plan.topic_ids()
+        plan.candidate_ids = [
+            t.id
+            for t in sorted(topics, key=lambda t: -t.total)
+            if t.id not in used and t.news_signals(start, end)
+        ][:DRAFT_CANDIDATES]
     hot_only = sorted(
         (t for t in topics if not t.news_signals() and len(t.buzz(start, end)) >= 2),
         key=lambda t: -len(t.buzz()),
@@ -552,4 +565,72 @@ def replace_item(ctx: SlotContext, plan: SlotPlan, order: int, topic: Topic) -> 
     plan.titles, plan.thumbnail_text = [], ""
     fill_plan_text(plan, ctx.llm)
     plan.risk_flags = [f for f in plan.risk_flags if f.kind == "구성"] + plan_risks(plan)
+    return plan
+
+
+ROLE_ORDER: dict[str, list[str]] = {
+    "morning": ["헤드라인", "서브", "오늘의포인트"],
+    "evening": ["헤드라인", "서브", "포인트회수", "내일쟁점"],
+    "weekly": ["줄기", "서브", "내일쟁점"],
+}
+PICKABLE_ROLES: dict[str, list[str]] = {
+    "morning": ["헤드라인", "서브", "오늘의포인트"],
+    "evening": ["헤드라인", "서브", "내일쟁점"],
+    "weekly": ["줄기", "서브", "내일쟁점"],
+}
+
+
+def finalize_plan(ctx: SlotContext, plan: SlotPlan, picks: list[tuple[str, str]]) -> SlotPlan:
+    """사용자가 고른 주제·역할·순서로 편성을 확정하고 문장 요소(예상·회수·제목)를 채운다.
+
+    picks: [(topic_id, role)] 화면 순서대로. 저녁의 '포인트회수'(아침 예상 회수)는 고르지 않아도 그대로 들어간다.
+    """
+    roles = PICKABLE_ROLES[plan.slot]
+    bad = [r for _t, r in picks if r not in roles]
+    if bad:
+        raise ValueError(f"고를 수 없는 역할: {', '.join(sorted(set(bad)))}")
+    lead = "줄기" if plan.slot == "weekly" else "헤드라인"
+    n_lead = sum(1 for _t, r in picks if r == lead)
+    if plan.slot == "weekly" and n_lead < 1:
+        raise ValueError("줄기를 하나 이상 골라 주세요")
+    if plan.slot != "weekly" and n_lead != 1:
+        raise ValueError("헤드라인은 꼭 하나만 골라 주세요")
+    if len({t for t, _r in picks}) != len(picks):
+        raise ValueError("같은 주제를 두 번 골랐습니다")
+    old = {i.topic.id: i for i in plan.items}
+    chain_of = {tid: ch.title for ch in plan.chains for tid in ch.topic_ids}
+    items: list[SlotItem] = []
+    for tid, role in picks:
+        topic = ctx.store.get_topic(tid) or (old[tid].topic if tid in old else None)
+        if topic is None:
+            raise KeyError(f"주제 {tid} 없음")
+        prev = old.get(tid)
+        items.append(
+            SlotItem(
+                topic=topic,
+                order=0,
+                role=role,  # type: ignore[arg-type]
+                chain=chain_of.get(tid) if plan.slot == "weekly" else None,
+                note=prev.note if prev else "직접 고름",
+            )
+        )
+    items += [i for i in plan.items if i.role == "포인트회수"]  # 아침 예상 회수는 빠짐없이
+    rank = {r: n for n, r in enumerate(ROLE_ORDER[plan.slot])}
+    ordered = [it for _n, it in sorted(enumerate(items), key=lambda x: (rank[x[1].role], x[0]))]
+    plan.items = _renumber(ordered)
+    if plan.slot == "weekly":
+        keep = plan.topic_ids()
+        plan.chains = [c for c in plan.chains if set(c.topic_ids) & keep]
+    allocate_seconds(plan.items, plan.slot)
+    plan.titles, plan.thumbnail_text = [], ""
+    fill_plan_text(plan, ctx.llm)
+    econ = sum(1 for i in plan.items if i.topic.category == ECON_CATEGORY)
+    flags = [f for f in plan.risk_flags if f.kind == "구성"]
+    if econ * 2 > len(plan.items):
+        flags.append(RiskFlag(kind="구성", message=f"경제 주제가 절반을 넘음({econ}/{len(plan.items)})"))
+    plan.risk_flags = flags + plan_risks(plan)
+    plan.status = "final"
+    plan.candidate_ids = []
+    if ctx.llm is not None:
+        plan.llm_mode = "claude"
     return plan

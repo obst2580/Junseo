@@ -100,3 +100,40 @@ def test_daily_schedule_and_defaults():
     assert sat[-1][2] == kst("2026-10-11 00:00").date()
     assert default_day("weekly", kst("2026-10-08 10:00")) == kst("2026-10-11 00:00").date()
     assert default_day("morning", kst("2026-10-08 10:00")) == kst("2026-10-08 00:00").date()
+
+
+def test_draft_then_pick_topics(demo_env, monkeypatch):
+    """대본 전에 추천 편성(주제 후보)만 → 사용자가 고른 주제·역할·순서로 확정 → 그때 대본."""
+    import pytest
+
+    from studio_core.config import load_channel, load_settings
+    from topicradar import pipeline
+
+    assert demo_env.exists()
+    _run(monkeypatch, "2026-10-10T17:00", "collect", "--since", "2026-10-05T00:00")
+    settings = load_settings()
+    cfg = load_channel(settings)
+    store = pipeline.open_store(settings)
+    day = kst("2026-10-08 00:00").date()
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-08T05:30")
+    pipeline.run_slot(settings, cfg, store, "morning", day, None)  # 아침 확정본(저녁 회수용)
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-08T17:00")
+    res = pipeline.run_slot(settings, cfg, store, "evening", day, None, draft=True)
+    proj = res.project
+    plan = json.loads((proj / "plan.json").read_text(encoding="utf-8"))
+    assert plan["status"] == "draft" and plan["candidate_ids"] and not (proj / "script.txt").exists()
+    assert all(not i.get("actual") and not i.get("hit") for i in plan["items"])  # 결과 판정·제목은 고른 뒤에
+    assert not plan["titles"]
+    head = next(i for i in plan["items"] if i["role"] == "헤드라인")["topic"]["id"]
+    picks = [(plan["candidate_ids"][0], "헤드라인"), (head, "서브"), (plan["candidate_ids"][1], "서브")]
+    with pytest.raises(ValueError):
+        pipeline.run_finalize(settings, cfg, store, proj, [(head, "서브")], None)  # 헤드라인 없음
+    with pytest.raises(ValueError):
+        pipeline.run_finalize(settings, cfg, store, proj, [(head, "포인트회수")], None)  # 고를 수 없는 역할
+    out = pipeline.run_finalize(settings, cfg, store, proj, picks, None)
+    final = json.loads((proj / "plan.json").read_text(encoding="utf-8"))
+    assert final["status"] == "final" and (proj / "script.txt").exists() and final["titles"]
+    body = [(i["topic"]["id"], i["role"]) for i in final["items"] if i["role"] in ("헤드라인", "서브")]
+    assert body == picks  # 고른 순서 그대로
+    assert sum(i["role"] == "포인트회수" for i in final["items"]) == 3  # 아침 예상 회수는 그대로
+    assert out.plan.items[0].topic.id == plan["candidate_ids"][0]

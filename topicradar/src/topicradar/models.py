@@ -156,6 +156,9 @@ class SlotPlan(BaseModel):
     window_start: datetime | None = None
     window_end: datetime | None = None
     llm_mode: Literal["claude", "offline"] = "offline"
+    # draft: 추천 편성만(대본 전, 사용자가 주제를 고르는 단계) / final: 대본까지
+    status: Literal["draft", "final"] = "final"
+    candidate_ids: list[str] = Field(default_factory=list)  # draft에서 고를 수 있게 보여 줄 다른 주제
 
     @property
     def plan_id(self) -> str:
