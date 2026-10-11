@@ -26,6 +26,8 @@ from topicradar.script import (
     BANNED,
     LINE_LIMIT,
     SLANG,
+    VAGUE_MAX,
+    VAGUE_WORDS,
     article_rows,
     normalize_script,
     ranked_articles,
@@ -118,6 +120,8 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             "line_limit": LINE_LIMIT,
             "banned": BANNED,
             "slang": SLANG,
+            "vague_words": VAGUE_WORDS,
+            "vague_max": VAGUE_MAX,
             # 표시 전용 리스크(대본 규칙에 같이 넘긴다)
             "risk": {
                 "legal_words": LEGAL_WORDS,

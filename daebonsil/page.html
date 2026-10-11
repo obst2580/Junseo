@@ -670,6 +670,8 @@ function checkScript() {
   }
   const copied = [...keys].filter(k => joined.includes(k)).length;
   if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
+  const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
+  if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
   const todo = lines.filter(l => /^#(TODO|확인)/.test(l)).length;
   if (todo) out.push({ bad: false, warn: true, text: `편집자 확인 주석 ${todo}개(#TODO/#확인) — 녹음 전에 처리` });
   return out;

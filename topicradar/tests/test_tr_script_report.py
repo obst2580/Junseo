@@ -176,6 +176,7 @@ def test_llm_script_gets_opinion_format_and_falls_back():
         and "재미가 첫째" in seen["system"]
     )
     assert "출처·URL·편집 주석" in seen["system"]
+    assert "사실을 또렷하게" in seen["system"] and "예고편처럼 감추지" in seen["system"]
     assert (
         '"stance": "안보 예산 깎은 건 새한당이다"' in seen["prompt"]
         and '"target_chars": [2700, 3300]' in seen["prompt"]
@@ -288,6 +289,14 @@ def test_validate_tone_checks():
     text = "## a\n그는 반대했다고 밝혔습니다.\n입장을 밝혔다.\n결과였다.\n존나 웃기죠.\n"
     warns = " | ".join(validate_script(text, plan))
     assert "기사체 종결 3줄" in warns and "비속어" in warns
+
+
+def test_validate_vague_words():
+    plan = _plan()
+    vague = "## a\n이건 본질은 놔두고\n말꼬리만 잡는 공세입니다.\n전형적인 물타기죠.\n"
+    assert any("뭉뚱그린 말 4번" in w for w in validate_script(vague, plan))
+    ok = "## a\n국민의힘의 공세는\n이번이 두 번째입니다.\n"
+    assert not any("뭉뚱그린" in w for w in validate_script(ok, plan))
 
 
 def test_script_uses_only_articles_about_the_topic():

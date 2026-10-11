@@ -432,13 +432,16 @@ function groupPrompt() {
   return { text, pmap, amap };
 }
 const ANGLES = ['상대 비판', '우리 편 방어', '진영 내부'];
-/* 채널 규칙이 바뀌었는지(주제 묶음·프로젝트를 만든 때의 규칙과 지금 규칙 비교) */
-function rulesKey() {
-  const r = S.meta && S.meta.rules; if (!r) return '';
-  const t = [r.identity, r.group_task, r.script_rules, r.tone_rules].join('|');
+/* 채널 규칙이 바뀌었는지(주제 묶음·대본을 만든 때의 규칙과 지금 규칙 비교) */
+function hashKey(parts) {
+  const t = parts.join('|');
   let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
   return (h >>> 0).toString(36);
 }
+// 주제 묶기·주장 정리 규칙
+function rulesKey() { const r = S.meta && S.meta.rules; return r ? hashKey([r.identity, r.group_task]) : ''; }
+// 대본 쓰기 규칙
+function scriptKey() { const r = S.meta && S.meta.rules; return r ? hashKey([r.identity, r.script_rules, r.structure_rules, r.tone_rules, JSON.stringify(r.format_rules)]) : ''; }
 const angleBadge = a => !a ? '' : a === '진영 내부' ? '<span class="badge warn" title="진보 진영끼리의 갈등 — 정부·여당 쪽 관점으로 씁니다">진영 내부</span>' : `<span class="badge ok">${esc(a)}</span>`;
 const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
 async function runGroup() {
@@ -680,6 +683,8 @@ function checkScript() {
   for (const t of p.topics) for (const x of t.posts) for (const s of [x.title, ...(x.top_comments || []).map(c => c.text)]) { const k = String(s || '').replace(/\s+/g, ''); if (k.length >= 10) keys.add(k.slice(0, 18)); }
   const copied = [...keys].filter(k => joined.includes(k)).length;
   if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
+  const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
+  if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
   const todo = lines.filter(l => /^#(TODO|확인)/.test(l)).length; if (todo) out.push({ bad: false, warn: true, text: `확인 주석 ${todo}개(#TODO/#확인) — 녹음 전에 처리` });
   return out;
 }
@@ -709,8 +714,9 @@ function renderScript(fromSnap) {
   if (ae !== $('#thumb')) $('#thumb').value = p.thumb || '';
   thumbCount();
   const risks = riskNotes();
-  const stale = p.rules_key !== rulesKey();
-  $('#risk').innerHTML = (stale ? '<div class="note warn"><b class="t">이 프로젝트는 바뀌기 전 채널 규칙으로 만들었습니다</b>주제의 주장도 예전 규칙으로 정리된 것이라, <b>1 주제 고르기</b>에서 다시 묶고 새로 만드는 걸 권합니다. 이대로 쓰려면 아래 주장을 확인한 뒤 <b>[Claude로 대본 쓰기]</b>로 다시 쓰세요.</div>' : '')
+  const stale = p.rules_key !== rulesKey(), oldScript = !stale && (p.script || '').trim() && p.script_by === 'claude' && p.script_key !== scriptKey();
+  $('#risk').innerHTML = (stale ? '<div class="note warn"><b class="t">이 프로젝트는 바뀌기 전 채널 규칙으로 만들었습니다</b>주제의 주장도 예전 규칙으로 정리된 것이라, <b>1 주제 고르기</b>에서 다시 묶고 새로 만드는 걸 권합니다. 이대로 쓰려면 아래 주장을 확인한 뒤 <b>[Claude로 대본 쓰기]</b>로 다시 쓰세요.</div>'
+    : oldScript ? '<div class="note warn"><b class="t">대본 규칙이 바뀌었습니다</b>이 대본은 바뀌기 전 규칙으로 썼습니다. 이제는 사건마다 누가·언제·어디서·무슨 말을 했는지부터 또렷하게 씁니다. <b>[Claude로 대본 쓰기]</b>로 다시 쓰세요.</div>' : '')
     + (risks.length ? `<div class="note warn"><b class="t">주의</b><ul>${risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '');
   updateMeter();
 }
@@ -738,7 +744,7 @@ async function runScript(mode) {
     const { text, truncated } = await sample(prompt, { modelTier: 'complex', cache: false, signal: ctl.signal,
       onText: ({ text: whole }) => { if (!started) { started = true; state.textContent = '쓰는 중…'; } ta.value = whole; p.script = whole; updateMeter(); } });
     p.script = normalize(text); ta.value = p.script;
-    queueSave({ script: p.script, script_by: 'claude' });
+    p.script_key = scriptKey(); queueSave({ script: p.script, script_by: 'claude', script_key: p.script_key });
     state.textContent = `다 썼습니다 · ${Math.round((Date.now() - t0) / 1000)}초`;
     if (truncated) $('#sc-msg').innerHTML = '<div class="note warn">대본이 길이 한도에서 잘렸습니다. 뒷부분을 확인하고 [점검대로 고쳐 쓰기]를 눌러 주세요.</div>';
   } catch (e) {

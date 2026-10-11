@@ -44,6 +44,9 @@ _NEXT_RE = re.compile(
 _OPINION_BRIDGE = "이 소식에 대한 반응은 분명합니다."
 _ARTICLE_ENDING_RE = re.compile(r"(밝혔습니다|알려졌습니다|전해졌습니다|밝혔다|했다|였다|이다)[.]?$")
 SLANG = ["존나", "씨발", "시발", "개새", "병신", "좆"]
+# 구체적인 사실 대신 쓰는 뭉뚱그린 말(많이 나오면 예고편처럼 추상적인 대본)
+VAGUE_WORDS = ["본질", "프레임", "공세", "말꼬리", "노림수", "정치적 의도", "물타기", "꼼수"]
+VAGUE_MAX = 2
 
 
 # ---- 공통 줄 만들기 --------------------------------------------------------
@@ -461,6 +464,11 @@ def validate_script(text: str, plan: VideoPlan) -> list[str]:
     hedges = sum(1 for ln in spoken for h in HEDGES if h in ln)
     if hedges > 2:
         warns.append(f"완충 표현 {hedges}회 — 사실관계가 불확실한 곳에만")
+    vague = [w for ln in spoken for w in VAGUE_WORDS if w in ln]
+    if len(vague) > VAGUE_MAX:
+        warns.append(
+            f"뭉뚱그린 말 {len(vague)}번({', '.join(sorted(set(vague)))}) — 누가 언제 무슨 말·행동을 했는지로 바꿀 것"
+        )
     todos = sum(1 for ln in lines if ln.startswith(("#TODO", "#확인")))
     if todos:
         warns.append(f"편집자 확인 주석 {todos}개(#TODO/#확인) — 녹음 전 처리")
