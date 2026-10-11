@@ -1,0 +1,21 @@
+[project]
+name = "studio-core"
+version = "0.1.0"
+description = "studio 공통 커널: 설정, LLM 클라이언트, HTTP 재시도, 텍스트 유틸, 시연용 fixture 전송계층"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.0",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+    "pillow>=10.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/studio_core"]

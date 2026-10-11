@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>연합뉴스 정치 (시연용 가상 피드)</title>
+    <link>https://news.example-yna.kr/</link>
+    <description>studio 시연 fixture — 실존 기사 아님</description>
+    <item>
+      <title>플랫폼노동자 기본법 본회의 가결…새한당 표결 불참</title>
+      <link>https://news.example-yna.kr/article/20261008/0af500b96b</link>
+      <description>국회는 8일 본회의를 열고 플랫폼노동자 기본법을 가결했다. 새한당은 표결에 불참했다. 법은 공포 후 6개월 뒤 시행된다.</description>
+      <pubDate>Thu, 08 Oct 2026 14:50:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>재판부, 새한당 전 의원 A씨 정치자금 1심 선고 연기</title>
+      <link>https://news.example-yna.kr/article/20261008/725c8b1f77</link>
+      <description>서울중앙지법 재판부가 8일 새한당 소속 전 의원 A씨의 정치자금법 위반 혐의 1심 선고를 연기했다. 재판부는 추가 증거 검토가 필요하다며 변론을 재개했다. 검찰이 선고 직전 새 계좌 내역을 제출했기 때문이다.</description>
+      <pubDate>Thu, 08 Oct 2026 14:30:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>국무회의, 지역의료법 개정안 의결…공공의대 설립 근거 마련</title>
+      <link>https://news.example-yna.kr/article/20261008/f7a7827196</link>
+      <description>정부는 8일 국무회의에서 지역의료법 개정안을 의결했다. 개정안은 공공의대 설립 근거를 담았다. 정부는 다음 주 국회에 법안을 제출할 예정이다.</description>
+      <pubDate>Thu, 08 Oct 2026 11:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>국방위 국감, 북 신형 미사일 탐지 지연 질타</title>
+      <link>https://news.example-yna.kr/article/20261008/d8c5cbc347</link>
+      <description>8일 국방부 국정감사에서 북한 신형 미사일 탐지가 늦었다는 질타가 이어졌다. 국방부는 고체연료 미사일의 발사 준비 시간이 짧아졌기 때문이라고 해명했다. 국방위는 감시자산 예산 증액을 검토하기로 했다.</description>
+      <pubDate>Thu, 08 Oct 2026 10:20:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>플랫폼노동자 기본법 8일 본회의 표결…한빛당 "반드시 처리"</title>
+      <link>https://news.example-yna.kr/article/20261007/9fceee67aa</link>
+      <description>플랫폼노동자 기본법이 8일 오후 2시 본회의 표결에 부쳐진다. 한빛당은 반드시 처리하겠다는 입장이다. 의석 분포상 가결이 유력하다는 전망이 나온다.</description>
+      <pubDate>Wed, 07 Oct 2026 19:30:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>법무부 국감, 검찰 특활비 자료 공방…새한당 "정치 공세"</title>
+      <link>https://news.example-yna.kr/article/20261007/c80dc50db6</link>
+      <description>7일 법무부 국정감사에서 검찰 특수활동비 자료 제출을 놓고 여야가 맞섰다. 법무부는 수사 보안을 이유로 자료 제출을 거부했다. 법사위는 동행명령 등 후속 조치를 검토하기로 했다.</description>
+      <pubDate>Wed, 07 Oct 2026 11:50:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>법사위, 플랫폼노동자 기본법 의결…새한당 퇴장</title>
+      <link>https://news.example-yna.kr/article/20261007/04363c4ad0</link>
+      <description>국회 법제사법위원회가 7일 전체회의에서 플랫폼노동자 기본법을 의결했다. 새한당 의원들은 표결 직전 퇴장했다. 법안은 8일 본회의에 상정될 예정이다.</description>
+      <pubDate>Wed, 07 Oct 2026 11:20:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>대통령실, 지역의료 강화 패키지 발표…공공의대 설립 추진</title>
+      <link>https://news.example-yna.kr/article/20261007/dc811308f9</link>
+      <description>대통령실이 7일 지역 필수의료 공백을 메우기 위한 지역의료 강화 패키지를 발표했다. 지방 병원 응급실 폐쇄가 잇따르면서 대책 요구가 커진 데 따른 것이다. 관련 법 개정안은 8일 오전 10시 국무회의에 상정된다.</description>
+      <pubDate>Wed, 07 Oct 2026 10:40:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>국정감사 첫날 법무부 국감…검찰 특활비 자료 제출 쟁점</title>
+      <link>https://news.example-yna.kr/article/20261006/5411972d04</link>
+      <description>국회 법제사법위원회는 7일 법무부 국정감사를 연다. 검찰이 특수활동비 집행 내역 제출을 거부해 왔기 때문에 공방이 불가피하다. 자료가 제출되면 특활비 사용처 검증이 처음으로 가능해진다. 자료 제출 여부가 국감 쟁점이 될 전망이다.</description>
+      <pubDate>Tue, 06 Oct 2026 21:40:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>한빛당, 7일 법사위서 플랫폼노동자 기본법 의결 추진</title>
+      <link>https://news.example-yna.kr/article/20261006/01d87cf7d8</link>
+      <description>한빛당이 7일 오전 10시 법사위 전체회의에서 플랫폼노동자 기본법을 의결할 예정이다. 택배노조의 파업 예고가 처리를 서두르는 배경이다. 법이 통과되면 플랫폼 종사자 약 80만 명이 최소 보수를 보장받는다. 한빛당은 8일 본회의 처리까지 마치겠다는 계획이다. 법사위 통과가 유력하다는 전망이 나온다.</description>
+      <pubDate>Tue, 06 Oct 2026 19:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>새한당 전 의원 A씨 정치자금 재판, 8일 1심 선고</title>
+      <link>https://news.example-yna.kr/article/20261006/a4b8994286</link>
+      <description>새한당 소속 전 의원 A씨의 정치자금법 위반 혐의 재판 1심 선고가 8일 오후 2시 서울중앙지법에서 열린다. 검찰은 징역 2년을 구형했다. A씨는 혐의를 부인하고 있다.</description>
+      <pubDate>Tue, 06 Oct 2026 16:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>택배노조, 플랫폼노동자 기본법 처리 촉구…"이번 주 넘기면 파업"</title>
+      <link>https://news.example-yna.kr/article/20261006/578049b354</link>
+      <description>전국택배노조가 6일 국회 앞에서 기자회견을 열고 플랫폼노동자 기본법의 이번 주 처리를 촉구했다. 노조는 법안이 처리되지 않으면 13일부터 파업에 들어가겠다고 밝혔다. 법안은 플랫폼 종사자에게 최소 보수와 산재보험을 보장하는 내용이다.</description>
+      <pubDate>Tue, 06 Oct 2026 09:10:00 +0900</pubDate>
+    </item>
+  </channel>
+</rss>

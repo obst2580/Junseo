@@ -1,0 +1,29 @@
+{
+ "lastBuildDate": "Sat, 10 Oct 2026 17:00:00 +0900",
+ "total": 3,
+ "start": 1,
+ "display": 3,
+ "items": [
+  {
+   "title": "<b>택배노조</b>, 13일 파업 철회 공식 발표",
+   "originallink": "https://www.example-daily.co.kr/article/20261009/7401b29244",
+   "link": "https://news.example-portal.com/article/20261009/7401b29244",
+   "description": "전국택배노조가 13일 예정했던 파업을 철회한다고 공식 발표했다. 플랫폼노동자 기본법 통과로 파업 명분이 사라졌다는 판단이다. 노조는 시행령 논의에 참여하겠다고 밝혔다.",
+   "pubDate": "Fri, 09 Oct 2026 11:00:00 +0900"
+  },
+  {
+   "title": "<b>택배노조</b> 파업 찬반투표 가결…13일 파업 예고",
+   "originallink": "https://www.example-daily.co.kr/article/20261007/b1228adbf4",
+   "link": "https://news.example-portal.com/article/20261007/b1228adbf4",
+   "description": "전국택배노조의 파업 찬반투표가 7일 찬성 82%로 가결됐다. 노조는 플랫폼노동자 기본법이 처리되지 않으면 13일 파업에 들어간다고 밝혔다. 본회의 결과가 파업 여부를 가를 전망이다.",
+   "pubDate": "Wed, 07 Oct 2026 15:20:00 +0900"
+  },
+  {
+   "title": "<b>택배노조</b> 7일 파업 찬반투표 결과 발표…가결 유력",
+   "originallink": "https://www.example-daily.co.kr/article/20261006/79f11c2bdf",
+   "link": "https://news.example-portal.com/article/20261006/79f11c2bdf",
+   "description": "전국택배노조가 7일 오후 3시 파업 찬반투표 결과를 발표할 예정이다. 법안 처리가 늦어진 것이 투표 배경이다. 노조 안팎에서는 가결이 유력하다는 관측이 나온다. 가결되면 13일 파업에 들어간다.",
+   "pubDate": "Tue, 06 Oct 2026 22:00:00 +0900"
+  }
+ ]
+}

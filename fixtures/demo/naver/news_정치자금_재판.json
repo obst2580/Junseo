@@ -1,0 +1,29 @@
+{
+ "lastBuildDate": "Sat, 10 Oct 2026 17:00:00 +0900",
+ "total": 3,
+ "start": 1,
+ "display": 3,
+ "items": [
+  {
+   "title": "새한당 전 의원 A씨 <b>정치자금 재판</b>, 다음 달 5일 선고",
+   "originallink": "https://www.example-daily.co.kr/article/20261010/4a07786c5a",
+   "link": "https://news.example-portal.com/article/20261010/4a07786c5a",
+   "description": "새한당 소속 전 의원 A씨의 정치자금 재판 선고기일이 다음 달 5일로 다시 잡혔다. 재판부는 검찰이 낸 새 계좌 내역을 심리한다. A씨 측은 증거 채택에 반발했다.",
+   "pubDate": "Sat, 10 Oct 2026 14:00:00 +0900"
+  },
+  {
+   "title": "<b>정치자금 재판</b> 선고 연기…\"검찰 새 증거 제출\"",
+   "originallink": "https://www.example-daily.co.kr/article/20261008/f6fbe6069d",
+   "link": "https://news.example-portal.com/article/20261008/f6fbe6069d",
+   "description": "새한당 전 의원 A씨의 정치자금 재판 선고가 연기됐다. 검찰이 선고 직전 새 계좌 내역을 제출했기 때문이다. 재판부는 다음 달 선고기일을 다시 잡을 예정이다.",
+   "pubDate": "Thu, 08 Oct 2026 15:00:00 +0900"
+  },
+  {
+   "title": "새한당 전 의원 A씨, 8일 정치자금 1심 선고…유죄 선고 가능성",
+   "originallink": "https://www.example-daily.co.kr/article/20261007/00e2c07cd8",
+   "link": "https://news.example-portal.com/article/20261007/00e2c07cd8",
+   "description": "새한당 소속 전 의원 A씨의 정치자금법 위반 혐의 1심 선고가 8일 오후 2시 열린다. 법조계에서는 유죄 선고 가능성이 높다는 관측이 나온다. A씨 측은 무죄를 주장하고 있다.",
+   "pubDate": "Wed, 07 Oct 2026 21:30:00 +0900"
+  }
+ ]
+}

@@ -1,0 +1,72 @@
+# build.py가 생성 — 직접 수정하지 말 것
+routes:
+- match: https://www\.yna\.co\.kr/rss/politics\.xml
+  file: rss/yna_politics.xml
+- match: https://www\.yna\.co\.kr/rss/economy\.xml
+  file: rss/yna_economy.xml
+- match: https://www\.yna\.co\.kr/rss/international\.xml
+  file: rss/yna_intl.xml
+- match: https://feeds\.bbci\.co\.uk/news/world/rss\.xml
+  file: rss/bbc.xml
+- match: https://press\.example\.go\.kr/rss/press\.xml
+  file: rss/press.xml
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 국회
+  file: naver/news_국회.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 플랫폼노동자 기본법
+  file: naver/news_플랫폼노동자_기본법.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 국정감사
+  file: naver/news_국정감사.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 지역의료
+  file: naver/news_지역의료.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 정치자금 재판
+  file: naver/news_정치자금_재판.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 새한당
+  file: naver/news_새한당.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 환율
+  file: naver/news_환율.json
+- match: openapi\.naver\.com/v1/search/news\.json
+  params:
+    query: 택배노조
+  file: naver/news_택배노조.json
+- match: youtube/v3/playlistItems
+  params:
+    playlistId: UUcompAAAAAAAAAAAAAAAAAA
+  file: youtube/playlist_UCcompAAAAAAAAAAAAAAAAAA.json
+- match: youtube/v3/playlistItems
+  params:
+    playlistId: UUcompBBBBBBBBBBBBBBBBBB
+  file: youtube/playlist_UCcompBBBBBBBBBBBBBBBBBB.json
+- match: youtube/v3/videos
+  params:
+    part: snippet,statistics
+  generate: youtube_stats
+  data: youtube/stats.json
+- match: youtube/v3/videos
+  generate: youtube_videos
+- match: youtube/v3/search
+  generate: youtube_search
+- match: googleapis\.com/customsearch/v1
+  generate: google_image
+- match: openapi\.naver\.com/v1/search/image
+  generate: naver_image
+- match: commons\.wikimedia\.org/w/api\.php
+  generate: wikimedia
+- match: img\.example\.com/
+  generate: image
+- match: hooks\.slack\.com/
+  file: slack_ok.txt
+  content_type: text/plain

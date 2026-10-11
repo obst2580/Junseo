@@ -1,0 +1,92 @@
+{
+ "compA_1007a": {
+  "title": "여야 대변인 막말 설전 총정리",
+  "description": "여야 대변인 막말 설전 총정리 — 가상 경쟁 채널 영상",
+  "channelId": "UCcompAAAAAAAAAAAAAAAAAA",
+  "channelTitle": "가상 시사채널A",
+  "publishedAt": "2026-10-07T09:00:00Z",
+  "viewCount": 18000,
+  "likeCount": 450,
+  "commentCount": 90
+ },
+ "compA_1008a": {
+  "title": "지역의료 강화 패키지 뜯어보기, 공공의대 될까",
+  "description": "지역의료 강화 패키지 뜯어보기, 공공의대 될까 — 가상 경쟁 채널 영상",
+  "channelId": "UCcompAAAAAAAAAAAAAAAAAA",
+  "channelTitle": "가상 시사채널A",
+  "publishedAt": "2026-10-08T00:00:00Z",
+  "viewCount": 26000,
+  "likeCount": 650,
+  "commentCount": 130
+ },
+ "compB_1007a": {
+  "title": "환율 1430원 돌파 이유와 다음 수순",
+  "description": "환율 1430원 돌파 이유와 다음 수순 — 가상 경쟁 채널 영상",
+  "channelId": "UCcompBBBBBBBBBBBBBBBBBB",
+  "channelTitle": "가상 경제정치B",
+  "publishedAt": "2026-10-07T03:00:00Z",
+  "viewCount": 41000,
+  "likeCount": 1025,
+  "commentCount": 205
+ },
+ "compB_1008a": {
+  "title": "나스닥 급락, 환율 1440원 가나",
+  "description": "나스닥 급락, 환율 1440원 가나 — 가상 경쟁 채널 영상",
+  "channelId": "UCcompBBBBBBBBBBBBBBBBBB",
+  "channelTitle": "가상 경제정치B",
+  "publishedAt": "2026-10-07T23:30:00Z",
+  "viewCount": 52000,
+  "likeCount": 1300,
+  "commentCount": 260
+ },
+ "demo_m1007": {
+  "title": "placeholder",
+  "description": "",
+  "channelId": "UCdemoOWNCHANNEL0000000000",
+  "channelTitle": "내 채널(시연)",
+  "publishedAt": "2026-10-08T10:00:00Z",
+  "viewCount": 12000,
+  "likeCount": 400,
+  "commentCount": 80
+ },
+ "demo_e1007": {
+  "title": "placeholder",
+  "description": "",
+  "channelId": "UCdemoOWNCHANNEL0000000000",
+  "channelTitle": "내 채널(시연)",
+  "publishedAt": "2026-10-08T10:00:00Z",
+  "viewCount": 31000,
+  "likeCount": 1033,
+  "commentCount": 206
+ },
+ "demo_m1008": {
+  "title": "placeholder",
+  "description": "",
+  "channelId": "UCdemoOWNCHANNEL0000000000",
+  "channelTitle": "내 채널(시연)",
+  "publishedAt": "2026-10-08T10:00:00Z",
+  "viewCount": 15000,
+  "likeCount": 500,
+  "commentCount": 100
+ },
+ "demo_e1008": {
+  "title": "placeholder",
+  "description": "",
+  "channelId": "UCdemoOWNCHANNEL0000000000",
+  "channelTitle": "내 채널(시연)",
+  "publishedAt": "2026-10-08T10:00:00Z",
+  "viewCount": 44000,
+  "likeCount": 1466,
+  "commentCount": 293
+ },
+ "demo_w1011": {
+  "title": "placeholder",
+  "description": "",
+  "channelId": "UCdemoOWNCHANNEL0000000000",
+  "channelTitle": "내 채널(시연)",
+  "publishedAt": "2026-10-08T10:00:00Z",
+  "viewCount": 58000,
+  "likeCount": 1933,
+  "commentCount": 386
+ }
+}
