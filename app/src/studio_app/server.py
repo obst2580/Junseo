@@ -315,7 +315,36 @@ def create_app(settings: Settings, *, inline_jobs: bool = False, auto: bool = Tr
                 raise HTTPException(400, "SRT에서 자막을 하나도 못 읽었습니다")
             tmp.write_text(text, encoding="utf-8")
         tmp.replace(d / name)
+        if name.endswith(".srt"):
+            (d / sv.AUTO_MARK).unlink(missing_ok=True)  # 직접 만든 자막을 올리면 자동 자막 표시 해제
         return {"ok": True, "name": name, "bytes": size}
+
+    @app.get("/api/projects/{pid}/narration-text")
+    def narration_text(pid: str) -> dict:
+        return guard(sv.narration_info, settings, pid)
+
+    @app.put("/api/projects/{pid}/upload-audio")
+    async def upload_audio(pid: str, filename: str, request: Request) -> dict:
+        d = guard(sv.project_path, settings, pid)
+        tmp = d / ".narration_upload.part"
+        size = 0
+        with tmp.open("wb") as f:
+            async for chunk in request.stream():
+                size += len(chunk)
+                f.write(chunk)
+        if size == 0:
+            tmp.unlink(missing_ok=True)
+            raise HTTPException(400, "빈 파일입니다")
+        try:
+            return {"ok": True, **sv.save_audio(settings, pid, tmp, filename)}
+        except (ValueError, FileNotFoundError) as e:
+            raise HTTPException(400, str(e)) from e
+        except Exception as e:  # ffmpeg 변환 실패 등
+            raise HTTPException(500, f"음성 처리 실패: {e}") from e
+
+    @app.post("/api/projects/{pid}/autosub")
+    def autosub(pid: str) -> dict:
+        return {"ok": True, **guard(sv.make_autosub, settings, pid)}
 
     @app.post("/api/projects/{pid}/newsclip")
     def newsclip_run(pid: str) -> dict:

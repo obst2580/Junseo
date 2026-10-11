@@ -212,3 +212,70 @@ def test_local_only_guard(root):
         assert c.put("/api/settings/keys", json={"values": {}}).status_code == 403
     with TestClient(app, base_url="http://evil.example") as c:
         assert c.get("/api/status").status_code == 403
+
+
+def _speechy_wav(path, script):
+    """대본 문장마다 소리 + 문장 사이 0.5초 쉼(타입캐스트 음성 흉내)."""
+    import math
+    import struct
+    import wave
+
+    from newsclip.autosub import script_sentences
+
+    rate, frames = 16000, bytearray()
+
+    def add(kind, sec):
+        for i in range(int(sec * rate)):
+            v = int(8000 * math.sin(2 * math.pi * 200 * i / rate)) if kind else 0
+            frames.extend(struct.pack("<h", v))
+
+    add(0, 0.3)
+    for s in script_sentences(script):
+        add(1, 0.08 * sum(len(x) for x in s))
+        add(0, 0.5)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(bytes(frames))
+
+
+def test_ai_voice_flow(client, root, monkeypatch, tmp_path):
+    import shutil
+    import subprocess
+
+    import pytest
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg 필요")
+    client.post("/api/jobs/collect", json={"since": "2026-10-05T00:00"})
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-08T17:00")
+    pid = _job(
+        client.post("/api/jobs/slot", json={"slot": "evening", "date": "2026-10-08", "collect": False})
+    )["result"]["project"]
+    n = client.get(f"/api/projects/{pid}/narration-text").json()
+    assert n["chars"] > 100 and "#출처" not in n["text"] and "## " not in n["text"]
+    assert client.post(f"/api/projects/{pid}/autosub").status_code == 404  # 음성 전
+    script = (root / "projects" / pid / "script.txt").read_text(encoding="utf-8")
+    wav = tmp_path / "typecast.wav"
+    _speechy_wav(wav, script)
+    mp3 = tmp_path / "typecast.mp3"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", str(wav), str(mp3)], check=True)
+    bad = client.put(f"/api/projects/{pid}/upload-audio", params={"filename": "x.txt"}, content=b"abc")
+    assert bad.status_code == 400
+    r = client.put(
+        f"/api/projects/{pid}/upload-audio", params={"filename": "타입캐스트.mp3"}, content=mp3.read_bytes()
+    )
+    assert r.status_code == 200, r.text
+    res = r.json()
+    assert res["cues"] > 10 and res["matched"] >= res["boundaries"] * 0.8
+    d = root / "projects" / pid
+    assert (d / "narration.wav").exists() and (d / "narration_source.mp3").exists()
+    summary = client.get(f"/api/projects/{pid}").json()["summary"]
+    assert summary["steps"]["audio"] and summary["srt_auto"] and summary["autosub"]["cues"] == res["cues"]
+    assert client.post(f"/api/projects/{pid}/autosub").json()["cues"] == res["cues"]
+    # 자동 자막으로 자료 수집까지
+    assert _job(client.post(f"/api/projects/{pid}/newsclip"))["result"]["scenes"] > 0
+    # 직접 만든 SRT를 올리면 자동 표시 해제
+    client.put(f"/api/projects/{pid}/upload/narration.srt", content=(d / "narration.srt").read_bytes())
+    assert not client.get(f"/api/projects/{pid}").json()["summary"]["srt_auto"]

@@ -35,6 +35,7 @@ from topicradar.script import validate_script
 PROJECT_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})_(morning|evening|weekly)$")
 SLOT_ORDER = {"morning": 0, "evening": 1, "weekly": 2}
 UPLOAD_NAMES = {"narration.srt", "narration.wav"}
+AUTO_MARK = "narration.srt.auto"  # 자막을 음성에서 자동으로 맞췄다는 표시(결과 요약 JSON)
 WEEKDAYS = "월화수목금토일"
 WEIGHT_KEYS = ("interest", "gap", "persistence", "fit")
 COLLECT_FRESH = timedelta(minutes=20)  # 이보다 최근에 수집했으면 편성 전에 다시 수집하지 않는다
@@ -201,6 +202,13 @@ def _uploads(store: Store) -> dict[str, Any]:
     return {u.plan_id: u for u in store.uploads()}
 
 
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def project_summary(settings: Settings, pid: str, uploads: dict[str, Any]) -> dict[str, Any]:
     """목록 한 줄."""
     m = PROJECT_RE.match(pid)
@@ -230,6 +238,8 @@ def project_summary(settings: Settings, pid: str, uploads: dict[str, Any]) -> di
         "title": title,
         "steps": steps,
         "has_wav": (d / "narration.wav").exists(),
+        "srt_auto": (d / AUTO_MARK).exists(),
+        "autosub": _read_json(d / AUTO_MARK),
         "video_id": up.video_id if up else None,
         "uploaded_title": up.title if up else None,
     }
@@ -526,7 +536,7 @@ def job_newsclip(settings: Settings, say: Say, pid: str) -> dict[str, Any]:
 
     d = project_path(settings, pid)
     if not (d / "narration.srt").exists():
-        raise FileNotFoundError("narration.srt가 없습니다 — 녹음·자막 단계에서 SRT를 올려 주세요")
+        raise FileNotFoundError("자막이 없습니다 — 음성·자막 단계에서 음성 파일(또는 SRT)을 올려 주세요")
     cfg = load_channel(settings)
     say("장면 나누기 → 사진·영상 검색 → 다운로드(장면 수에 따라 수 분)…")
     sset, rep = asyncio.run(nc.run_project(settings, cfg, d, llm=get_llm(settings)))
@@ -609,3 +619,64 @@ def job_daily(settings: Settings, say: Say, now: datetime) -> dict[str, Any]:
         elif slot and day:
             made.append(job_slot(settings, say, slot, day, collect=False)["project"])
     return {"projects": made}
+
+
+# ---- AI 음성(타입캐스트 웹 등) -------------------------------------------------------------------
+
+
+def narration_info(settings: Settings, pid: str) -> dict[str, Any]:
+    """타입캐스트에 붙여넣을 글(읽는 문장만, 단락 정리)과 글자 수·남은 확인 주석 수."""
+    from newsclip.autosub import narration_text
+
+    d = project_path(settings, pid)
+    script = (d / "script.txt").read_text(encoding="utf-8") if (d / "script.txt").exists() else ""
+    text = narration_text(script)
+    todo = sum(1 for ln in script.splitlines() if re.match(r"\s*#\s*(TODO|확인)", ln))
+    return {"text": text, "chars": len(text.replace("\n", "")), "todo": todo}
+
+
+def save_audio(settings: Settings, pid: str, tmp: Path, filename: str) -> dict[str, Any]:
+    """받은 음성 파일 → narration.wav(필요하면 변환) → 자막 자동 생성."""
+    from newsclip.autosub import AUDIO_EXTS, to_wav
+
+    d = project_path(settings, pid)
+    ext = Path(filename).suffix.lower()
+    if ext not in AUDIO_EXTS:
+        tmp.unlink(missing_ok=True)
+        raise ValueError(f"음성 파일만 올릴 수 있습니다({', '.join(sorted(AUDIO_EXTS))})")
+    for old in d.glob("narration_source.*"):
+        old.unlink()
+    src = d / f"narration_source{ext}"
+    tmp.replace(src)
+    wav = d / "narration.wav"
+    if ext == ".wav":
+        shutil.copyfile(src, wav)
+    else:
+        to_wav(src, wav)
+    return make_autosub(settings, pid)
+
+
+def make_autosub(settings: Settings, pid: str) -> dict[str, Any]:
+    """대본 + narration.wav → narration.srt(쉼에 맞춤)."""
+    from newsclip.autosub import make_srt, script_sentences
+    from newsclip.srt import write_srt
+
+    d = project_path(settings, pid)
+    if not (d / "narration.wav").exists():
+        raise FileNotFoundError("음성 파일이 없습니다 — 먼저 음성을 올려 주세요")
+    script = (d / "script.txt").read_text(encoding="utf-8")
+    cues, info, matched = make_srt(script, d / "narration.wav")
+    if not cues:
+        raise ValueError("대본에 읽을 문장이 없습니다")
+    (d / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
+    sentences = len(script_sentences(script))
+    result = {
+        "cues": len(cues),
+        "duration": round(info.duration, 1),
+        "sentences": sentences,
+        "matched": matched,
+        "boundaries": max(0, sentences - 1),
+        "pauses": len(info.silences),
+    }
+    (d / AUTO_MARK).write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    return result
