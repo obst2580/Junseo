@@ -120,6 +120,7 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             "line_limit": LINE_LIMIT,
             "banned": BANNED,
             "slang": SLANG,
+            "outro": cfg.script.outro,
             "vague_words": VAGUE_WORDS,
             "vague_max": VAGUE_MAX,
             # 표시 전용 리스크(대본 규칙에 같이 넘긴다)

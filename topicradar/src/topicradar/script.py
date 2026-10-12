@@ -51,6 +51,14 @@ VAGUE_MAX = 2
 # ---- 공통 줄 만들기 --------------------------------------------------------
 
 
+def with_outro(text: str, outro: str) -> str:
+    """대본 끝에 채널 마무리 인사를 한 단락으로 붙인다(이미 있으면 그대로)."""
+    outro = (outro or "").strip()
+    if not outro or outro in text:
+        return text
+    return text.rstrip() + "\n\n" + outro + "\n"
+
+
 def _one_line(text: str) -> list[str]:
     """대본 한 줄 = 한 문장(자막용으로 짧게 끊지 않는다)."""
     text = (text or "").strip()

@@ -573,6 +573,12 @@ function fixPrompt(problems) {
     '규칙과 영상 계획을 지키면서 이 문제를 고쳐 대본 전체를 다시 써라. 출력은 대본 텍스트만.', '',
     '<지금 대본>', S.script, '</지금 대본>'].join('\n');
 }
+// 채널 마무리 인사(channel.yaml script.outro)는 Claude가 쓰지 않고 대본 끝에 언제나 붙인다
+function withOutro(text, outro) {
+  outro = String(outro || '').trim();
+  if (!outro || String(text || '').includes(outro)) return text;
+  return String(text || '').replace(/\s+$/, '') + '\n\n' + outro + '\n';
+}
 function normalize(text) {
   const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
   const out = [];
@@ -586,6 +592,10 @@ function normalize(text) {
 }
 async function runScript(mode) {
   if (!sample || ctl) return;
+  const outro = ((S.board && S.board.rules && S.board.rules.outro) || '').trim();
+  if (mode === 'fix' && outro && !S.script.includes(outro)) {  // 마무리 인사는 Claude 없이 바로 붙인다
+    S.script = withOutro(S.script, outro); $('#script').value = S.script; persist(); updateMeter();
+  }
   const problems = mode === 'fix' ? checkScript().filter(x => x.bad).map(x => x.text) : [];
   if (mode === 'fix' && !problems.length) { toast('점검에 걸린 것이 없습니다'); return; }
   if (mode === 'new' && S.script.trim() && !confirm('지금 대본을 지우고 새로 씁니다. 계속할까요?')) return;
@@ -607,7 +617,7 @@ async function runScript(mode) {
         ta.value = whole; S.script = whole; updateMeter();
       },
     });
-    S.script = normalize(text); S.scriptBy = 'claude'; ta.value = S.script;
+    S.script = withOutro(normalize(text), (S.board.rules || {}).outro); S.scriptBy = 'claude'; ta.value = S.script;
     state.textContent = `다 썼습니다 · ${Math.round((Date.now() - t0) / 1000)}초`;
     if (truncated) $('#sc-msg').innerHTML = '<div class="note warn">대본이 길이 한도에서 잘렸습니다. 뒷부분을 확인하고 [점검대로 고쳐 쓰기] 또는 직접 마무리해 주세요.</div>';
   } catch (e) {
@@ -667,6 +677,7 @@ function checkScript() {
   }
   const copied = [...keys].filter(k => joined.includes(k)).length;
   if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
+  if (r.outro && !text.includes(r.outro.trim())) out.push({ bad: true, text: `끝에 채널 마무리 인사가 없습니다: '${r.outro.slice(0, 24)}…'` });
   const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
   if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
   const todo = lines.filter(l => /^#(TODO|확인)/.test(l)).length;

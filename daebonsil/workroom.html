@@ -646,6 +646,12 @@ function scriptPrompt() {
   const r = S.meta.rules, f = S.project.format;
   return [r.identity, r.script_rules, r.structure_rules, r.tone_rules, r.format_rules[f], '', '영상 계획과 근거 기사·커뮤니티 의견:', JSON.stringify(scriptPayload())].join('\n');
 }
+// 채널 마무리 인사(channel.yaml script.outro)는 Claude가 쓰지 않고 대본 끝에 언제나 붙인다
+function withOutro(text, outro) {
+  outro = String(outro || '').trim();
+  if (!outro || String(text || '').includes(outro)) return text;
+  return String(text || '').replace(/\s+$/, '') + '\n\n' + outro + '\n';
+}
 function normalize(text) {
   const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
   const out = [];
@@ -683,6 +689,7 @@ function checkScript() {
   for (const t of p.topics) for (const x of t.posts) for (const s of [x.title, ...(x.top_comments || []).map(c => c.text)]) { const k = String(s || '').replace(/\s+/g, ''); if (k.length >= 10) keys.add(k.slice(0, 18)); }
   const copied = [...keys].filter(k => joined.includes(k)).length;
   if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
+  if (r.outro && !text.includes(r.outro.trim())) out.push({ bad: true, text: `끝에 채널 마무리 인사가 없습니다: '${r.outro.slice(0, 24)}…'` });
   const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
   if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
   const todo = lines.filter(l => /^#(TODO|확인)/.test(l)).length; if (todo) out.push({ bad: false, warn: true, text: `확인 주석 ${todo}개(#TODO/#확인) — 녹음 전에 처리` });
@@ -727,7 +734,10 @@ function thumbCount() { const n = [...($('#thumb').value || '')].length, max = (
 
 async function runScript(mode) {
   if (!claudeOk() || ctl) return;
-  const p = S.project;
+  const p = S.project, outro = (S.meta.rules.outro || '').trim();
+  if (mode === 'fix' && outro && !(p.script || '').includes(outro)) {  // 마무리 인사는 Claude 없이 바로 붙인다
+    p.script = withOutro(p.script, outro); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
+  }
   const problems = mode === 'fix' ? checkScript().filter(x => x.bad).map(x => x.text) : [];
   if (mode === 'fix' && !problems.length) { toast('점검에 걸린 것이 없습니다'); return; }
   const prompt = mode === 'fix' ? [scriptPrompt(), '', '아래는 지금 대본이다. 점검에서 다음 문제가 나왔다:', ...problems.map(x => '- ' + x),
@@ -742,7 +752,7 @@ async function runScript(mode) {
   try {
     const { text, truncated } = await sample(prompt, { modelTier: 'complex', cache: false, signal: ctl.signal,
       onText: ({ text: whole }) => { if (!started) { started = true; state.textContent = '쓰는 중…'; } ta.value = whole; p.script = whole; updateMeter(); } });
-    p.script = normalize(text); ta.value = p.script;
+    p.script = withOutro(normalize(text), S.meta.rules.outro); ta.value = p.script;
     p.script_key = scriptKey(); queueSave({ script: p.script, script_by: 'claude', script_key: p.script_key });
     state.textContent = `다 썼습니다 · ${Math.round((Date.now() - t0) / 1000)}초`;
     if (truncated) $('#sc-msg').innerHTML = '<div class="note warn">대본이 길이 한도에서 잘렸습니다. 뒷부분을 확인하고 [점검대로 고쳐 쓰기]를 눌러 주세요.</div>';

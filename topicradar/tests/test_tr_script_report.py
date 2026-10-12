@@ -394,3 +394,14 @@ def test_clean_sentence_drops_photo_captions_and_cut_text():
     plan.items[0].topic = head
     text = heuristic_script(plan)
     assert "박수를 치고" not in text and "#확인: 기사 제목뿐" in text  # 쓸 문장이 없으면 제목 + 확인 표시
+
+
+def test_outro_is_always_last():
+    from topicradar.script import with_outro
+
+    outro = (
+        "더 나은 대한민국을 위해서 정치는푸르다 채널 구독해주시고, 매일 새로운 정치 소식으로 찾아뵙겠습니다."
+    )
+    text = with_outro("## 주제\n첫 문장입니다.\n", outro)
+    assert text.endswith("\n\n" + outro + "\n") and with_outro(text, outro) == text  # 두 번 붙지 않음
+    assert with_outro("본문.\n", "") == "본문.\n"
