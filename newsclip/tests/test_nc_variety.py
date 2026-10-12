@@ -137,3 +137,34 @@ def test_empty_scene_borrows_neighbor_photo_and_scoring_prefers_matching_news_ph
     ranked = rank(sc, [big_doc, big_other, news], ChannelConfig())
     assert ranked[0].url == news.url and ranked[-1].url == big_doc.url
     assert any("검색어 3개 제목 일치" in n for n in ranked[0].score_notes)
+
+
+async def test_youtube_thumbnails_only_from_news_channels(monkeypatch):
+    import newsclip.pipeline as pl
+    from newsclip.sources.youtube_video import thumb_video_id
+
+    assert thumb_video_id("https://i.ytimg.com/vi/LYmNDWiYEUU/hqdefault.jpg") == "LYmNDWiYEUU"
+    assert thumb_video_id("https://imgnews.pstatic.net/image/003/a.jpg") is None
+
+    async def chans(client, ids):
+        return {"AAAAAAAAAAA": "KBS News", "BBBBBBBBBBB": "그때 그 말"}
+
+    monkeypatch.setattr(pl, "video_channels", chans)
+    news = asset(url="https://i.ytimg.com/vi/AAAAAAAAAAA/hqdefault.jpg", source_domain="i.ytimg.com")
+    fan = asset(url="https://i.ytimg.com/vi/BBBBBBBBBBB/hqdefault.jpg", source_domain="i.ytimg.com")
+    unknown = asset(url="https://i.ytimg.com/vi/CCCCCCCCCCC/hqdefault.jpg", source_domain="i.ytimg.com")
+    photo = asset(url="https://imgnews.pstatic.net/image/003/p.jpg", source_domain="imgnews.pstatic.net")
+    rep = RunReport()
+    out = await pl.keep_news_thumbs(None, [[news, fan, photo], [unknown]], ["KBS News", "YTN"], rep)
+    assert [a.url for a in out[0]] == [news.url, photo.url] and out[1] == [] and rep.dropped_thumbs == 2
+    assert out[0][0].author_or_channel == "KBS News"
+
+    async def broken(client, ids):
+        raise RuntimeError("quota")
+
+    monkeypatch.setattr(pl, "video_channels", broken)
+    rep2 = RunReport()
+    out2 = await pl.keep_news_thumbs(None, [[news, photo]], ["KBS News"], rep2)
+    assert (
+        [a.url for a in out2[0]] == [photo.url] and rep2.dropped_thumbs == 1 and rep2.errors
+    )  # 확인 못 하면 뺀다

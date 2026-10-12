@@ -21,7 +21,7 @@ from newsclip.sources.base import Budget, SearchCache, Source
 from newsclip.sources.google_image import GoogleImageSource
 from newsclip.sources.naver_image import NaverImageSource
 from newsclip.sources.wikimedia import WikimediaSource
-from newsclip.sources.youtube_video import YouTubeVideoSource
+from newsclip.sources.youtube_video import YouTubeVideoSource, is_blocked, thumb_video_id, video_channels
 from newsclip.srt import parse_srt
 from studio_core.config import ChannelConfig, Settings, TimelineSection, find_root, load_channel
 from studio_core.http import make_client
@@ -43,6 +43,7 @@ class RunReport:
     xml_errors: list[str] = field(default_factory=list)
     by_source: dict[str, int] = field(default_factory=dict)
     borrowed: int = 0  # 사진을 못 받아 앞뒤 장면 사진을 이어 쓴 장면 수
+    dropped_thumbs: int = 0  # 뉴스 공식 채널이 아니라 뺀 유튜브 썸네일 수
 
 
 def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClient) -> dict[str, Source]:
@@ -147,6 +148,40 @@ async def gather_candidates(
     return out
 
 
+async def keep_news_thumbs(
+    client: httpx.AsyncClient, found: list[list[Asset]], allowed: list[str], report: RunReport
+) -> list[list[Asset]]:
+    """사진 후보에 섞인 유튜브 썸네일은 뉴스 공식 채널(allowed) 것만 남긴다. 채널은 YouTube API로 확인하고,
+    확인하지 못한 썸네일(키 없음·조회 실패·목록에 없는 채널)은 뺀다. 남긴 썸네일은 출처에 채널 이름을 적는다."""
+    ids = {
+        a.id: vid for cands in found for a in cands if a.media == "image" and (vid := thumb_video_id(a.url))
+    }
+    if not ids:
+        return found
+    channels: dict[str, str] = {}
+    if allowed:
+        try:
+            channels = await video_channels(client, list(ids.values()))
+        except Exception as e:  # 키 없음·조회 실패 → 썸네일을 모두 뺀다
+            report.errors.append(f"유튜브 썸네일 채널 확인 실패(썸네일은 뺌): {type(e).__name__}: {e}")
+    out, dropped = [], 0
+    for cands in found:
+        keep = []
+        for a in cands:
+            vid = ids.get(a.id)
+            if vid is None:
+                keep.append(a)
+                continue
+            ch = channels.get(vid, "")
+            if ch and is_blocked(ch, allowed):  # is_blocked = 목록과 이름이 맞는지(정규화 후 포함)
+                keep.append(a.model_copy(update={"author_or_channel": ch, "source_domain": f"YouTube {ch}"}))
+            else:
+                dropped += 1
+        out.append(keep)
+    report.dropped_thumbs = dropped
+    return out
+
+
 MAX_TRIES = 8  # 장면마다 받아 볼 사진 후보 수(앞 후보가 막히면 다음으로)
 
 
@@ -210,6 +245,7 @@ async def run_project(
         found = await asyncio.gather(
             *(gather_candidates(sc, sources, report, want=per_scene * 3) for sc in scenes)
         )
+        found = await keep_news_thumbs(client, found, cfg.images.youtube_thumb_channels, report)
         prev_key: str | None = None
         used: dict[str, int] = {}  # 앞 장면들이 이미 고른 자료(같은 사진 되풀이 감점)
         for sc, cands in zip(scenes, found, strict=True):

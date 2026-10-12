@@ -358,6 +358,7 @@ async def sources(
             "by_source": report.by_source,
             "video_scenes": sum(1 for x in scenes if x["videos"]),
             "borrowed": report.borrowed,
+            "dropped_thumbs": report.dropped_thumbs,
             "skipped_sources": report.skipped_sources,
             "errors": report.errors + report.xml_errors,
         },

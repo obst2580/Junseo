@@ -42,6 +42,33 @@ def is_blocked(channel: str, blocked: list[str]) -> bool:
     return any(b and (normalize_channel(b) == c or normalize_channel(b) in c) for b in blocked)
 
 
+_THUMB_RE = re.compile(r"(?:ytimg\.com|img\.youtube\.com)/vi(?:_webp)?/([A-Za-z0-9_-]{11})/")
+
+
+def thumb_video_id(url: str) -> str | None:
+    """유튜브 썸네일 주소(i.ytimg.com/vi/<영상 ID>/hqdefault.jpg)면 영상 ID."""
+    m = _THUMB_RE.search(url or "")
+    return m.group(1) if m else None
+
+
+async def video_channels(client: object, ids: list[str]) -> dict[str, str]:
+    """영상 ID → 채널 이름(videos.list, 50개에 1 unit). 키가 없으면 SourceUnavailable."""
+    key = os.environ.get("YOUTUBE_API_KEY")
+    if not key:
+        raise SourceUnavailable("YOUTUBE_API_KEY 미설정")
+    out: dict[str, str] = {}
+    uniq = list(dict.fromkeys(ids))
+    for i in range(0, len(uniq), 50):
+        payload = await get_json(
+            client,  # type: ignore[arg-type]
+            f"{API}/videos",
+            params={"part": "snippet", "id": ",".join(uniq[i : i + 50]), "key": key},
+        )
+        for v in payload.get("items", []):
+            out[v["id"]] = html.unescape(v.get("snippet", {}).get("channelTitle", ""))
+    return out
+
+
 def default_clip_start(duration: float | None) -> float:
     """기본 시작점: 길이의 10%(최대 60초) — 도입 로고·인사 건너뛰기."""
     if not duration:

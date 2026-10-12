@@ -129,6 +129,8 @@ class ImagesSection(BaseModel):
 
     preferred_domains: list[str] = Field(default_factory=list)
     blocked_domains: list[str] = Field(default_factory=list)
+    # 사진 검색에 섞여 나오는 유튜브 썸네일(i.ytimg.com)은 이 채널(뉴스 공식 채널) 것만 쓴다. 비우면 썸네일을 안 씀
+    youtube_thumb_channels: list[str] = Field(default_factory=list)
 
 
 class VideosSection(BaseModel):
