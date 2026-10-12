@@ -8,6 +8,7 @@ local Instance = roblox.Instance
 
 local B = require("./lib/build")
 local Roads = require("./lib/roads")
+local RoadEnds = require("./lib/roadends")
 local TerrainGrid = require("./lib/terraingrid")
 local World = require("./lib/world")
 
@@ -93,9 +94,10 @@ city:SetAttribute("Version", version)
 city:SetAttribute("Scale", "1/10")
 city:SetAttribute("Attribution", meta.attribution)
 
-local _, stats = Roads.build(city, roadsData, grid)
+local roadsRoot, stats = Roads.build(city, roadsData, grid)
+local nEnds, nBarricades, nTurns = RoadEnds.build(roadsRoot, roadsData)
 local nWalls = World.build(city, meta, version)
-print(string.format("도로 파트 %d개, 경계벽 %d개", stats.parts, nWalls))
+print(string.format("도로 파트 %d개, 길 끝 파트 %d개 (차단막 %d곳, 회차로 %d곳), 경계벽 %d개", stats.parts, nEnds, nBarricades, nTurns, nWalls))
 
 fs.writeDir("build")
 fs.writeFile("build/City.rbxm", roblox.serializeModel({ city }))

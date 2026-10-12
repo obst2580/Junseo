@@ -118,8 +118,10 @@ class Terrain:
         sea_poly = self.rasterize(roads.sea_polygon())
         sea_dem = inch_side & (e <= 0.5) & ~playable
         water = water_osm | sea_poly | sea_dem
-        # 플레이 구역 안에서는 인천 쪽 바다만 지형 고도로 판정 (서울은 OSM 물만)
-        water |= in_inch & (e <= 0.5)
+        # 플레이 구역 안에서는 인천 쪽 바다만 지형 고도로 판정 (서울은 OSM 물만).
+        # 매립지(지도에 시가지·도로가 있는 곳)는 고도가 낮아도 땅
+        land_ev = self.rasterize(roads.land_evidence())
+        water |= in_inch & (e <= 0.5) & ~land_ev
         water = ndimage.binary_opening(water, iterations=1) | water_osm
 
         d_land = ndimage.distance_transform_edt(water) * WORK
@@ -209,6 +211,8 @@ class Terrain:
             if e["tier"] != 0:
                 continue
             for pc in e["pieces"]:
+                if pc["kind"] == "bridge":
+                    continue
                 pts = [((x - self.ox - self.x0) / WORK, (z - self.oz - self.z0) / WORK) for x, z in pc["pts"]]
                 if len(pts) >= 2:
                     d.line(pts, fill=255, width=w, joint="curve")

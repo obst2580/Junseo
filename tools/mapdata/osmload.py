@@ -13,7 +13,9 @@ import common as C
 
 ROAD_CLASSES = {
     "motorway", "motorway_link", "trunk", "trunk_link",
-    "primary", "primary_link", "secondary", "secondary_link", "tertiary",
+    "primary", "primary_link", "secondary", "secondary_link", "tertiary", "tertiary_link",
+    # 아래는 게임 도로로 쓰지 않고, 끊긴 도로를 실제 길을 따라 이을 때 근거로만 쓴다
+    "unclassified", "residential", "living_street",
 }
 
 

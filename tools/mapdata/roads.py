@@ -16,7 +16,7 @@ import numpy as np
 import shapely
 from PIL import Image, ImageDraw
 from shapely.geometry import LineString, Point
-from shapely.ops import unary_union
+from shapely.ops import nearest_points, unary_union
 from shapely.strtree import STRtree
 from skimage.measure import label
 from skimage.morphology import skeletonize
@@ -633,96 +633,207 @@ def heal_gaps(nodes, edges, segs, water_detect, tunnel_geom, boundary):
             added += 1
             break
     print(f"끊긴 도로 {added}곳 연결")
-    extend_by_minor(nodes, edges, segs, water_detect, tunnel_geom, boundary)
+    resolve_dead_ends(nodes, edges, segs, water_detect, tunnel_geom, boundary)
 
 
-MINOR_MAX = 1200.0  # 소로를 따라 잇는 최대 길이 (실제 약 3.4km)
+STREET_CLASSES = {"primary", "secondary", "tertiary", "unclassified", "residential", "living_street",
+                  "primary_link", "secondary_link", "tertiary_link"}
+PATH_MAX = 1500.0     # 실제 길을 따라 잇는 최대 길이
+STRAIGHT_MAX = 450.0  # 곧게 잇는 최대 거리
+STUB_MAX = 500.0      # 이보다 짧은 막다른 꼬투리는 지운다
+SEAM_PAIR_MAX = 1300.0
 
 
-def extend_by_minor(nodes, edges, segs, water_detect, tunnel_geom, boundary):
-    """지상 간선도로가 소로(tertiary)로 등급이 바뀌며 끊긴 곳은, 실제 소로를 따라 가장 가까운 간선까지 잇는다."""
+def _incident(edges):
+    inc = {}
+    for i, e in enumerate(edges):
+        inc.setdefault(e["a"], []).append(i)
+        inc.setdefault(e["b"], []).append(i)
+    return inc
+
+
+def _outward(nodes, edges, u, ei):
+    e = edges[ei]
+    xy = edge_points(e)
+    if e["b"] == u:
+        xy = xy[::-1]
+    line = LineString(xy)
+    p = np.array([nodes[u]["x"], nodes[u]["z"]])
+    inner = np.asarray(line.interpolate(min(40.0, line.length * 0.5)).coords[0])
+    out = p - inner
+    n = np.hypot(*out)
+    return p, (out / n if n > 1e-6 else None), line
+
+
+def _attach(nodes, edges, j, q):
+    """간선 j 위 q에 붙일 노드 (끝 근처면 끝 노드, 아니면 간선을 나눠 새 노드)."""
+    line = LineString(edge_points(edges[j]))
+    dd = line.project(Point(*q))
+    if dd < 20:
+        return edges[j]["a"]
+    if dd > line.length - 20:
+        return edges[j]["b"]
+    return split_edge(nodes, edges, j, dd)
+
+
+def resolve_dead_ends(nodes, edges, segs, water_detect, tunnel_geom, boundary):
+    """맵 경계가 아닌 곳의 막다른 끝을 없앤다.
+
+    1) 서울-인천 이음매: 방향이 맞는 끝끼리 곧게 잇는다 (원래 부천을 지나 이어지던 길)
+    2) 실제 길(소로·동네 길 포함)을 따라 가장 가까운 다른 도로까지 잇는다
+    3) 가까운 도로로 곧게 잇는다
+    4) 그래도 안 되면 짧은 꼬투리는 지운다
+    """
     from scipy.spatial import cKDTree
 
-    allowed = EVIDENCE[0] | {"tertiary", "tertiary_link"}
-    G = nx.Graph()
+    graphs = {0: nx.Graph(), 1: nx.Graph()}
     coord = {}
-    names = {}
+    cls_set = {0: STREET_CLASSES, 1: EVIDENCE[1]}
     for sg in segs:
-        if sg["hw"] not in allowed:
-            continue
-        for a, b, pa, pb in zip(sg["ids"][:-1], sg["ids"][1:], sg["xy"][:-1], sg["xy"][1:]):
-            G.add_edge(int(a), int(b), w=float(np.hypot(*(pb - pa))))
-        for nid, q in zip(sg["ids"], sg["xy"]):
-            coord[int(nid)] = q
-            if sg["name"]:
-                names[int(nid)] = sg["name"]
-    order = list(coord.keys())
-    kd = cKDTree(np.array([coord[k] for k in order]))
+        for t in (0, 1):
+            if sg["hw"] in cls_set[t]:
+                for a, b, pa, pb in zip(sg["ids"][:-1], sg["ids"][1:], sg["xy"][:-1], sg["xy"][1:]):
+                    graphs[t].add_edge(int(a), int(b), w=float(np.hypot(*(pb - pa))))
+                for nid, q in zip(sg["ids"], sg["xy"]):
+                    coord[int(nid)] = q
+    kd = {}
+    for t in (0, 1):
+        order = [n for n in graphs[t].nodes]
+        kd[t] = (cKDTree(np.array([coord[n] for n in order])), order)
 
-    deg = Counter()
-    for e in edges:
-        deg[e["a"]] += 1
-        deg[e["b"]] += 1
-    added = 0
-    for u in range(len(nodes)):
+    def is_dead(u, inc):
+        return len(inc.get(u, [])) == 1 and boundary.distance(Point(nodes[u]["x"], nodes[u]["z"])) >= 150
+
+    def in_seam(u):
         n = nodes[u]
-        if deg[u] != 1 or n["tier"] != 0:
+        return abs(n["x"] - SEAM_X) < 1600 and -2600 < n["z"] < 6600
+
+    def add_edge(u, v, xy, src_edge, cls=None, w=None):
+        e = edges[src_edge]
+        edges.append({"a": u, "b": v, "tier": e["tier"], "cls": cls or e["cls"], "w": w or e["w"], "name": e["name"],
+                      "pieces": make_pieces(np.asarray(xy, dtype=np.float64), water_detect, tunnel_geom)})
+
+    stats = Counter()
+    # 1) 이음매 짝짓기
+    inc = _incident(edges)
+    seam_dead = [u for u in range(len(nodes)) if is_dead(u, inc) and in_seam(u)]
+    used = set()
+    pairs = []
+    for i, u in enumerate(seam_dead):
+        pu, ou, _ = _outward(nodes, edges, u, inc[u][0])
+        if ou is None:
             continue
-        p = np.array([n["x"], n["z"]])
-        if boundary.distance(Point(*p)) < 150:
-            continue
-        ei = next(i for i, e in enumerate(edges) if e["a"] == u or e["b"] == u)
-        own = LineString(edge_points(edges[ei])).buffer(40)
-        others = [(j, LineString(edge_points(f))) for j, f in enumerate(edges) if j != ei and f["tier"] == 0]
-        tree = STRtree([ln for _, ln in others])
-        src = [order[i] for i in kd.query_ball_point(p, 60)]
-        best = None
-        for sn in src[:4]:
-            if sn not in G:
+        for v in seam_dead[i + 1:]:
+            if nodes[v]["tier"] != nodes[u]["tier"]:
                 continue
-            dist, paths = nx.single_source_dijkstra(G, sn, cutoff=MINOR_MAX, weight="w")
-            for node_id, d in sorted(dist.items(), key=lambda kv: kv[1]):
-                if d < 60:
-                    continue
-                q = coord[node_id]
-                pt = Point(*q)
-                if own.contains(pt):
-                    continue
-                hit = None
-                for k in tree.query(pt.buffer(30)):
-                    if others[k][1].distance(pt) < 30:
-                        hit = others[k]
-                        break
-                if hit is None:
-                    continue
-                path = np.array([coord[x] for x in paths[node_id]])
-                pl = LineString(np.vstack([p, path]))
-                if pl.intersection(own).length > 0.3 * pl.length:
-                    break  # 제 도로를 거슬러 가는 길이면 포기
-                if best is None or d < best[0]:
-                    best = (d, path, hit, node_id)
-                break
-        if best is None:
+            pv, ov, _ = _outward(nodes, edges, v, inc[v][0])
+            if ov is None:
+                continue
+            d = pv - pu
+            dist = float(np.hypot(*d))
+            if dist < 1 or dist > SEAM_PAIR_MAX:
+                continue
+            dirv = d / dist
+            if np.dot(ou, dirv) > 0.5 and np.dot(ov, -dirv) > 0.5:
+                pairs.append((dist, u, v, pu, pv))
+    for dist, u, v, pu, pv in sorted(pairs):
+        if u in used or v in used:
             continue
-        d, path, (j, line), node_id = best
-        q = np.asarray(coord[node_id])
-        dd = line.project(Point(*q))
-        L = line.length
-        if dd < 20:
-            v = edges[j]["a"]
-        elif dd > L - 20:
-            v = edges[j]["b"]
-        else:
-            v = split_edge(nodes, edges, j, dd)
-        end = np.array([nodes[v]["x"], nodes[v]["z"]])
-        xy = smooth_line(np.vstack([p, path[1:-1], end])) if len(path) > 2 else np.vstack([p, end])
-        edges.append({"a": u, "b": v, "tier": 0, "cls": "secondary", "w": WIDTH["secondary"],
-                      "name": names.get(node_id, edges[ei]["name"]),
-                      "pieces": make_pieces(xy, water_detect, tunnel_geom)})
-        deg[u] += 1
-        deg[v] += 1
-        added += 1
-    print(f"소로를 따라 {added}곳 연결")
+        add_edge(u, v, [pu, pv], inc[u][0])
+        used |= {u, v}
+        stats["이음매"] += 1
+
+    # 2)~4) 반복
+    for _ in range(4):
+        inc = _incident(edges)
+        dead = [u for u in range(len(nodes)) if is_dead(u, inc)]
+        if not dead:
+            break
+        changed = False
+        removed = set()
+        for u in dead:
+            inc = _incident(edges)
+            if not is_dead(u, inc):
+                continue
+            ei = inc[u][0]
+            t = nodes[u]["tier"]
+            p, out, own_line = _outward(nodes, edges, u, ei)
+            if out is None:
+                continue
+            own = own_line.buffer(30)
+            others = [(j, LineString(edge_points(f))) for j, f in enumerate(edges) if j != ei and f["tier"] == t and j not in removed]
+            if not others:
+                continue
+            tree = STRtree([ln for _, ln in others])
+            # 2) 실제 길 따라
+            tk, order = kd[t]
+            best = None
+            for idx in tk.query_ball_point(p, 80)[:6]:
+                sn = order[idx]
+                dist, paths = nx.single_source_dijkstra(graphs[t], sn, cutoff=PATH_MAX, weight="w")
+                for nid, d in sorted(dist.items(), key=lambda kv: kv[1]):
+                    if d < 50:
+                        continue
+                    q = coord[nid]
+                    pt = Point(*q)
+                    if own.contains(pt):
+                        continue
+                    hit = None
+                    for k in tree.query(pt.buffer(25)):
+                        if others[k][1].distance(pt) < 25:
+                            hit = others[k][0]
+                            break
+                    if hit is None:
+                        continue
+                    path = np.array([coord[x] for x in paths[nid]])
+                    pl = LineString(np.vstack([p, path]))
+                    if pl.length > 1 and pl.intersection(own).length <= 0.35 * pl.length:
+                        if best is None or d < best[0]:
+                            best = (d, path, hit, q)
+                    break
+            if best is not None:
+                d, path, j, q = best
+                v = _attach(nodes, edges, j, q)
+                end = np.array([nodes[v]["x"], nodes[v]["z"]])
+                xy = np.vstack([p, path[1:-1], end]) if len(path) > 2 else np.vstack([p, end])
+                xy = smooth_line(xy) if len(xy) > 2 else xy
+                add_edge(u, v, xy, ei, cls=("secondary" if t == 0 else None), w=(WIDTH["secondary"] if t == 0 else None))
+                stats["실제 길 따라"] += 1
+                changed = True
+                continue
+            # 3) 곧게
+            cand = None
+            pt = Point(*p)
+            for j, ln in others:
+                dist = ln.distance(pt)
+                if dist < 1 or dist > STRAIGHT_MAX:
+                    continue
+                q = np.asarray(nearest_points(ln, pt)[0].coords[0])
+                dv = (q - p) / max(np.hypot(*(q - p)), 1e-6)
+                if np.dot(dv, out) < math.cos(math.radians(80)):
+                    continue
+                if cand is None or dist < cand[0]:
+                    cand = (dist, j, q)
+            if cand is not None:
+                dist, j, q = cand
+                v = _attach(nodes, edges, j, q)
+                add_edge(u, v, [p, [nodes[v]["x"], nodes[v]["z"]]], ei)
+                stats["곧게"] += 1
+                changed = True
+                continue
+            # 4) 짧은 꼬투리 지우기
+            if own_line.length < STUB_MAX:
+                removed.add(ei)
+                stats["꼬투리 삭제"] += 1
+                changed = True
+        if removed:
+            for i in sorted(removed, reverse=True):
+                edges.pop(i)
+        if not changed:
+            break
+    inc = _incident(edges)
+    left = Counter(nodes[u]["tier"] for u in range(len(nodes)) if is_dead(u, inc))
+    print("막다른 끝 처리", dict(stats), "남음", dict(left))
 
 
 def merge_deg2(nodes, edges):
@@ -799,6 +910,31 @@ def sea_polygon():
             else:
                 i += 1
     g = unary_union(cells).intersection(incheon.buffer(400)).simplify(cell / 2).buffer(0)
+    # 고도 자료는 매립 전 바다를 기준으로 한 곳이 있다(송도·인천신항 등). 지도에 시가지·도로가 있으면 땅으로 본다
+    g = g.difference(land_evidence()).buffer(0)
+    pickle.dump(g, open(cache, "wb"))
+    return g
+
+
+def land_evidence():
+    """원본 지도로 볼 때 땅인 곳: 토지이용 면 + 다리가 아닌 도로 둘레."""
+    import os
+    import pickle
+
+    cache = os.path.join(C.CACHE, "land_evidence.pkl")
+    if os.path.exists(cache):
+        return pickle.load(open(cache, "rb"))
+    areas = osmload.load_areas()
+    parts = [areas[k] for k in ("urban", "farm", "park", "green", "forest", "airport", "sand") if areas.get(k) is not None]
+    R = C.regions()
+    inch = R["incheon"].buffer(400)
+    lines = []
+    for sg in osmload.project_ways(osmload.load_raw_ways()):
+        if sg["bridge"] or sg["tunnel"] or not sg["incheon"]:
+            continue
+        if sg["hw"] in ("motorway", "trunk", "primary", "secondary", "tertiary", "residential", "unclassified"):
+            lines.append(LineString(sg["xy"]).buffer(40))
+    g = unary_union(parts + lines).intersection(inch).buffer(0)
     pickle.dump(g, open(cache, "wb"))
     return g
 
