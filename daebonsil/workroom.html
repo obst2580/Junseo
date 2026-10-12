@@ -210,7 +210,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div id="bundles-wrap" hidden><h3>10분 묶음 추천</h3><div class="bundles" id="bundles" style="margin-top:8px"></div></div>
     <div id="topics-wrap" hidden>
       <h3>주제 <span class="small muted" id="tcount"></span></h3>
-      <p class="small muted" style="margin:2px 0 6px" id="pickhint">하나를 고르면 <b>3분 단독</b>, 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 채널은 진보 진영 편이라 <b>상대 비판·우리 편 방어</b> 주제가 앞에 오고, <b>진영 내부</b> 갈등은 뒤에 둡니다.</p>
+      <p class="small muted" style="margin:2px 0 6px" id="pickhint">하나를 고르면 <b>3분 단독</b>, 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 커뮤니티 반응이 큰 순이고, 민주당 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.</p>
       <div class="tlist" id="topics"></div>
     </div>
     <div class="pickbar" id="pickbar" hidden>
@@ -303,7 +303,7 @@ const ls = {
 /* ---------- 채널(정치 / 증시) — 같은 제작실에서 바꿔 쓴다. 수집·주제·프로젝트 데이터는 채널마다 따로 ---------- */
 const CHANNELS = {
   politics: { name: '정치는푸르다', prefix: '', by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
-    lede: '진보 진영 편에 서는 채널의 영상을 만듭니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
+    lede: '친이재명 시선의 정치 채널 영상을 만듭니다. 커뮤니티 다수 의견으로 진짜 문제가 어디 있는지(국민의힘이든 민주당 안이든) 짚습니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
   stock: { name: '증시뉴스 김시연 팀장', prefix: 'stock_', by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
     lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
 };
@@ -460,7 +460,7 @@ function stockPick(arts, n) {  // 마감 시황·지수 기사 먼저, 그다음
   }
   return out;
 }
-const ANGLES = ['상대 비판', '우리 편 방어', '진영 내부'];
+const ANGLES = ['상대 비판', '대통령 방어', '당내 비판', '정책 해설'];
 const angles = () => (S.meta && S.meta.rules && Array.isArray(S.meta.rules.angles) && S.meta.rules.angles.length ? S.meta.rules.angles : ANGLES);
 /* 채널 규칙이 바뀌었는지(주제 묶음·대본을 만든 때의 규칙과 지금 규칙 비교) */
 function hashKey(parts) {
@@ -472,7 +472,7 @@ function hashKey(parts) {
 function rulesKey() { const r = S.meta && S.meta.rules; return r ? hashKey([r.identity, r.group_task]) : ''; }
 // 대본 쓰기 규칙
 function scriptKey() { const r = S.meta && S.meta.rules; return r ? hashKey([r.identity, r.script_rules, r.structure_rules, r.tone_rules, JSON.stringify(r.format_rules)]) : ''; }
-const angleBadge = a => !a ? '' : a === '진영 내부' ? '<span class="badge warn" title="진보 진영끼리의 갈등 — 정부·여당 쪽 관점으로 씁니다">진영 내부</span>' : `<span class="badge ok">${esc(a)}</span>`;
+const angleBadge = a => !a ? '' : `<span class="badge ${a === '당내 비판' ? 'warn' : 'ok'}"${a === '당내 비판' ? ' title="민주당·범진보 안의 문제 — 친이재명 지지층 시선으로 짚습니다"' : ''}>${esc(a)}</span>`;
 const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
 async function runGroup() {
   if (!claudeOk() || ctl || !S.meta) return;
@@ -497,16 +497,15 @@ async function runGroup() {
         heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean), STOCK ? article_ids.length : 0) });
     }
     if (!topics.length) throw { code: 'invalid_json' };
-    // 진보 채널이 다루기 좋은 주제(상대 비판·우리 편 방어)를 앞에, 진영 내부 갈등은 뒤로
+    // 커뮤니티 반응이 큰 순(당내 비판도 뒤로 미루지 않는다)
     // 증시는 Claude가 매긴 순서(시장 영향이 큰 순)를 그대로 쓴다
-    if (!STOCK) topics.sort((a, b) => (a.angle === '진영 내부') - (b.angle === '진영 내부') || b.heat.score - a.heat.score);
+    if (!STOCK) topics.sort((a, b) => b.heat.score - a.heat.score);
     topics.forEach((t, i) => { t.id = 'T' + (i + 1); });
     const keyToId = Object.fromEntries(topics.map(t => [t.key, t.id]));
     const bundles = [];
     for (const b of (res && Array.isArray(res.bundles) ? res.bundles : [])) {
       const ids = [...new Set(strList(b.topic_ids, 3).map(k => keyToId[k]).filter(Boolean))];
-      const inner = ids.some(i => (topics.find(t => t.id === i) || {}).angle === '진영 내부');
-      if (ids.length >= 2 && !inner && String(b.link || '').trim()) bundles.push({ topic_ids: ids, link: String(b.link).trim() });
+      if (ids.length >= 2 && String(b.link || '').trim()) bundles.push({ topic_ids: ids, link: String(b.link).trim() });
     }
     const doc = { made_at: new Date().toISOString(), raw_at: S.meta.collected_at, rules_key: rulesKey(), sites_off: [...S.siteOff], topics, bundles: bundles.slice(0, 3) };
     S.topics = doc; S.picked = [];

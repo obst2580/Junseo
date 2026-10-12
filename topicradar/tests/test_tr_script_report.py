@@ -172,7 +172,7 @@ def test_llm_script_gets_opinion_format_and_falls_back():
     )
     assert (
         "10분 묶음 규칙" in seen["system"]
-        and "진보 진영 편" in seen["system"]
+        and "친이재명" in seen["system"]
         and "재미가 첫째" in seen["system"]
     )
     assert "출처·URL·편집 주석" in seen["system"]
