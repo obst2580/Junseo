@@ -13,6 +13,7 @@ dependencies = [
     "yt-dlp>=2025.1.1",
     "fastapi>=0.110",
     "uvicorn>=0.29",
+    "faster-whisper>=1.2",  # 자막 시각을 실제로 들린 말에 맞추기(asr.py)
 ]
 
 [project.optional-dependencies]

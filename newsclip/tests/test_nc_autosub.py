@@ -214,3 +214,42 @@ def test_align_does_not_drift_when_speed_changes():
     cues, matched = align(sents, AudioInfo(t, sil))
     assert matched == 9
     assert [round(c.start, 2) for c in cues] == starts
+
+
+def test_asr_words_beat_a_long_breath_and_repeats():
+    # 첫 문장 가운데 긴 숨(0.7초)이 문장 끝 쉼(0.25초)보다 길다. 쉼만 보면 숨을 문장 끝으로 고르지만,
+    # 들린 말(인식 결과)을 맞대면 제자리에 붙는다. 같은 두 문장이 세 번 되풀이돼도 회차가 밀리지 않고,
+    # 인식이 쉼 뒤 단어를 일찍 잡거나 한 단어를 잘못 들어도 괜찮다.
+    s1, s2 = "가나다 라마바 사아자 차카타.", "파하가 나다라."
+    sents = [[s1], [s2]] * 3
+    sil, words = [], []
+    for i in range(3):
+        o = i * 4.8
+        sil += [(o + 1.2, o + 1.9), (o + 3.1, o + 3.35), (o + 4.55, o + 4.8)]
+        words += [
+            ("가나다", o + 0.0, o + 0.6),
+            ("라마바", o + 0.6, o + 1.2),
+            ("사아자", o + 1.5, o + 2.5),
+            ("차카타", o + 2.5, o + 3.2),
+            ("바하가", o + 3.2, o + 3.95),
+            ("나다라", o + 3.95, o + 4.6),
+        ]
+    info = AudioInfo(14.4, sil[:-1])
+    truth = [0.0, 3.35, 4.8, 8.15, 9.6, 12.95]
+    by_pause, _ = align(sents, info)
+    assert [round(c.start, 2) for c in by_pause] != truth
+    cues, matched = align(sents, info, words=words)
+    assert matched == 5 and [round(c.start, 2) for c in cues] == truth
+
+
+def test_asr_boundaries_between_and_inside_words():
+    from newsclip.autosub import asr_boundaries
+
+    texts = ["가나다 라마.", "바사 아자,", "차카"]
+    words = [("가나다", 0.0, 0.5), ("라마", 0.5, 1.0), ("바사아자", 1.4, 2.2), ("차카", 2.6, 3.0)]
+    h = asr_boundaries(texts, words)
+    assert h[0] is None and h[3] is None
+    assert h[1] == (1.0 + 1.4) / 2  # 두 단어 사이 → 앞 끝과 뒤 시작의 가운데
+    assert h[2] == (2.2 + 2.6) / 2
+    h2 = asr_boundaries(["가나다 라마 바사", "아자"], [("가나다라마바사아자", 0.0, 1.8)])
+    assert abs(h2[1] - 1.4) < 1e-9  # 한 단어 안(띄어쓰기 차이) → 그 글자 자리

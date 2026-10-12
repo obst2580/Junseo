@@ -251,7 +251,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div class="sec-h"><h2>음성</h2></div>
     <ol class="small" style="margin:0;padding-left:20px;color:var(--ink-2)">
       <li><b>[타입캐스트용 복사]</b>를 눌러 타입캐스트에 붙여 넣고 음성(mp3·wav)을 받습니다. 헤더는 빠집니다.</li>
-      <li>(선택) 받은 파일을 아래에 올리면 길이와 문장 사이 쉼을 이 브라우저에서 분석해 장면 시각을 음성에 맞춥니다(파일은 어디에도 올라가지 않습니다). 안 올려도 자료는 받을 수 있고, 그때 시각은 대본 길이로 어림합니다.</li>
+      <li>받은 파일을 아래에 올리면 작게 압축해(10분에 2MB쯤) 제작실에 올리고, 자료를 모을 때 작업자가 음성을 듣고 자막·장면 시각을 실제로 들린 말에 맞춥니다. 안 올려도 자료는 받을 수 있고, 그때 시각은 대본 길이로 어림합니다.</li>
     </ol>
     <div class="row"><button class="btn primary" id="copy-tts" type="button">타입캐스트용 복사</button><span class="small muted" id="tts-n"></span></div>
     <pre class="tts" id="tts"></pre>
@@ -832,7 +832,74 @@ async function analyzeAudio(file) {
   }
   const dur = n / sr;
   if (start !== null && dur - start >= minSil) silences.push([+start.toFixed(3), +dur.toFixed(3)]);
-  return { duration: +dur.toFixed(3), silences, peaks };
+  return { duration: +dur.toFixed(3), silences, peaks, buffer: audio };
+}
+// 음성 인식용으로 작은 webm(Opus 24kbps, 모노)을 만든다 — 10분에 2MB쯤. 작업자가 받아 실제로 들린 말에 자막을 맞춘다.
+// WebCodecs(AudioEncoder)로 압축하고, WebM 상자는 여기서 직접 짠다(오디오 트랙 하나·클러스터·SimpleBlock만).
+const EB = {
+  id: h => Uint8Array.from(h.match(/../g).map(x => parseInt(x, 16))),
+  size(n) { let len = 1; while (len < 8 && n >= 2 ** (7 * len) - 1) len++; const b = new Uint8Array(len); let v = n; for (let i = len - 1; i >= 0; i--) { b[i] = v % 256; v = Math.floor(v / 256); } b[0] |= 1 << (8 - len); return b; },
+  uint(n) { const out = []; let v = n; do { out.unshift(v % 256); v = Math.floor(v / 256); } while (v > 0); return Uint8Array.from(out); },
+  f64(x) { const b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x); return b; },
+  str: t => new TextEncoder().encode(t),
+  cat(parts) { const n = parts.reduce((a, p) => a + p.length, 0), out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; },
+  el(hex, ...kids) { const body = EB.cat(kids.flat()); return EB.cat([EB.id(hex), EB.size(body.length), body]); },
+};
+function opusHead(rate, preSkip) {
+  const b = new Uint8Array(19), v = new DataView(b.buffer);
+  b.set(EB.str('OpusHead')); b[8] = 1; b[9] = 1; v.setUint16(10, preSkip, true); v.setUint32(12, rate, true);
+  return b;
+}
+function muxWebm(chunks, head, durMs) {
+  const track = EB.el('AE', EB.el('D7', EB.uint(1)), EB.el('73C5', EB.uint(1)), EB.el('83', EB.uint(2)), EB.el('86', EB.str('A_OPUS')),
+    EB.el('63A2', head), EB.el('56AA', EB.uint(Math.round(new DataView(head.buffer, head.byteOffset).getUint16(10, true) / 48000 * 1e9))),
+    EB.el('56BB', EB.uint(80000000)), EB.el('E1', EB.el('B5', EB.f64(48000)), EB.el('9F', EB.uint(1))));
+  const clusters = [];
+  for (let i = 0; i < chunks.length;) {
+    const t0 = Math.round(chunks[i].ts / 1000), blocks = [];
+    while (i < chunks.length && Math.round(chunks[i].ts / 1000) - t0 < 5000) {
+      const rel = Math.round(chunks[i].ts / 1000) - t0, hd = Uint8Array.from([0x81, (rel >> 8) & 255, rel & 255, 0x80]);
+      blocks.push(EB.el('A3', hd, chunks[i].data)); i++;
+    }
+    clusters.push(EB.el('1F43B675', EB.el('E7', EB.uint(t0)), ...blocks));
+  }
+  const header = EB.el('1A45DFA3', EB.el('4286', EB.uint(1)), EB.el('42F7', EB.uint(1)), EB.el('42F2', EB.uint(4)), EB.el('42F3', EB.uint(8)),
+    EB.el('4282', EB.str('webm')), EB.el('4287', EB.uint(4)), EB.el('4285', EB.uint(2)));
+  const info = EB.el('1549A966', EB.el('2AD7B1', EB.uint(1000000)), EB.el('4D80', EB.str('studio')), EB.el('5741', EB.str('studio')), EB.el('4489', EB.f64(durMs)));
+  return EB.cat([header, EB.el('18538067', info, EB.el('1654AE6B', track), ...clusters)]);
+}
+async function encodeVoice(buffer) {
+  if (typeof AudioEncoder === 'undefined' || typeof OfflineAudioContext === 'undefined') throw new Error('이 브라우저는 음성 압축(WebCodecs)을 지원하지 않습니다 — Chrome이나 Edge에서 올려 주세요');
+  let rate = 0;
+  for (const r of [16000, 48000]) {
+    const cfg = { codec: 'opus', sampleRate: r, numberOfChannels: 1, bitrate: 24000 };
+    try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) { rate = r; break; } } catch (e) { /* 다음 */ }
+  }
+  if (!rate) throw new Error('이 브라우저는 Opus 압축을 지원하지 않습니다 — Chrome이나 Edge에서 올려 주세요');
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(buffer.duration * rate)), rate);  // 모노로 섞고 표본율 바꾸기
+  const src = off.createBufferSource(); src.buffer = buffer; src.connect(off.destination); src.start();
+  const pcm = (await off.startRendering()).getChannelData(0);
+  const chunks = []; let head = null, fail = null;
+  const enc = new AudioEncoder({
+    output: (c, meta) => {
+      const data = new Uint8Array(c.byteLength); c.copyTo(data); chunks.push({ ts: c.timestamp, data });
+      const d = meta && meta.decoderConfig && meta.decoderConfig.description;
+      if (d && !head) { const b = d instanceof ArrayBuffer ? new Uint8Array(d) : new Uint8Array(d.buffer, d.byteOffset, d.byteLength); if (new TextDecoder().decode(b.slice(0, 8)) === 'OpusHead') head = b.slice(); }
+    },
+    error: e => { fail = e; },
+  });
+  enc.configure({ codec: 'opus', sampleRate: rate, numberOfChannels: 1, bitrate: 24000 });
+  const step = rate;  // 1초씩
+  for (let i = 0; i < pcm.length; i += step) {
+    const part = pcm.subarray(i, Math.min(pcm.length, i + step));
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: rate, numberOfFrames: part.length, numberOfChannels: 1, timestamp: Math.round(i / rate * 1e6), data: part });
+    enc.encode(ad); ad.close();
+    if (enc.encodeQueueSize > 50) await new Promise(r => setTimeout(r, 0));
+  }
+  await enc.flush(); enc.close();
+  if (fail) throw fail;
+  if (!chunks.length) throw new Error('압축 결과가 비었습니다');
+  return new Blob([muxWebm(chunks, head || opusHead(rate, 312), buffer.duration * 1000)], { type: 'video/webm' });
 }
 function drawWave(peaks, silences, duration) {
   const cv = $('#wave'); cv.hidden = false;
@@ -855,10 +922,23 @@ async function onAudio(file) {
     const ext = (file.name.match(/\.[a-z0-9]+$/i) || ['.wav'])[0].toLowerCase();
     S.audioFile = file;
     const audio = { name: file.name, ext, size: file.size, duration: r.duration, silences: r.silences, cpm, chars, analyzed_at: new Date().toISOString() };
+    drawWave(r.peaks, r.silences, r.duration);
+    // 자막을 실제로 들린 말에 맞추도록 작은 webm으로 압축해 올린다(작업자가 음성 인식에 쓴다). 실패해도 쉼 분석값은 쓴다.
+    const old = S.project.audio && S.project.audio.asset_id;
+    let upNote = '';
+    if (assets) {
+      $('#audio-state').innerHTML = spinner('음성 인식용으로 압축해 올리는 중…');
+      try {
+        const up = await assets.upload(await encodeVoice(r.buffer), { type: 'video/webm' });
+        audio.asset_id = up.id; audio.asset_bytes = up.sizeBytes;
+      } catch (e) { audio.asset_id = null; upNote = `음성을 올리지 못해 쉼만으로 맞춥니다(${esc(e.message || e.code || '알 수 없음')}).`; }
+    } else { audio.asset_id = null; upNote = '이 화면에서는 음성을 올릴 수 없어 쉼만으로 맞춥니다(편집 권한이 있는 계정으로 열어 주세요).'; }
     S.project.audio = audio;
     await db.doc(`projects/${S.project.id}`).update({ audio, status: 'voice' });
-    drawWave(r.peaks, r.silences, r.duration);
-    $('#audio-state').innerHTML = `<div class="note info">분석 끝 — 문장 사이 쉼 ${r.silences.length}곳을 찾았습니다. 이 파일은 자료 받을 때 압축 파일에 같이 넣습니다(이 화면을 닫으면 다시 골라야 합니다).</div>`;
+    if (old && old !== audio.asset_id && assets) assets.delete(old).catch(() => {});
+    $('#audio-state').innerHTML = audio.asset_id
+      ? `<div class="note info">분석 끝 — 쉼 ${r.silences.length}곳. 음성 인식용 파일(${(audio.asset_bytes / 1048576).toFixed(1)}MB)도 올렸습니다. 자료를 모을 때 작업자가 음성을 듣고 자막 시각을 실제 말에 맞춥니다.</div>`
+      : `<div class="note warn">분석 끝 — 쉼 ${r.silences.length}곳. ${upNote}</div>`;
     renderVoice(); renderTabs();
   } catch (e) {
     $('#audio-state').innerHTML = `<div class="note bad">음성을 읽지 못했습니다(${esc(e.message || e.code || '알 수 없음')}). mp3나 wav 파일인지 확인해 주세요.</div>`;
@@ -882,8 +962,9 @@ function renderVoice() {
     <div class="fact"><div class="k">길이</div><div class="v">${fmtSec(a.duration)}</div></div>
     <div class="fact"><div class="k">목표 길이</div><div class="v">${fmtSec(target)}</div></div>
     <div class="fact"><div class="k">실제 분당 글자</div><div class="v">${a.cpm}자</div></div>
-    <div class="fact"><div class="k">문장 사이 쉼</div><div class="v">${a.silences.length}곳</div></div>`;
-  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = '<div class="small muted">분석값은 저장돼 있습니다. 장면 시각을 이 음성에 맞춥니다.</div>';
+    <div class="fact"><div class="k">문장 사이 쉼</div><div class="v">${a.silences.length}곳</div></div>
+    <div class="fact"><div class="k">음성 인식</div><div class="v" style="font-size:14px">${a.asset_id ? '올림 — 들린 말에 맞춤' : '안 올림 — 쉼만으로 맞춤'}</div></div>`;
+  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = a.asset_id ? '<div class="small muted">분석값과 음성 인식용 파일이 저장돼 있습니다.</div>' : '<div class="small muted">분석값은 저장돼 있지만 음성 인식용 파일은 없습니다. 자막을 들린 말에 맞추려면 음성 파일을 다시 올려 주세요.</div>';
 }
 $('#to-sources').onclick = () => setTab('sources');
 
@@ -1041,7 +1122,7 @@ async function makeZip() {
     root.file('timeline.xml', xml);
     // 프리미어 캡션용 자막(한 줄 20자 안팎). 한글이 깨지지 않게 UTF-8 BOM을 붙인다.
     if (res.srt_id) { const r = await fetch('/_blob/' + res.srt_id); if (r.ok) root.file('자막.srt', '\ufeff' + (await r.text()).replace(/^\ufeff/, '')); }
-    root.file('장면목록.txt', `장면별 대사와 사진 — ${p.id}\n(시각은 ${res.timing === 'estimated' ? '대본 길이로 어림한 값' : '올린 음성에 맞춘 값'})\n\n` + (res.scenes || []).map(s =>
+    root.file('장면목록.txt', `장면별 대사와 사진 — ${p.id}\n(시각은 ${res.timing === 'estimated' ? '대본 길이로 어림한 값' : res.timing === 'voice+asr' ? '음성을 듣고 들린 말에 맞춘 값' : '올린 음성의 쉼에 맞춘 값'})\n\n` + (res.scenes || []).map(s =>
       `[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)}\n  대사: ${s.text}\n  사진: ${s.chosen || '없음'}${s.attribution ? ` (${s.attribution})` : ''}${s.query ? `\n  검색어: ${s.query}` : ''}`).join('\n\n') + '\n');
     const vlines = (res.scenes || []).filter(s => (s.videos || []).length).map(s => [`[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)} ${s.text}`,
       ...s.videos.map(v => `  - ${v.title} (${v.channel}${v.start ? `, ${fmtSec(v.start)}부터` : ''})\n    ${v.url}`)].join('\n'));

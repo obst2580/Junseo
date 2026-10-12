@@ -135,3 +135,35 @@ def test_sources_without_voice_and_no_audio_track(root, tmp_path):
     xml = (tmp_path / "out" / "timeline.xml.txt").read_text(encoding="utf-8")
     assert man["timing"] == "estimated" and man["scenes"] and "narration.wav" not in xml
     assert all(s["end"] > s["start"] for s in man["scenes"])
+
+
+def test_sources_with_voice_uses_heard_words(root, tmp_path, monkeypatch):
+    """화면이 올린 음성이 있으면 인식 결과로 시각을 맞추고(timing voice+asr), 듣지 못하면 쉼만으로 맞추며 이유를 남긴다."""
+    import newsclip.asr as asr
+    from newsclip.autosub import narration_text
+
+    script = (DEMO / "2026-10-08_1810_short" / "script.txt").read_text(encoding="utf-8")
+    toks = narration_text(script).split()
+    words = [(w, round(i * 0.4, 2), round(i * 0.4 + 0.35, 2)) for i, w in enumerate(toks)]
+    voice = tmp_path / "voice.webm"
+    voice.write_bytes(b"x")
+    req = {
+        "id": "2026-10-08_1930_short",
+        "script": script,
+        "audio": {"duration": len(toks) * 0.4, "silences": []},
+    }
+    monkeypatch.setattr(asr, "transcribe", lambda path, cache_dir=None: words)
+    man = asyncio.run(wr.sources(req, tmp_path / "out", voice=voice))
+    assert man["timing"] == "voice+asr" and man["asr"]["words"] == len(words)
+    assert man["asr"]["heard"] >= man["asr"]["bounds"] * 0.9
+
+    def deaf(path, cache_dir=None):
+        raise asr.AsrUnavailable("ffmpeg가 없습니다")
+
+    monkeypatch.setattr(asr, "transcribe", deaf)
+    man = asyncio.run(
+        wr.sources(
+            {**req, "audio": {"duration": 100.0, "silences": [[10.0, 10.5]]}}, tmp_path / "o2", voice=voice
+        )
+    )
+    assert man["timing"] == "voice" and "ffmpeg" in man["asr"]["error"]

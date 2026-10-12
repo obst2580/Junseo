@@ -210,10 +210,21 @@ def rebase_xml(xml: str, project: Path) -> str:
     return xml.replace(path_url(project), f"file://localhost/{BASE}")
 
 
-def _prepare(req: dict) -> tuple:
+def _prepare(req: dict, voice: Path | None = None) -> tuple:
     """프로젝트 폴더에 대본·장면 시각(말 덩어리마다)을 쓴다. 음성 분석값이 있으면 그 쉼에 맞추고, 없으면
-    대본 글자 수와 분당 글자 수로 어림한다. 음성·자막은 사용자가 직접 넣으므로 timeline.xml에 음성 트랙은 없다."""
-    from newsclip.autosub import AudioInfo, align, narration_text, script_phrases
+    대본 글자 수와 분당 글자 수로 어림한다. 음성·자막은 사용자가 직접 넣으므로 timeline.xml에 음성 트랙은 없다.
+
+    voice(화면이 올린 음성 인식용 webm)가 있으면 음성을 듣고(newsclip.asr) 경계마다 실제로 들린 시각에 맞춘다.
+    듣지 못하면(프로그램 없음 등) 쉼만으로 맞추고 그 이유를 asr["error"]에 남긴다."""
+    from newsclip.autosub import (
+        AudioInfo,
+        align,
+        analyze,
+        asr_boundaries,
+        narration_text,
+        script_phrases,
+        units_of,
+    )
     from newsclip.srt import write_srt
 
     settings = load_settings()
@@ -227,21 +238,35 @@ def _prepare(req: dict) -> tuple:
         info = AudioInfo(
             float(audio["duration"]), [(float(a), float(b)) for a, b in audio.get("silences", [])]
         )
+    elif voice:
+        info = analyze(voice, min_silence=0.15)
     else:
         cpm = load_channel(settings).script.chars_per_minute
         info = AudioInfo(round(len(narration_text(script).replace("\n", "")) / cpm * 60, 2), [])
-    cues, matched = align(script_phrases(script), info)
+    phrases = script_phrases(script)
+    words, asr = None, {}
+    if voice:
+        from newsclip.asr import transcribe
+
+        try:
+            words = transcribe(voice, cache_dir=proj)
+            texts = [t for sent in phrases for ph in sent for t, _k in units_of(ph)]
+            heard = asr_boundaries(texts, words)[1:-1]
+            asr = {"words": len(words), "heard": sum(h is not None for h in heard), "bounds": len(heard)}
+        except Exception as e:  # noqa: BLE001 - 듣지 못하면 쉼만으로 맞춘다
+            asr = {"error": f"{type(e).__name__}: {e}"[:300]}
+    cues, matched = align(phrases, info, words=words)
     (proj / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
     (proj / "narration.wav").unlink(missing_ok=True)  # 예전 결과의 무음 wav가 남아 음성 트랙이 생기지 않게
-    return settings, pid, proj, script, cues, matched, info
+    return settings, pid, proj, script, cues, matched, info, asr
 
 
-def plan_scenes(req: dict, out: Path) -> list[dict]:
+def plan_scenes(req: dict, out: Path, voice: Path | None = None) -> list[dict]:
     """장면 나누기만(자료 검색 없이) → out/scenes-plan.json. 작업자 Claude가 이걸 읽고 장면별 검색어를 쓴다.
     sources와 같은 규칙으로 나누므로 장면 ID가 그대로 맞는다."""
     from newsclip.scenes import build_scenes
 
-    _settings, _pid, _proj, script, cues, _matched, _info = _prepare(req)
+    _settings, _pid, _proj, script, cues, _matched, _info, _asr = _prepare(req, voice)
     plan = [
         {
             "id": sc.id,
@@ -257,12 +282,14 @@ def plan_scenes(req: dict, out: Path) -> list[dict]:
     return plan
 
 
-async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None = None) -> dict:
+async def sources(
+    req: dict, out: Path, per_scene: int = 2, queries: dict | None = None, voice: Path | None = None
+) -> dict:
     """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약).
     queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식)."""
     from newsclip.pipeline import run_project
 
-    settings, pid, proj, _script, cues, matched, info = _prepare(req)
+    settings, pid, proj, _script, cues, matched, info, asr = _prepare(req, voice)
     cfg = load_channel(settings)
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
     sset, report = await run_project(
@@ -328,7 +355,8 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
             "errors": report.errors + report.xml_errors,
         },
         "audio_name": "narration" + ((req.get("audio") or {}).get("ext") or ".wav"),
-        "timing": "voice" if (req.get("audio") or {}).get("duration") else "estimated",
+        "timing": "voice+asr" if asr.get("words") else "voice" if info.silences else "estimated",
+        "asr": asr,
         "base_token": f"file://localhost/{BASE}",
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -372,6 +400,10 @@ def main() -> None:
     p = sub.add_parser("scenes", help="장면 나누기만 → scenes-plan.json")
     p.add_argument("--project", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
+    for x in (s, p):
+        x.add_argument(
+            "--audio", type=Path, help="화면이 올린 음성(audio.asset_id 파일) — 들린 말에 자막 시각을 맞춘다"
+        )
     a = ap.parse_args()
     if a.cmd == "collect":
         meta = asyncio.run(collect(a.out, a.hours))
@@ -385,12 +417,17 @@ def main() -> None:
     if "script" not in req and isinstance(req.get("data"), dict):  # ArtifactData out_dir 파일이 감싼 경우
         req = req["data"]
     if a.cmd == "scenes":
-        plan = plan_scenes(req, a.out)
+        plan = plan_scenes(req, a.out, a.audio)
         print(json.dumps({"scenes": len(plan), "file": str(a.out / "scenes-plan.json")}, ensure_ascii=False))
         return
     queries = json.loads(a.queries.read_text(encoding="utf-8")) if a.queries else None
-    man = asyncio.run(sources(req, a.out, a.per_scene, queries))
-    print(json.dumps({"files": len(man["files"]), **man["report"]}, ensure_ascii=False))
+    man = asyncio.run(sources(req, a.out, a.per_scene, queries, a.audio))
+    print(
+        json.dumps(
+            {"files": len(man["files"]), "timing": man["timing"], "asr": man["asr"], **man["report"]},
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

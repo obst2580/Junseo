@@ -58,14 +58,19 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 ## kind = sources (자료·timeline.xml)
 
 1. `ArtifactData get` — `projects/<프로젝트 ID>`를 `out_dir`로 받아 파일로 둡니다(문서가 큼).
+   `audio.asset_id`가 있으면 그 음성(화면이 올린 음성 인식용 webm)도 받습니다:
+   `Artifact read`(`url`: 제작실, `path`: `audio.asset_id`) → 저장된 파일 경로를 아래 `--audio`에 넘깁니다.
 2. 장면부터 나눕니다. `--project`에는 그 JSON 파일을 그대로 넘깁니다(`id`·`script`·`audio`만 씁니다).
 
    ```bash
-   uv run python -m studio_app.workroom scenes --project /tmp/wr/projects/<ID>.json --out /tmp/wr-src
+   uv run python -m studio_app.workroom scenes --project /tmp/wr/projects/<ID>.json --out /tmp/wr-src --audio <받은 webm>
    ```
 
    `audio`는 화면이 브라우저에서 분석한 값(`duration`, `silences` = 문장 사이 쉼 구간)이고, 없을 수도 있습니다
    (그러면 장면 시각을 대본 길이로 어림). 음성·자막은 사용자가 직접 넣으므로 timeline.xml에는 음성 트랙이 없습니다.
+   `--audio`를 주면 음성을 듣고(faster-whisper, 처음 한 번 모델 약 480MB를 받음, 10분 음성에 2~3분) 자막·장면
+   시각을 실제로 들린 말에 맞춥니다. 인식 결과는 프로젝트 폴더에 저장돼 4단계에서 다시 듣지 않습니다.
+   `audio.asset_id`가 없으면 `--audio` 없이 돌립니다(쉼만으로 맞춤).
    장면은 말 덩어리 하나(문장 끝·쉼표 뒤·인용 시작 앞에서 자름)라서, 사진 한 장에 대사 한 덩어리입니다.
 3. **장면별 검색어 쓰기(가장 중요 — 사진이 대본과 맞는지가 여기서 갈립니다).** `/tmp/wr-src/scenes-plan.json`의
    장면마다 대사(`text`)를 읽고 "이 대사가 나올 때 화면에 무엇이 보여야 하나"를 정해 `/tmp/wr-src/queries.json`에 씁니다.
@@ -86,8 +91,11 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 4. 검색어를 넣어 자료와 timeline.xml을 만듭니다(장면 ID는 2단계와 같습니다).
 
    ```bash
-   uv run python -m studio_app.workroom sources --project /tmp/wr/projects/<ID>.json --queries /tmp/wr-src/queries.json --out /tmp/wr-src
+   uv run python -m studio_app.workroom sources --project /tmp/wr/projects/<ID>.json --queries /tmp/wr-src/queries.json --out /tmp/wr-src --audio <받은 webm>
    ```
+
+   출력의 `timing`이 `voice+asr`면 들린 말에 맞춘 것입니다. `asr.error`가 있으면(듣지 못함) 쉼만으로 맞췄다는 뜻이니
+   요청 note에 그 이유를 한 줄로 적습니다.
 5. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
    (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다):
    `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`와 `narration.srt.txt`(프리미어 캡션용 자막, 한 줄 20자 안팎)는
@@ -107,7 +115,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 8. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장 · 영상 후보 9장면(링크)`.
 
 화면은 `/_blob/<자산 ID>`로 자료를 보여 주고, 받을 때 사용자가 적은 폴더 경로로 timeline.xml의
-`file://localhost/__STUDIO_BASE__`를 바꿔 압축 파일(timeline.xml + 자료 + 음성)을 만듭니다.
+`file://localhost/__STUDIO_BASE__`를 바꿔 압축 파일(timeline.xml + 자료 + 자막.srt)을 만듭니다.
 
 ## 데이터 구조(아티팩트 db)
 
@@ -116,5 +124,5 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 | `config/worker` | 작업자(처음 한 번) | `session_id`, `session_url`, `artifact_url` — 붙여 넣기 안내에 쓰는 작업자 대화 주소 |
 | `raw/meta`, `raw/posts-N`, `raw/articles-N` | 작업자(collect) | 수집 묶음: 규칙·형식·사이트 상태 / 커뮤니티 글 / 기사(관련 기사는 본문) |
 | `topics/current` | 화면(Claude) | 주제 묶음: 주제별 글·기사 ID, 커뮤니티 주장, 10분 묶음 추천 |
-| `projects/<ID>` | 화면 + 작업자 | 형식·고른 주제(글·기사 사본)·대본·제목·음성 분석값·`result` |
+| `projects/<ID>` | 화면 + 작업자 | 형식·고른 주제(글·기사 사본)·대본·제목·음성 분석값(`audio`, 음성 인식용 파일은 `audio.asset_id`)·`result` |
 | `requests/<ID>` | 화면 + 작업자 | `kind`(collect/sources), `status`(queued/working/done/error), `note`, `error`, `sent_to_worker`, `thread_id`(보낸 댓글) |
