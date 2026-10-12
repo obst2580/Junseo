@@ -572,8 +572,8 @@ async function makeProject(fmt, link = '') {
   const topics = S.picked.map(tid => {
     const t = byId[tid];
     return { name: t.name, heading: shortName(t.name, 20), category: t.category, stance: t.stance, points: t.points, minority: t.minority, questions: t.questions, heat: t.heat,
-      posts: t.post_ids.map(x => postsById[x]).filter(Boolean).sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 6)
-        .map(p => ({ site: p.site, title: p.title, comments: p.comments, votes: p.votes, top_comments: (p.top_comments || []).slice(0, 3) })),
+      posts: t.post_ids.map(x => postsById[x]).filter(Boolean).sort((a, b) => postWeight(b) - postWeight(a)).slice(0, COMMUNITY_POSTS)
+        .map(p => ({ id: p.id, site: p.site, title: p.title, body: (p.body || '').slice(0, 300), comments: p.comments, votes: p.votes, top_comments: (p.top_comments || []).slice(0, 5) })),
       articles: t.article_ids.map(x => artById[x]).filter(Boolean).map(a => ({ url: a.url, time: a.time, title: a.title, source: a.source, text: a.body || a.summary || '' })) };
   });
   const doc = { id, created_at: new Date().toISOString(), format: fmt, rules_key: rulesKey(), topics, link: fmt === 'long' ? link : '', titles: [], thumb: '', script: '', script_by: '', status: 'script' };
@@ -628,6 +628,14 @@ function riskNotes() {
   }
   return [...out];
 }
+// 대본에 넘기는 커뮤니티 이야기(늘어난 분량을 커뮤니티 소식·의견으로 채운다 — 채널의 목소리로)
+const COMMUNITY_POSTS = 10;
+function communityOf(t) {
+  const raw = Object.fromEntries((S.posts || []).map(p => [p.id, p]));
+  const posts = t.posts.map(x => (x.id && raw[x.id]) ? { ...x, body: (raw[x.id].body || '').slice(0, 300), top_comments: (raw[x.id].top_comments || []).slice(0, 5) } : x);
+  return posts.slice(0, COMMUNITY_POSTS).map(x => ({ title: x.title, body: x.body || '', comments: x.comments, votes: x.votes,
+    top_comments: (x.top_comments || []).slice(0, 5).map(c => ({ text: c.text, votes: c.votes })) }));
+}
 function scriptPayload() {
   const p = S.project, spec = S.meta.formats[p.format];
   return {
@@ -635,8 +643,7 @@ function scriptPayload() {
     items: planItems().map(({ t, order, sec }) => ({
       order, heading: t.heading, topic: t.name, category: t.category, est_seconds: sec,
       opinion: { stance: t.stance, points: t.points, minority: t.minority, questions: t.questions, heat: `글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''}`,
-        samples: [...t.posts.slice(0, 3).map(x => ({ kind: 'post', text: x.title, votes: x.votes })),
-          ...t.posts.flatMap(x => x.top_comments || []).sort((a, b) => b.votes - a.votes).slice(0, 3).map(c => ({ kind: 'comment', text: c.text, votes: c.votes }))] },
+        community: communityOf(t) },
       follow_up: null,
       articles: t.articles.map(a => ({ url: a.url, time: when(a.time), title: a.title, summary: a.text })),
     })),
@@ -812,7 +819,8 @@ async function analyzeAudio(file) {
   let audio;
   try { audio = await ctx.decodeAudioData(await file.arrayBuffer()); } finally { try { ctx.close(); } catch (e) { /* 무시 */ } }
   const sr = audio.sampleRate, n = audio.length, chs = Array.from({ length: audio.numberOfChannels }, (_, i) => audio.getChannelData(i));
-  const thr = Math.pow(10, -35 / 20), hop = Math.max(1, Math.round(sr * 0.01)), minSil = 0.22;
+  // 문장 사이 쉼뿐 아니라 쉼표에서 쉬는 짧은 숨(0.15초~)도 잡는다 — 장면·자막 시각을 더 정확히 맞춘다
+  const thr = Math.pow(10, -35 / 20), hop = Math.max(1, Math.round(sr * 0.01)), minSil = 0.15;
   const silences = [], peaks = []; let start = null;
   for (let i = 0; i < n; i += hop) {
     let peak = 0; const end = Math.min(n, i + hop);

@@ -233,7 +233,7 @@ def _prepare(req: dict) -> tuple:
     cues, matched = align(script_phrases(script), info)
     (proj / "narration.srt").write_text(write_srt(cues), encoding="utf-8")
     (proj / "narration.wav").unlink(missing_ok=True)  # 예전 결과의 무음 wav가 남아 음성 트랙이 생기지 않게
-    return settings, pid, proj, script, cues, matched
+    return settings, pid, proj, script, cues, matched, info
 
 
 def plan_scenes(req: dict, out: Path) -> list[dict]:
@@ -241,7 +241,7 @@ def plan_scenes(req: dict, out: Path) -> list[dict]:
     sources와 같은 규칙으로 나누므로 장면 ID가 그대로 맞는다."""
     from newsclip.scenes import build_scenes
 
-    _settings, _pid, _proj, script, cues, _matched = _prepare(req)
+    _settings, _pid, _proj, script, cues, _matched, _info = _prepare(req)
     plan = [
         {
             "id": sc.id,
@@ -262,7 +262,7 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
     queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식)."""
     from newsclip.pipeline import run_project
 
-    settings, pid, proj, _script, cues, matched = _prepare(req)
+    settings, pid, proj, _script, cues, matched, info = _prepare(req)
     cfg = load_channel(settings)
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
     sset, report = await run_project(
@@ -310,7 +310,7 @@ async def sources(req: dict, out: Path, per_scene: int = 2, queries: dict | None
     from newsclip.autosub import subtitle_cues
     from newsclip.srt import write_srt
 
-    (out / "narration.srt.txt").write_text(write_srt(subtitle_cues(cues)), encoding="utf-8")
+    (out / "narration.srt.txt").write_text(write_srt(subtitle_cues(cues, info=info)), encoding="utf-8")
     manifest = {
         "project": pid,
         "made_at": _iso(now_kst()),

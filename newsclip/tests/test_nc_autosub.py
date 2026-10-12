@@ -82,8 +82,8 @@ def test_align_without_pauses_falls_back_to_length():
     sents = [["가나다라마바사."], ["가나다라마바사아자차카타파하."]]
     cues, matched = align(sents, AudioInfo(10.0, []))
     assert (
-        matched == 0 and cues[0].start == 0 and cues[1].start == pytest.approx(10 * 8 / 23, abs=0.01)
-    )  # 글자 수(마침표 포함) 비율
+        matched == 0 and cues[0].start == 0 and cues[1].start == pytest.approx(10 * 7.4 / 21.8, abs=0.01)
+    )  # 읽는 길이 비율(한글 1, 마침표 0.4)
 
 
 def test_analyze_wav_without_ffmpeg(tmp_path, monkeypatch):
@@ -156,3 +156,17 @@ def test_subtitle_lines_even_and_not_after_short_adverbs():
         [Cue(1, 0.0, 4.0, "결론부터 말씀드리면 이건 글은 안 읽고 단어 하나만 붙잡은 겁니다.")]
     )
     assert len(subs) == 2 and subs[0].start == 0.0 and subs[-1].end <= 4.0
+
+
+def test_spoken_length_and_comma_pause_snapping():
+    from newsclip.autosub import spoken_len, subtitle_cues
+
+    assert spoken_len("SNS") == pytest.approx(4.8) and spoken_len("10월") == pytest.approx(3.6)
+    # 한 문장 안 두 덩어리: 쉼표 뒤 짧은 쉼(3.1~3.3초)에 덩어리 경계를 맞춘다(글자 비율로는 2.9초쯤)
+    sents = [["가나다라마바사아자차카타파,", "가나다라마바사아자차카타파하거너더."]]
+    cues, _ = align(sents, AudioInfo(7.0, [(3.1, 3.3)]))
+    assert cues[0].end == pytest.approx(3.05, abs=0.01) and cues[1].start == pytest.approx(3.3, abs=0.01)
+    # 자막 줄도 그 안의 쉼에 맞추고, 짧은 틈은 이어 띄운다
+    subs = subtitle_cues(cues, limit=8, info=AudioInfo(7.0, [(3.1, 3.3)]))
+    assert all(a.end <= b.start for a, b in zip(subs, subs[1:], strict=False)) and subs[-1].end <= 7.0
+    assert all(b.start - a.end < 0.1 for a, b in zip(subs, subs[1:], strict=False))

@@ -267,7 +267,8 @@ def _opinion_payload(item: VideoItem) -> dict | None:
         "minority": op.minority,
         "questions": op.questions,
         "heat": op.heat_label,
-        "samples": [{"kind": x.kind, "text": x.text, "votes": x.votes} for x in op.samples[:6]],
+        # 늘어난 분량을 채울 커뮤니티 이야기(글 제목·공감 많은 댓글) — 대본은 채널의 목소리로 풀어 쓴다
+        "community": [{"kind": x.kind, "text": x.text, "votes": x.votes} for x in op.samples[:12]],
     }
 
 

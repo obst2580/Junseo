@@ -201,19 +201,27 @@ def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
     return [ln for ln in lines if ln]
 
 
-def subtitle_cues(cues: list[Cue], limit: int = SUB_LINE, gap: float = 0.05) -> list[Cue]:
-    """장면용 큐(말 덩어리) → 자막용 큐(한 줄 limit자 안팎). 덩어리 안 시간은 글자 수 비율로 나눈다."""
+def subtitle_cues(
+    cues: list[Cue],
+    limit: int = SUB_LINE,
+    gap: float = 0.05,
+    info: AudioInfo | None = None,
+    hold: float = 0.6,
+) -> list[Cue]:
+    """장면용 큐(말 덩어리) → 자막용 큐(한 줄 limit자 안팎). 덩어리 안 시간은 읽는 길이 비율로 나누고,
+    음성 분석값(info)이 있으면 그 안의 짧은 쉼에 맞춘다. 다음 자막까지 틈이 hold초보다 짧으면 이어서 띄운다."""
+    sil = sorted(info.silences) if info else []
+    speech_before, absolute = _speech_clock(info.duration if info else (cues[-1].end if cues else 0.0), sil)
     out: list[Cue] = []
     for c in cues:
         lines = subtitle_lines(c.text, limit) or [c.text]
-        n = sum(len(x) for x in lines) or 1
-        t = c.start
-        for ln in lines:
-            d = (c.end - c.start) * len(ln) / n
-            out.append(
-                Cue(index=len(out) + 1, start=round(t, 3), end=round(max(t + 0.3, t + d - gap), 3), text=ln)
-            )
-            t += d
+        spans = _split_span(c.start, c.end, [spoken_len(x) for x in lines], sil, speech_before, absolute)
+        for ln, (a, b) in zip(lines, spans, strict=True):
+            end = b if b >= c.end else b - gap
+            out.append(Cue(index=len(out) + 1, start=round(a, 3), end=round(max(a + 0.3, end), 3), text=ln))
+    for x, y in zip(out, out[1:], strict=False):  # 짧은 틈은 이어 띄우고, 겹치면 앞 자막을 줄인다
+        if x.end <= y.start <= x.end + hold or x.end > y.start:
+            x.end = round(max(x.start + 0.2, y.start - 0.02), 3)
     return out
 
 
@@ -315,6 +323,50 @@ def to_wav(src: Path, dst: Path) -> None:
     )
 
 
+_HANGUL_RE = re.compile(r"[가-힣]")
+_DIGIT_RE = re.compile(r"\d")
+_UPPER_RE = re.compile(r"[A-Z]")
+_LOWER_RE = re.compile(r"[a-z]")
+
+
+def spoken_len(text: str) -> float:
+    """읽는 데 걸리는 길이(음절 수 어림). 한글 1, 숫자 한 자리 1.3('11일'→'십일일'), 대문자 약어 한 글자 1.6
+    ('SNS'→'에스엔에스'), 영어 소문자 0.5, 쉼표·마침표 0.4(짧은 숨), 띄어쓰기·따옴표 0."""
+    n = float(len(_HANGUL_RE.findall(text)))
+    n += 1.3 * len(_DIGIT_RE.findall(text)) + 1.6 * len(_UPPER_RE.findall(text))
+    n += 0.5 * len(_LOWER_RE.findall(text)) + 0.4 * sum(text.count(ch) for ch in ",.?!…")
+    return max(n, 0.5)
+
+
+def _split_span(s, e, weights, sil, speech_before, absolute):  # noqa: ANN001, ANN202
+    """구간 [s, e]를 읽는 길이 비율로 나누고, 나누는 곳 근처에 짧은 쉼(쉼표 숨)이 있으면 그 쉼에 맞춘다.
+    반환: 조각마다 (시작, 끝)."""
+    if len(weights) <= 1:
+        return [(s, e)]
+    sp0, sp1 = speech_before(s), speech_before(e)
+    total = sum(weights) or 1.0
+    inner = [(a, b) for a, b in sil if a > s + 0.05 and b < e - 0.05]
+    tol = max(0.35, 0.4 * (sp1 - sp0) / len(weights))
+    bounds: list[tuple[float, float]] = []
+    acc = 0.0
+    for w in weights[:-1]:
+        acc += w
+        want = sp0 + (sp1 - sp0) * acc / total
+        floor = bounds[-1][1] if bounds else s
+        best = min(
+            ((abs(speech_before((a + b) / 2) - want), a, b) for a, b in inner if a >= floor),
+            default=None,
+        )
+        if best and best[0] <= tol:
+            bounds.append((best[1], best[2]))
+        else:
+            t = max(absolute(want), floor)
+            bounds.append((t, t))
+    starts = [s, *[b for _a, b in bounds]]
+    ends = [*[a for a, _b in bounds], e]
+    return list(zip(starts, ends, strict=True))
+
+
 def _speech_clock(duration: float, silences: list[tuple[float, float]]):  # noqa: ANN202
     """절대 시각 ↔ '말소리 시간'(쉼을 뺀 누적 시간) 변환 함수 쌍."""
     sil = sorted((max(0.0, a), min(duration, b)) for a, b in silences if b > a)
@@ -346,7 +398,7 @@ def align(sentences: list[list[str]], info: AudioInfo, gap: float = 0.05) -> tup
     inner = [(a, b) for a, b in sil if a > head and b < tail]
     speech_before, absolute = _speech_clock(dur, sil)
     sp0, sp1 = speech_before(head), speech_before(tail)
-    lens = [max(1, sum(len(x) for x in s)) for s in sentences]
+    lens = [sum(spoken_len(x) for x in s) for s in sentences]
     total = sum(lens)
     expected, acc = [], 0
     for n in lens[:-1]:
@@ -397,16 +449,11 @@ def align(sentences: list[list[str]], info: AudioInfo, gap: float = 0.05) -> tup
     ends = [*[a for a, _b in cuts], tail]
     for sent, s, e in zip(sentences, starts, ends, strict=True):
         e = max(e, s + 0.4 * len(sent))
-        n = sum(len(x) for x in sent) or 1
-        t = s
-        for line in sent:
-            d = (e - s) * len(line) / n
+        spans = _split_span(s, e, [spoken_len(x) for x in sent], sil, speech_before, absolute)
+        for line, (a, b) in zip(sent, spans, strict=True):
             cues.append(
-                Cue(
-                    index=len(cues) + 1, start=round(t, 3), end=round(max(t + 0.3, t + d - gap), 3), text=line
-                )
+                Cue(index=len(cues) + 1, start=round(a, 3), end=round(max(a + 0.3, b - gap), 3), text=line)
             )
-            t += d
     for a, b in zip(cues, cues[1:], strict=False):  # 겹침 정리
         if a.end > b.start:
             a.end = round(max(a.start + 0.2, b.start - 0.01), 3)
