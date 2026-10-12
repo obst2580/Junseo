@@ -189,7 +189,7 @@ def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
             cost = (
                 abs(i - target)
                 - (3 if word.endswith(_CLAUSE_END) else 0)
-                + (8 if word in _NO_BREAK_AFTER else 0)
+                + (8 if word in _NO_BREAK_AFTER or len(word) == 1 else 0)
             )
             if cost < best_cost:
                 best, best_cost = i, cost
@@ -201,6 +201,24 @@ def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
     return [ln for ln in lines if ln]
 
 
+def _time_at(units: list[tuple[str, float, float]], pos: int, side: str) -> float:
+    """덩어리 글의 pos번째 글자 위치의 시각(쉼 단위 시각 사이는 읽는 길이로 나눔). side: 줄 시작이면 'start'."""
+    off = 0
+    for i, (txt, a, b) in enumerate(units):
+        lo, hi = off, off + len(txt)
+        if side == "start" and pos <= lo:
+            return a
+        if lo <= pos <= hi:
+            if side == "end" and pos == lo and i > 0:
+                return units[i - 1][2]
+            if pos >= hi:
+                return b
+            frac = spoken_len(txt[: pos - lo]) / (spoken_len(txt) or 1.0) if pos > lo else 0.0
+            return a + (b - a) * min(1.0, frac)
+        off = hi + 1  # 단위 사이 띄어쓰기
+    return units[-1][2]
+
+
 def subtitle_cues(
     cues: list[Cue],
     limit: int = SUB_LINE,
@@ -208,16 +226,24 @@ def subtitle_cues(
     info: AudioInfo | None = None,
     hold: float = 0.6,
 ) -> list[Cue]:
-    """장면용 큐(말 덩어리) → 자막용 큐(한 줄 limit자 안팎). 덩어리 안 시간은 읽는 길이 비율로 나누고,
-    음성 분석값(info)이 있으면 그 안의 짧은 쉼에 맞춘다. 다음 자막까지 틈이 hold초보다 짧으면 이어서 띄운다."""
+    """장면용 큐(말 덩어리) → 자막용 큐(한 줄 limit자 안팎). align이 쉼에 맞춘 쉼 단위 시각(units)이 있으면
+    그 시각으로 줄을 나누고(쉼표 숨에서 정확히 바뀜), 없으면 읽는 길이 비율과 그 안의 쉼으로 나눈다.
+    다음 자막까지 틈이 hold초보다 짧으면 이어서 띄운다."""
     sil = sorted(info.silences) if info else []
     speech_before, absolute = _speech_clock(info.duration if info else (cues[-1].end if cues else 0.0), sil)
     out: list[Cue] = []
     for c in cues:
         lines = subtitle_lines(c.text, limit) or [c.text]
-        spans = _split_span(c.start, c.end, [spoken_len(x) for x in lines], sil, speech_before, absolute)
+        joined = " ".join(t for t, _a, _b in c.units)
+        if c.units and joined == " ".join(lines):
+            spans, pos = [], 0
+            for ln in lines:
+                spans.append((_time_at(c.units, pos, "start"), _time_at(c.units, pos + len(ln), "end")))
+                pos += len(ln) + 1
+        else:
+            spans = _split_span(c.start, c.end, [spoken_len(x) for x in lines], sil, speech_before, absolute)
         for ln, (a, b) in zip(lines, spans, strict=True):
-            end = b if b >= c.end else b - gap
+            end = min(b, c.end) if b >= c.end else b - gap
             out.append(Cue(index=len(out) + 1, start=round(a, 3), end=round(max(a + 0.3, end), 3), text=ln))
     for x, y in zip(out, out[1:], strict=False):  # 짧은 틈은 이어 띄우고, 겹치면 앞 자막을 줄인다
         if x.end <= y.start <= x.end + hold or x.end > y.start:
@@ -387,8 +413,74 @@ def _speech_clock(duration: float, silences: list[tuple[float, float]]):  # noqa
     return speech_before, absolute
 
 
+_CLOSERS = "'\"”’」』)]"
+
+
+def units_of(phrase: str) -> list[tuple[str, str]]:
+    """말 덩어리 → 쉼 단위(쉼표·문장 끝마다): (글, 끝 종류 'sent'|'comma'|'none'). TTS는 여기서 숨을 쉰다."""
+    out: list[tuple[str, str]] = []
+    start, i, n = 0, 0, len(phrase)
+    while i < n:
+        ch = phrase[i]
+        if ch == "," and (i + 1 == n or phrase[i + 1] == " "):
+            out.append((phrase[start : i + 1].strip(), "comma"))
+            start = i + 1
+        elif ch in ".?!…":
+            j = i + 1
+            while j < n and phrase[j] in _CLOSERS:
+                j += 1
+            if j == n or phrase[j] == " ":
+                out.append((phrase[start:j].strip(), "sent"))
+                start, i = j, j - 1
+        i += 1
+    if phrase[start:].strip():
+        out.append((phrase[start:].strip(), "none"))
+    return [u for u in out if u[0]] or [(phrase.strip(), "none")]
+
+
+def _dp_match(expected, kinds, cands, miss_cost, match_pen, skip_cost):  # noqa: ANN001, ANN202
+    """경계(예상 말소리 시각·종류)를 쉼 후보(말소리 시각, 시작, 끝)에 순서대로 맞춘다(동적 계획법).
+    반환: 경계마다 (쉼 시작, 쉼 끝) — 못 맞추면 None."""
+    K, J = len(expected), len(cands)
+    inf = float("inf")
+    best = [[inf] * (J + 1) for _ in range(K + 1)]
+    back: list[list[tuple[int, int, int] | None]] = [[None] * (J + 1) for _ in range(K + 1)]
+    best[0][0] = 0.0
+    for j in range(1, J + 1):  # 앞쪽 쉼 건너뛰기
+        best[0][j] = best[0][j - 1] + skip_cost(cands[j - 1])
+        back[0][j] = (0, j - 1, -2)
+    for k in range(1, K + 1):
+        e, kind = expected[k - 1], kinds[k - 1]
+        for j in range(J + 1):
+            c = best[k - 1][j] + miss_cost(kind)  # 경계 k: 쉼 없이 예상 시각
+            if c < best[k][j]:
+                best[k][j], back[k][j] = c, (k - 1, j, -1)
+            if j >= 1:
+                sp, a, b = cands[j - 1]
+                c = best[k - 1][j - 1] + abs(sp - e) + match_pen(kind, b - a)  # 경계 k = 쉼 j
+                if c < best[k][j]:
+                    best[k][j], back[k][j] = c, (k - 1, j - 1, j - 1)
+                c = best[k][j - 1] + skip_cost(cands[j - 1])  # 쉼 j는 경계가 아님
+                if c < best[k][j]:
+                    best[k][j], back[k][j] = c, (k, j - 1, -2)
+    out: list[tuple[float, float] | None] = [None] * K
+    k, j = K, min(range(J + 1), key=lambda x: best[K][x] + sum(skip_cost(c) for c in cands[x:]))
+    while k > 0 or j > 0:
+        prev = back[k][j]
+        if prev is None:
+            break
+        pk, pj, used = prev
+        if used >= 0:
+            out[k - 1] = (cands[used][1], cands[used][2])
+        k, j = pk, pj
+    return out
+
+
 def align(sentences: list[list[str]], info: AudioInfo, gap: float = 0.05) -> tuple[list[Cue], int]:
-    """문장(자막 줄 묶음) → 자막 큐. 반환: (큐 목록, 쉼에 맞춘 경계 수)."""
+    """문장(말 덩어리 목록) → 큐. 반환: (큐 목록, 쉼에 맞춘 문장 경계 수).
+    1) 문장 끝을 긴 쉼에 맞춘다(쉼표의 짧은 숨은 문장 끝으로 잘 고르지 않음).
+    2) 문장 안에서는 쉼표마다 그 짧은 숨에 맞춘다(그 문장 구간 안에서만 — 길이 오차가 쌓이지 않는다).
+    3) 큐마다 쉼 단위 시각(units)을 담아 자막 줄을 정확히 나눌 수 있게 한다."""
     if not sentences:
         return [], 0
     dur = info.duration
@@ -399,60 +491,63 @@ def align(sentences: list[list[str]], info: AudioInfo, gap: float = 0.05) -> tup
     speech_before, absolute = _speech_clock(dur, sil)
     sp0, sp1 = speech_before(head), speech_before(tail)
     lens = [sum(spoken_len(x) for x in s) for s in sentences]
-    total = sum(lens)
-    expected, acc = [], 0
+    total = sum(lens) or 1.0
+    expected, acc = [], 0.0
     for n in lens[:-1]:
         acc += n
         expected.append(sp0 + (sp1 - sp0) * acc / total)
-    # 동적 계획법: 경계 k를 쉼 j에 맞추거나(비용 = 말소리 시간 차) 예상 시각을 그대로(벌점) 쓴다. 순서 유지.
     cand = [(speech_before((a + b) / 2), a, b) for a, b in inner]
-    K, J = len(expected), len(cand)
     miss = max(1.5, (sp1 - sp0) / max(len(sentences), 1) * 0.6)
-    inf = float("inf")
-    # best[k][j]: 경계 0..k-1을 쓰고 쉼은 j개 이전까지만 쓴 최소 비용
-    best = [[inf] * (J + 1) for _ in range(K + 1)]
-    choice: list[list[tuple[int, int] | None]] = [[None] * (J + 1) for _ in range(K + 1)]
-    for j in range(J + 1):
-        best[0][j] = 0.0
-    for k in range(1, K + 1):
-        e = expected[k - 1]
-        for j in range(J + 1):
-            # (1) 쉼 없이 예상 시각
-            c = best[k - 1][j] + miss
-            if c < best[k][j]:
-                best[k][j], choice[k][j] = c, (j, -1)
-            # (2) 쉼 j-1 사용
-            if j >= 1 and best[k - 1][j - 1] < inf:
-                c2 = best[k - 1][j - 1] + abs(cand[j - 1][0] - e)
-                if c2 < best[k][j]:
-                    best[k][j], choice[k][j] = c2, (j - 1, j - 1)
-            # (3) 쉼 j-1 건너뛰기(문장 안 쉼표 등)
-            if j >= 1 and best[k][j - 1] < best[k][j]:
-                best[k][j], choice[k][j] = best[k][j - 1], choice[k][j - 1]
-    cuts: list[tuple[float, float]] = []
-    k, j = K, min(range(J + 1), key=lambda x: best[K][x])
-    while k > 0:
-        prev = choice[k][j]
-        assert prev is not None
-        pj, used = prev
-        if used >= 0:
-            cuts.append((cand[used][1], cand[used][2]))
-        else:
-            t = absolute(expected[k - 1])
-            cuts.append((t, t))
-        k, j = k - 1, pj
-    cuts.reverse()
-    matched = sum(1 for a, b in cuts if b > a)
-    # 문장 구간 → 자막 줄
+    cuts = _dp_match(
+        expected,
+        ["sent"] * len(expected),
+        cand,
+        miss_cost=lambda _k: miss,
+        match_pen=lambda _k, d: 0.6 if d < 0.3 else 0.0,  # 문장 끝은 긴 쉼을 좋아한다
+        skip_cost=lambda _c: 0.0,
+    )
+    matched = sum(1 for c in cuts if c)
+    bounds = [c or (absolute(e), absolute(e)) for c, e in zip(cuts, expected, strict=True)]
+    starts = [head, *[b for _a, b in bounds]]
+    ends = [*[a for a, _b in bounds], tail]
     cues: list[Cue] = []
-    starts = [head, *[b for _a, b in cuts]]
-    ends = [*[a for a, _b in cuts], tail]
     for sent, s, e in zip(sentences, starts, ends, strict=True):
         e = max(e, s + 0.4 * len(sent))
-        spans = _split_span(s, e, [spoken_len(x) for x in sent], sil, speech_before, absolute)
-        for line, (a, b) in zip(sent, spans, strict=True):
+        # 문장 안: 쉼 단위로 나누고 쉼표마다 그 숨에 맞춘다
+        flat = [(pi, txt, kind) for pi, ph in enumerate(sent) for txt, kind in units_of(ph)]
+        w = [spoken_len(txt) for _pi, txt, _k in flat]
+        a0, a1 = speech_before(s), speech_before(e)
+        tw = sum(w) or 1.0
+        exp_in, acc = [], 0.0
+        for x in w[:-1]:
+            acc += x
+            exp_in.append(a0 + (a1 - a0) * acc / tw)
+        kinds = [k for _pi, _t, k in flat[:-1]]
+        cin = [(speech_before((a + b) / 2), a, b) for a, b in sil if a > s + 0.03 and b < e - 0.03]
+        inner_cuts = _dp_match(
+            exp_in,
+            kinds,
+            cin,
+            miss_cost=lambda k: 0.45 if k == "comma" else (0.6 if k == "sent" else 0.12),
+            match_pen=lambda k, _d: 0.25 if k == "none" else 0.0,
+            skip_cost=lambda c: 0.1 + 0.6 * max(0.0, (c[2] - c[1]) - 0.3),
+        )
+        ib = [c or (absolute(x), absolute(x)) for c, x in zip(inner_cuts, exp_in, strict=True)]
+        us = [s, *[b for _a, b in ib]]
+        ue = [*[a for a, _b in ib], e]
+        for pi, ph in enumerate(sent):
+            parts = [
+                (flat[i][1], us[i], max(us[i] + 0.15, ue[i])) for i in range(len(flat)) if flat[i][0] == pi
+            ]
+            start, end = parts[0][1], parts[-1][2]
             cues.append(
-                Cue(index=len(cues) + 1, start=round(a, 3), end=round(max(a + 0.3, b - gap), 3), text=line)
+                Cue(
+                    index=len(cues) + 1,
+                    start=round(start, 3),
+                    end=round(max(start + 0.3, end - gap), 3),
+                    text=ph,
+                    units=[(t, round(x, 3), round(y, 3)) for t, x, y in parts],
+                )
             )
     for a, b in zip(cues, cues[1:], strict=False):  # 겹침 정리
         if a.end > b.start:

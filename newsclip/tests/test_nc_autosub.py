@@ -170,3 +170,25 @@ def test_spoken_length_and_comma_pause_snapping():
     subs = subtitle_cues(cues, limit=8, info=AudioInfo(7.0, [(3.1, 3.3)]))
     assert all(a.end <= b.start for a, b in zip(subs, subs[1:], strict=False)) and subs[-1].end <= 7.0
     assert all(b.start - a.end < 0.1 for a, b in zip(subs, subs[1:], strict=False))
+
+
+def test_units_and_subtitles_follow_comma_pauses():
+    from newsclip.autosub import subtitle_cues, subtitle_lines, units_of
+
+    assert units_of('"품격 없다, 권위 없다" 비난이 나와도 계속하겠다고 했거든요.') == [
+        ('"품격 없다,', "comma"),
+        ('권위 없다" 비난이 나와도 계속하겠다고 했거든요.', "sent"),
+    ]
+    assert (
+        subtitle_lines("그런데 여당 의원들이 바로 이 김 위원을 정면으로 겨냥했습니다.")[0].endswith("이")
+        is False
+    )
+    # 한 문장, 쉼표 둘: 문장 끝은 긴 쉼(5.0~5.6), 쉼표는 짧은 숨(1.9~2.1, 3.6~3.8)에 맞는다
+    sents = [
+        ["가나다라마바사아자차카, 타파하가나다라마바사아자, 차카타파하가나다라마바사."],
+        ["아자차카타파하가나다라."],
+    ]
+    cues, matched = align(sents, AudioInfo(8.0, [(1.9, 2.1), (3.6, 3.8), (5.0, 5.6)]))
+    assert matched == 1 and [round(x, 2) for _t, x, _y in cues[0].units] == [0.0, 2.1, 3.8]
+    subs = subtitle_cues(cues, limit=12)
+    assert any(abs(s.start - 2.1) < 0.01 for s in subs) and any(abs(s.start - 5.6) < 0.01 for s in subs)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 _TIME = r"(\d{1,2}):(\d{2}):(\d{2})[,.](\d{1,3})"
 _ARROW_RE = re.compile(_TIME + r"\s*-->\s*" + _TIME)
@@ -17,6 +17,8 @@ class Cue:
     start: float
     end: float
     text: str
+    # 쉼표·마침표 단위 시각(autosub.align이 음성의 쉼에 맞춘 것): (글, 시작, 끝). 자막 줄을 나눌 때 쓴다
+    units: list[tuple[str, float, float]] = field(default_factory=list, compare=False, repr=False)
 
 
 def _sec(h: str, m: str, s: str, ms: str) -> float:
