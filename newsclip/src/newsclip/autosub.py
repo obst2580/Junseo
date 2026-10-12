@@ -226,26 +226,50 @@ def subtitle_cues(
     gap: float = 0.05,
     info: AudioInfo | None = None,
     hold: float = 0.6,
+    words: list[Word] | None = None,
 ) -> list[Cue]:
     """장면용 큐(말 덩어리) → 자막용 큐(한 줄 limit자 안팎). align이 쉼에 맞춘 쉼 단위 시각(units)이 있으면
     그 시각으로 줄을 나누고(쉼표 숨에서 정확히 바뀜), 없으면 읽는 길이 비율과 그 안의 쉼으로 나눈다.
-    다음 자막까지 틈이 hold초보다 짧으면 이어서 띄운다."""
+    words(음성 인식 결과)가 있으면 쉼 단위 한가운데서 바뀌는 줄도 그 줄 첫 말이 들린 시각(근처에 쉼이 있으면
+    그 쉼)에 맞춘다. 다음 자막까지 틈이 hold초보다 짧으면 이어서 띄운다."""
     sil = sorted(info.silences) if info else []
     speech_before, absolute = _speech_clock(info.duration if info else (cues[-1].end if cues else 0.0), sil)
-    out: list[Cue] = []
+    rows: list[
+        tuple[str, float, float, float, bool]
+    ] = []  # (줄, 시작, 끝, 덩어리 끝, 쉼 단위 가운데서 시작?)
     for c in cues:
         lines = subtitle_lines(c.text, limit) or [c.text]
         joined = " ".join(t for t, _a, _b in c.units)
         if c.units and joined == " ".join(lines):
-            spans, pos = [], 0
+            spans, mids, pos = [], [], 0
+            starts = set()
+            off = 0
+            for t, _a, _b in c.units:
+                starts.add(off)
+                off += len(t) + 1
             for ln in lines:
                 spans.append((_time_at(c.units, pos, "start"), _time_at(c.units, pos + len(ln), "end")))
+                mids.append(pos not in starts)
                 pos += len(ln) + 1
         else:
             spans = _split_span(c.start, c.end, [spoken_len(x) for x in lines], sil, speech_before, absolute)
-        for ln, (a, b) in zip(lines, spans, strict=True):
-            end = min(b, c.end) if b >= c.end else b - gap
-            out.append(Cue(index=len(out) + 1, start=round(a, 3), end=round(max(a + 0.3, end), 3), text=ln))
+            mids = [False] + [True] * (len(lines) - 1)
+        rows += [(ln, a, b, c.end, m) for ln, (a, b), m in zip(lines, spans, mids, strict=True)]
+    if words and len(rows) > 1:
+        heard = asr_boundaries([r[0] for r in rows], words, [(r[1], r[2]) for r in rows])
+        for i in range(1, len(rows)):
+            hb, (ln, a, b, ce, mid), prev = heard[i], rows[i], rows[i - 1]
+            if not mid or hb is None:
+                continue
+            p = _near_pause(hb, sil)
+            s0, e0 = (p[1], p[0]) if p else (hb[0], hb[0])
+            if prev[1] + 0.3 < s0 < b - 0.3:  # 앞 줄 시작과 이 줄 끝 사이일 때만
+                rows[i - 1] = (prev[0], prev[1], e0, prev[3], prev[4])
+                rows[i] = (ln, s0, b, ce, mid)
+    out: list[Cue] = []
+    for ln, a, b, ce, _m in rows:
+        end = min(b, ce) if b >= ce else b - gap
+        out.append(Cue(index=len(out) + 1, start=round(a, 3), end=round(max(a + 0.3, end), 3), text=ln))
     for x, y in zip(out, out[1:], strict=False):  # 짧은 틈은 이어 띄우고, 겹치면 앞 자막을 줄인다
         if x.end <= y.start <= x.end + hold or x.end > y.start:
             x.end = round(max(x.start + 0.2, y.start - 0.02), 3)
@@ -485,6 +509,37 @@ def _chars(text: str) -> str:
     return "".join(_ASR_CHAR_RE.findall(text)).lower()
 
 
+# 인식기(whisper)의 단어 경계는 쉼 근처에서 흔들린다: 실제 쉼보다 0.3~0.8초 이르게(앞 단어 끝을 일찍 끊고 쉼을
+# 뒷 단어에 붙임), 가끔은 0.4초쯤 늦게 잡는다. 그래서 들린 시각 h에서 [쉼 시작-EARLY, 쉼 끝+LATE] 안의 쉼은 그
+# 경계의 쉼으로 본다.
+# 다만 짧은 쉼은 단어 안의 받침·된소리 닫힘('뭉|친')이거나 경계 다음 단어 뒤의 숨일 수도 있어서, 쉼 앞뒤로 두
+# 단어가 말할 시간이 남는 쉼만 경계로 본다(asr_boundaries가 주는 lo·hi).
+ASR_EARLY, ASR_LATE = 0.8, 0.5
+Heard = tuple[
+    float, float, float
+]  # (들린 시각, 쉼이 시작할 수 있는 가장 이른 때, 쉼이 끝날 수 있는 가장 늦은 때)
+
+
+def _pause_gap(hb: Heard, a: float, b: float) -> float:
+    """들린 경계 hb에서 쉼 (a, b)까지의 거리(인식기 흔들림 창 안이면 0). 두 단어 시간이 안 남으면 아주 멂(9)."""
+    h, lo, hi = hb
+    if a < lo or b > hi:
+        return 9.0
+    return max(0.0, (a - ASR_EARLY) - h, h - (b + ASR_LATE))
+
+
+def _near_pause(hb: Heard, silences: list[tuple[float, float]]) -> tuple[float, float] | None:
+    """들린 경계 hb의 쉼으로 볼 것(창 안에서 가장 가까운 것) 또는 None."""
+    h = hb[0]
+    best = None
+    for a, b in silences:
+        if _pause_gap(hb, a, b) == 0.0:
+            d = 0.0 if a <= h <= b else min(abs(h - a), abs(h - b))
+            if best is None or d < best[0]:
+                best = (d, a, b)
+    return (best[1], best[2]) if best else None
+
+
 def _band_match(S: list[str], ts: list[float], A: list[str], ta: list[float], win: float) -> list[int]:
     """대본 글자 S(어림 시각 ts)와 인식 글자 A(들린 시각 ta)를 순서대로 맞댄다(편집 거리 동적 계획법).
     대본 글자 i는 들린 시각이 ts[i]±win 안인 인식 글자하고만 맞댈 수 있다 — 같은 말이 되풀이돼도 엉뚱한
@@ -540,13 +595,14 @@ def asr_boundaries(
     approx: list[tuple[float, float]] | None = None,
     reach: int = 6,
     win: float = 10.0,
-) -> list[float | None]:
-    """대본 쉼 단위 글(texts) 사이 경계 k(1..n-1)마다 음성 인식이 들은 시각(없으면 None). 길이 n+1.
+) -> list[Heard | None]:
+    """대본 쉼 단위 글(texts) 사이 경계 k(1..n-1)마다 음성 인식이 들은 경계(Heard, 없으면 None). 길이 n+1.
 
     대본 글자와 인식한 글자를 맞대어 경계 앞뒤 글자가 들린 시각을 찾는다. approx(쉼 단위마다 쉼만으로 어림한
     (시작, 끝))가 있으면 그 시각 ±win초 안에서만 맞대고(_band_match), 없으면 difflib으로 전체를 맞댄다.
     경계가 두 단어 사이면 앞 단어 끝과 뒷 단어 시작의 가운데, 한 단어 안(띄어쓰기 차이)이면 그 글자 자리.
-    경계 앞뒤 reach 글자 안에 맞는 글자가 없으면(인식이 틀린 곳) None."""
+    경계 앞뒤 reach 글자 안에 맞는 글자가 없으면(인식이 틀린 곳) None.
+    lo·hi: 경계 앞 단어 시작 + 그 글자 수만큼 말할 최소 시간, 뒷 단어 끝 - 그 최소 시간(글자당 평균 시간의 절반)."""
     S: list[str] = []
     ts: list[float] = []
     pos: list[int] = []
@@ -574,7 +630,12 @@ def asr_boundaries(
         for a, b, size in difflib.SequenceMatcher(None, S, A, autojunk=False).get_matching_blocks():
             for i in range(size):
                 m[a + i] = b + i
-    out: list[float | None] = [None] * (len(texts) + 1)
+    first: dict[int, int] = {}  # 단어 번호 → 그 단어 첫 인식 글자 번호
+    for j, (_s, _e, wi) in enumerate(at):
+        first.setdefault(wi, j)
+    span = sum(we - ws for _w, ws, we in words)
+    per = 0.5 * span / (len(A) or 1)  # 글자 하나 말할 최소 시간(평균의 절반)
+    out: list[Heard | None] = [None] * (len(texts) + 1)
     for k in range(1, len(texts)):
         p = pos[k]
         left = next((i for i in range(p - 1, max(-1, p - 1 - reach), -1) if m[i] >= 0), None)
@@ -582,13 +643,19 @@ def asr_boundaries(
         if left is None and right is None:
             continue
         if left is None or right is None:
-            out[k] = at[m[right]][0] if left is None else at[m[left]][1]
+            h = at[m[right]][0] if left is None else at[m[left]][1]
+            out[k] = (h, h - 2.0, h + 2.0)
             continue
-        la, ra = at[m[left]], at[m[right]]
-        if ra[2] != la[2]:  # 두 단어 사이
-            out[k] = (words[la[2]][2] + words[ra[2]][1]) / 2
-        else:
-            out[k] = la[1]
+        li, ri = m[left], m[right]
+        wl, wr = at[li][2], at[ri][2]
+        if wr != wl:  # 두 단어 사이
+            h = (words[wl][2] + words[wr][1]) / 2
+            nl, nr = len(_chars(words[wl][0])), len(_chars(words[wr][0]))
+            out[k] = (h, words[wl][1] + per * nl, words[wr][2] - per * nr)
+        else:  # 한 단어 안(띄어쓰기 차이)
+            nb = li - first[wl] + 1
+            na = len(_chars(words[wl][0])) - nb
+            out[k] = (at[li][1], words[wl][1] + per * nb, words[wl][2] - per * na)
     return out
 
 
@@ -630,7 +697,7 @@ def align(
     kinds = [""] + ["sent" if flat[k - 1][0] != flat[k][0] else flat[k - 1][3] for k in range(1, n)]
     cands = [(speech_before((a + b) / 2), a, b) for a, b in inner]
     J = len(cands)
-    heard: list[float | None] = [None] * (n + 1)
+    heard: list[Heard | None] = [None] * (n + 1)
     if (
         words
     ):  # 쉼만으로 먼저 어림한 시각 근처에서 인식 결과를 맞댄다(같은 말이 되풀이돼도 엉뚱한 곳에 안 붙게)
@@ -639,9 +706,9 @@ def align(
         if len(approx) == n:
             heard = asr_boundaries([t for _s, _p, t, _k in flat], words, approx)
 
-    def far(k: int, j: int) -> float:  # 경계 k의 들린 시각에서 쉼 j까지 거리(쉼 안이면 0)
-        h = heard[k]
-        return 0.0 if h is None else max(0.0, cands[j - 1][1] - h, h - cands[j - 1][2])
+    def far(k: int, j: int) -> float:  # 경계 k의 들린 시각에서 쉼 j까지 거리(_near_pause 창 안이면 0)
+        hb = heard[k]
+        return 0.0 if hb is None else _pause_gap(hb, cands[j - 1][1], cands[j - 1][2])
 
     miss_c = {"sent": 1.2, "comma": 0.5, "none": 0.15}
     skip = [0.15 + 1.2 * max(0.0, (b - a) - 0.35) for _sp, a, b in cands]
@@ -717,9 +784,9 @@ def align(
         prev = lo
         for k in range(ka + 1, kb):
             t = absolute(sa + (sb - sa) * (cum[k] - cum[ka]) / ((cum[kb] - cum[ka]) or 1.0))
-            h = heard[k]
-            if h is not None and lo < h < hi:
-                t = h
+            hb = heard[k]
+            if hb is not None and lo < hb[0] < hi:
+                t = hb[0]
             t = min(max(t, prev + 0.05), hi - 0.05) if hi - prev > 0.1 else t
             bounds[k] = (t, t)
             prev = t

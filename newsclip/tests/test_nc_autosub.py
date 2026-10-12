@@ -249,7 +249,8 @@ def test_asr_boundaries_between_and_inside_words():
     words = [("가나다", 0.0, 0.5), ("라마", 0.5, 1.0), ("바사아자", 1.4, 2.2), ("차카", 2.6, 3.0)]
     h = asr_boundaries(texts, words)
     assert h[0] is None and h[3] is None
-    assert h[1] == (1.0 + 1.4) / 2  # 두 단어 사이 → 앞 끝과 뒤 시작의 가운데
-    assert h[2] == (2.2 + 2.6) / 2
+    assert h[1][0] == (1.0 + 1.4) / 2  # 두 단어 사이 → 앞 끝과 뒤 시작의 가운데
+    assert h[2][0] == (2.2 + 2.6) / 2
+    assert h[1][1] > 0.5 and h[1][2] < 2.2  # 쉼은 '라마'를 말할 시간 뒤, '바사아자'를 말할 시간 앞이어야
     h2 = asr_boundaries(["가나다 라마 바사", "아자"], [("가나다라마바사아자", 0.0, 1.8)])
-    assert abs(h2[1] - 1.4) < 1e-9  # 한 단어 안(띄어쓰기 차이) → 그 글자 자리
+    assert abs(h2[1][0] - 1.4) < 1e-9  # 한 단어 안(띄어쓰기 차이) → 그 글자 자리
