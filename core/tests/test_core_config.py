@@ -80,3 +80,30 @@ def test_kst_fallback_without_tz_database():
     tz = load_kst(missing)  # type: ignore[arg-type]
     assert tz.utcoffset(None) == timedelta(hours=9)
     assert load_kst().utcoffset(datetime(2026, 7, 1)) == timedelta(hours=9)
+
+
+def test_second_channel_uses_its_own_files(tmp_path, monkeypatch):
+    """STUDIO_CHANNEL=stock이면 channel.stock.yaml·data-stock/·projects-stock/ — 정치 채널과 섞이지 않는다."""
+    from pathlib import Path
+
+    from studio_core.config import ChannelConfig, Settings
+
+    monkeypatch.delenv("STUDIO_CHANNEL", raising=False)
+    s = Settings(root=tmp_path)
+    assert (s.channel_path.name, s.data_dir.name, s.projects_dir.name) == ("channel.yaml", "data", "projects")
+    monkeypatch.setenv("STUDIO_CHANNEL", "Stock")
+    assert (s.channel_path.name, s.data_dir.name, s.projects_dir.name) == (
+        "channel.stock.yaml",
+        "data-stock",
+        "projects-stock",
+    )
+    monkeypatch.setenv("STUDIO_CHANNEL", "../x")  # 경로 문자 제거
+    assert s.channel == "x"
+    import yaml
+
+    repo = Path(__file__).resolve().parents[2]
+    cfg = ChannelConfig.model_validate(
+        yaml.safe_load((repo / "channel.stock.yaml").read_text(encoding="utf-8"))
+    )
+    assert cfg.channel.profile == "stock" and cfg.channel.name and cfg.communities and cfg.sources.rss
+    assert "투자 권유가 아니며" in cfg.script.outro

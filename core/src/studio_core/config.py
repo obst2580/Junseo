@@ -106,6 +106,8 @@ class ChannelSection(BaseModel):
     """channel.yaml의 channel 섹션."""
 
     youtube_channel_id: str = ""
+    name: str = ""  # 채널 이름(화면 표시용)
+    profile: str = "politics"  # 대본·주제 규칙 묶음: politics(진보 정치) | stock(증시 뉴스)
     stance: str = ""
     categories: list[str] = Field(
         default_factory=lambda: ["국회", "정부", "사법", "선거", "외교안보", "국제", "경제", "노동", "복지"]
@@ -193,9 +195,14 @@ class Settings:
     root: Path
 
     @property
+    def channel(self) -> str:
+        """채널 이름(STUDIO_CHANNEL). 비우면 기본 채널(channel.yaml·data/·projects/)."""
+        return re.sub(r"[^a-z0-9_-]", "", os.environ.get("STUDIO_CHANNEL", "").strip().lower())
+
+    @property
     def data_dir(self) -> Path:
-        """data/ 디렉터리."""
-        return self.root / "data"
+        """data/ 디렉터리(다른 채널은 data-<채널>/ — 수집한 글·기사가 섞이지 않게)."""
+        return self.root / (f"data-{self.channel}" if self.channel else "data")
 
     @property
     def db_path(self) -> Path:
@@ -204,8 +211,8 @@ class Settings:
 
     @property
     def projects_dir(self) -> Path:
-        """projects/ 디렉터리."""
-        return self.root / "projects"
+        """projects/ 디렉터리(다른 채널은 projects-<채널>/)."""
+        return self.root / (f"projects-{self.channel}" if self.channel else "projects")
 
     @property
     def logs_dir(self) -> Path:
@@ -214,8 +221,8 @@ class Settings:
 
     @property
     def channel_path(self) -> Path:
-        """channel.yaml 경로."""
-        return self.root / "channel.yaml"
+        """channel.yaml 경로(다른 채널은 channel.<채널>.yaml)."""
+        return self.root / (f"channel.{self.channel}.yaml" if self.channel else "channel.yaml")
 
     def env(self, key: str, default: str = "") -> str:
         """환경변수 조회(빈 문자열은 미설정으로 본다)."""

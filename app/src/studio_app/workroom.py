@@ -21,6 +21,7 @@ import asyncio
 import hashlib
 import html as htmllib
 import json
+import os
 import re
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -157,8 +158,13 @@ async def collect(out: Path, hours: int = 24) -> dict:
         for s in sorted(news, key=lambda s: s.published_at, reverse=True)
         if s.url
     ]
-    # 커뮤니티 화제와 겹치는 기사는 본문까지 받는다(대본의 사실 근거)
-    want = set(related_articles(posts, articles, set(cfg.clustering.generic_tokens), BODY_ARTICLES))
+    # 커뮤니티 화제와 겹치는 기사는 본문까지 받는다(대본의 사실 근거). 증시 채널은 주제를 기사로 정하므로
+    # 최근 기사(시황·종목)도 본문을 받는다 — 숫자(지수·수급·환율)는 본문에 있다.
+    related = related_articles(posts, articles, set(cfg.clustering.generic_tokens), BODY_ARTICLES)
+    if cfg.channel.profile == "stock":
+        want = set(related[: BODY_ARTICLES // 3]) | {a["id"] for a in articles[: BODY_ARTICLES]}
+    else:
+        want = set(related)
     sem = asyncio.Semaphore(4)
     async with make_client() as client:
 
@@ -496,6 +502,11 @@ def _load_project(path: Path) -> dict:
 def main() -> None:
     """CLI."""
     ap = argparse.ArgumentParser(prog="studio_app.workroom")
+    ap.add_argument(
+        "--channel",
+        default="",
+        help="다른 채널(예: stock → channel.stock.yaml·data-stock/·projects-stock/). 비우면 기본 채널",
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("collect")
     c.add_argument("--out", type=Path, required=True)
@@ -520,6 +531,8 @@ def main() -> None:
     r.add_argument("--uploaded", type=Path, required=True, help="{올린 로컬 경로: 자산 ID} JSON")
     r.add_argument("--previous", type=Path)
     a = ap.parse_args()
+    if a.channel:
+        os.environ["STUDIO_CHANNEL"] = a.channel
     if a.cmd == "collect":
         meta = asyncio.run(collect(a.out, a.hours))
         print(

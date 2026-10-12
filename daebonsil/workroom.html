@@ -101,6 +101,8 @@ label.field { display: grid; gap: 4px; font-size: 13.5px; color: var(--ink-2); }
 .trow input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); }
 .rank { color: var(--accent); font-weight: 800; margin-right: 4px; font-family: var(--mono); }
 .tname { font-weight: 700; }
+.chsel { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin: 0 10px; }
+.chsel select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
 .heat { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .stance { margin-top: 4px; }
 .stance .tag { font-size: 11.5px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px; margin-right: 6px; }
@@ -179,8 +181,8 @@ footer { font-size: 13px; color: var(--muted); }
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>제작실</h1><span class="by">studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지</span></div>
-    <p class="lede">진보 진영 편에 서는 채널의 영상을 만듭니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.</p>
+    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="stock">증시뉴스 김시연 팀장</option></select></label><span class="by" id="by"></span></div>
+    <p class="lede" id="lede"></p>
     <div class="row" id="status"></div>
   </header>
 
@@ -208,7 +210,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div id="bundles-wrap" hidden><h3>10분 묶음 추천</h3><div class="bundles" id="bundles" style="margin-top:8px"></div></div>
     <div id="topics-wrap" hidden>
       <h3>주제 <span class="small muted" id="tcount"></span></h3>
-      <p class="small muted" style="margin:2px 0 6px">하나를 고르면 <b>3분 단독</b>, 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 채널은 진보 진영 편이라 <b>상대 비판·우리 편 방어</b> 주제가 앞에 오고, <b>진영 내부</b> 갈등은 뒤에 둡니다.</p>
+      <p class="small muted" style="margin:2px 0 6px" id="pickhint">하나를 고르면 <b>3분 단독</b>, 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 채널은 진보 진영 편이라 <b>상대 비판·우리 편 방어</b> 주제가 앞에 오고, <b>진영 내부</b> 갈등은 뒤에 둡니다.</p>
       <div class="tlist" id="topics"></div>
     </div>
     <div class="pickbar" id="pickbar" hidden>
@@ -298,6 +300,17 @@ const ls = {
   get(k, d) { try { const v = localStorage.getItem('workroom:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
   set(k, v) { try { localStorage.setItem('workroom:' + k, JSON.stringify(v)); } catch (e) { /* 저장 못 해도 동작 */ } },
 };
+/* ---------- 채널(정치 / 증시) — 같은 제작실에서 바꿔 쓴다. 수집·주제·프로젝트 데이터는 채널마다 따로 ---------- */
+const CHANNELS = {
+  politics: { name: '정치는푸르다', prefix: '', by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
+    lede: '진보 진영 편에 서는 채널의 영상을 만듭니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
+  stock: { name: '증시뉴스 김시연 팀장', prefix: 'stock_', by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
+    lede: '증시 뉴스 채널의 영상을 만듭니다. 주제는 <b>증시 기사</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로 고르고, 주식 게시판 반응은 짧게 곁들입니다. 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
+};
+const CH = CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
+const STOCK = CH === 'stock';
+const COL = n => CHANNELS[CH].prefix + n;  // raw → stock_raw, topics → stock_topics, projects → stock_projects
+const lsk = k => (CH === 'politics' ? k : `${k}:${CH}`);  // 채널마다 따로 기억할 것(열어 둔 프로젝트 등)
 function toast(msg, bad = false) {
   const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (bad ? ' bad' : '');
   clearTimeout(toast._t); toast._t = setTimeout(() => { t.className = 'toast'; }, bad ? 5200 : 2400);
@@ -319,8 +332,8 @@ let db = null, sample = null, assets = null, downloads = null, comments = null;
 let known = false;
 const S = {
   worker: { ...WORKER }, meta: null, posts: [], articles: [], topics: null,
-  projects: [], pid: ls.get('pid', null), project: null,
-  picked: [], siteOff: new Set(ls.get('siteoff', [])), tab: null, audioFile: null,
+  projects: [], pid: ls.get(lsk('pid'), null), project: null,
+  picked: [], siteOff: new Set(ls.get(lsk('siteoff'), [])), tab: null, audioFile: null,
 };
 let ctl = null; // 진행 중인 Claude 호출
 
@@ -389,7 +402,7 @@ async function loadRaw(meta) {
   if (!meta || meta.collected_at === rawStamp) return;
   rawStamp = meta.collected_at;
   const get = async (k, n) => {
-    const docs = await Promise.all(Array.from({ length: n || 0 }, (_, i) => db.doc(`raw/${k}-${i + 1}`).get()));
+    const docs = await Promise.all(Array.from({ length: n || 0 }, (_, i) => db.doc(`${COL('raw')}/${k}-${i + 1}`).get()));
     return docs.flatMap(d => (d.exists ? d.data()[k] || [] : []));
   };
   try {
@@ -398,9 +411,9 @@ async function loadRaw(meta) {
   } catch (e) { toast('수집 데이터를 읽지 못했습니다. 새로 고침해 주세요.', true); }
   renderTopics();
 }
-const heatOf = posts => {
+const heatOf = (posts, arts = 0) => {  // arts: 증시 채널은 그 이슈를 다룬 기사 수도 화제성에 넣는다
   const n = posts.length, c = posts.reduce((a, p) => a + (p.comments || 0), 0), v = posts.reduce((a, p) => a + (p.votes || 0), 0);
-  return { n, c, v, score: Math.min(100, Math.round(100 * Math.log1p(n + c / 20 + v / 10) / Math.log1p(30))) };
+  return { n, c, v, a: arts, score: Math.min(100, Math.round(100 * Math.log1p(arts * 2 + n + c / 20 + v / 10) / Math.log1p(30))) };
 };
 const postWeight = p => 1 + (p.votes || 0) / 10 + (p.comments || 0) / 40;
 const activePosts = () => S.posts.filter(p => !S.siteOff.has(p.site));
@@ -415,25 +428,28 @@ function renderSites() {
   }).join('');
   $$('[data-site]').forEach(b => b.onclick = () => {
     const n = b.dataset.site; if (S.siteOff.has(n)) S.siteOff.delete(n); else S.siteOff.add(n);
-    ls.set('siteoff', [...S.siteOff]); renderSites(); renderTopics();
+    ls.set(lsk('siteoff'), [...S.siteOff]); renderSites(); renderTopics();
   });
 }
 
 /* ---------- 1. 주제 묶기(Claude) ---------- */
 function groupPrompt() {
-  const m = S.meta, posts = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 120);
+  const m = S.meta, posts = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, STOCK ? 60 : 120);
   const pmap = {}, amap = {};
   const P = posts.map((p, i) => { const id = 'p' + (i + 1); pmap[id] = p.id; return {
     id, site: p.site, title: p.title, comments: p.comments, votes: p.votes, body: (p.body || '').slice(0, 150),
     top_comments: (p.top_comments || []).slice(0, 3).map(c => ({ text: c.text.slice(0, 100), votes: c.votes })) }; });
-  const A = S.articles.slice(0, 260).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id; return { id, title: a.title }; });
+  // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만)
+  const A = S.articles.slice(0, STOCK ? 200 : 260).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
+    return STOCK ? { id, source: a.source, title: a.title, summary: (a.summary || '').slice(0, 120) } : { id, title: a.title }; });
   const text = [m.rules.identity, m.rules.group_task,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
-    '{"topics":[{"id":"t1","name":"…","category":"…","angle":"상대 비판","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}',
+    `{"topics":[{"id":"t1","name":"…","category":"…","angle":"${angles()[0]}","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}`,
     '', 'posts:', JSON.stringify(P), '', 'articles:', JSON.stringify(A)].join('\n');
   return { text, pmap, amap };
 }
 const ANGLES = ['상대 비판', '우리 편 방어', '진영 내부'];
+const angles = () => (S.meta && S.meta.rules && Array.isArray(S.meta.rules.angles) && S.meta.rules.angles.length ? S.meta.rules.angles : ANGLES);
 /* 채널 규칙이 바뀌었는지(주제 묶음·대본을 만든 때의 규칙과 지금 규칙 비교) */
 function hashKey(parts) {
   const t = parts.join('|');
@@ -448,7 +464,7 @@ const angleBadge = a => !a ? '' : a === '진영 내부' ? '<span class="badge wa
 const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
 async function runGroup() {
   if (!claudeOk() || ctl || !S.meta) return;
-  if (!S.posts.length) { toast('수집된 글이 없습니다. [새로 모으기]를 먼저 눌러 주세요.', true); return; }
+  if (!(STOCK ? S.articles.length : S.posts.length)) { toast(`수집된 ${STOCK ? '기사' : '글'}가 없습니다. [새로 모으기]를 먼저 눌러 주세요.`, true); return; }
   const { text, pmap, amap } = groupPrompt();
   ctl = new AbortController();
   $('#group').disabled = true; $('#group-stop').hidden = false; $('#group-msg').innerHTML = '';
@@ -459,17 +475,19 @@ async function runGroup() {
     const topics = [];
     for (const t of (res && Array.isArray(res.topics) ? res.topics : [])) {
       const post_ids = [...new Set(strList(t.post_ids, 40).map(x => pmap[x]).filter(Boolean))];
-      if (!post_ids.length || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
-      const article_ids = [...new Set(strList(t.article_ids, 6).map(x => amap[x]).filter(Boolean))];
-      const angle = ANGLES.includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '';
+      const article_ids = [...new Set(strList(t.article_ids, STOCK ? 8 : 6).map(x => amap[x]).filter(Boolean))];
+      // 정치는 커뮤니티 글이 있어야 주제, 증시는 기사만 있어도 주제
+      if (!(STOCK ? article_ids.length : post_ids.length) || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
+      const angle = angles().includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '';
       topics.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(), angle,
         post_ids, article_ids, stance: String(t.stance).trim(), points: strList(t.points, 4),
         minority: String(t.minority || '').trim() || null, questions: strList(t.questions, 2),
-        heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean)) });
+        heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean), STOCK ? article_ids.length : 0) });
     }
     if (!topics.length) throw { code: 'invalid_json' };
     // 진보 채널이 다루기 좋은 주제(상대 비판·우리 편 방어)를 앞에, 진영 내부 갈등은 뒤로
-    topics.sort((a, b) => (a.angle === '진영 내부') - (b.angle === '진영 내부') || b.heat.score - a.heat.score);
+    // 증시는 Claude가 매긴 순서(시장 영향이 큰 순)를 그대로 쓴다
+    if (!STOCK) topics.sort((a, b) => (a.angle === '진영 내부') - (b.angle === '진영 내부') || b.heat.score - a.heat.score);
     topics.forEach((t, i) => { t.id = 'T' + (i + 1); });
     const keyToId = Object.fromEntries(topics.map(t => [t.key, t.id]));
     const bundles = [];
@@ -481,7 +499,7 @@ async function runGroup() {
     const doc = { made_at: new Date().toISOString(), raw_at: S.meta.collected_at, rules_key: rulesKey(), sites_off: [...S.siteOff], topics, bundles: bundles.slice(0, 3) };
     S.topics = doc; S.picked = [];
     renderTopics();
-    try { await db.doc('topics/current').set(doc); } catch (e) { toast('주제를 저장하지 못했습니다(화면에는 남아 있음).', true); }
+    try { await db.doc(`${COL('topics')}/current`).set(doc); } catch (e) { toast('주제를 저장하지 못했습니다(화면에는 남아 있음).', true); }
     $('#group-state').textContent = `주제 ${topics.length}개로 묶었습니다`;
   } catch (e) {
     $('#group-state').textContent = '';
@@ -495,8 +513,9 @@ function renderTopics() {
   renderSites();
   const m = S.meta;
   $('#raw-meta').innerHTML = m
-    ? `최근 24시간 커뮤니티 글 <b>${activePosts().length}</b>개 · 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
-    : '아직 모은 글이 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 커뮤니티·뉴스를 모읍니다.';
+    ? (STOCK ? `최근 24시간 증시 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · 주식 게시판 글 <b>${activePosts().length}</b>개 · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
+      : `최근 24시간 커뮤니티 글 <b>${activePosts().length}</b>개 · 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`)
+    : `아직 모은 ${STOCK ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스·주식 게시판' : '커뮤니티·뉴스'}를 모읍니다.`;
   const T = S.topics;
   const fresh = T && m && T.raw_at === m.collected_at;
   $('#group').textContent = T ? (fresh ? 'Claude로 다시 묶기' : '새 글로 다시 묶기') : 'Claude로 주제 묶기·의견 정리';
@@ -504,12 +523,14 @@ function renderTopics() {
   if (!T || !T.topics.length) {
     $('#topics-wrap').hidden = true; $('#bundles-wrap').hidden = true; $('#pickbar').hidden = true;
     const top = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 8);
+    if (STOCK) { const ar = S.articles.slice(0, 8); $('#topics-empty').innerHTML = ar.length ? `<div class="note info"><b class="t">최근 증시 기사</b>Claude가 기사를 이슈로 묶고, 이슈마다 핵심 숫자와 원인을 정리합니다.</div>
+      <ul class="postlist" style="margin-top:8px">${ar.map(a => `<li><span class="num">${esc(when(a.time).split(' ').pop())}</span><span>${esc(a.title)} <span class="small muted">${esc(a.source)}</span></span></li>`).join('')}</ul>` : ''; return; }
     $('#topics-empty').innerHTML = top.length ? `<div class="note info"><b class="t">반응 큰 글</b>Claude가 이 글들을 주제로 묶고 커뮤니티 의견을 정리합니다.</div>
       <ul class="postlist" style="margin-top:8px">${top.map(p => `<li><span class="num">댓글 ${p.comments}${p.votes ? `<br>공감 ${p.votes}` : ''}</span><span>${esc(p.title)} <span class="small muted">${esc(p.site)}</span></span></li>`).join('')}</ul>` : '';
     return;
   }
   const oldRules = T.rules_key !== rulesKey();
-  $('#topics-empty').innerHTML = oldRules ? '<div class="note warn"><b class="t">채널 규칙이 바뀌었습니다</b>이 주제 묶음은 바뀌기 전 규칙으로 정리한 것입니다. <b>[Claude로 다시 묶기]</b>를 누르면 진보 진영 편 관점으로 다시 정리합니다.</div>'
+  $('#topics-empty').innerHTML = oldRules ? '<div class="note warn"><b class="t">채널 규칙이 바뀌었습니다</b>이 주제 묶음은 바뀌기 전 규칙으로 정리한 것입니다. <b>[Claude로 다시 묶기]</b>를 누르면 지금 채널 규칙으로 다시 정리합니다.</div>'
     : fresh ? '' : `<div class="note warn">이 주제는 ${esc(when(T.raw_at))} 수집분으로 묶은 것입니다. 새로 모은 글을 반영하려면 <b>[새 글로 다시 묶기]</b>를 누르세요.</div>`;
   const byId = Object.fromEntries(T.topics.map(t => [t.id, t]));
   const bl = T.bundles.filter(b => b.topic_ids.every(i => byId[i]));
@@ -520,7 +541,7 @@ function renderTopics() {
   const postsById = Object.fromEntries(S.posts.map(p => [p.id, p]));
   const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
   $('#topics-wrap').hidden = false;
-  $('#tcount').textContent = `${T.topics.length}개 · 커뮤니티 반응도 순`;
+  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : '커뮤니티 반응도 순'}`;
   $('#topics').innerHTML = T.topics.map((t, i) => {
     const on = S.picked.includes(t.id), order = S.picked.indexOf(t.id) + 1;
     const posts = t.post_ids.map(x => postsById[x]).filter(Boolean);
@@ -528,10 +549,10 @@ function renderTopics() {
     const sites = [...new Set(posts.map(p => p.site))].join('·');
     return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
       <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
-      <div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>
-      <div class="stance"><span class="tag">커뮤니티 주장</span>${esc(t.stance)}</div>
+      <div class="heat">${STOCK ? '화제성' : '반응도'} ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>
+      <div class="stance"><span class="tag">${STOCK ? '핵심' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      ${t.minority ? `<div class="small muted">소수 의견: ${esc(t.minority)}</div>` : ''}
+      ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
       ${t.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(t.questions.join(' / '))}</div>` : ''}
       <details class="ev"><summary>근거 보기 · 글 ${posts.length} · 기사 ${arts.length}</summary>
         <ul>${posts.map(p => `<li>[${esc(p.site)} · 댓글 ${p.comments}${p.votes ? ` · 공감 ${p.votes}` : ''}] ${esc(p.title)}${(p.top_comments || []).slice(0, 2).map(c => `<br><span class="muted">└ [공감 ${c.votes}] ${esc(c.text)}</span>`).join('')}</li>`).join('')}</ul>
@@ -577,14 +598,14 @@ async function makeProject(fmt, link = '') {
       articles: t.article_ids.map(x => artById[x]).filter(Boolean).map(a => ({ url: a.url, time: a.time, title: a.title, source: a.source, text: a.body || a.summary || '' })) };
   });
   const doc = { id, created_at: new Date().toISOString(), format: fmt, rules_key: rulesKey(), topics, link: fmt === 'long' ? link : '', titles: [], thumb: '', script: '', script_by: '', status: 'script' };
-  try { await db.doc(`projects/${id}`).set(doc); } catch (e) { toast('프로젝트를 저장하지 못했습니다: ' + (e.code || ''), true); return; }
+  try { await db.doc(`${COL('projects')}/${id}`).set(doc); } catch (e) { toast('프로젝트를 저장하지 못했습니다: ' + (e.code || ''), true); return; }
   S.picked = []; selectProject(id, doc); setTab('script');
 }
 let projUnsub = null;
 function selectProject(id, initial) {
   if (projUnsub) { projUnsub(); projUnsub = null; }
-  S.pid = id; ls.set('pid', id); S.project = initial || null; S.audioFile = null;
-  if (id && db) projUnsub = db.doc(`projects/${id}`).onSnapshot(snap => {
+  S.pid = id; ls.set(lsk('pid'), id); S.project = initial || null; S.audioFile = null;
+  if (id && db) projUnsub = db.doc(`${COL('projects')}/${id}`).onSnapshot(snap => {
     if (!snap.exists) { if (S.pid === id) { S.project = null; renderAll(); } return; }
     const d = snap.data();
     const mine = S.project;
@@ -605,7 +626,7 @@ function queueSave(fields) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const p = S.project;
-    try { await db.doc(`projects/${p.id}`).update({ script: p.script, script_by: p.script_by || '', titles: p.titles, thumb: p.thumb, link: p.link || '' }); $('#save-state').textContent = '저장됨'; }
+    try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, script_by: p.script_by || '', titles: p.titles, thumb: p.thumb, link: p.link || '' }); $('#save-state').textContent = '저장됨'; }
     catch (e) { $('#save-state').textContent = '저장 실패 — 다시 고치면 다시 저장합니다'; }
     finally { pendingSave = false; }
   }, 1200);
@@ -934,7 +955,7 @@ async function onAudio(file) {
       } catch (e) { audio.asset_id = null; upNote = `음성을 올리지 못해 쉼만으로 맞춥니다(${esc(e.message || e.code || '알 수 없음')}).`; }
     } else { audio.asset_id = null; upNote = '이 화면에서는 음성을 올릴 수 없어 쉼만으로 맞춥니다(편집 권한이 있는 계정으로 열어 주세요).'; }
     S.project.audio = audio;
-    await db.doc(`projects/${S.project.id}`).update({ audio, status: 'voice' });
+    await db.doc(`${COL('projects')}/${S.project.id}`).update({ audio, status: 'voice' });
     if (old && old !== audio.asset_id && assets) assets.delete(old).catch(() => {});
     $('#audio-state').innerHTML = audio.asset_id
       ? `<div class="note info">분석 끝 — 쉼 ${r.silences.length}곳. 음성 인식용 파일(${(audio.asset_bytes / 1048576).toFixed(1)}MB)도 올렸습니다. 자료를 모을 때 작업자가 음성을 듣고 자막 시각을 실제 말에 맞춥니다.</div>`
@@ -981,7 +1002,8 @@ function watchRequest(slot, rid) {
 function workerMessage(rid, kind) {
   const w = S.worker || {};
   return [`[studio 제작실 요청] ${rid} · ${kind === 'collect' ? '수집' : '자료·timeline.xml'}`,
-    `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, S.project && kind !== 'collect' ? `프로젝트: projects/${S.project.id}` : '',
+    `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, STOCK ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
+    S.project && kind !== 'collect' ? `프로젝트: ${COL('projects')}/${S.project.id}` : '',
     '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
 }
 // 작업자 깨우기: 이 아티팩트 댓글을 "Claude에게 보내기"로 남기면, 제작실을 지켜보는 작업자 대화가 깨어난다.
@@ -1003,7 +1025,7 @@ async function refreshSend() {
 async function requestWork(kind, el) {
   if (!db) { toast('저장소를 쓸 수 없는 화면입니다.', true); return null; }
   const k = kst(), rid = `${k.y}${k.mo}${k.d}-${k.h}${k.mi}-${kind}-${Math.random().toString(36).slice(2, 6)}`;
-  const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '' };
+  const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '', channel: CH };
   const msg = workerMessage(rid, kind);
   // 누른 직후에만 보낼 수 있어서, 요청 문서 저장과 보내기를 함께 시작한다(작업자는 깨어난 뒤 문서를 읽는다).
   let why = 'no_comments', send = null;
@@ -1032,7 +1054,7 @@ $('#collect').onclick = async () => {
   const r = await requestWork('collect', $('#collect'));
   $('#collect').disabled = false;
   if (!r) return;
-  ls.set('collect_req', r.rid); watchRequest('collect', r.rid);
+  ls.set(lsk('collect_req'), r.rid); watchRequest('collect', r.rid);
   if (!r.sent) fallbackBox($('#collect-state'), r); else { $('#collect-state').innerHTML = ''; toast('작업자에게 수집을 맡겼습니다'); }
   renderCollect();
 };
@@ -1077,7 +1099,7 @@ async function sweepAssets(p) {
         await new Promise(ok => setTimeout(ok, 1500));
       }
     }
-    await db.doc(`projects/${p.id}`).update({ result: { cleanup: [] } });
+    await db.doc(`${COL('projects')}/${p.id}`).update({ result: { cleanup: [] } });
     if (S.project && S.project.id === p.id && S.project.result) S.project.result.cleanup = [];
   } catch (e) { /* 다음에 다시 */ } finally { sweeping = false; }
 }
@@ -1085,12 +1107,12 @@ $('#src-go').onclick = async () => {
   const p = S.project;
   sweepAssets(p);
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
-  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`projects/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '' }); } catch (e) { /* 다음에 */ } pendingSave = false; }
+  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '' }); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
   const r = await requestWork('sources', $('#src-go'));
   $('#src-go').disabled = false;
   if (!r) return;
-  try { await db.doc(`projects/${p.id}`).update({ request_id: r.rid, status: 'requested' }); } catch (e) { /* 무시 */ }
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ request_id: r.rid, status: 'requested' }); } catch (e) { /* 무시 */ }
   watchRequest('sources', r.rid);
   if (!r.sent) fallbackBox($('#fallback'), r); else { $('#fallback').hidden = true; toast('작업자에게 자료 모으기를 맡겼습니다'); }
 };
@@ -1171,7 +1193,7 @@ async function makeZip() {
     sweepAssets(p);
     st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
     if (lost.length) st.innerHTML = `<div class="note bad"><b class="t">파일 ${lost.length}개를 받지 못해 압축에 빠졌습니다</b>프리미어에서 이 파일들은 '오프라인'으로 보입니다: ${esc(lost.slice(0, 8).join(', '))}${lost.length > 8 ? ' 외' : ''}. [자료 모으고 timeline.xml 만들기]를 다시 눌러 주세요.</div>`;
-    try { await db.doc(`projects/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
+    try { await db.doc(`${COL('projects')}/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
   } catch (e) {
     const code = e && e.code;
     st.textContent = code === 'declined' ? '저장을 취소했습니다' : code === 'rejected_extension' || code === 'extension_not_enabled' ? '이 화면에서는 압축 파일 저장이 막혀 있습니다.' : `압축 파일을 만들지 못했습니다(${code || e.message || '알 수 없음'}).`;
@@ -1192,6 +1214,9 @@ function renderProjects() {
 
 /* ---------- 시작 ---------- */
 renderStatus(); renderTopics(); renderTabs();
+if (STOCK) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>, 2~3개를 고르면 <b>10분 시황 브리핑</b>입니다. 고른 순서가 영상 순서입니다. 10분은 <b>시황</b> 이슈를 먼저 고르면 브리핑 흐름이 자연스럽습니다.';
+$('#channel').value = CH; $('#by').textContent = CHANNELS[CH].by; $('#lede').innerHTML = CHANNELS[CH].lede;
+$('#channel').onchange = e => { ls.set('channel', e.target.value); location.reload(); };
 setTab((location.hash || '').replace('#', '') || 'topics');
 (async () => {
   const c = window.claude;
@@ -1201,11 +1226,11 @@ setTab((location.hash || '').replace('#', '') || 'topics');
   await refreshSend();
   if (!db) return;
   db.doc('config/worker').onSnapshot(snap => { if (snap.exists) S.worker = { ...WORKER, ...snap.data() }; }, () => {});
-  db.doc('raw/meta').onSnapshot(snap => { S.meta = snap.exists ? snap.data() : null; renderStatus(); loadRaw(S.meta); renderTopics(); if (S.project) renderScript(); }, () => {});
-  db.doc('topics/current').onSnapshot(snap => { if (!ctl) { S.topics = snap.exists ? snap.data() : null; renderTopics(); } }, () => {});
-  db.collection('projects').orderBy('created_at', 'desc').limit(30).onSnapshot(q => { S.projects = q.docs.map(x => x.data()); renderProjects(); }, () => {});
+  db.doc(`${COL('raw')}/meta`).onSnapshot(snap => { S.meta = snap.exists ? snap.data() : null; renderStatus(); loadRaw(S.meta); renderTopics(); if (S.project) renderScript(); }, () => {});
+  db.doc(`${COL('topics')}/current`).onSnapshot(snap => { if (!ctl) { S.topics = snap.exists ? snap.data() : null; renderTopics(); } }, () => {});
+  db.collection(COL('projects')).orderBy('created_at', 'desc').limit(30).onSnapshot(q => { S.projects = q.docs.map(x => x.data()); renderProjects(); }, () => {});
   if (S.pid) selectProject(S.pid);
-  const cr = ls.get('collect_req', null); if (cr) watchRequest('collect', cr);
+  const cr = ls.get(lsk('collect_req'), null); if (cr) watchRequest('collect', cr);
 })();
 })();
 </script>

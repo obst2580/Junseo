@@ -89,10 +89,36 @@ def export_board(cfg: ChannelConfig, store: Store, board: Board) -> dict:
     }
 
 
+# 증시 채널: 투자 권유·수익 보장으로 들릴 말(대본 점검에서 경고), 근거 없이 뭉뚱그리기 쉬운 말
+STOCK_RISK = {
+    "legal_words": [
+        "사세요",
+        "파세요",
+        "담으세요",
+        "매수 추천",
+        "매도 추천",
+        "목표가",
+        "무조건",
+        "확실한 수익",
+        "급등 예정",
+        "리딩방",
+    ],
+    "legal_note": "투자 권유·수익 보장으로 들릴 표현은 빼기(사라·팔라·목표가·무조건) — 사실과 기사에 나온 전망만",
+    "poll_words": ["루머", "카더라", "찌라시"],
+    "poll_note": "게시판 루머는 사실로 말하지 않기 — 기사로 확인된 것만 단정",
+}
+STOCK_VAGUE_WORDS = ["호재", "악재", "모멘텀"]
+STOCK_VAGUE_MAX = 3
+
+
 def channel_rules(cfg: ChannelConfig) -> dict:
     """대본을 쓸 때 필요한 채널 규칙: 정체성·말투, 형식별 길이, Claude에 줄 규칙(프롬프트), 점검 기준."""
     cpm = cfg.script.chars_per_minute
+    prof = prompts.profile(cfg.channel.profile)
+    stock = cfg.channel.profile == "stock"
     return {
+        "profile": cfg.channel.profile,
+        "channel_name": cfg.channel.name,
         "stance": cfg.channel.stance,
         "tone": cfg.script.tone,
         "chars_per_minute": cpm,
@@ -108,23 +134,26 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             for k, f in FORMATS.items()
         },
         "rules": {
-            "identity": prompts.IDENTITY,
-            "opinion_task": prompts.OPINION_TASK,
-            "group_task": prompts.GROUP_TASK,
-            "plan_task": prompts.PLAN_TASK,
-            "script_rules": prompts.SCRIPT_RULES,
-            "structure_rules": prompts.SCRIPT_STRUCTURE_RULES,
-            "format_rules": prompts.FORMAT_SCRIPT_RULES,
+            "identity": prof["identity"],
+            "opinion_task": prof["opinion_task"],
+            "group_task": prof["group_task"],
+            "plan_task": prof["plan_task"],
+            "script_rules": prof["script_rules"],
+            "structure_rules": prof["structure_rules"],
+            "format_rules": prof["format_rules"],
+            "angles": prof["angles"],
             "tone_rules": tone_rules(cfg.script.tone),
             "thumb_max": THUMB_MAX,
             "line_limit": LINE_LIMIT,
             "banned": BANNED,
             "slang": SLANG,
             "outro": cfg.script.outro,
-            "vague_words": VAGUE_WORDS,
-            "vague_max": VAGUE_MAX,
+            "vague_words": STOCK_VAGUE_WORDS if stock else VAGUE_WORDS,
+            "vague_max": STOCK_VAGUE_MAX if stock else VAGUE_MAX,
             # 표시 전용 리스크(대본 규칙에 같이 넘긴다)
-            "risk": {
+            "risk": STOCK_RISK
+            if stock
+            else {
                 "legal_words": LEGAL_WORDS,
                 "legal_note": "수사·재판 진행 중: '확인된 사실'과 '의혹·주장'을 구분해 쓰고 확정 표현 금지",
                 "poll_words": POLL_WORDS,

@@ -158,3 +158,28 @@ def test_import_unknown_board_or_topic(board_env):
         pipeline.run_import(settings, cfg, store, {**sf, "board_id": "1999-01-01_000000"})
     with pytest.raises(KeyError):
         pipeline.run_import(settings, cfg, store, {**sf, "topic_ids": ["nope", sf["topic_ids"][0]]})
+
+
+def test_stock_profile_rules():
+    """증시 채널 규칙: 기사로 주제를 정하고, 애널리스트 말투, 투자 권유 표현을 점검한다."""
+    from studio_core.config import ChannelConfig
+    from topicradar import prompts
+    from topicradar.handoff import channel_rules
+
+    cfg = ChannelConfig.model_validate(
+        {
+            "channel": {"profile": "stock", "name": "증시뉴스"},
+            "script": {"tone": "애널리스트형", "outro": "끝"},
+        }
+    )
+    r = channel_rules(cfg)
+    assert r["profile"] == "stock" and r["channel_name"] == "증시뉴스"
+    rules = r["rules"]
+    assert rules["identity"] == prompts.STOCK_IDENTITY and "기사로 정한다" in rules["group_task"]
+    assert "숫자가 먼저" in rules["script_rules"] and "체크포인트" in rules["format_rules"]["long"]
+    assert rules["angles"] == ["시황", "종목", "정책거시", "해외"] and "애널리스트" in rules["tone_rules"]
+    assert "목표가" in rules["risk"]["legal_words"] and rules["vague_words"] != prompts.PROFILES[
+        "politics"
+    ].get("vague")
+    base = channel_rules(ChannelConfig())["rules"]  # 정치 채널은 그대로
+    assert base["identity"] == prompts.IDENTITY and base["angles"][0] == "상대 비판"

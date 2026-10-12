@@ -33,6 +33,22 @@ unset STUDIO_FIXTURES
 네이버·YouTube 키는 클라우드 환경 설정의 Environment variables에 있어야 합니다(없으면 사진·영상 검색을 건너뜁니다).
 키 값은 화면·파일·메시지 어디에도 적지 않습니다.
 
+## 채널(정치 / 증시)
+
+제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`) 그 채널입니다.
+
+| | 정치(기본, `channel` 없음) | 증시(`channel: "stock"`) |
+|---|---|---|
+| 설정 | `channel.yaml` | `channel.stock.yaml` |
+| 작업자 명령 | `uv run python -m studio_app.workroom …` | `uv run python -m studio_app.workroom --channel stock …` (모든 하위 명령) |
+| 아티팩트 데이터 | `raw/…`, `topics/current`, `projects/<ID>` | `stock_raw/…`, `stock_topics/current`, `stock_projects/<ID>` |
+| 로컬 폴더 | `data/`, `projects/` | `data-stock/`, `projects-stock/` |
+
+`requests/<ID>`와 `config/worker`는 두 채널이 함께 씁니다. 아래 절차의 `raw/`·`projects/`는 증시면 `stock_raw/`·`stock_projects/`로 읽습니다.
+증시 채널 장면 검색어: 종목은 회사 이름 + 본사·로고·CEO·제품, 시장 전체는 "한국거래소"·"여의도 증권가"·"코스피 지수 전광판",
+미국은 "뉴욕증권거래소"·"나스닥 전광판", 금리·환율은 "한국은행"·"원달러 환율 전광판"처럼 뉴스 사진 제목에 나올 말로.
+정치인 사진은 정책 발표 장면일 때만 씁니다.
+
 ## 공통
 
 0. 저장소 루트에서 `git pull origin claude/jolly-cerf-jlj0fw && uv sync`로 최신 작업자 코드를 받습니다.
