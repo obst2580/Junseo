@@ -105,5 +105,10 @@ def test_second_channel_uses_its_own_files(tmp_path, monkeypatch):
     cfg = ChannelConfig.model_validate(
         yaml.safe_load((repo / "channel.stock.yaml").read_text(encoding="utf-8"))
     )
-    assert cfg.channel.profile == "stock" and cfg.channel.name and cfg.communities and cfg.sources.rss
+    assert (
+        cfg.channel.profile == "stock"
+        and cfg.channel.name
+        and not cfg.communities
+        and len(cfg.sources.rss) >= 10
+    )
     assert "투자 권유가 아니며" in cfg.script.outro

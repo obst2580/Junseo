@@ -125,6 +125,9 @@ async def collect(out: Path, hours: int = 24) -> dict:
         report = await pipeline.run_collect(settings, cfg, store, since)
         start = now - timedelta(hours=hours)
         community = store.signals_between(start, now + timedelta(minutes=1), kinds={"community"})
+        # 지금 설정에 켜 둔 게시판 글만(커뮤니티를 안 쓰는 채널·꺼 둔 게시판의 예전 글이 섞이지 않게)
+        sites = {c.name for c in cfg.communities if c.enabled}
+        community = [s for s in community if s.metric.get("site", "") in sites]
         news = store.signals_between(
             now - timedelta(hours=hours + 6), now + timedelta(minutes=1), kinds={"domestic", "press"}
         )

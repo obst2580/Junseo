@@ -305,7 +305,7 @@ const CHANNELS = {
   politics: { name: '정치는푸르다', prefix: '', by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
     lede: '진보 진영 편에 서는 채널의 영상을 만듭니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
   stock: { name: '증시뉴스 김시연 팀장', prefix: 'stock_', by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
-    lede: '증시 뉴스 채널의 영상을 만듭니다. 주제는 <b>증시 기사</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로 고르고, 주식 게시판 반응은 짧게 곁들입니다. 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
+    lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
 };
 const CH = CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
 const STOCK = CH === 'stock';
@@ -434,19 +434,31 @@ function renderSites() {
 
 /* ---------- 1. 주제 묶기(Claude) ---------- */
 function groupPrompt() {
-  const m = S.meta, posts = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, STOCK ? 60 : 120);
+  // 증시는 뉴스만: 커뮤니티 글은 보내지 않는다
+  const m = S.meta, posts = STOCK ? [] : activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 120);
   const pmap = {}, amap = {};
   const P = posts.map((p, i) => { const id = 'p' + (i + 1); pmap[id] = p.id; return {
     id, site: p.site, title: p.title, comments: p.comments, votes: p.votes, body: (p.body || '').slice(0, 150),
     top_comments: (p.top_comments || []).slice(0, 3).map(c => ({ text: c.text.slice(0, 100), votes: c.votes })) }; });
-  // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만)
-  const A = S.articles.slice(0, STOCK ? 200 : 260).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
+  // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만). 마감 시황 기사를 앞에, 같은 제목 되풀이는 하나만
+  const A = (STOCK ? stockPick(S.articles, 260) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
     return STOCK ? { id, source: a.source, title: a.title, summary: (a.summary || '').slice(0, 120) } : { id, title: a.title }; });
   const text = [m.rules.identity, m.rules.group_task,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
     `{"topics":[{"id":"t1","name":"…","category":"…","angle":"${angles()[0]}","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}`,
-    '', 'posts:', JSON.stringify(P), '', 'articles:', JSON.stringify(A)].join('\n');
+    ...(STOCK ? [] : ['', 'posts:', JSON.stringify(P)]), '', 'articles:', JSON.stringify(A)].join('\n');
   return { text, pmap, amap };
+}
+const WRAP_RE = /마감|코스피|코스닥|뉴욕증시|나스닥|다우|환율|외국인|순매수|순매도/;
+function stockPick(arts, n) {  // 마감 시황·지수 기사 먼저, 그다음 최신 순 — 제목 앞 16자가 같은 기사(종합·속보 꼬리 무시)는 하나만
+  const seen = new Set(), out = [];
+  for (const a of [...arts.filter(x => WRAP_RE.test(x.title)), ...arts.filter(x => !WRAP_RE.test(x.title))]) {
+    const k = String(a.title || '').replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g, '').replace(/종합|속보|단독/g, '').slice(0, 16);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(a);
+    if (out.length >= n) break;
+  }
+  return out;
 }
 const ANGLES = ['상대 비판', '우리 편 방어', '진영 내부'];
 const angles = () => (S.meta && S.meta.rules && Array.isArray(S.meta.rules.angles) && S.meta.rules.angles.length ? S.meta.rules.angles : ANGLES);
@@ -513,9 +525,9 @@ function renderTopics() {
   renderSites();
   const m = S.meta;
   $('#raw-meta').innerHTML = m
-    ? (STOCK ? `최근 24시간 증시 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · 주식 게시판 글 <b>${activePosts().length}</b>개 · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
+    ? (STOCK ? `최근 24시간 증시 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
       : `최근 24시간 커뮤니티 글 <b>${activePosts().length}</b>개 · 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`)
-    : `아직 모은 ${STOCK ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스·주식 게시판' : '커뮤니티·뉴스'}를 모읍니다.`;
+    : `아직 모은 ${STOCK ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스' : '커뮤니티·뉴스'}를 모읍니다.`;
   const T = S.topics;
   const fresh = T && m && T.raw_at === m.collected_at;
   $('#group').textContent = T ? (fresh ? 'Claude로 다시 묶기' : '새 글로 다시 묶기') : 'Claude로 주제 묶기·의견 정리';
@@ -549,12 +561,13 @@ function renderTopics() {
     const sites = [...new Set(posts.map(p => p.site))].join('·');
     return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
       <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
-      <div class="heat">${STOCK ? '화제성' : '반응도'} ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>
+      ${STOCK ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건 · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
+      ${STOCK ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
       <div class="stance"><span class="tag">${STOCK ? '핵심' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
       ${t.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(t.questions.join(' / '))}</div>` : ''}
-      <details class="ev"><summary>근거 보기 · 글 ${posts.length} · 기사 ${arts.length}</summary>
+      <details class="ev"><summary>근거 보기 · ${STOCK ? '' : `글 ${posts.length} · `}기사 ${arts.length}</summary>
         <ul>${posts.map(p => `<li>[${esc(p.site)} · 댓글 ${p.comments}${p.votes ? ` · 공감 ${p.votes}` : ''}] ${esc(p.title)}${(p.top_comments || []).slice(0, 2).map(c => `<br><span class="muted">└ [공감 ${c.votes}] ${esc(c.text)}</span>`).join('')}</li>`).join('')}</ul>
         ${arts.length ? `<ul>${arts.map(a => `<li>[${esc(a.source)} ${esc(when(a.time).split(' ').pop())}] <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>${a.body ? ' <span class="badge ok">본문</span>' : ''}</li>`).join('')}</ul>` : ''}
       </details></div></div>`;

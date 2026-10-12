@@ -183,3 +183,15 @@ def test_stock_profile_rules():
     ].get("vague")
     base = channel_rules(ChannelConfig())["rules"]  # 정치 채널은 그대로
     assert base["identity"] == prompts.IDENTITY and base["angles"][0] == "상대 비판"
+
+
+def test_stock_rules_are_news_only():
+    from topicradar import prompts
+
+    for key in ("identity", "group_task", "script_rules"):
+        text = prompts.PROFILES["stock"][key]
+        assert "뉴스만" in text or "기사로" in text
+    assert (
+        "opinion.community" not in prompts.STOCK_SCRIPT_RULES
+        and "게시판 글(posts)을 붙인다" not in prompts.STOCK_GROUP_TASK
+    )
