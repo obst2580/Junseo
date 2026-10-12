@@ -478,9 +478,11 @@ def _dp_match(expected, kinds, cands, miss_cost, match_pen, skip_cost):  # noqa:
 
 def align(sentences: list[list[str]], info: AudioInfo, gap: float = 0.05) -> tuple[list[Cue], int]:
     """문장(말 덩어리 목록) → 큐. 반환: (큐 목록, 쉼에 맞춘 문장 경계 수).
-    1) 문장 끝을 긴 쉼에 맞춘다(쉼표의 짧은 숨은 문장 끝으로 잘 고르지 않음).
-    2) 문장 안에서는 쉼표마다 그 짧은 숨에 맞춘다(그 문장 구간 안에서만 — 길이 오차가 쌓이지 않는다).
-    3) 큐마다 쉼 단위 시각(units)을 담아 자막 줄을 정확히 나눌 수 있게 한다."""
+
+    대본을 쉼 단위(문장 끝·쉼표)로 나누고, 그 경계들을 음성의 쉼에 순서대로 맞춘다. 맞출 때는 '처음부터의 위치'가
+    아니라 **앞에 맞춘 쉼에서 이번 쉼까지 걸린 시간**과 그 사이 글의 읽는 길이를 비교한다 — 말 빠르기가 구간마다
+    달라도 오차가 뒤로 쌓이지 않아, 한 문장씩 밀리지 않는다. 문장 끝은 긴 쉼을, 쉼표는 짧은 숨을 좋아한다.
+    맞추지 못한 경계는 앞뒤로 맞춘 쉼 사이를 읽는 길이로 나눈다. 큐마다 쉼 단위 시각(units)을 담는다."""
     if not sentences:
         return [], 0
     dur = info.duration
@@ -490,55 +492,99 @@ def align(sentences: list[list[str]], info: AudioInfo, gap: float = 0.05) -> tup
     inner = [(a, b) for a, b in sil if a > head and b < tail]
     speech_before, absolute = _speech_clock(dur, sil)
     sp0, sp1 = speech_before(head), speech_before(tail)
-    lens = [sum(spoken_len(x) for x in s) for s in sentences]
-    total = sum(lens) or 1.0
-    expected, acc = [], 0.0
-    for n in lens[:-1]:
-        acc += n
-        expected.append(sp0 + (sp1 - sp0) * acc / total)
-    cand = [(speech_before((a + b) / 2), a, b) for a, b in inner]
-    miss = max(1.5, (sp1 - sp0) / max(len(sentences), 1) * 0.6)
-    cuts = _dp_match(
-        expected,
-        ["sent"] * len(expected),
-        cand,
-        miss_cost=lambda _k: miss,
-        match_pen=lambda _k, d: 0.6 if d < 0.3 else 0.0,  # 문장 끝은 긴 쉼을 좋아한다
-        skip_cost=lambda _c: 0.0,
-    )
-    matched = sum(1 for c in cuts if c)
-    bounds = [c or (absolute(e), absolute(e)) for c, e in zip(cuts, expected, strict=True)]
-    starts = [head, *[b for _a, b in bounds]]
-    ends = [*[a for a, _b in bounds], tail]
-    cues: list[Cue] = []
-    for sent, s, e in zip(sentences, starts, ends, strict=True):
-        e = max(e, s + 0.4 * len(sent))
-        # 문장 안: 쉼 단위로 나누고 쉼표마다 그 숨에 맞춘다
-        flat = [(pi, txt, kind) for pi, ph in enumerate(sent) for txt, kind in units_of(ph)]
-        w = [spoken_len(txt) for _pi, txt, _k in flat]
-        a0, a1 = speech_before(s), speech_before(e)
-        tw = sum(w) or 1.0
-        exp_in, acc = [], 0.0
-        for x in w[:-1]:
-            acc += x
-            exp_in.append(a0 + (a1 - a0) * acc / tw)
-        kinds = [k for _pi, _t, k in flat[:-1]]
-        cin = [(speech_before((a + b) / 2), a, b) for a, b in sil if a > s + 0.03 and b < e - 0.03]
-        inner_cuts = _dp_match(
-            exp_in,
-            kinds,
-            cin,
-            miss_cost=lambda k: 0.45 if k == "comma" else (0.6 if k == "sent" else 0.12),
-            match_pen=lambda k, _d: 0.25 if k == "none" else 0.0,
-            skip_cost=lambda c: 0.1 + 0.6 * max(0.0, (c[2] - c[1]) - 0.3),
-        )
-        ib = [c or (absolute(x), absolute(x)) for c, x in zip(inner_cuts, exp_in, strict=True)]
-        us = [s, *[b for _a, b in ib]]
-        ue = [*[a for a, _b in ib], e]
+
+    flat: list[tuple[int, int, str, str]] = []  # (문장, 덩어리, 글, 끝 종류)
+    for si, sent in enumerate(sentences):
         for pi, ph in enumerate(sent):
-            parts = [
-                (flat[i][1], us[i], max(us[i] + 0.15, ue[i])) for i in range(len(flat)) if flat[i][0] == pi
-            ]
+            flat += [(si, pi, txt, kind) for txt, kind in units_of(ph)]
+    n = len(flat)
+    w = [spoken_len(t) for _s, _p, t, _k in flat]
+    cum = [0.0]
+    for x in w:
+        cum.append(cum[-1] + x)
+    total = cum[-1] or 1.0
+    rate = (sp1 - sp0) / total  # 읽는 길이 1당 말소리 초
+    # 경계 k(1..n-1) = 단위 k-1과 k 사이. 문장이 끝나는 경계는 'sent'
+    kinds = [""] + ["sent" if flat[k - 1][0] != flat[k][0] else flat[k - 1][3] for k in range(1, n)]
+    cands = [(speech_before((a + b) / 2), a, b) for a, b in inner]
+    J = len(cands)
+    miss_c = {"sent": 1.2, "comma": 0.5, "none": 0.15}
+    skip = [0.15 + 1.2 * max(0.0, (b - a) - 0.35) for _sp, a, b in cands]
+    skip_pre = [0.0]
+    for x in skip:
+        skip_pre.append(skip_pre[-1] + x)
+    miss_pre = [0.0, 0.0]
+    for k in range(1, n):
+        miss_pre.append(miss_pre[-1] + miss_c.get(kinds[k], 0.5))
+
+    def miss_sum(k1: int, k2: int) -> float:  # 경계 k1..k2-1을 못 맞춤
+        return miss_pre[k2] - miss_pre[k1] if k2 > k1 else 0.0
+
+    def tpen(kind: str, d: float) -> float:
+        if kind == "sent":
+            return 0.4 if d < 0.3 else 0.0
+        if kind == "comma":
+            return 0.2 if d > 0.7 else 0.0
+        return 0.2
+
+    WIN, KMAX, JMAX = 25.0, 10, 12
+    # f[k]: {쉼 j(1..J) 또는 0(시작) → (비용, 이전 (k, j))}
+    f: list[dict[int, tuple[float, tuple[int, int] | None]]] = [dict() for _ in range(n)]
+    f[0][0] = (0.0, None)
+    sp_of = lambda j: sp0 if j == 0 else cands[j - 1][0]  # noqa: E731
+    for k in range(1, n):
+        e = sp0 + rate * cum[k]
+        for j in range(1, J + 1):
+            if abs(cands[j - 1][0] - e) > WIN:
+                continue
+            d = cands[j - 1][2] - cands[j - 1][1]
+            best: tuple[float, tuple[int, int] | None] = (float("inf"), None)
+            for k2 in range(max(0, k - KMAX), k):
+                for j2, (c2, _bk) in f[k2].items():
+                    if j2 >= j or j - j2 > JMAX:
+                        continue
+                    seg = abs((cands[j - 1][0] - sp_of(j2)) - rate * (cum[k] - cum[k2]))
+                    c = c2 + seg + miss_sum(k2 + 1, k) + (skip_pre[j - 1] - skip_pre[j2]) + tpen(kinds[k], d)
+                    if c < best[0]:
+                        best = (c, (k2, j2))
+            if best[1] is not None:
+                f[k][j] = best
+    # 끝(뒤 무음)까지
+    end_best: tuple[float, tuple[int, int] | None] = (float("inf"), None)
+    for k2 in range(n):
+        for j2, (c2, _bk) in f[k2].items():
+            seg = abs((sp1 - sp_of(j2)) - rate * (total - cum[k2]))
+            c = c2 + seg + miss_sum(k2 + 1, n) + (skip_pre[J] - skip_pre[j2])
+            if c < end_best[0]:
+                end_best = (c, (k2, j2))
+    match: dict[int, int] = {}  # 경계 k → 쉼 j
+    node = end_best[1]
+    while node and node[0] > 0:
+        k, j = node
+        match[k] = j
+        node = f[k][j][1]
+    # 경계 시각: 맞춘 쉼은 (쉼 시작, 쉼 끝), 못 맞춘 경계는 앞뒤 맞춘 쉼 사이를 읽는 길이로 나눔
+    anchors = (
+        [(0, sp0)] + [(k, speech_before(cands[j - 1][1])) for k, j in sorted(match.items())] + [(n, sp1)]
+    )
+    bounds: list[tuple[float, float]] = [(head, head)] * (n + 1)
+    for (ka, sa), (kb, sb) in zip(anchors, anchors[1:], strict=False):
+        for k in range(ka + 1, kb):
+            t = absolute(sa + (sb - sa) * (cum[k] - cum[ka]) / ((cum[kb] - cum[ka]) or 1.0))
+            bounds[k] = (t, t)
+    for k, j in match.items():
+        bounds[k] = (cands[j - 1][1], cands[j - 1][2])
+    starts = [head, *[bounds[k][1] for k in range(1, n)]]
+    ends = [*[bounds[k][0] for k in range(1, n)], tail]
+    matched = sum(1 for k in match if kinds[k] == "sent")
+    cues: list[Cue] = []
+    i = 0
+    for si, sent in enumerate(sentences):
+        for pi, ph in enumerate(sent):
+            parts = []
+            while i < n and flat[i][0] == si and flat[i][1] == pi:
+                parts.append((flat[i][2], starts[i], max(starts[i] + 0.15, ends[i])))
+                i += 1
             start, end = parts[0][1], parts[-1][2]
             cues.append(
                 Cue(

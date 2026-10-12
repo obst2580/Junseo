@@ -192,3 +192,25 @@ def test_units_and_subtitles_follow_comma_pauses():
     assert matched == 1 and [round(x, 2) for _t, x, _y in cues[0].units] == [0.0, 2.1, 3.8]
     subs = subtitle_cues(cues, limit=12)
     assert any(abs(s.start - 2.1) < 0.01 for s in subs) and any(abs(s.start - 5.6) < 0.01 for s in subs)
+
+
+def test_align_does_not_drift_when_speed_changes():
+    # 앞 다섯 문장은 빠르게, 뒤 다섯은 느리게 읽고 긴 문장은 가운데서 한 번 숨(0.2초)을 쉰다.
+    # 처음부터의 위치로 맞추면 뒤로 갈수록 한 문장씩 밀리지만, 쉼 사이 걸린 시간으로 맞추면 그대로 붙는다.
+    base = "가나다라마바사아자차카타파하" * 2
+    lens = [12, 20, 9, 16, 22, 10, 18, 14, 11, 20]
+    sents = [[base[:n] + "."] for n in lens]
+    sil, t, starts = [], 0.0, []
+    for i, n in enumerate(lens):
+        starts.append(round(t, 2))
+        d = n * (0.13 if i < 5 else 0.19)
+        if n >= 18:
+            sil.append((t + d / 2, t + d / 2 + 0.2))
+            d += 0.2
+        t += d
+        if i < len(lens) - 1:
+            sil.append((t, t + 0.45))
+            t += 0.45
+    cues, matched = align(sents, AudioInfo(t, sil))
+    assert matched == 9
+    assert [round(c.start, 2) for c in cues] == starts
