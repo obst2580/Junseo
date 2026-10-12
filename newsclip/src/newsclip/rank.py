@@ -2,8 +2,10 @@
 
 1. 소스 우선순위 점수(장면 성격별 경로에서 앞일수록 높음)
 2. preferred_domains / preferred_channels 가점, blocked 제외
-3. 해상도 1280 이상, 가로형 가점(세로형 감점)
-4. 제목·설명·출처 페이지에 장면 키워드가 들어간 수
+3. 해상도 1280 이상, 가로형 가점(세로형·아주 작은 사진 감점) — 관련성을 뒤집지 않게 작게
+4. 제목·설명·출처 페이지에 장면 키워드가 들어간 수. 작업자가 쓴 장면 검색어가 있으면 그 말이 사진 제목에
+   들어간 수를 크게 보고, 하나도 없으면 감점(대사와 상관없는 사진이 크기만으로 뽑히지 않게)
+4-1. 뉴스 사진(기사 사진 서버) 가점, 문서·표·판결문 캡처 감점, 최근 1년 안 사진 가점(주소의 날짜)
 5. 직전 장면과 같은 도메인·채널이면 감점(다양성), 같은 장면 안 중복 도메인도 감점,
    앞 장면에서 이미 고른 자료는 크게 감점(같은 사진 되풀이 방지)
 6. --clip 시 open_clip 이미지-텍스트 유사도 가산
@@ -17,7 +19,7 @@ from collections.abc import Callable
 from newsclip.models import Asset, Scene
 from newsclip.scenes import PROPER_NOUNS
 from newsclip.sources.youtube_video import is_blocked, normalize_channel
-from studio_core.config import ChannelConfig
+from studio_core.config import ChannelConfig, now_kst
 
 ROUTES: dict[str, list[str]] = {
     "photo_proper": ["google_image", "wikimedia", "naver_image"],
@@ -103,20 +105,63 @@ def score_asset(
         notes.append("선호 출처 +15")
     if a.width and a.height:
         if a.width >= 1280:
-            s += 10
-            notes.append("1280+ +10")
+            s += 5
+            notes.append("1280+ +5")
         if a.width > a.height:
-            s += 10
-            notes.append("가로형 +10")
+            s += 8
+            notes.append("가로형 +8")
         elif a.height > a.width:
+            s -= 8
+            notes.append("세로형 −8")
+        if a.width < 480:
             s -= 10
-            notes.append("세로형 −10")
+            notes.append("작은 사진 −10")
     hay = f"{a.title} {a.source_page_url} {a.source_domain} {a.author_or_channel}".lower()
     hits = sum(1 for k in [*scene.keywords_ko, *scene.keywords_en] if k and k.lower() in hay)
     if hits:
         s += min(20, 5 * hits)
         notes.append(f"키워드 {hits}개 +{min(20, 5 * hits)}")
+    if a.media == "image":
+        title = a.title.lower()
+        if scene.query:  # 작업자가 대사를 읽고 쓴 검색어 — 그 말이 사진 제목에 있어야 그 장면 사진
+            words = [w.lower() for w in scene.query.split() if len(w) >= 2]
+            qh = sum(1 for w in words if w in title)
+            if qh:
+                s += min(30, 10 * qh)
+                notes.append(f"검색어 {qh}개 제목 일치 +{min(30, 10 * qh)}")
+            elif words:
+                s -= 20
+                notes.append("제목에 검색어 없음 −20")
+        if a.source_domain in NEWS_PHOTO_HOSTS:
+            s += 10
+            notes.append("뉴스 사진 +10")
+        if _DOC_RE.search(title) or domain_match(a.source_domain, DOC_HOSTS):
+            s -= 25
+            notes.append("문서·표 캡처 −25")
+        year = photo_year(a)
+        if year:
+            now = now_kst().year
+            if year >= now - 1:
+                s += 8
+                notes.append(f"{year}년 사진 +8")
+            elif year <= now - 6:
+                s -= 5
+                notes.append(f"{year}년 사진 −5")
     return s, notes
+
+
+NEWS_PHOTO_HOSTS = {"imgnews.pstatic.net", "imgnews.naver.net", "mimgnews.pstatic.net"}
+DOC_HOSTS = ["lfind.kr", "googleusercontent.com", "scribd.com", "docslide.net"]
+_DOC_RE = re.compile(
+    r"google sheets|google docs|casenote|판결문|판례|서식|양식|\.pdf|\.hwp|\.xlsx?|스프레드시트"
+)
+_YEAR_RE = re.compile(r"/(20\d\d)/(?:0[1-9]|1[0-2])/")
+
+
+def photo_year(a: Asset) -> int | None:
+    """주소에 든 날짜(뉴스 사진 서버는 /image/003/2023/10/23/...)로 찍은 해를 어림."""
+    m = _YEAR_RE.search(a.download_url or a.url or "")
+    return int(m.group(1)) if m else None
 
 
 def rank(

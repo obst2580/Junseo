@@ -57,6 +57,7 @@ class Scene(BaseModel):
     query: str = ""
     # 이 장면 주제의 유튜브 검색어(비면 topic_keywords)
     video_query: str = ""
+    borrowed: str = ""  # 사진을 못 받아 이어 쓴 장면 ID(빈 화면 방지)
     kind: SceneKind = "broll"
     candidates: list[Asset] = Field(default_factory=list)
     chosen: Asset | None = None

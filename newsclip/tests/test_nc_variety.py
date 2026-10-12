@@ -103,3 +103,37 @@ async def test_queries_from_reading_the_script(monkeypatch):
     nv = _Src({"이재명 대통령 엑스 게시글": [_img(1), _img(2)]})
     await gather_candidates(sc, {"youtube_video": yt, "naver_image": nv}, RunReport(), want=2)
     assert yt.queries == ["이재명 SNS 소통"] and nv.queries == ["이재명 대통령 엑스 게시글"]
+
+
+def test_empty_scene_borrows_neighbor_photo_and_scoring_prefers_matching_news_photo(monkeypatch):
+    from newsclip.pipeline import borrow_empty
+
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-12T20:00")
+    a, b, c = scene("s001", 0, 5), scene("s002", 5, 9), scene("s003", 9, 12)
+    a.chosen = asset(url="https://img.example.com/a.jpg", local_path="/p/s001_1.jpg")
+    c.chosen = asset(url="https://img.example.com/c.jpg", local_path="/p/s003_1.jpg")
+    first_empty = scene("s000", 0, 1)
+    assert borrow_empty([first_empty, a, b, c]) == 2
+    assert b.borrowed == "s001" and b.chosen.local_path == "/p/s001_1.jpg"  # 앞 장면 사진
+    assert first_empty.borrowed == "s001"  # 앞이 없으면 뒤 장면
+
+    sc = scene("s010", 0, 5, kind="photo")
+    sc.query = "박지원 국정감사 질의"
+    news = asset(
+        url="https://imgnews.pstatic.net/image/003/2026/10/12/n.jpg",
+        title="국정감사 질의하는 박지원 의원",
+        source_domain="imgnews.pstatic.net",
+        width=700,
+        height=467,
+    )
+    big_doc = asset(
+        url="https://lh7-us.googleusercontent.com/docs/x",
+        title="대법원 특수활동비 지급내역 - Google Sheets",
+        source_domain="lh7-us.googleusercontent.com",
+        width=1920,
+        height=1080,
+    )
+    big_other = asset(url="https://img.example.com/o.jpg", title="가을 풍경", width=1920, height=1080)
+    ranked = rank(sc, [big_doc, big_other, news], ChannelConfig())
+    assert ranked[0].url == news.url and ranked[-1].url == big_doc.url
+    assert any("검색어 3개 제목 일치" in n for n in ranked[0].score_notes)

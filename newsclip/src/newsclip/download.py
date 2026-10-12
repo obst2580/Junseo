@@ -81,13 +81,20 @@ async def download_image(
     size: tuple[int, int],
     sem: asyncio.Semaphore,
 ) -> Asset | None:
-    """이미지 1건(실패 시 None)."""
+    """이미지 1건(실패 시 None). http:// 주소는 https://로 먼저 받는다 — 네이버 뉴스 사진(imgnews.naver.net)은
+    검색 결과가 http로 오는데, 클라우드(프록시)에서는 http가 막혀 뉴스 사진이 모두 실패했다."""
+    url = a.download_url or a.url
+    tries = ["https://" + url[len("http://") :], url] if url.startswith("http://") else [url]
+    resp = None
     async with sem:
-        try:
-            resp = await request(client, "GET", a.download_url or a.url, retries=3)
-        except Exception as e:  # 실패 격리
-            log.warning("이미지 다운로드 실패 %s: %s", a.url, e)
-            return None
+        for u in tries:
+            try:
+                resp = await request(client, "GET", u, retries=2)
+                break
+            except Exception as e:  # 실패 격리
+                log.warning("이미지 다운로드 실패 %s: %s", u, e)
+    if resp is None:
+        return None
     data = resp.content
     digest = sha256_bytes(data)
     dup = registry.check(digest, str(dest))

@@ -42,6 +42,7 @@ class RunReport:
     errors: list[str] = field(default_factory=list)
     xml_errors: list[str] = field(default_factory=list)
     by_source: dict[str, int] = field(default_factory=dict)
+    borrowed: int = 0  # 사진을 못 받아 앞뒤 장면 사진을 이어 쓴 장면 수
 
 
 def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClient) -> dict[str, Source]:
@@ -146,6 +147,25 @@ async def gather_candidates(
     return out
 
 
+MAX_TRIES = 8  # 장면마다 받아 볼 사진 후보 수(앞 후보가 막히면 다음으로)
+
+
+def borrow_empty(scenes: list[Scene]) -> int:
+    """사진을 하나도 못 받은 장면은 바로 앞(없으면 뒤) 장면 사진을 이어 쓴다 — timeline에 빈 곳(검은 화면)이
+    생기지 않게. 이어 쓴 장면 수를 돌려준다(Scene.borrowed에 빌려 온 장면 ID)."""
+    n = 0
+    for i, sc in enumerate(scenes):
+        if sc.chosen is not None:
+            continue
+        near = [*reversed(scenes[:i]), *scenes[i + 1 :]]
+        src = next((x for x in near if x.chosen is not None and not x.borrowed), None)
+        if src is not None:
+            sc.chosen = src.chosen
+            sc.borrowed = src.id
+            n += 1
+    return n
+
+
 async def run_project(
     settings: Settings,
     cfg: ChannelConfig,
@@ -205,24 +225,40 @@ async def run_project(
                     used[top.id] = used.get(top.id, 0) + 1
 
         async def fetch(sc: Scene) -> None:
-            pool = sc.candidates if videos else [a for a in sc.candidates if a.media == "image"]
-            top = pool[:per_scene]
-            if not any(a.media == "image" for a in top):  # 영상을 못 받아도 사진 하나는 남게
-                top += [a for a in pool if a.media == "image"][:1]
-            jobs = []
-            for r, a in enumerate(top, start=1):
-                if a.media == "video":
-                    dest = assets_dir / f"{sc.id}_{r}.mp4"
-                    jobs.append(download_video(a, dest, sc.duration, video_max_sec, registry, sem))
-                else:
-                    dest = assets_dir / f"{sc.id}_{r}.jpg"
-                    jobs.append(download_image(client, a, dest, registry, size, sem))
-            results = await asyncio.gather(*jobs)
-            got = {a.id: a for a in results if a is not None}
+            """순위대로 받되, 받기에 실패하면(막힌 주소·문서 파일 등) 다음 후보로 — 사진 per_scene장이 모이거나
+            후보 MAX_TRIES개를 써 볼 때까지. 영상은 videos일 때 앞쪽 후보만 받아 본다."""
+            got: dict[str, Asset] = {}
+            n = 0
+
+            def dest(ext: str) -> Path:
+                nonlocal n
+                n += 1
+                return assets_dir / f"{sc.id}_{n}.{ext}"
+
+            if videos:
+                vids = [a for a in sc.candidates[:per_scene] if a.media == "video"]
+                res = await asyncio.gather(
+                    *(download_video(a, dest("mp4"), sc.duration, video_max_sec, registry, sem) for a in vids)
+                )
+                got.update({a.id: a for a in res if a is not None})
+            want = max(1, per_scene - len(got))
+            images = [a for a in sc.candidates if a.media == "image"][:MAX_TRIES]
+            ok, i = 0, 0
+            while ok < want and i < len(images):
+                chunk = images[i : i + want - ok]
+                i += len(chunk)
+                res = await asyncio.gather(
+                    *(download_image(client, a, dest("jpg"), registry, size, sem) for a in chunk)
+                )
+                for a in res:
+                    if a is not None:
+                        got[a.id] = a
+                        ok += 1
             sc.candidates = [got.get(a.id, a) for a in sc.candidates]
             sc.chosen = next((a for a in sc.candidates if a.local_path), None)
 
         await asyncio.gather(*(fetch(sc) for sc in scenes))
+        report.borrowed = borrow_empty(scenes)
     if clip_scorer is not None:  # 다운로드 후 로컬 이미지로 유사도 재정렬
         for sc in scenes:
             sc.candidates = rank(sc, sc.candidates, cfg, None, clip_scorer)

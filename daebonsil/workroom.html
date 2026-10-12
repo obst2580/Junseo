@@ -1114,7 +1114,7 @@ function renderResult() {
     const f = s.chosen && byName[s.chosen];
     const media = f ? (f.media === 'video' ? `<video src="/_blob/${esc(f.id)}" muted preload="metadata" playsinline></video>` : `<img src="/_blob/${esc(f.id)}" alt="" loading="lazy">`) : '자료 없음';
     const vids = (s.videos || []).map(v => `<li><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.title || v.url)}</a> <span class="muted">· ${esc(v.channel || '')}${v.start ? ` · ${fmtSec(v.start)}부터` : ''}</span></li>`).join('');
-    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.query ? `<span class="small muted">사진 검색어: ${esc(s.query)}</span>` : ''}${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}${vids ? `<span class="small">영상 후보</span><ul class="vids small">${vids}</ul>` : ''}</div></div>`;
+    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.photo_title ? `<span class="small">사진: ${esc(s.photo_title)}</span>` : ''}${s.borrowed ? `<span class="small muted">맞는 사진을 못 받아 ${esc(s.borrowed)} 사진을 이어 씀</span>` : ''}${s.query ? `<span class="small muted">사진 검색어: ${esc(s.query)}</span>` : ''}${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}${vids ? `<span class="small">영상 후보</span><ul class="vids small">${vids}</ul>` : ''}</div></div>`;
   }).join('');
   const vidScenes = (res.scenes || []).filter(s => (s.videos || []).length).length;
   const skipped = Object.entries(rep.skipped_sources || {});
@@ -1153,13 +1153,16 @@ async function makeZip() {
     // 프리미어 캡션용 자막(한 줄 20자 안팎). 한글이 깨지지 않게 UTF-8 BOM을 붙인다.
     if (res.srt_id) { const r = await fetch('/_blob/' + res.srt_id); if (r.ok) root.file('자막.srt', '\ufeff' + (await r.text()).replace(/^\ufeff/, '')); }
     root.file('장면목록.txt', `장면별 대사와 사진 — ${p.id}\n(시각은 ${res.timing === 'estimated' ? '대본 길이로 어림한 값' : res.timing === 'voice+asr' ? '음성을 듣고 들린 말에 맞춘 값' : '올린 음성의 쉼에 맞춘 값'})\n\n` + (res.scenes || []).map(s =>
-      `[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)}\n  대사: ${s.text}\n  사진: ${s.chosen || '없음'}${s.attribution ? ` (${s.attribution})` : ''}${s.query ? `\n  검색어: ${s.query}` : ''}`).join('\n\n') + '\n');
+      `[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)}\n  대사: ${s.text}\n  사진: ${s.chosen || '없음'}${s.attribution ? ` (${s.attribution})` : ''}${s.photo_title ? `\n  사진 제목: ${s.photo_title}` : ''}${s.borrowed ? `\n  (맞는 사진을 못 받아 ${s.borrowed} 사진을 이어 씀)` : ''}${s.query ? `\n  검색어: ${s.query}` : ''}`).join('\n\n') + '\n');
     const vlines = (res.scenes || []).filter(s => (s.videos || []).length).map(s => [`[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)} ${s.text}`,
       ...s.videos.map(v => `  - ${v.title} (${v.channel}${v.start ? `, ${fmtSec(v.start)}부터` : ''})\n    ${v.url}`)].join('\n'));
     if (vlines.length) root.file('영상후보.txt', '장면별 유튜브 영상 후보 — 받아서 쓸 때는 출처(채널)를 밝히세요.\n\n' + vlines.join('\n\n') + '\n');
     let n = 0;
+    const lost = [];  // 못 받은 파일 — 압축에 빠지면 프리미어에서 '오프라인'으로 보인다
     for (const f of res.files || []) {
-      const r = await fetch('/_blob/' + f.id); if (!r.ok) continue;
+      let r = null;
+      for (let t = 0; t < 2 && !(r && r.ok); t++) { try { r = await fetch('/_blob/' + f.id); } catch (e) { r = null; } }
+      if (!r || !r.ok) { lost.push(f.name); continue; }
       root.file(f.name, await r.blob()); n++; st.innerHTML = spinner(`파일을 모으는 중… ${n}/${res.files.length}`);
     }
     const blob = await zip.generateAsync({ type: 'blob' });
@@ -1167,6 +1170,7 @@ async function makeZip() {
     await downloads.save({ filename: `${p.id}.zip`, data: blob });
     sweepAssets(p);
     st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
+    if (lost.length) st.innerHTML = `<div class="note bad"><b class="t">파일 ${lost.length}개를 받지 못해 압축에 빠졌습니다</b>프리미어에서 이 파일들은 '오프라인'으로 보입니다: ${esc(lost.slice(0, 8).join(', '))}${lost.length > 8 ? ' 외' : ''}. [자료 모으고 timeline.xml 만들기]를 다시 눌러 주세요.</div>`;
     try { await db.doc(`projects/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
   } catch (e) {
     const code = e && e.code;

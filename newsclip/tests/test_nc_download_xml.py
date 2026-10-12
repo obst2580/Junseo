@@ -239,3 +239,25 @@ def test_subtitle_track_follows_voice(tmp_path):
     from newsclip.pipeline import timeline_options
 
     assert timeline_options(tmp_path).subtitles is True
+
+
+@respx.mock
+async def test_download_image_tries_https_first(tmp_path):
+    # 네이버 뉴스 사진은 검색 결과가 http://imgnews.naver.net으로 오는데, 클라우드에서는 http가 막힌다
+    respx.get("https://imgnews.naver.net/image/003/2026/10/12/a.jpg").mock(
+        return_value=httpx.Response(200, content=_jpeg())
+    )
+    blocked = respx.get("http://imgnews.naver.net/image/003/2026/10/12/a.jpg").mock(
+        side_effect=httpx.ConnectError("Name or service not known")
+    )
+    reg, sem = DedupeRegistry(), __import__("asyncio").Semaphore(5)
+    async with httpx.AsyncClient() as c:
+        got = await download_image(
+            c,
+            asset(url="http://imgnews.naver.net/image/003/2026/10/12/a.jpg"),
+            tmp_path / "s001_1.jpg",
+            reg,
+            (1920, 1080),
+            sem,
+        )
+    assert got is not None and Path(got.local_path).exists() and not blocked.called

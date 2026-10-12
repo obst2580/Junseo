@@ -302,7 +302,8 @@ async def sources(
     scenes = []
     for sc in sset.scenes:
         names = []
-        for a in sc.candidates:
+        # 앞뒤 장면 사진을 이어 쓴 장면(sc.borrowed)은 그 사진 하나만
+        for a in [sc.chosen] if sc.borrowed and sc.chosen else sc.candidates:
             if not a.local_path:
                 continue
             p = Path(a.local_path)
@@ -324,8 +325,10 @@ async def sources(
                 "query": sc.query,
                 "chosen": next((n for n in names if chosen and n.endswith(chosen)), None),
                 "attribution": sc.chosen.attribution_text if sc.chosen else "",
+                "photo_title": (sc.chosen.title or "")[:80] if sc.chosen else "",
                 "files": names,
                 "videos": video_links(sc.candidates),
+                **({"borrowed": sc.borrowed} if sc.borrowed else {}),
             }
         )
     # timeline.xml이 가리키는 그 밖의 파일(출처 표시 글자 그림 captions/cap_*.png)도 같이 올린다
@@ -354,6 +357,7 @@ async def sources(
             "downloaded": report.downloaded,
             "by_source": report.by_source,
             "video_scenes": sum(1 for x in scenes if x["videos"]),
+            "borrowed": report.borrowed,
             "skipped_sources": report.skipped_sources,
             "errors": report.errors + report.xml_errors,
         },
