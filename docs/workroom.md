@@ -96,23 +96,31 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 
    출력의 `timing`이 `voice+asr`면 들린 말에 맞춘 것입니다. `asr.error`가 있으면(듣지 못함) 쉼만으로 맞췄다는 뜻이니
    요청 note에 그 이유를 한 줄로 적습니다.
-5. 결과 `/tmp/wr-src/manifest.json`의 `files`(사진, 로컬 경로 `path`)를 아티팩트 자산으로 올립니다
-   (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다):
-   `Artifact`(`url`: 제작실, `asset: true`, `file_paths`: 25개씩). `timeline.xml.txt`와 `narration.srt.txt`(프리미어 캡션용 자막, 한 줄 20자 안팎)는
-   텍스트라 한 번에 하나씩 `file_path`로 올립니다(`.xml`은 자산 형식이 아니라 `.txt`로 올리고 화면이 이름을 바꿉니다).
-6. 프로젝트에 이전 결과(`result.files`, `result.timeline_id`)가 있으면, 새 결과를 쓴 뒤 그 옛 자산을 지웁니다
-   (`Artifact delete`, `url` + `path`=자산 ID). 아무 문서도 가리키지 않는 자산만 지웁니다.
-7. `ArtifactData update` — `projects/<ID>`에
+5. **올릴 것만 고릅니다.** 지난 결과와 내용(sha256)이 같은 사진·timeline·자막은 다시 올리지 않고 그 자산 ID를 그대로 씁니다.
 
-   ```json
-   {"status": "ready", "result": {"made_at": "…", "scenes": [...], "files": [{"name": "assets/s001_1.jpg", "id": "<자산 ID>", "media": "image"}],
-     "timeline_id": "<자산 ID>", "srt_id": "<자산 ID>", "report": {...}, "base_token": "file://localhost/__STUDIO_BASE__"}}
+   ```bash
+   uv run python -m studio_app.workroom upload-plan --manifest /tmp/wr-src/manifest.json --previous /tmp/wr/projects/<ID>.json
    ```
 
-   `scenes`·`report`·`base_token`은 manifest 그대로, `files`는 manifest의 `files`에서 `path`를 빼고 올린 자산 ID를 붙입니다.
-   `update`는 안쪽 객체까지 합치므로(예전 `report.skipped_sources`가 남음), 이전 result가 있으면 먼저
-   `{"result": {"__delete__": true}}`로 지운 뒤 새 result를 씁니다.
-8. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장 · 영상 후보 9장면(링크)`.
+   `/tmp/wr-src/upload-plan.json`의 `batches`(25개씩 묶은 로컬 경로)를 `Artifact`(`url`: 제작실, `asset: true`, `file_paths`)로
+   올립니다. **묶음 올리기는 한 메시지에 여러 개(최대 5개)를 함께 보냅니다** — 하나씩 차례로 보내지 않고, 하위 에이전트에
+   맡기지도 않습니다(묶음 하나에 20초쯤이라 차례로 보내면 10묶음에 6분). 실패한 묶음만 다시 보냅니다.
+   `texts`(timeline.xml.txt, narration.srt.txt)는 텍스트라 하나씩 `file_path`로 올리되, 같은 메시지에 함께 보냅니다.
+   (클라우드에서는 유튜브 영상을 받을 수 없어 영상은 받지 않고, 장면마다 `videos`에 후보 링크만 남깁니다.
+   `.xml`은 자산 형식이 아니라 `.txt`로 올리고 화면이 이름을 바꿉니다.)
+6. 올린 결과의 파일마다 자산 ID를 `/tmp/wr-src/uploaded.json`에 `{"<올린 로컬 경로>": "<자산 ID>"}`로 적고 결과 문서를 만듭니다.
+
+   ```bash
+   uv run python -m studio_app.workroom result --manifest /tmp/wr-src/manifest.json --uploaded /tmp/wr-src/uploaded.json --previous /tmp/wr/projects/<ID>.json
+   ```
+
+   자산 ID가 빠진 파일이 있으면 이름을 알려 주며 멈춥니다 — 그 파일만 올려 uploaded.json에 더하고 다시 돌립니다.
+7. `ArtifactData update` — `projects/<ID>`에 `file_path: /tmp/wr-src/result.json`(1단계에서 읽은 `version`으로 `if_version`;
+   바뀌었다고 거절되면 다시 읽고 같은 파일로 다시 씁니다). result.json은 지난 result에만 있던 키를 `__delete__`로 지우는
+   표시까지 들어 있어 한 번에 씁니다. **옛 자산은 작업자가 지우지 않습니다** — 이번에 안 쓰게 된 옛 자산 ID는
+   `result.cleanup`에 들어가고, 사용자가 화면에서 그 프로젝트의 [압축 파일 받기]나 [자료 모으기]를 누를 때 화면이
+   한꺼번에 지웁니다(작업자가 하나씩 지우면 수백 번 호출이라 10분 넘게 걸렸음).
+8. 요청을 `done`으로, note 예: `장면 26개 중 24개에 사진 · 사진 40장(새로 올림 12) · 영상 후보 9장면(링크) · 들린 말에 맞춤`.
 
 화면은 `/_blob/<자산 ID>`로 자료를 보여 주고, 받을 때 사용자가 적은 폴더 경로로 timeline.xml의
 `file://localhost/__STUDIO_BASE__`를 바꿔 압축 파일(timeline.xml + 자료 + 자막.srt)을 만듭니다.

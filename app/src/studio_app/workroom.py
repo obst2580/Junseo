@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import html as htmllib
 import json
 import re
@@ -310,7 +311,7 @@ async def sources(
                 continue
             rel = p.relative_to(proj).as_posix() if p.is_relative_to(proj) else f"assets/{p.name}"
             if rel not in {f["name"] for f in files}:
-                files.append({"name": rel, "path": str(p), "media": a.media})
+                files.append({"name": rel, "path": str(p), "media": a.media, "sha": _sha(p)})
             names.append(rel)
         chosen = Path(sc.chosen.local_path).name if sc.chosen and sc.chosen.local_path else None
         scenes.append(
@@ -331,7 +332,7 @@ async def sources(
     for png in sorted((proj / "captions").glob("*.png")):
         rel = f"captions/{png.name}"
         if rel in xml and rel not in {f["name"] for f in files}:
-            files.append({"name": rel, "path": str(png), "media": "image"})
+            files.append({"name": rel, "path": str(png), "media": "image", "sha": _sha(png)})
     (out / "timeline.xml.txt").write_text(xml, encoding="utf-8")
     # 프리미어 캡션용 자막(한 줄 20자 안팎, 장면 시각과 같은 시간축 — 음성을 올렸으면 그 음성에 맞춤)
     from newsclip.autosub import subtitle_cues
@@ -365,6 +366,98 @@ async def sources(
     return manifest
 
 
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+BATCH = 25  # Artifact 자산 올리기 한 번에 25개까지
+TEXTS = {"timeline": "timeline.xml.txt", "srt": "narration.srt.txt"}
+
+
+def upload_plan(manifest: dict, previous: dict | None, out: Path) -> dict:
+    """올릴 것만 고른다. 지난 결과에 내용(sha256)이 같은 자산이 있으면 그 ID를 그대로 쓰고(다시 올리지 않음),
+    나머지만 25개씩 묶는다. 지난 결과에서 이번에 안 쓰는 자산 ID는 cleanup — 화면이 열릴 때 지운다
+    (작업자가 하나씩 지우면 수백 번 호출이라 오래 걸림). 음성 인식용 음성(audio.asset_id)은 절대 넣지 않는다."""
+    prev = (previous or {}).get("result") or {}
+    keep_audio = ((previous or {}).get("audio") or {}).get("asset_id")
+    by_sha = {f["sha"]: f["id"] for f in prev.get("files", []) if f.get("sha") and f.get("id")}
+    for key in TEXTS:  # timeline·srt도 내용이 같으면 그대로
+        if prev.get(f"{key}_sha") and prev.get(f"{key}_id"):
+            by_sha.setdefault(prev[f"{key}_sha"], prev[f"{key}_id"])
+    reuse: dict[str, str] = {}
+    todo: list[str] = []
+    for f in manifest["files"]:
+        if f.get("sha") in by_sha:
+            reuse[f["name"]] = by_sha[f["sha"]]
+        else:
+            todo.append(f["path"])
+    texts, reuse_texts = [], {}
+    for key, name in TEXTS.items():
+        path = out / name
+        sha = _sha(path)
+        if sha in by_sha:
+            reuse_texts[key] = by_sha[sha]
+        else:
+            texts.append(str(path))
+    used = set(reuse.values()) | set(reuse_texts.values())
+    old = [f.get("id") for f in prev.get("files", [])] + [prev.get("timeline_id"), prev.get("srt_id")]
+    old += list(prev.get("cleanup") or [])  # 화면이 아직 못 지운 것
+    cleanup = sorted({x for x in old if x and x not in used and x != keep_audio})
+    plan = {
+        "reuse": reuse,
+        "batches": [todo[i : i + BATCH] for i in range(0, len(todo), BATCH)],
+        "texts": texts,
+        "reuse_texts": reuse_texts,
+        "cleanup": cleanup,
+    }
+    (out / "upload-plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+    return plan
+
+
+def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None, out: Path) -> dict:
+    """projects/<ID>에 update로 쓸 문서: status·result(자산 ID 붙인 files, timeline_id, srt_id, cleanup).
+    uploaded = {올린 로컬 경로(또는 파일 이름): 자산 ID}. 지난 result에만 있던 키는 __delete__로 지운다
+    (update는 안쪽 객체까지 합치므로). 자산 ID가 빠진 파일이 있으면 ValueError."""
+
+    def id_of(path: str) -> str | None:
+        return uploaded.get(path) or uploaded.get(Path(path).name)
+
+    files, missing = [], []
+    for f in manifest["files"]:
+        fid = plan["reuse"].get(f["name"]) or id_of(f["path"])
+        if not fid:
+            missing.append(f["name"])
+        files.append({"name": f["name"], "id": fid, "media": f["media"], "sha": f["sha"]})
+    ids = {}
+    for key, name in TEXTS.items():
+        ids[key] = plan["reuse_texts"].get(key) or id_of(str(out / name))
+        if not ids[key]:
+            missing.append(name)
+    if missing:
+        raise ValueError(f"자산 ID가 없는 파일 {len(missing)}개: {', '.join(missing[:10])}")
+    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr")
+    result = {k: manifest[k] for k in keys if k in manifest}
+    result.update(
+        files=files,
+        timeline_id=ids["timeline"],
+        srt_id=ids["srt"],
+        timeline_sha=_sha(out / TEXTS["timeline"]),
+        srt_sha=_sha(out / TEXTS["srt"]),
+        cleanup=plan["cleanup"],
+    )
+    prev = (previous or {}).get("result") or {}
+    for k, v in prev.items():
+        if k not in result:
+            result[k] = {"__delete__": True}
+        elif isinstance(v, dict) and isinstance(result[k], dict):
+            for k2 in v:
+                if k2 not in result[k]:
+                    result[k][k2] = {"__delete__": True}
+    doc = {"status": "ready", "result": result}
+    (out / "result.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return doc
+
+
 def video_links(candidates: list, n: int = VIDEO_LINKS) -> list[dict]:
     """장면에 쓸 만한 유튜브 영상 후보(받지 않은 것): 제목·채널·시작 지점이 붙은 링크."""
     out = []
@@ -387,6 +480,14 @@ def folder_url(folder: str) -> str:
     return "file://localhost" + quote(p, safe="/:")
 
 
+def _load_project(path: Path) -> dict:
+    """ArtifactData out_dir 파일({id, data, version})이든 문서 내용이든 프로젝트 dict로."""
+    req = json.loads(path.read_text(encoding="utf-8"))
+    if "script" not in req and isinstance(req.get("data"), dict):
+        req = req["data"]
+    return req
+
+
 def main() -> None:
     """CLI."""
     ap = argparse.ArgumentParser(prog="studio_app.workroom")
@@ -406,6 +507,13 @@ def main() -> None:
         x.add_argument(
             "--audio", type=Path, help="화면이 올린 음성(audio.asset_id 파일) — 들린 말에 자막 시각을 맞춘다"
         )
+    u = sub.add_parser("upload-plan", help="올릴 것만 고르기 → upload-plan.json")
+    u.add_argument("--manifest", type=Path, required=True)
+    u.add_argument("--previous", type=Path, help="자료를 만들기 전에 받은 projects/<ID>.json")
+    r = sub.add_parser("result", help="자산 ID를 붙여 projects/<ID>에 쓸 result.json 만들기")
+    r.add_argument("--manifest", type=Path, required=True)
+    r.add_argument("--uploaded", type=Path, required=True, help="{올린 로컬 경로: 자산 ID} JSON")
+    r.add_argument("--previous", type=Path)
     a = ap.parse_args()
     if a.cmd == "collect":
         meta = asyncio.run(collect(a.out, a.hours))
@@ -415,9 +523,31 @@ def main() -> None:
             )
         )
         return
-    req = json.loads(a.project.read_text(encoding="utf-8"))
-    if "script" not in req and isinstance(req.get("data"), dict):  # ArtifactData out_dir 파일이 감싼 경우
-        req = req["data"]
+    if a.cmd in ("upload-plan", "result"):
+        man = json.loads(a.manifest.read_text(encoding="utf-8"))
+        prev = _load_project(a.previous) if a.previous else None
+        out = a.manifest.parent
+        if a.cmd == "upload-plan":
+            plan = upload_plan(man, prev, out)
+            summary = {
+                "올릴 사진": sum(len(b) for b in plan["batches"]),
+                "묶음": len(plan["batches"]),
+                "그대로 쓰는 사진": len(plan["reuse"]),
+                "올릴 글 파일": len(plan["texts"]),
+                "화면이 지울 옛 자산": len(plan["cleanup"]),
+                "file": str(out / "upload-plan.json"),
+            }
+            print(json.dumps(summary, ensure_ascii=False))
+            return
+        plan = json.loads((out / "upload-plan.json").read_text(encoding="utf-8"))
+        doc = result_doc(man, plan, json.loads(a.uploaded.read_text(encoding="utf-8")), prev, out)
+        print(
+            json.dumps(
+                {"files": len(doc["result"]["files"]), "file": str(out / "result.json")}, ensure_ascii=False
+            )
+        )
+        return
+    req = _load_project(a.project)
     if a.cmd == "scenes":
         plan = plan_scenes(req, a.out, a.audio)
         print(json.dumps({"scenes": len(plan), "file": str(a.out / "scenes-plan.json")}, ensure_ascii=False))

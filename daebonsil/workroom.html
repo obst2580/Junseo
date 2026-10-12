@@ -1052,8 +1052,38 @@ function renderReq() {
   $('#req-state').innerHTML = r.status === 'working' ? spinner('작업자가 자료를 모으는 중… ' + (r.note || '')) : reqLabel(r);
   $('#req-state').style.color = r.status === 'error' ? 'var(--bad)' : '';
 }
+// 작업자가 남긴 옛 자산(result.cleanup: 지난번 결과에서 이번에 안 쓰게 된 사진·timeline·자막)을 이 화면이 지운다.
+// 작업자가 하나씩 지우면 수백 번 호출이라 10분 넘게 걸려서, 사용자가 이 프로젝트에서 버튼을 누를 때 여기서 한꺼번에 지운다.
+// 지금 어느 프로젝트(불러온 목록)도 가리키지 않는 ID만 지운다.
+let sweeping = false;
+async function sweepAssets(p) {
+  const r = p && p.result;
+  if (sweeping || !assets || !db || !r || !Array.isArray(r.cleanup) || !r.cleanup.length) return;
+  sweeping = true;
+  try {
+    const keep = new Set();
+    for (const x of [p, ...S.projects]) {
+      const xr = x.result || {};
+      (xr.files || []).forEach(f => keep.add(f.id)); keep.add(xr.timeline_id); keep.add(xr.srt_id); keep.add(x.audio && x.audio.asset_id);
+    }
+    const ids = r.cleanup.filter(id => id && !keep.has(id));
+    for (let i = 0; i < ids.length; i += 6) {
+      for (let tryNo = 0; ; tryNo++) {
+        const res = await Promise.allSettled(ids.slice(i, i + 6).map(id => assets.delete(id)));
+        const bad = res.find(x => x.status === 'rejected');
+        if (!bad) break;
+        // 잠깐 막힘(store_unavailable)은 한 번만 다시, 그 밖(권한 등)은 그만두고 다음 버튼 때 다시
+        if (tryNo || !bad.reason || bad.reason.code !== 'store_unavailable') return;
+        await new Promise(ok => setTimeout(ok, 1500));
+      }
+    }
+    await db.doc(`projects/${p.id}`).update({ result: { cleanup: [] } });
+    if (S.project && S.project.id === p.id && S.project.result) S.project.result.cleanup = [];
+  } catch (e) { /* 다음에 다시 */ } finally { sweeping = false; }
+}
 $('#src-go').onclick = async () => {
   const p = S.project;
+  sweepAssets(p);
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
   if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`projects/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '' }); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
@@ -1135,6 +1165,7 @@ async function makeZip() {
     const blob = await zip.generateAsync({ type: 'blob' });
     if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
     await downloads.save({ filename: `${p.id}.zip`, data: blob });
+    sweepAssets(p);
     st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
     try { await db.doc(`projects/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
   } catch (e) {

@@ -167,3 +167,54 @@ def test_sources_with_voice_uses_heard_words(root, tmp_path, monkeypatch):
         )
     )
     assert man["timing"] == "voice" and "ffmpeg" in man["asr"]["error"]
+
+
+def test_upload_plan_reuses_same_files_and_lists_cleanup(tmp_path):
+    """다시 만들 때 내용이 같은 사진은 다시 올리지 않고, 안 쓰게 된 옛 자산은 화면이 지우도록 cleanup에 남긴다."""
+    out = tmp_path / "src"
+    (out / "assets").mkdir(parents=True)
+    same, new = out / "assets" / "s001_1.jpg", out / "assets" / "s002_1.jpg"
+    same.write_bytes(b"same photo")
+    new.write_bytes(b"new photo")
+    (out / "timeline.xml.txt").write_text("<xmeml/>", encoding="utf-8")
+    (out / "narration.srt.txt").write_text("1\n00:00:00,000 --> 00:00:01,000\n가\n", encoding="utf-8")
+    man = {
+        "made_at": "now",
+        "scenes": [],
+        "report": {"scenes": 2},
+        "base_token": "b",
+        "timing": "voice+asr",
+        "files": [
+            {"name": "assets/s001_1.jpg", "path": str(same), "media": "image", "sha": wr._sha(same)},
+            {"name": "assets/s002_1.jpg", "path": str(new), "media": "image", "sha": wr._sha(new)},
+        ],
+    }
+    prev = {
+        "audio": {"asset_id": "voice"},
+        "result": {
+            "files": [
+                {"name": "assets/s009_1.jpg", "id": "keep", "sha": wr._sha(same)},
+                {"name": "assets/s002_1.jpg", "id": "gone", "sha": "old"},
+            ],
+            "timeline_id": "old-tl",
+            "srt_id": "old-srt",
+            "cleanup": ["leftover", "voice"],
+            "report": {"scenes": 9, "skipped_sources": {"x": 1}},
+            "old_key": 1,
+        },
+    }
+    plan = wr.upload_plan(man, prev, out)
+    assert plan["reuse"] == {"assets/s001_1.jpg": "keep"} and plan["batches"] == [[str(new)]]
+    assert len(plan["texts"]) == 2 and plan["cleanup"] == ["gone", "leftover", "old-srt", "old-tl"]
+    up = {str(new): "n1", str(out / "timeline.xml.txt"): "tl", "narration.srt.txt": "srt"}
+    doc = wr.result_doc(man, plan, up, prev, out)["result"]
+    assert (
+        [f["id"] for f in doc["files"]] == ["keep", "n1"]
+        and doc["timeline_id"] == "tl"
+        and doc["srt_id"] == "srt"
+    )
+    assert doc["old_key"] == {"__delete__": True} and doc["report"]["skipped_sources"] == {"__delete__": True}
+    assert doc["timing"] == "voice+asr" and doc["cleanup"] == plan["cleanup"]
+    # 다음 번: 아무것도 안 바뀌면 하나도 안 올린다
+    again = wr.upload_plan(man, {"result": doc}, out)
+    assert again["batches"] == [] and again["texts"] == [] and again["cleanup"] == plan["cleanup"]
