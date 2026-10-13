@@ -44,7 +44,9 @@ def now_kst() -> datetime:
     return datetime.now(KST)
 
 
-FeedKind = Literal["domestic", "press", "overseas"]
+FeedKind = Literal[
+    "domestic", "press", "overseas", "opinion"
+]  # opinion: 사설·칼럼(의견의 출처, 사실 근거 아님)
 
 
 class FeedSpec(BaseModel):

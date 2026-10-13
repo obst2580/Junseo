@@ -83,9 +83,9 @@ async def run_collect(
         since = datetime.fromisoformat(last) - timedelta(hours=1) if last else now_kst() - timedelta(hours=24)
     async with make_client() as client:
         report = await collect_all(build_collectors(settings, cfg, client, store), since)
-        # 2단계: 커뮤니티에서 뜨는 화제로 뉴스 검색어를 만들어 근거 기사를 확보한다.
+        # 2단계: 커뮤니티(보수 채널은 사설·칼럼도)에서 뜨는 화제로 뉴스 검색어를 만들어 근거 기사를 확보한다.
         queries = derive_queries(
-            [s for s in report.signals if s.kind == "community"],
+            [s for s in report.signals if s.kind in ("community", "opinion")],
             cfg.board.derived_queries,
             set(cfg.clustering.generic_tokens),
             exclude=set(cfg.sources.naver_queries),

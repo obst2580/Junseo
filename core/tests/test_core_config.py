@@ -112,3 +112,24 @@ def test_second_channel_uses_its_own_files(tmp_path, monkeypatch):
         and len(cfg.sources.rss) >= 10
     )
     assert "투자 권유가 아니며" in cfg.script.outro
+
+
+def test_conservative_channel_config():
+    """자유뉴스365: 보수 언론 사설·칼럼(kind: opinion)과 수집을 허용한 조갑제닷컴만. 막힌 곳·일베는 넣지 않는다."""
+    from pathlib import Path
+
+    import yaml
+
+    from studio_core.config import ChannelConfig
+
+    repo = Path(__file__).resolve().parents[2]
+    cfg = ChannelConfig.model_validate(
+        yaml.safe_load((repo / "channel.right.yaml").read_text(encoding="utf-8"))
+    )
+    assert cfg.channel.profile == "conservative" and cfg.channel.name == "자유뉴스365"
+    assert len([f for f in cfg.sources.rss if f.kind == "opinion"]) >= 4
+    assert len([f for f in cfg.sources.rss if f.kind == "domestic"]) >= 4  # 사실은 기사로
+    assert [c.name for c in cfg.communities] == ["조갑제닷컴"]
+    urls = " ".join(c.list_url for c in cfg.communities)
+    assert not any(x in urls for x in ("ilbe", "fmkorea", "dcinside", "mlbpark"))
+    assert "자유뉴스365" in cfg.script.outro and "자유뉴스365" in cfg.script.shorts_outro

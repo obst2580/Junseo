@@ -208,7 +208,9 @@ def parse_board(html_text: str, spec: CommunitySpec, base_url: str, now: datetim
     out: dict[str, BoardPost] = {}
     for gi, g in enumerate(groups):
         key = g[0][2]
-        best = max(g, key=lambda h: len(strip_html(h[0].group(2))))
+        # 제목 정규식이 있으면 그 정규식에 맞는 링크 중에서 고른다(같은 글로 가는 링크가 제목·요약 두 개인 사이트)
+        titled = [h for h in g if spec.title_pattern and re.search(spec.title_pattern, h[0].group(2), re.S)]
+        best = max(titled or g, key=lambda h: len(strip_html(h[0].group(2))))
         inner = best[0].group(2)
         tm = re.search(spec.title_pattern, inner, re.S) if spec.title_pattern else None
         title_raw = strip_html(tm.group(1)) if tm else strip_html(inner)

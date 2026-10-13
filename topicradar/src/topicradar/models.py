@@ -10,7 +10,8 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 VideoFormat = Literal["long", "short", "shorts"]
-SignalKind = Literal["domestic", "press", "overseas", "schedule", "competitor", "own", "community"]
+# opinion: 언론 사설·칼럼(채널 시선의 출처 — 사실 근거가 아니라 의견. 보수 채널은 커뮤니티 글처럼 쓴다)
+SignalKind = Literal["domestic", "press", "overseas", "schedule", "competitor", "own", "community", "opinion"]
 NEWS_KINDS = ("domestic", "press", "overseas")
 TopicKind = Literal["overseas", "announcement", "scheduled", "event"]
 Trend = Literal["↑", "→", "↓"]

@@ -183,7 +183,7 @@ footer { font-size: 13px; color: var(--muted); }
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="stock">오늘증시 김시연</option></select></label><span class="by" id="by"></span></div>
+    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="right">자유뉴스365</option><option value="stock">오늘증시 김시연</option></select></label><span class="by" id="by"></span></div>
     <p class="lede" id="lede"></p>
     <div class="row" id="status"></div>
   </header>
@@ -308,11 +308,14 @@ const ls = {
 const CHANNELS = {
   politics: { name: '정치는푸르다', prefix: '', tags: ['정치', '정치뉴스'], by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
     lede: '친이재명 시선의 정치 채널 영상을 만듭니다. 커뮤니티 다수 의견으로 진짜 문제가 어디 있는지(국민의힘이든 민주당 안이든) 짚습니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
+  right: { name: '자유뉴스365', prefix: 'right_', tags: ['정치', '정치뉴스'], by: 'studio · 보수 언론 사설·칼럼으로 고르고, 쓰고, 프리미어까지',
+    lede: '국민의힘 지지 중심의 보수 정치 채널 영상을 만듭니다. 시선은 <b>보수 언론 사설·칼럼</b>(조선·동아·한경·데일리안)과 조갑제닷컴 게시판에서 가져오고, 사실은 기사로만 씁니다. 부정선거 음모론·5·18 왜곡·계엄 미화·혐오 표현은 쓰지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
   stock: { name: '오늘증시 김시연', prefix: 'stock_', tags: ['주식', '증시뉴스'], by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
     lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
 };
 const CH = CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
 const STOCK = CH === 'stock';
+const RIGHT = CH === 'right';  // 보수 채널: 게시판 글 자리에 사설·칼럼이 함께 들어온다
 const COL = n => CHANNELS[CH].prefix + n;  // raw → stock_raw, topics → stock_topics, projects → stock_projects
 const lsk = k => (CH === 'politics' ? k : `${k}:${CH}`);  // 채널마다 따로 기억할 것(열어 둔 프로젝트 등)
 function toast(msg, bad = false) {
@@ -447,7 +450,8 @@ function groupPrompt() {
   const m = S.meta, posts = STOCK ? [] : activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 120);
   const pmap = {}, amap = {};
   const P = posts.map((p, i) => { const id = 'p' + (i + 1); pmap[id] = p.id; return {
-    id, site: p.site, title: p.title, comments: p.comments, votes: p.votes, body: (p.body || '').slice(0, 150),
+    id, site: p.site, ...(p.kind ? { kind: p.kind } : {}), title: p.title, comments: p.comments, votes: p.votes,
+    body: (p.body || '').slice(0, p.kind === 'opinion' ? 300 : 150),  // 사설·칼럼은 주장이 본문에 있어 조금 길게
     top_comments: (p.top_comments || []).slice(0, 3).map(c => ({ text: c.text.slice(0, 100), votes: c.votes })) }; });
   // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만). 마감 시황 기사를 앞에, 같은 제목 되풀이는 하나만
   const A = (STOCK ? stockPick(S.articles, 260) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
@@ -486,7 +490,7 @@ function scriptKey(p = S.project) {
   const fr = Object.fromEntries(Object.entries(r.format_rules || {}).filter(([k]) => k !== 'shorts' || isShorts(p)));
   return hashKey([r.identity, r.script_rules, r.structure_rules, r.tone_rules, JSON.stringify(fr)]);
 }
-const angleBadge = a => !a ? '' : `<span class="badge ${a === '당내 비판' ? 'warn' : 'ok'}"${a === '당내 비판' ? ' title="민주당·범진보 안의 문제 — 친이재명 지지층 시선으로 짚습니다"' : ''}>${esc(a)}</span>`;
+const angleBadge = a => !a ? '' : `<span class="badge ${a === '당내 비판' ? 'warn' : 'ok'}"${a === '당내 비판' ? ` title="${RIGHT ? '국민의힘 안의 문제 — 보수 지지층 시선으로 짚습니다' : '민주당·범진보 안의 문제 — 친이재명 지지층 시선으로 짚습니다'}"` : ''}>${esc(a)}</span>`;
 const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
 async function runGroup() {
   if (!claudeOk() || ctl || !S.meta) return;
@@ -566,7 +570,7 @@ function renderTopics() {
   const postsById = Object.fromEntries(S.posts.map(p => [p.id, p]));
   const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
   $('#topics-wrap').hidden = false;
-  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : '커뮤니티 반응도 순'}`;
+  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
   $('#topics').innerHTML = T.topics.map((t, i) => {
     const on = S.picked.includes(t.id), order = S.picked.indexOf(t.id) + 1;
     const posts = t.post_ids.map(x => postsById[x]).filter(Boolean);
@@ -576,7 +580,7 @@ function renderTopics() {
       <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
       ${STOCK ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건 · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
       ${STOCK ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
-      <div class="stance"><span class="tag">${STOCK ? '핵심' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
+      <div class="stance"><span class="tag">${STOCK ? '핵심' : RIGHT ? '채널 시선' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
       ${t.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(t.questions.join(' / '))}</div>` : ''}
@@ -1051,7 +1055,7 @@ function watchRequest(slot, rid) {
 function workerMessage(rid, kind) {
   const w = S.worker || {};
   return [`[studio 제작실 요청] ${rid} · ${kind === 'collect' ? '수집' : '자료·timeline.xml'}`,
-    `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, STOCK ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
+    `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, CH !== 'politics' ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
     S.project && kind !== 'collect' ? `프로젝트: ${COL('projects')}/${S.project.id}` : '',
     S.project && kind !== 'collect' && isShorts(S.project) ? '형식: 세로 쇼츠(1080×1920 — sources가 format을 보고 세로로 만듦)' : '',
     '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
@@ -1266,6 +1270,7 @@ function renderProjects() {
 
 /* ---------- 시작 ---------- */
 renderStatus(); renderTopics(); renderTabs();
+if (RIGHT) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>이나 <b>세로 쇼츠</b>(1분), 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 여러 매체가 함께 다룬 순이고, 국민의힘 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.';
 if (STOCK) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>, 2~3개를 고르면 <b>10분 시황 브리핑</b>입니다. 고른 순서가 영상 순서입니다. 10분은 <b>시황</b> 이슈를 먼저 고르면 브리핑 흐름이 자연스럽습니다.';
 $('#channel').value = CH; $('#by').textContent = CHANNELS[CH].by; $('#lede').innerHTML = CHANNELS[CH].lede;
 $('#channel').onchange = e => { ls.set('channel', e.target.value); location.reload(); };

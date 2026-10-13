@@ -33,18 +33,22 @@ unset STUDIO_FIXTURES
 네이버·YouTube 키는 클라우드 환경 설정의 Environment variables에 있어야 합니다(없으면 사진·영상 검색을 건너뜁니다).
 키 값은 화면·파일·메시지 어디에도 적지 않습니다.
 
-## 채널(정치 / 증시)
+## 채널(정치 / 보수 / 증시)
 
-제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`) 그 채널입니다.
+제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`, `"right"`) 그 채널입니다.
 
-| | 정치(기본, `channel` 없음) | 증시(`channel: "stock"`) |
-|---|---|---|
-| 설정 | `channel.yaml` | `channel.stock.yaml` |
-| 작업자 명령 | `uv run python -m studio_app.workroom …` | `uv run python -m studio_app.workroom --channel stock …` (모든 하위 명령) |
-| 아티팩트 데이터 | `raw/…`, `topics/current`, `projects/<ID>` | `stock_raw/…`, `stock_topics/current`, `stock_projects/<ID>` |
-| 로컬 폴더 | `data/`, `projects/` | `data-stock/`, `projects-stock/` |
+| | 정치는푸르다(기본, `channel: "politics"` 또는 없음) | 자유뉴스365(`channel: "right"`) | 오늘증시 김시연(`channel: "stock"`) |
+|---|---|---|---|
+| 설정 | `channel.yaml` | `channel.right.yaml` | `channel.stock.yaml` |
+| 작업자 명령 | `uv run python -m studio_app.workroom …` | `… workroom --channel right …` (모든 하위 명령) | `… workroom --channel stock …` (모든 하위 명령) |
+| 아티팩트 데이터 | `raw/…`, `topics/current`, `projects/<ID>` | `right_raw/…`, `right_topics/current`, `right_projects/<ID>` | `stock_raw/…`, `stock_topics/current`, `stock_projects/<ID>` |
+| 로컬 폴더 | `data/`, `projects/` | `data-right/`, `projects-right/` | `data-stock/`, `projects-stock/` |
 
-`requests/<ID>`와 `config/worker`는 두 채널이 함께 씁니다. 아래 절차의 `raw/`·`projects/`는 증시면 `stock_raw/`·`stock_projects/`로 읽습니다.
+`requests/<ID>`와 `config/worker`는 세 채널이 함께 씁니다. 아래 절차의 `raw/`·`projects/`는 채널에 맞게 `right_raw/`·`stock_projects/`처럼 읽습니다.
+**자유뉴스365는 정치 채널과 절차가 같습니다**(사진 검색어 queries.json, 세로 쇼츠 포함). 다른 점은 수집뿐입니다 — 보수 언론
+사설·칼럼(`kind: opinion` 피드: 조선·동아·한경·데일리안)을 게시판 글처럼 `posts`에 넣고(`kind: "opinion"`, `site` = 매체),
+게시판은 수집을 허용한 조갑제닷컴만 씁니다. 사진 검색어에도 넘지 않는 선을 지킵니다(부정선거·5·18 왜곡·계엄 미화·혐오로
+읽힐 말을 붙이지 않기).
 **증시 채널은 사진을 찾지 않고 슬라이드를 그립니다.** 3단계에서 queries.json 대신 `/tmp/wr-src/slides.json`을 쓰고,
 4단계 sources에 `--queries` 대신 `--slides /tmp/wr-src/slides.json`을 넘깁니다(채널 색: 흰색→민트 그라데이션, 큰 글씨,
 상승 빨강▲·하락 파랑▼ — `newsclip/slides.py`). 업로드·결과 쓰기(5~7단계)는 같습니다.

@@ -34,6 +34,7 @@ from studio_core.text import tokenize
 DOC_LIMIT = 240_000  # db 문서 하나에 넣을 최대 바이트(한도 256 KiB보다 여유 있게)
 BASE = "__STUDIO_BASE__"
 POST_BODY = 300
+OPINION_BODY = 600  # 사설·칼럼(kind: opinion)은 주장이 본문에 있어 조금 길게
 COMMENTS = 5
 COMMENT_LEN = 150
 ARTICLE_SUMMARY = 220
@@ -74,6 +75,30 @@ def article_body(page: str) -> str:
         if ln and "@" not in ln and not ln.startswith("["):
             lines.append(ln)
     return "\n".join(lines)[:ARTICLE_BODY]
+
+
+# 사설·칼럼 본문 칸(매체마다 다름): 한국경제 #articletxt, 동아일보 .news_view, 그 밖의 흔한 이름
+OPINION_BODY_SELECTOR = "#articletxt, #articleBody, #article-view-content-div, .news_view, .article_txt, .article-body, .article_body"
+_OG_DESC = re.compile(r"<meta[^>]+property=[\"']og:description[\"'][^>]+content=[\"']([^\"']*)[\"']", re.I)
+
+
+def opinion_body(page: str) -> str:
+    """사설·칼럼 페이지 → 본문 앞부분. 본문 칸이 있으면 그 글(메뉴·추천 기사가 섞이지 않게), 없으면(조선일보처럼
+    화면에서 그리는 곳) og:description(요지), 그것도 없으면 기사 본문 찾기(article_body)."""
+    from topicradar.collectors.htmltree import parse_html
+
+    try:
+        node = parse_html(page).select_one(OPINION_BODY_SELECTOR)
+    except Exception:  # 깨진 HTML
+        node = None
+    if node is not None:
+        text = " ".join(node.text().split())
+        if len(text) >= 100:
+            return text[:ARTICLE_BODY]
+    m = _OG_DESC.search(page)
+    if m and len(m.group(1).strip()) >= 40:
+        return htmllib.unescape(m.group(1)).strip()
+    return article_body(page)
 
 
 def related_articles(posts: list[dict], articles: list[dict], generic: set[str], n: int) -> list[str]:
@@ -128,6 +153,14 @@ async def collect(out: Path, hours: int = 24) -> dict:
         # 지금 설정에 켜 둔 게시판 글만(커뮤니티를 안 쓰는 채널·꺼 둔 게시판의 예전 글이 섞이지 않게)
         sites = {c.name for c in cfg.communities if c.enabled}
         community = [s for s in community if s.metric.get("site", "") in sites]
+        # 사설·칼럼 피드(kind: opinion — 보수 채널의 시선)는 게시판 글처럼 주제 묶기·의견 정리에 쓴다
+        opinion_feeds = [f.name for f in cfg.sources.rss if f.kind == "opinion"]
+        opinions = (
+            store.signals_between(start, now + timedelta(minutes=1), kinds={"opinion"})
+            if opinion_feeds
+            else []
+        )
+        opinions = [s for s in opinions if s.metric.get("feed", "") in opinion_feeds]
         news = store.signals_between(
             now - timedelta(hours=hours + 6), now + timedelta(minutes=1), kinds={"domestic", "press"}
         )
@@ -148,6 +181,20 @@ async def collect(out: Path, hours: int = 24) -> dict:
             "url": s.url,
         }
         for s in sorted(community, key=lambda s: s.published_at, reverse=True)
+    ] + [
+        {
+            "id": s.id,
+            "site": s.metric.get("feed", ""),
+            "kind": "opinion",
+            "time": _iso(s.published_at),
+            "title": s.title,
+            "body": (s.summary or "")[:OPINION_BODY],
+            "comments": 0,
+            "votes": 0,
+            "top_comments": [],
+            "url": s.url,
+        }
+        for s in sorted(opinions, key=lambda s: s.published_at, reverse=True)
     ]
     articles = [
         {
@@ -181,7 +228,21 @@ async def collect(out: Path, hours: int = 24) -> dict:
             if len(body) > len(a["summary"]):
                 a["body"] = body
 
-        await asyncio.gather(*(fill(a) for a in articles if a["id"] in want))
+        async def fill_opinion(p: dict) -> None:
+            """사설·칼럼은 RSS 요약이 짧아 본문 앞부분을 읽는다(주장은 본문에 있다)."""
+            async with sem:
+                try:
+                    resp = await request(client, "GET", p["url"], retries=1)
+                    body = opinion_body(resp.text)
+                except Exception:  # 하나 실패는 요약으로 대신
+                    body = ""
+            if len(body) > len(p["body"]):
+                p["body"] = body[:OPINION_BODY]
+
+        await asyncio.gather(
+            *(fill(a) for a in articles if a["id"] in want),
+            *(fill_opinion(p) for p in posts if p.get("kind") == "opinion"),
+        )
     out.mkdir(parents=True, exist_ok=True)
     for kind, items in (("posts", posts), ("articles", articles)):
         for n, doc in enumerate(chunk(items, kind), start=1):
@@ -197,12 +258,23 @@ async def collect(out: Path, hours: int = 24) -> dict:
         "post_docs": len(list(out.glob("posts-*.json"))),
         "article_docs": len(list(out.glob("articles-*.json"))),
         "sites": {
-            s.name: {
-                "enabled": s.enabled,
-                "posts": sum(1 for p in posts if p["site"] == s.name),
-                "error": report.errors.get(f"community:{s.name}", "") if s.enabled else "꺼 둠",
-            }
-            for s in cfg.communities
+            **{
+                s.name: {
+                    "enabled": s.enabled,
+                    "posts": sum(1 for p in posts if p["site"] == s.name),
+                    "error": report.errors.get(f"community:{s.name}", "") if s.enabled else "꺼 둠",
+                }
+                for s in cfg.communities
+            },
+            **{  # 사설·칼럼 피드도 화면에서 사이트처럼 글 수를 보고 끌 수 있게
+                name: {
+                    "enabled": True,
+                    "posts": sum(1 for p in posts if p["site"] == name),
+                    "error": "" if any(p["site"] == name for p in posts) else "최근 24시간 글 없음",
+                    "kind": "opinion",
+                }
+                for name in opinion_feeds
+            },
         },
         **handoff.channel_rules(cfg),
     }

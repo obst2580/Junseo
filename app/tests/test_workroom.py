@@ -284,3 +284,65 @@ def test_sources_shorts_makes_vertical_timeline(root, tmp_path):
 def test_vertical_only_for_shorts_format():
     assert wr.is_vertical_format({"format": "shorts"})
     assert not wr.is_vertical_format({"format": "short"}) and not wr.is_vertical_format({})
+
+
+def test_collect_turns_opinion_feeds_into_posts(root, monkeypatch, tmp_path):
+    """보수 채널: 사설·칼럼 피드(kind: opinion)의 글은 게시판 글처럼 posts에 들어가고(site = 매체), 사이트 목록에도 보인다."""
+    from datetime import datetime
+
+    from studio_core.config import KST, load_settings
+    from topicradar import pipeline
+    from topicradar.models import Signal
+
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-08T18:00")
+    ch = root / "channel.yaml"
+    ch.write_text(
+        ch.read_text(encoding="utf-8").replace(
+            "  rss:\n",
+            '  rss:\n    - {name: 테스트 사설, url: "https://opinion.invalid/rss.xml", kind: opinion}\n',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    at = datetime(2026, 10, 8, 12, 0, tzinfo=KST)
+    with pipeline.open_store(load_settings()) as store:
+        store.upsert_signals(
+            [
+                Signal(
+                    source="rss:테스트 사설",
+                    kind="opinion",
+                    fetched_at=at,
+                    published_at=at,
+                    title="[사설] 국회 예산 심사, 이대로는 안 된다",
+                    url="https://opinion.invalid/editorial/1",
+                    summary="예산 심사가 졸속으로 흐르고 있다.",
+                    metric={"feed": "테스트 사설"},
+                )
+            ]
+        )
+    meta = asyncio.run(wr.collect(tmp_path / "out"))
+    posts = [
+        p
+        for f in sorted((tmp_path / "out").glob("posts-*.json"))
+        for p in json.loads(f.read_text(encoding="utf-8"))["posts"]
+    ]
+    op = [p for p in posts if p.get("kind") == "opinion"]
+    assert len(op) == 1 and op[0]["site"] == "테스트 사설" and op[0]["body"].startswith("예산 심사")
+    assert meta["sites"]["테스트 사설"]["posts"] == 1 and meta["sites"]["테스트 사설"]["kind"] == "opinion"
+    articles = [
+        a
+        for f in (tmp_path / "out").glob("articles-*.json")
+        for a in json.loads(f.read_text(encoding="utf-8"))["articles"]
+    ]
+    assert all(a["url"] != op[0]["url"] for a in articles)  # 사설은 사실 근거(기사)에 섞이지 않는다
+
+
+def test_opinion_body_prefers_body_box_then_og_description():
+    nav = (
+        "<p>추천 검색어는 많이 본 뉴스 기사의 키워드를 수집하여 선정하였습니다. 오피니언 사설 오늘과 내일</p>"
+    )
+    lead = "예산 심사가 졸속으로 흐르고 있다. " * 6
+    boxed = f"<html><body>{nav}<div class='news_view'><p>{lead}</p></div></body></html>"
+    assert wr.opinion_body(boxed).startswith("예산 심사가") and "추천 검색어" not in wr.opinion_body(boxed)
+    og = '<html><head><meta property="og:description" content="경복궁이 야외 결혼식 장소로 개방되며 고궁을 일상 공간으로 활용하는 새로운 시도"></head><body><script>x</script></body></html>'
+    assert wr.opinion_body(og).startswith("경복궁이 야외 결혼식")

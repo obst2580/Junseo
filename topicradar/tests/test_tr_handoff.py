@@ -221,3 +221,36 @@ def test_shorts_format_only_for_politics():
     )
     stock = channel_rules(ChannelConfig.model_validate({"channel": {"profile": "stock"}}))
     assert "shorts" not in stock["formats"] and "shorts" not in stock["rules"]["format_rules"]
+
+
+def test_conservative_profile_rules():
+    """자유뉴스365(보수, 국민의힘 지지): 시선은 사설·칼럼·조갑제닷컴, 넘지 않는 선은 모든 규칙에, 친이재명 문구는 없다."""
+    from studio_core.config import ChannelConfig
+    from topicradar import prompts
+    from topicradar.handoff import channel_rules
+
+    cfg = ChannelConfig.model_validate(
+        {"channel": {"profile": "conservative", "name": "자유뉴스365"}, "script": {"tone": "보수 입담형"}}
+    )
+    r = channel_rules(cfg)
+    rules = r["rules"]
+    assert r["profile"] == "conservative" and set(r["formats"]) == {"long", "short", "shorts"}
+    assert rules["angles"] == ["상대 비판", "보수 방어", "당내 비판", "정책 해설"]
+    for key in ("identity", "group_task", "script_rules"):
+        text = rules[key]
+        for line in ("부정선거", "5·18", "12·3 비상계엄", "혐오"):
+            assert line in text, (key, line)
+        assert "친이재명" not in text
+    assert "사설·칼럼" in rules["group_task"] and "조갑제닷컴" in rules["group_task"]
+    assert "문제가 국민의힘 안에 있으면" in rules["identity"]  # 무조건 국민의힘 편은 아니다
+    assert (
+        "친이재명" not in rules["plan_task"]
+        and "이재명 대통령을 비난하는 제목은 금지" not in rules["plan_task"]
+    )
+    assert "이재명" not in rules["format_rules"]["shorts"] and "처음 10초" in rules["format_rules"]["shorts"]
+    assert (
+        "더불어민주당 ○○ 의원" in rules["tone_rules"]
+        and "이재명 대통령은 풍자하지 않는다" not in rules["tone_rules"]
+    )
+    # 정치 채널 규칙은 그대로
+    assert prompts.PROFILES["politics"]["identity"] == prompts.IDENTITY and "친이재명" in prompts.IDENTITY

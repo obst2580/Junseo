@@ -492,3 +492,16 @@ def test_parse_post_best_comments_deduped_and_post_votes_kept():
     d = parse_post(html, spec)
     assert [(c.votes, c.text) for c in d.comments] == [(338, "금융치료가 답"), (10, "별 내용도 없던데요")]
     assert d.votes == 944  # 댓글용 vote_selector와 별개로 글 공감 수를 찾는다
+
+
+def test_parse_board_prefers_link_matching_title_pattern():
+    """같은 글로 가는 링크가 제목(strong)·요약(p) 두 개면, 더 긴 요약이 아니라 제목 정규식에 맞는 링크에서 제목을 읽는다(조갑제닷컴)."""
+    html = """
+    <li><a href="/board/column/view.asp?C_IDX=105751&C_CC=BC"><strong>[칼럼]'지휘관 병' 말기의 대통령</strong></a>
+    <a href="/board/column/view.asp?C_IDX=105751&C_CC=BC"><p>직언하는 측근들은 하나둘 떠나가고, 주변에는 칭송하는 사람만 남아 병세를 더할 뿐</p></a>
+    <p>2026-10-08&nbsp;14:13 | 회원</p></li>
+    """
+    spec = _spec(post_pattern=r"(?i)view\.asp\?c_idx=\d+&c_cc=\w+", title_pattern=r"<strong>(.*?)</strong>")
+    (post,) = parse_board(html, spec, "https://www.chogabje.com/board/board_alllist.asp?cpage=1", NOW)
+    assert "지휘관 병" in post.title and "측근" not in post.title
+    assert post.url == "https://www.chogabje.com/board/column/view.asp?C_IDX=105751&C_CC=BC"

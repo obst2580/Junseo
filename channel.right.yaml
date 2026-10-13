@@ -1,0 +1,92 @@
+# 보수 정치 채널 설정 — STUDIO_CHANNEL=right(작업자: `workroom --channel right …`)일 때 channel.yaml 대신 읽는다.
+# 수집한 글·기사는 data-right/, 작업 폴더는 projects-right/에 따로 둔다(다른 채널과 섞이지 않게).
+channel:
+  name: 자유뉴스365
+  profile: conservative       # 대본·주제 규칙 묶음(topicradar/prompts.py R_*)
+  youtube_channel_id: ""
+  stance: "국민의힘 지지 중심의 보수 정치 채널. 이재명 정부와 민주당·범진보의 정책·인사·발언을 사실로 짚어 비판하고, 국민의힘·보수 인사를 향한 공격과 왜곡을 반박한다. 무조건 국민의힘 편은 아니다 — 문제가 국민의힘 안에 있으면(지도부의 판단 착오, 내부 분열, 지지층 뜻과 다른 결정) 보수 지지층의 눈으로 짚는다. 다룰 주제와 시선은 보수 언론 사설·칼럼과 조갑제닷컴 게시판 글로 정하고, 사실은 기사로 받친다. 부정선거 음모론·5·18 왜곡·12·3 계엄 미화·혐오 표현은 쓰지 않는다."
+  categories: [국회, 정부, 사법, 선거, 외교안보, 국제, 경제, 노동, 복지]
+  competitors: []            # 경쟁 채널 ID(UC...) — 영상을 모아 같은 주제에 붙여 둠(점수에는 안 넣음)
+  past_titles: []            # 업로드 후 자동 추가
+  slack_webhook: ""
+
+sources:
+  # 국내 RSS. 주소는 docs/sources.md 참고 — 이 환경에선 접속 검증을 못 했으니 첫 collect 결과 표의
+  # '실패' 줄로 확인하세요(피드 하나가 실패해도 나머지는 계속 수집됩니다).
+  rss:
+    - {name: 연합뉴스 정치, url: "https://www.yna.co.kr/rss/politics.xml", kind: domestic, category: 국회}
+    - {name: 연합뉴스 북한, url: "https://www.yna.co.kr/rss/northkorea.xml", kind: domestic, category: 외교안보}
+    - {name: 연합뉴스 경제, url: "https://www.yna.co.kr/rss/economy.xml", kind: domestic, category: 경제}
+    - {name: 연합뉴스 사회, url: "https://www.yna.co.kr/rss/society.xml", kind: domestic}
+    # 정부 보도자료: 정책브리핑(korea.kr) RSS는 2026-07-01 공지로 제공 중단 → 부처별 RSS를 확인해 kind: press로 추가
+    # - {name: 기획재정부 보도자료, url: "<부처 RSS 주소>", kind: press, category: 정부}
+    # 채널의 시선 = 보수 언론 사설·칼럼(kind: opinion — 사실 근거가 아니라 의견의 출처. 수집하면 게시판 글처럼 주제 묶기·의견 정리에 쓴다).
+    # 2026-10 점검: 아래 4곳 접속·최근 글 확인. 중앙일보·문화일보는 쓸 수 있는 RSS를 찾지 못했고, 세계일보 오피니언은 글 시각이 없어 뺐다.
+    - {name: 조선일보 오피니언, url: "https://www.chosun.com/arc/outboundfeeds/rss/category/opinion/?outputType=xml", kind: opinion}
+    - {name: 동아일보 사설, url: "https://rss.donga.com/editorials.xml", kind: opinion}
+    - {name: 한국경제 오피니언, url: "https://www.hankyung.com/feed/opinion", kind: opinion}
+    - {name: 데일리안 오피니언, url: "https://www.dailian.co.kr/rss/opinion", kind: opinion}
+  overseas_rss:
+    - {name: 연합뉴스 국제, url: "https://www.yna.co.kr/rss/international.xml", category: 국제}
+    - {name: BBC World, url: "https://feeds.bbci.co.uk/news/world/rss.xml", category: 국제}
+    - {name: NYT World, url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", category: 국제}
+    - {name: Guardian World, url: "https://www.theguardian.com/world/rss", category: 국제}
+    - {name: Al Jazeera, url: "https://www.aljazeera.com/xml/rss/all.xml", category: 국제}
+    - {name: NPR World, url: "https://feeds.npr.org/1004/rss.xml", category: 국제}
+  # 네이버 뉴스 검색어(검색어당 최신 100건). 정치 중심으로 두고 경제는 최소로.
+  naver_queries: [국회 본회의, 국정감사, 대통령실, 국무회의, 법사위, 검찰 수사, 법원 선고, 헌법재판소, 여론조사, 공천, 외교부, 북한 미사일, 노동 입법, 연금 개혁]
+  kogl: []                   # KTV 국민방송, 국회방송 등 공공누리 영상 API (2차)
+
+images:
+  # 가점만, 제한 없음. 접미사 일치(go.kr → moef.go.kr 포함). 정당 도메인은 사용 전 확인.
+  preferred_domains: [wikimedia.org, go.kr, assembly.go.kr, theminjoo.kr, peoplepowerparty.kr, rebuildingkoreaparty.kr, reformparty.kr, justice21.org, jinboparty.com]
+  blocked_domains: []        # 비워둠. 필요 시 사용자가 추가
+  # 사진 검색에 섞여 나오는 유튜브 썸네일은 아래 뉴스 공식 채널 것만 쓴다(그 밖의 채널·확인 못 한 썸네일은 뺌).
+  # 채널 이름은 공백·대소문자 무시, 일부만 맞아도 됨(예: 'KBS News'). 비우면 썸네일을 아예 안 씀
+  youtube_thumb_channels: [KBS News, MBCNEWS, MBC 뉴스, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, 연합뉴스 Yonhapnews, MBN News, 채널A 뉴스, TV CHOSUN NEWS, 뉴스TVCHOSUN, KTV 국민방송, 국회방송, OBS 뉴스, CBS 뉴스, 뉴스타파, 오마이TV, 한겨레, 경향신문, 뉴스1, 뉴시스]
+
+videos:
+  preferred_channels: [KTV 국민방송, 국회방송, NATV, 대한민국 정부, 국민의힘, 더불어민주당, 개혁신당]
+  blocked_channels: [KBS News, MBCNEWS, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, TV CHOSUN, 채널A, MBN]   # Content ID 회피
+
+budget:
+  google_cse_per_day: 90       # 무료 100회 중 여유 10
+  youtube_search_per_day: 80   # search.list 1회 = 100 units, 하루 10,000 units 중 8,000
+  naver_per_day: 20000
+
+# timeline.xml에 깔 글자 트랙. 자막은 넣지 않는다(프리미어에서 직접 하거나 안 씀).
+timeline:
+  subtitles: false             # 대본 자막(음성에 맞춘 줄 자막) 트랙
+  attribution: true            # 출처 표시(왼쪽 위) — 끄면 사진·영상 출처를 영상에 밝히지 않음
+
+clustering:
+  generic_tokens: []           # 어디에나 나와 주제 연결 근거로 약하게만 칠 말(주요 정당명은 기본 포함)
+
+script:
+  tone: 보수 입담형             # 확신형+입담형과 같은 입담, 보수 채널 시선(topicradar/prompts.py TONES)
+  chars_per_minute: 600
+  fixed_hashtags: [정치, 정치뉴스]       # 해시태그 고정(맨 앞)
+  outro: 자유대한민국을 위해서 자유뉴스365 채널 구독해주시고, 매일 새로운 정치 소식으로 찾아뵙겠습니다.
+  shorts_outro: "자유뉴스365, 구독하고 영상 오른쪽 하트 눌러주신 뒤 다음 소식도 받아보세요."   # 세로 쇼츠 끝 인사
+
+# 커뮤니티: 보수 성향 게시판 중 자동 수집을 허용한 곳만(2026-10 robots.txt 점검).
+# 에펨코리아·엠엘비파크는 모든 자동 수집을, 디시인사이드는 AI 수집을 막아 못 쓴다. 일간베스트는 열려 있지만
+# 5·18 왜곡·혐오 글이 중심이라 쓰지 않는다. 그래서 채널의 시선은 주로 위의 사설·칼럼(kind: opinion)에서 온다.
+communities:
+  - name: 조갑제닷컴
+    # 전체 글 목록(칼럼·회원 글·조갑제 기자 글). 글 주소는 /board/view.asp 또는 /board/column/view.asp
+    list_url: "https://www.chogabje.com/board/board_alllist.asp?cpage={page}"
+    post_pattern: "(?i)view\\.asp\\?c_idx=\\d+&c_cc=\\w+"
+    title_pattern: "<strong>(.*?)</strong>"   # 링크가 제목·요약 두 개 — 제목(strong)만
+    politics_filter: true      # 정치 아닌 글(어학·여행·유머)이 섞여 있다
+    body_selector: "#articleBody"
+    comment_selector: ".comment_wrap2 li"   # 댓글이 거의 없다(2026-10 점검: 목록 80여 개 중 0) — 안내 상자를 댓글로 읽지 않게
+    pages: 1                   # 하루 글이 5개 안팎이라 첫 쪽(약 25개, 엿새치)이면 충분
+    note: "보수 성향 게시판(robots.txt 허용) — 글 수가 적어 시선은 주로 사설·칼럼에서"
+
+board:
+
+  window_hours: 24             # 최근 몇 시간의 커뮤니티 글로 판을 짤지
+  min_posts: 2                 # 판에 올릴 최소 글 수(글 하나라도 반응도 50 이상이면 올림)
+  size: 20                     # 판에 보여 줄 주제 수
+  derived_queries: 10          # 커뮤니티 화제로 만든 네이버 뉴스 검색어 수(사실 근거 기사 확보용)
