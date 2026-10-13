@@ -263,8 +263,8 @@ def build_xmeml(
             files.add(ci, a.local_path or "", fps, src_frames, a.width, a.height)
             if a.width and a.width != size[0]:
                 _motion(ci, zoom_in=True, zoom=1.0, frames=length, base=round(100.0 * size[0] / a.width, 2))
-        # V2 출처 표시
-        if v2 is None:
+        # V2 출처 표시(직접 그린 슬라이드는 출처 표시 없음)
+        if v2 is None or a.source == "slide":
             continue
         text = a.attribution_text or attribution_text(a)
         png = cap_dir / f"cap_{hashlib.sha1(text.encode()).hexdigest()[:8]}.png"

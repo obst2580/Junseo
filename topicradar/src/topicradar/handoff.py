@@ -148,6 +148,7 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             "banned": BANNED,
             "slang": SLANG,
             "outro": cfg.script.outro,
+            "fixed_hashtags": cfg.script.fixed_hashtags,
             "vague_words": STOCK_VAGUE_WORDS if stock else VAGUE_WORDS,
             "vague_max": STOCK_VAGUE_MAX if stock else VAGUE_MAX,
             # 표시 전용 리스크(대본 규칙에 같이 넘긴다)

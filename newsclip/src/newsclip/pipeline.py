@@ -14,9 +14,10 @@ import httpx
 from newsclip.download import DedupeRegistry, download_image, download_video
 from newsclip.fcpxml import build_xmeml, validate_xmeml
 from newsclip.license_log import attribution_text, write_assets_json
-from newsclip.models import Asset, Scene, SceneSet
+from newsclip.models import Asset, Scene, SceneSet, asset_id
 from newsclip.rank import asset_key, clip_scorer_or_none, rank, route_for
 from newsclip.scenes import build_scenes
+from newsclip.slides import Painter, ensure_fonts
 from newsclip.sources.base import Budget, SearchCache, Source
 from newsclip.sources.google_image import GoogleImageSource
 from newsclip.sources.naver_image import NaverImageSource
@@ -182,6 +183,62 @@ async def keep_news_thumbs(
     return out
 
 
+def _date_label(project_id: str) -> str:
+    """'2026-10-13_1338_short' → '10월 13일(화)'."""
+    import datetime as _dt
+
+    try:
+        d = _dt.date.fromisoformat(project_id[:10])
+    except ValueError:
+        return ""
+    return f"{d.month}월 {d.day}일({'월화수목금토일'[d.weekday()]})"
+
+
+def render_slides(
+    scenes: list[Scene], slides: dict, fonts: dict[str, str], assets_dir: Path, channel: str, project_id: str
+) -> int:
+    """slides = {"slides": {장면 ID: 슬라이드 내용}, "source": "자료: …"} → 장면마다 그림.
+    내용이 없는 장면은 앞 장면 슬라이드를 그대로 쓴다(맨 앞이 비면 첫 슬라이드). 그대로 쓴 장면 수를 돌려준다."""
+    specs = slides.get("slides") or {}
+    painter = Painter(fonts)
+    date = _date_label(project_id)
+    source = str(slides.get("source", ""))
+    made: dict[str, Asset] = {}
+    for sc in scenes:
+        spec = specs.get(sc.id)
+        if not isinstance(spec, dict):
+            continue
+        out = painter.render(
+            spec, assets_dir / f"{sc.id}_slide.png", channel=channel, date=date, source=source
+        )
+        made[sc.id] = Asset(
+            source="slide",
+            id=asset_id("slide", f"{project_id}/{sc.id}"),
+            title=str(spec.get("title") or spec.get("label") or spec.get("quote") or sc.topic)[:80],
+            url=f"slide:{sc.id}",
+            source_page_url="",
+            source_domain="",
+            download_url="",
+            width=1920,
+            height=1080,
+            local_path=str(out),
+            media="image",
+            attribution_text="",
+        )
+    held, last = 0, None
+    first = next(iter(made.values()), None)
+    for sc in scenes:
+        a = made.get(sc.id)
+        if a is None:
+            a = last or first
+            held += a is not None
+        if a is not None:
+            sc.candidates = [a]
+            sc.chosen = a
+            last = a
+    return held
+
+
 MAX_TRIES = 8  # 장면마다 받아 볼 사진 후보 수(앞 후보가 막히면 다음으로)
 
 
@@ -215,8 +272,10 @@ async def run_project(
     videos: bool = True,
     queries: dict | None = None,
     phrases: bool = False,
+    slides: dict | None = None,
 ) -> tuple[SceneSet, RunReport]:
-    """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳)."""
+    """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳).
+    slides(증시 채널)가 있으면 사진을 찾지 않고 장면마다 슬라이드 그림을 그려 쓴다(newsclip.slides)."""
     script = (project / "script.txt").read_text(encoding="utf-8")
     cues = parse_srt((project / "narration.srt").read_text(encoding="utf-8"))
     scenes = build_scenes(cues, script, llm, phrases=phrases)
@@ -240,6 +299,12 @@ async def run_project(
     assets_dir = project / "assets"
     registry = DedupeRegistry()
     sem = asyncio.Semaphore(5)
+    if slides is not None:
+        report.skipped_sources.clear()
+        async with make_client() as client:
+            fonts = await ensure_fonts(client, settings.data_dir / "fonts")
+        report.borrowed = render_slides(scenes, slides, fonts, assets_dir, cfg.channel.name, project.name)
+        return _finish(project, sset, report, cfg, fps, size, video_max_sec, None)
     async with make_client() as client:
         sources = make_sources(settings, cfg, client)
         found = await asyncio.gather(
@@ -295,6 +360,21 @@ async def run_project(
 
         await asyncio.gather(*(fetch(sc) for sc in scenes))
         report.borrowed = borrow_empty(scenes)
+    return _finish(project, sset, report, cfg, fps, size, video_max_sec, clip_scorer)
+
+
+def _finish(
+    project: Path,
+    sset: SceneSet,
+    report: RunReport,
+    cfg: ChannelConfig,
+    fps: int,
+    size: tuple[int, int],
+    video_max_sec: float,
+    clip_scorer: Callable | None,
+) -> tuple[SceneSet, RunReport]:
+    """집계·scenes.json·assets.json·timeline.xml."""
+    scenes = sset.scenes
     if clip_scorer is not None:  # 다운로드 후 로컬 이미지로 유사도 재정렬
         for sc in scenes:
             sc.candidates = rank(sc, sc.candidates, cfg, None, clip_scorer)

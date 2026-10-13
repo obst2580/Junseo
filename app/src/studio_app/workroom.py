@@ -165,7 +165,7 @@ async def collect(out: Path, hours: int = 24) -> dict:
     # 최근 기사(시황·종목)도 본문을 받는다 — 숫자(지수·수급·환율)는 본문에 있다.
     related = related_articles(posts, articles, set(cfg.clustering.generic_tokens), BODY_ARTICLES)
     if cfg.channel.profile == "stock":
-        want = set(related[: BODY_ARTICLES // 3]) | {a["id"] for a in articles[: BODY_ARTICLES]}
+        want = set(related[: BODY_ARTICLES // 3]) | {a["id"] for a in articles[:BODY_ARTICLES]}
     else:
         want = set(related)
     sem = asyncio.Semaphore(4)
@@ -293,7 +293,12 @@ def plan_scenes(req: dict, out: Path, voice: Path | None = None) -> list[dict]:
 
 
 async def sources(
-    req: dict, out: Path, per_scene: int = 2, queries: dict | None = None, voice: Path | None = None
+    req: dict,
+    out: Path,
+    per_scene: int = 2,
+    queries: dict | None = None,
+    voice: Path | None = None,
+    slides: dict | None = None,
 ) -> dict:
     """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약).
     queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식)."""
@@ -303,7 +308,7 @@ async def sources(
     cfg = load_channel(settings)
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
     sset, report = await run_project(
-        settings, cfg, proj, per_scene=per_scene, videos=False, queries=queries, phrases=True
+        settings, cfg, proj, per_scene=per_scene, videos=False, queries=queries, phrases=True, slides=slides
     )
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
@@ -533,6 +538,9 @@ def main() -> None:
     r.add_argument("--manifest", type=Path, required=True)
     r.add_argument("--uploaded", type=Path, required=True, help="{올린 로컬 경로: 자산 ID} JSON")
     r.add_argument("--previous", type=Path)
+    s.add_argument(
+        "--slides", type=Path, help="증시 채널: 장면별 슬라이드 내용 JSON(사진 대신 슬라이드를 그린다)"
+    )
     a = ap.parse_args()
     if a.channel:
         os.environ["STUDIO_CHANNEL"] = a.channel
@@ -574,7 +582,8 @@ def main() -> None:
         print(json.dumps({"scenes": len(plan), "file": str(a.out / "scenes-plan.json")}, ensure_ascii=False))
         return
     queries = json.loads(a.queries.read_text(encoding="utf-8")) if a.queries else None
-    man = asyncio.run(sources(req, a.out, a.per_scene, queries, a.audio))
+    slides = json.loads(a.slides.read_text(encoding="utf-8")) if a.slides else None
+    man = asyncio.run(sources(req, a.out, a.per_scene, queries, a.audio, slides))
     print(
         json.dumps(
             {"files": len(man["files"]), "timing": man["timing"], "asr": man["asr"], **man["report"]},

@@ -45,9 +45,30 @@ unset STUDIO_FIXTURES
 | 로컬 폴더 | `data/`, `projects/` | `data-stock/`, `projects-stock/` |
 
 `requests/<ID>`와 `config/worker`는 두 채널이 함께 씁니다. 아래 절차의 `raw/`·`projects/`는 증시면 `stock_raw/`·`stock_projects/`로 읽습니다.
-증시 채널 장면 검색어: 종목은 회사 이름 + 본사·로고·CEO·제품, 시장 전체는 "한국거래소"·"여의도 증권가"·"코스피 지수 전광판",
-미국은 "뉴욕증권거래소"·"나스닥 전광판", 금리·환율은 "한국은행"·"원달러 환율 전광판"처럼 뉴스 사진 제목에 나올 말로.
-정치인 사진은 정책 발표 장면일 때만 씁니다.
+**증시 채널은 사진을 찾지 않고 슬라이드를 그립니다.** 3단계에서 queries.json 대신 `/tmp/wr-src/slides.json`을 쓰고,
+4단계 sources에 `--queries` 대신 `--slides /tmp/wr-src/slides.json`을 넘깁니다(채널 색: 흰색→민트 그라데이션, 큰 글씨,
+상승 빨강▲·하락 파랑▼ — `newsclip/slides.py`). 업로드·결과 쓰기(5~7단계)는 같습니다.
+
+```json
+{"source": "자료: 한국거래소·연합뉴스",
+ "slides": {
+  "s001": {"layout": "title", "kicker": "오늘의 시장", "title": "코스피 6,300선 내줬다", "sub": "외국인 2조 원 순매도"},
+  "s003": {"layout": "number", "kicker": "국내 증시 마감", "label": "코스피", "value": "6,384.24", "change": "241.69 (3.65%)", "dir": "down", "note": "외국인 2조 180억 원 순매도"},
+  "s006": {"layout": "numbers", "kicker": "수급", "title": "누가 팔고 누가 샀나", "items": [{"label": "외국인", "value": "-2조 180억", "dir": "down"}, {"label": "개인", "value": "+2조 3,050억", "dir": "up"}]},
+  "s009": {"layout": "bullets", "kicker": "왜 빠졌나", "title": "반도체가 끌어내렸다", "bullets": ["마이크론 급락", "유가 106달러"]},
+  "s012": {"layout": "quote", "kicker": "증권가 시각", "quote": "…", "by": "[증권사] [이름] 연구원"},
+  "s020": {"layout": "checklist", "title": "내일 체크포인트", "items": ["미국 CPI 발표", "환율 1,450원"]}
+ }}
+```
+
+- 장면 대사(`scenes-plan.json`의 `text`)에 나온 숫자·이름만 슬라이드에 씁니다(대사가 기사 근거라서). 숫자를 바꾸거나 새로 넣지 않습니다.
+- 슬라이드는 대사보다 짧게: 제목 20자 안쪽, 항목은 4개까지 각 22자 안쪽, 큰 숫자는 하나.
+- 슬라이드가 바뀔 장면만 적고 나머지는 비웁니다(비운 장면은 앞 슬라이드가 이어짐). 2~4장면마다 바꾸면 충분합니다.
+  bullets는 장면이 넘어갈 때 항목을 하나씩 늘려 적으면 PPT처럼 쌓입니다. 이슈(`topic`)가 바뀌는 첫 장면은 title.
+- dir: 오름 `up`(빨강), 내림 `down`(파랑), 그대로 `flat`. 지수·환율·수급 숫자 장면은 number·numbers로.
+- 투자 권유 문구(사라·팔라·목표가)는 넣지 않습니다. 마무리 인사 장면은 채널 이름 title 하나("오늘증시 김시연", sub: "구독하고 매일 시장 소식 받기").
+
+정치 채널 장면은 지금처럼 사진 검색어(queries.json)를 씁니다.
 
 ## 공통
 

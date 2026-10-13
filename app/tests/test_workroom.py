@@ -218,3 +218,33 @@ def test_upload_plan_reuses_same_files_and_lists_cleanup(tmp_path):
     # 다음 번: 아무것도 안 바뀌면 하나도 안 올린다
     again = wr.upload_plan(man, {"result": doc}, out)
     assert again["batches"] == [] and again["texts"] == [] and again["cleanup"] == plan["cleanup"]
+
+
+def test_sources_with_slides_draws_slides_instead_of_photos(root, tmp_path):
+    """증시 채널: slides.json이 있으면 사진을 찾지 않고 장면마다 슬라이드를 그린다(빈 장면은 앞 슬라이드 유지, 출처 표시 없음)."""
+    script = (DEMO / "2026-10-08_1810_short" / "script.txt").read_text(encoding="utf-8")
+    req = {"id": "2026-10-13_0900_short", "script": script, "audio": None}
+    plan = wr.plan_scenes(req, tmp_path / "plan")
+    first, third = plan[0]["id"], plan[2]["id"]
+    slides = {
+        "source": "자료: 연합뉴스",
+        "slides": {
+            first: {
+                "layout": "number",
+                "kicker": "국내 증시 마감",
+                "label": "코스피",
+                "value": "6,384.24",
+                "change": "241.69 (3.65%)",
+                "dir": "down",
+            },
+            third: {"layout": "bullets", "title": "왜 빠졌나", "bullets": ["반도체 약세", "환율 1,450원"]},
+        },
+    }
+    man = asyncio.run(wr.sources(req, tmp_path / "out", slides=slides))
+    names = [f["name"] for f in man["files"]]
+    assert f"assets/{first}_slide.png" in names and f"assets/{third}_slide.png" in names
+    assert len([n for n in names if n.endswith("_slide.png")]) == 2
+    assert man["scenes"][1]["chosen"].endswith(f"{first}_slide.png")  # 내용 없는 장면은 앞 슬라이드
+    assert man["report"]["by_source"] == {"slide": len(plan)} and man["report"]["borrowed"] == len(plan) - 2
+    xml = (tmp_path / "out" / "timeline.xml.txt").read_text(encoding="utf-8")
+    assert "cap_" not in xml  # 슬라이드는 출처 표시 그림을 깔지 않는다

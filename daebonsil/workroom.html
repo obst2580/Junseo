@@ -181,7 +181,7 @@ footer { font-size: 13px; color: var(--muted); }
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="stock">증시뉴스 김시연 팀장</option></select></label><span class="by" id="by"></span></div>
+    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="stock">오늘증시 김시연</option></select></label><span class="by" id="by"></span></div>
     <p class="lede" id="lede"></p>
     <div class="row" id="status"></div>
   </header>
@@ -237,13 +237,14 @@ footer { font-size: 13px; color: var(--muted); }
     <textarea class="script" id="script" spellcheck="false" placeholder="여기에 대본이 들어옵니다. 직접 쓰거나 붙여 넣어도 됩니다."></textarea>
     <div class="meter" id="meter"></div>
     <ul class="checks" id="checks"></ul>
-    <h3 style="margin-top:6px">제목·썸네일</h3>
-    <div class="row"><button class="btn" id="ti-go" type="button">Claude로 제목·썸네일 만들기</button><span class="small muted" id="ti-state"></span></div>
+    <h3 style="margin-top:6px">제목·썸네일·해시태그</h3>
+    <div class="row"><button class="btn" id="ti-go" type="button">Claude로 제목·썸네일·해시태그 만들기</button><span class="small muted" id="ti-state"></span></div>
     <div class="titles">
       <div class="t"><span>1안</span><input type="text" id="t1" maxlength="80"></div>
       <div class="t"><span>2안</span><input type="text" id="t2" maxlength="80"></div>
       <div class="t"><span>3안</span><input type="text" id="t3" maxlength="80"></div>
       <div class="t"><span>썸네일</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="thumb" maxlength="20"><span class="count" id="thumb-n"></span></div></div>
+      <div class="t"><span>해시태그</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="tags" maxlength="400" spellcheck="false"><button class="btn small" id="tags-copy" type="button">복사</button></div></div>
     </div>
     <div class="row"><span class="spacer"></span><button class="btn primary" id="to-voice" type="button">다음: 음성</button></div>
   </section>
@@ -302,9 +303,9 @@ const ls = {
 };
 /* ---------- 채널(정치 / 증시) — 같은 제작실에서 바꿔 쓴다. 수집·주제·프로젝트 데이터는 채널마다 따로 ---------- */
 const CHANNELS = {
-  politics: { name: '정치는푸르다', prefix: '', by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
+  politics: { name: '정치는푸르다', prefix: '', tags: ['정치', '정치뉴스'], by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
     lede: '친이재명 시선의 정치 채널 영상을 만듭니다. 커뮤니티 다수 의견으로 진짜 문제가 어디 있는지(국민의힘이든 민주당 안이든) 짚습니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
-  stock: { name: '증시뉴스 김시연 팀장', prefix: 'stock_', by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
+  stock: { name: '오늘증시 김시연', prefix: 'stock_', tags: ['주식', '증시뉴스'], by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
     lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
 };
 const CH = CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
@@ -622,7 +623,7 @@ function selectProject(id, initial) {
     const d = snap.data();
     const mine = S.project;
     S.project = JSON.parse(JSON.stringify(d));
-    if (mine && pendingSave) { S.project.script = mine.script; S.project.titles = mine.titles; S.project.thumb = mine.thumb; S.project.link = mine.link; }
+    if (mine && pendingSave) { S.project.script = mine.script; S.project.titles = mine.titles; S.project.thumb = mine.thumb; S.project.link = mine.link; S.project.hashtags = mine.hashtags; }
     renderAll(true);
   }, () => {});
   renderAll();
@@ -638,7 +639,7 @@ function queueSave(fields) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const p = S.project;
-    try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, script_by: p.script_by || '', titles: p.titles, thumb: p.thumb, link: p.link || '' }); $('#save-state').textContent = '저장됨'; }
+    try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, script_by: p.script_by || '', titles: p.titles, thumb: p.thumb, link: p.link || '', hashtags: p.hashtags || [] }); $('#save-state').textContent = '저장됨'; }
     catch (e) { $('#save-state').textContent = '저장 실패 — 다시 고치면 다시 저장합니다'; }
     finally { pendingSave = false; }
   }, 1200);
@@ -758,6 +759,7 @@ function renderScript(fromSnap) {
   if (!(fromSnap && (ae === ta || ctl)) && ta.value !== (p.script || '')) ta.value = p.script || '';
   ['#t1', '#t2', '#t3'].forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = (p.titles || [])[i] || ''; });
   if (ae !== $('#thumb')) $('#thumb').value = p.thumb || '';
+  if (ae !== $('#tags')) $('#tags').value = tagLine(p.hashtags);
   thumbCount();
   const risks = riskNotes();
   const stale = p.rules_key !== rulesKey(), oldScript = !stale && (p.script || '').trim() && p.script_by === 'claude' && p.script_key !== scriptKey();
@@ -770,6 +772,16 @@ $('#script').addEventListener('input', e => { queueSave({ script: e.target.value
 $('#link').addEventListener('input', e => queueSave({ link: e.target.value }));
 ['#t1', '#t2', '#t3'].forEach((id, i) => $(id).addEventListener('input', e => { const t = (S.project.titles || []).slice(); t[i] = e.target.value; queueSave({ titles: t }); }));
 $('#thumb').addEventListener('input', e => { queueSave({ thumb: e.target.value }); thumbCount(); });
+/* 해시태그: 채널 고정 태그(정치·정치뉴스 등)가 늘 맨 앞. '#'·띄어쓰기 없이 저장하고 '#a #b'로 보여 준다 */
+const fixedTags = () => (S.meta && S.meta.rules && Array.isArray(S.meta.rules.fixed_hashtags) && S.meta.rules.fixed_hashtags.length ? S.meta.rules.fixed_hashtags : CHANNELS[CH].tags);
+function cleanTags(list) {
+  const out = [];
+  for (const t of [...fixedTags(), ...list]) { const k = String(t || '').replace(/^#+/, '').replace(/\s+/g, '').trim(); if (k && !out.includes(k)) out.push(k); }
+  return out.slice(0, 15);
+}
+const tagLine = tags => cleanTags(tags || []).map(t => '#' + t).join(' ');
+$('#tags').addEventListener('input', e => queueSave({ hashtags: cleanTags(e.target.value.split(/[\s,]+/)) }));
+$('#tags-copy').onclick = () => copyText(tagLine(S.project && S.project.hashtags), '해시태그를');
 function thumbCount() { const n = [...($('#thumb').value || '')].length, max = (S.meta && S.meta.rules.thumb_max) || 10; const el = $('#thumb-n'); el.textContent = `${n}/${max}`; el.className = 'count' + (n > max ? ' bad' : ''); }
 
 async function runScript(mode) {
@@ -814,12 +826,13 @@ $('#ti-go').onclick = async () => {
   if (!claudeOk() || ctl) return;
   const p = S.project, r = S.meta.rules;
   const payload = { format: fmtName(p.format), items: p.topics.map(t => ({ name: t.name, category: t.category, stance: t.stance, points: t.points, articles: t.articles.slice(0, 4).map(a => a.title) })), bundle_link: p.format === 'long' ? (p.link || null) : null };
-  const prompt = [r.identity, r.plan_task, `썸네일 문구는 ${r.thumb_max || 10}자 이내.`, '출력: JSON 객체 하나만. 형식: {"titles":["1안","2안","3안"],"thumbnail_text":"…","link":null 또는 "한 문장"}', '', '영상:', JSON.stringify(payload)].join('\n');
+  const prompt = [r.identity, r.plan_task, `썸네일 문구는 ${r.thumb_max || 10}자 이내.`, `해시태그 ${fixedTags().join('·')}는 고정이라 따로 붙인다 — hashtags에는 그 밖의 것만.`, '출력: JSON 객체 하나만. 형식: {"titles":["1안","2안","3안"],"thumbnail_text":"…","hashtags":["태그1","태그2"],"link":null 또는 "한 문장"}', '', '영상:', JSON.stringify(payload)].join('\n');
   ctl = new AbortController(); $('#ti-go').disabled = true; $('#ti-state').innerHTML = spinner('만드는 중…');
   try {
     const res = await sample.json(prompt, { modelTier: 'default', signal: ctl.signal });
     const titles = strList(res && res.titles, 3); if (!titles.length) throw { code: 'invalid_json' };
-    const f = { titles: [titles[0] || '', titles[1] || '', titles[2] || ''], thumb: String((res && res.thumbnail_text) || '').trim() || p.thumb };
+    const f = { titles: [titles[0] || '', titles[1] || '', titles[2] || ''], thumb: String((res && res.thumbnail_text) || '').trim() || p.thumb,
+      hashtags: cleanTags(strList(res && res.hashtags, 12)) };
     if (p.format === 'long' && !p.link && res && res.link) f.link = String(res.link).trim();
     queueSave(f); renderScript(); $('#ti-state').textContent = '만들었습니다 — 고쳐 써도 됩니다';
   } catch (e) { $('#ti-state').textContent = ''; if (e && e.code !== 'cancelled') toast(claudeError(e), true); }
@@ -1119,7 +1132,7 @@ $('#src-go').onclick = async () => {
   const p = S.project;
   sweepAssets(p);
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
-  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '' }); } catch (e) { /* 다음에 */ } pendingSave = false; }
+  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '', hashtags: p.hashtags || [] }); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
   const r = await requestWork('sources', $('#src-go'));
   $('#src-go').disabled = false;
