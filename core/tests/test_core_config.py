@@ -127,9 +127,13 @@ def test_conservative_channel_config():
         yaml.safe_load((repo / "channel.right.yaml").read_text(encoding="utf-8"))
     )
     assert cfg.channel.profile == "conservative" and cfg.channel.name == "자유뉴스365"
-    assert len([f for f in cfg.sources.rss if f.kind == "opinion"]) >= 4
+    opinion = [f.name for f in cfg.sources.rss if f.kind == "opinion"]
+    assert len(opinion) >= 5 and "펜앤드마이크 칼럼" in opinion
+    assert not any("자유일보" in n for n in opinion)
     assert len([f for f in cfg.sources.rss if f.kind == "domestic"]) >= 4  # 사실은 기사로
-    assert [c.name for c in cfg.communities] == ["조갑제닷컴"]
+    assert [(c.name, c.enabled) for c in cfg.communities] == [
+        ("조갑제닷컴", False)
+    ]  # 강경 보수와 결이 달라 꺼 둠
     urls = " ".join(c.list_url for c in cfg.communities)
     assert not any(x in urls for x in ("ilbe", "fmkorea", "dcinside", "mlbpark"))
     assert "자유뉴스365" in cfg.script.outro and "자유뉴스365" in cfg.script.shorts_outro

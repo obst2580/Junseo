@@ -241,8 +241,11 @@ def test_conservative_profile_rules():
         for line in ("부정선거", "5·18", "12·3 비상계엄", "혐오"):
             assert line in text, (key, line)
         assert "친이재명" not in text
-    assert "사설·칼럼" in rules["group_task"] and "조갑제닷컴" in rules["group_task"]
-    assert "문제가 국민의힘 안에 있으면" in rules["identity"]  # 무조건 국민의힘 편은 아니다
+    assert "사설·칼럼" in rules["group_task"] and "보수 게시판" in rules["group_task"]
+    assert "무조건 국민의힘 편은 아니다" in rules["identity"] and "강경 보수" in rules["identity"]
+    assert (
+        "논평 채널" in rules["identity"] and "3분의 2 이상" in rules["script_rules"]
+    )  # 뉴스 전달이 아니라 의견
     assert (
         "친이재명" not in rules["plan_task"]
         and "이재명 대통령을 비난하는 제목은 금지" not in rules["plan_task"]

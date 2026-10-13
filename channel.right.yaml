@@ -4,7 +4,7 @@ channel:
   name: 자유뉴스365
   profile: conservative       # 대본·주제 규칙 묶음(topicradar/prompts.py R_*)
   youtube_channel_id: ""
-  stance: "국민의힘 지지 중심의 보수 정치 채널. 이재명 정부와 민주당·범진보의 정책·인사·발언을 사실로 짚어 비판하고, 국민의힘·보수 인사를 향한 공격과 왜곡을 반박한다. 무조건 국민의힘 편은 아니다 — 문제가 국민의힘 안에 있으면(지도부의 판단 착오, 내부 분열, 지지층 뜻과 다른 결정) 보수 지지층의 눈으로 짚는다. 다룰 주제와 시선은 보수 언론 사설·칼럼과 조갑제닷컴 게시판 글로 정하고, 사실은 기사로 받친다. 부정선거 음모론·5·18 왜곡·12·3 계엄 미화·혐오 표현은 쓰지 않는다."
+  stance: "국민의힘 지지 중심의 강경 보수 논평 채널(뉴스 전달이 아니라 의견). 이재명 정부와 민주당·범진보의 정책·인사·발언을 강하게 비판하고, 국민의힘·보수 인사를 향한 공격과 왜곡을 반박한다. 무조건 국민의힘 편은 아니다 — 문제가 국민의힘 안에 있으면(지도부의 판단 착오, 내부 분열, 지지층 뜻과 다른 결정) 보수 지지층의 눈으로 짚는다. 다룰 주제와 시선은 보수 언론 사설·칼럼과 조갑제닷컴 게시판 글로 정하고, 사실은 기사로 받친다. 부정선거 음모론·5·18 왜곡·12·3 계엄 미화·혐오 표현은 쓰지 않는다."
   categories: [국회, 정부, 사법, 선거, 외교안보, 국제, 경제, 노동, 복지]
   competitors: []            # 경쟁 채널 ID(UC...) — 영상을 모아 같은 주제에 붙여 둠(점수에는 안 넣음)
   past_titles: []            # 업로드 후 자동 추가
@@ -21,11 +21,13 @@ sources:
     # 정부 보도자료: 정책브리핑(korea.kr) RSS는 2026-07-01 공지로 제공 중단 → 부처별 RSS를 확인해 kind: press로 추가
     # - {name: 기획재정부 보도자료, url: "<부처 RSS 주소>", kind: press, category: 정부}
     # 채널의 시선 = 보수 언론 사설·칼럼(kind: opinion — 사실 근거가 아니라 의견의 출처. 수집하면 게시판 글처럼 주제 묶기·의견 정리에 쓴다).
-    # 2026-10 점검: 아래 4곳 접속·최근 글 확인. 중앙일보·문화일보는 쓸 수 있는 RSS를 찾지 못했고, 세계일보 오피니언은 글 시각이 없어 뺐다.
+    # 2026-10 점검: 아래 5곳 접속·최근 글 확인. 중앙일보·문화일보는 쓸 수 있는 RSS를 찾지 못했고, 세계일보 오피니언은 글 시각이 없어 뺐다.
+    # 자유일보(전광훈 목사 쪽)는 부정선거 주장을 퍼뜨려 온 매체라 넣지 않는다.
     - {name: 조선일보 오피니언, url: "https://www.chosun.com/arc/outboundfeeds/rss/category/opinion/?outputType=xml", kind: opinion}
     - {name: 동아일보 사설, url: "https://rss.donga.com/editorials.xml", kind: opinion}
     - {name: 한국경제 오피니언, url: "https://www.hankyung.com/feed/opinion", kind: opinion}
     - {name: 데일리안 오피니언, url: "https://www.dailian.co.kr/rss/opinion", kind: opinion}
+    - {name: 펜앤드마이크 칼럼, url: "https://www.pennmike.com/rss/S1N1.xml", kind: opinion}   # 강경 보수 칼럼(robots.txt 허용)
   overseas_rss:
     - {name: 연합뉴스 국제, url: "https://www.yna.co.kr/rss/international.xml", category: 국제}
     - {name: BBC World, url: "https://feeds.bbci.co.uk/news/world/rss.xml", category: 국제}
@@ -82,7 +84,8 @@ communities:
     body_selector: "#articleBody"
     comment_selector: ".comment_wrap2 li"   # 댓글이 거의 없다(2026-10 점검: 목록 80여 개 중 0) — 안내 상자를 댓글로 읽지 않게
     pages: 1                   # 하루 글이 5개 안팎이라 첫 쪽(약 25개, 엿새치)이면 충분
-    note: "보수 성향 게시판(robots.txt 허용) — 글 수가 적어 시선은 주로 사설·칼럼에서"
+    enabled: false             # 채널 시선을 강경 보수로 옮기면서 끔 — 조갑제닷컴은 국민의힘 강경파를 비판하는 글이 많아 결이 반대
+    note: "강경 보수 시선과 결이 달라 꺼 둠 — 켜면 다시 씀"
 
 board:
 

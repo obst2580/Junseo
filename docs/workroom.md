@@ -46,8 +46,8 @@ unset STUDIO_FIXTURES
 
 `requests/<ID>`와 `config/worker`는 세 채널이 함께 씁니다. 아래 절차의 `raw/`·`projects/`는 채널에 맞게 `right_raw/`·`stock_projects/`처럼 읽습니다.
 **자유뉴스365는 정치 채널과 절차가 같습니다**(사진 검색어 queries.json, 세로 쇼츠 포함). 다른 점은 수집뿐입니다 — 보수 언론
-사설·칼럼(`kind: opinion` 피드: 조선·동아·한경·데일리안)을 게시판 글처럼 `posts`에 넣고(`kind: "opinion"`, `site` = 매체),
-게시판은 수집을 허용한 조갑제닷컴만 씁니다. 사진 검색어에도 넘지 않는 선을 지킵니다(부정선거·5·18 왜곡·계엄 미화·혐오로
+사설·칼럼(`kind: opinion` 피드: 조선·동아·한경·데일리안·펜앤드마이크)을 게시판 글처럼 `posts`에 넣습니다(`kind: "opinion"`,
+`site` = 매체). 조갑제닷컴 게시판은 설정에 있지만 꺼 두었습니다. 사진 검색어에도 넘지 않는 선을 지킵니다(부정선거·5·18 왜곡·계엄 미화·혐오로
 읽힐 말을 붙이지 않기).
 **증시 채널은 사진을 찾지 않고 슬라이드를 그립니다.** 3단계에서 queries.json 대신 `/tmp/wr-src/slides.json`을 쓰고,
 4단계 sources에 `--queries` 대신 `--slides /tmp/wr-src/slides.json`을 넘깁니다(채널 색: 흰색→민트 그라데이션, 큰 글씨,
