@@ -205,7 +205,7 @@ def test_shorts_format_only_for_politics():
     cfg = ChannelConfig.model_validate({"script": {"outro": "긴 마무리 인사", "shorts_outro": "짧은 인사"}})
     r = channel_rules(cfg)
     spec = r["formats"]["shorts"]
-    assert spec["vertical"] and spec["max_topics"] == 1 and spec["minutes"] == 1
+    assert spec["vertical"] and spec["max_topics"] == 1 and spec["minutes"] == 0.9
     assert not r["formats"]["short"]["vertical"]
     rule = r["rules"]["format_rules"]["shorts"]
     assert "처음 10초" in rule and "자극적" in rule and "없는 말을 만들지 않는다" in rule
