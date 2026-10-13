@@ -280,6 +280,10 @@ def test_vertical_photo_and_headline(tmp_path):
 
     assert split_head("이게 사과입니까") == ["이게", "사과입니까"]
     assert split_head("한마디") == ["한마디"]
+    assert split_head("與도 등 돌린 추미애") == [
+        "與도 등 돌린",
+        "추미애",
+    ]  # 한 글자 낱말('등') 뒤에서 안 자름
     png = render_headline("민주당 지지율 진짜 이유", tmp_path / "h.png", SIZE)
     alpha = Image.open(png).getchannel("A")
     x0, y0, x1, y1 = alpha.getbbox()

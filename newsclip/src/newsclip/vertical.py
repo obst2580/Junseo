@@ -60,19 +60,55 @@ def sub_top(size: tuple[int, int]) -> int:
 
 
 def split_head(text: str) -> list[str]:
-    """상단 제목 → 한두 줄. 7자 이하면 한 줄, 길면 가운데에 가까운 띄어쓰기에서(없으면 글자 가운데에서) 나눈다."""
+    """상단 제목 → 한두 줄. 7자 이하면 한 줄, 길면 가운데에 가까운 띄어쓰기에서(없으면 글자 가운데에서) 나눈다.
+    한 글자 낱말 바로 뒤('등 돌린'의 '등')에서는 되도록 자르지 않는다."""
     text = " ".join(str(text).split())
     if len(text) <= 7:
         return [text] if text else []
     spaces = [i for i, ch in enumerate(text) if ch == " "]
     mid = len(text) / 2
-    cut = min(spaces, key=lambda i: abs(i - mid)) if spaces else round(mid)
+
+    def cost(i: int) -> float:
+        return abs(i - mid) + (2 if len(text[:i].rsplit(" ", 1)[-1]) == 1 else 0)
+
+    cut = min(spaces, key=cost) if spaces else round(mid)
     a, b = text[:cut].strip(), text[cut:].strip()
     return [x for x in (a, b) if x]
 
 
+_NOTDEF = "\U0010fffd"  # 어느 폰트에도 없는 글자 — 없는 글자가 그려지는 네모 상자와 비교한다
+
+
+def _has_glyph(font: ImageFont.FreeTypeFont | ImageFont.ImageFont, ch: str) -> bool:
+    """폰트에 그 글자가 있나. Pretendard에는 한자(與·野·美)가 없어 네모 상자로 그려진다."""
+    if ch.isspace():
+        return True
+    try:
+        m, box = font.getmask(ch), font.getmask(_NOTDEF)
+    except Exception:  # 그릴 수 없는 글자
+        return False
+    return (m.size, bytes(m)) != (box.size, bytes(box))
+
+
+def _runs(text: str, font, fallback) -> list[tuple[str, object]]:  # noqa: ANN001
+    """글자마다 쓸 폰트(없는 글자는 fallback)로 묶은 조각들."""
+    out: list[tuple[str, object]] = []
+    for ch in text:
+        f = font if fallback is None or _has_glyph(font, ch) else fallback
+        if out and out[-1][1] is f:
+            out[-1] = (out[-1][0] + ch, f)
+        else:
+            out.append((ch, f))
+    return out
+
+
+def _load(path: str | None, size: int):  # noqa: ANN202
+    return ImageFont.truetype(path, size) if path else ImageFont.load_default(size=size)
+
+
 def render_headline(text: str, out: Path, size: tuple[int, int] = SIZE, font_path: str | None = None) -> Path:
-    """상단 제목 PNG(투명 바탕). 줄마다 가운데 정렬, 검은 테두리로 어떤 사진 위에서도 읽힌다."""
+    """상단 제목 PNG(투명 바탕). 줄마다 가운데 정렬, 검은 테두리로 어떤 사진 위에서도 읽힌다.
+    font_path(Pretendard)에 없는 글자(한자 與·野 등)는 설치된 한글 폰트로 그린다."""
     w, h = size
     s = w / SIZE[0]
     img = Image.new("RGBA", size, (0, 0, 0, 0))
@@ -80,26 +116,42 @@ def render_headline(text: str, out: Path, size: tuple[int, int] = SIZE, font_pat
     lines = split_head(text)
     x0, y0, x1, y1 = (round(v * s) for v in HEAD)
     path = font_path or korean_font_path()
+    spare = korean_font_path()
     fsize = round(124 * s)
     while True:
-        font = ImageFont.truetype(path, fsize) if path else ImageFont.load_default(size=fsize)
-        widths = [d.textlength(ln, font=font) for ln in lines]
+        font = _load(path, fsize)
+        fallback = _load(spare, fsize) if spare and spare != path else None
+        runs = [_runs(ln, font, fallback) for ln in lines]
+        widths = [sum(d.textlength(t, font=f) for t, f in r) for r in runs]
         lh = round(fsize * 1.22)
         if (max(widths, default=0) <= x1 - x0 and lh * len(lines) <= y1 - y0) or fsize <= round(60 * s):
             break
         fsize -= round(6 * s) or 1
     y = y0 + (y1 - y0 - lh * len(lines)) // 2
-    for i, ln in enumerate(lines):
+    for i, (r, width) in enumerate(zip(runs, widths, strict=True)):
         color = HEAD_LINE_COLORS[min(i, 1)] if len(lines) > 1 else HEAD_LINE_COLORS[0]
-        d.text(
-            (w // 2, y + lh // 2),
-            ln,
-            font=font,
-            fill=color,
-            anchor="mm",
-            stroke_width=max(4, round(fsize * 0.08)),
-            stroke_fill=STROKE,
-        )
+        x = (w - width) / 2
+        for t, f in r:
+            d.text(
+                (x, y + lh // 2),
+                t,
+                font=f,
+                fill=color,
+                anchor="lm",
+                stroke_width=max(4, round(fsize * 0.08)),
+                stroke_fill=STROKE,
+            )
+            if f is not font:  # 대신 쓴 폰트는 보통 굵기라 같은 색 테두리로 한 번 더 그려 굵게 맞춘다
+                d.text(
+                    (x, y + lh // 2),
+                    t,
+                    font=f,
+                    fill=color,
+                    anchor="lm",
+                    stroke_width=max(1, round(fsize * 0.03)),
+                    stroke_fill=color,
+                )
+            x += d.textlength(t, font=f)
         y += lh
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
