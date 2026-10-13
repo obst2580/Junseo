@@ -209,6 +209,7 @@ def test_shorts_format_only_for_politics():
     assert not r["formats"]["short"]["vertical"]
     rule = r["rules"]["format_rules"]["shorts"]
     assert "처음 10초" in rule and "자극적" in rule and "없는 말을 만들지 않는다" in rule
+    assert "'충격'" in rule and "금지어 규칙은 쇼츠에 적용하지 않는다" in rule  # 쇼츠는 센 말 허용
     assert r["rules"]["shorts_outro"] == "짧은 인사" and r["rules"]["outro"] == "긴 마무리 인사"
     assert (
         channel_rules(ChannelConfig.model_validate({"script": {"outro": "끝"}}))["rules"]["shorts_outro"]

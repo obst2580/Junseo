@@ -463,7 +463,8 @@ def validate_script(text: str, plan: VideoPlan) -> list[str]:
     copied = _copied_lines(spoken, plan)
     if copied:
         warns.append(f"커뮤니티 글·댓글을 그대로 옮긴 곳 {copied}개 — 채널의 말로 바꿀 것")
-    banned = sorted({w for w in BANNED if any(w in ln for ln in spoken)})
+    # 세로 쇼츠는 '충격'·'경악' 같은 센 말을 허용한다
+    banned = [] if plan.format == "shorts" else sorted({w for w in BANNED if any(w in ln for ln in spoken)})
     if banned:
         warns.append(f"금지 표현: {', '.join(banned)}")
     slang = sorted({w for w in SLANG if any(w in ln for ln in spoken)})

@@ -740,7 +740,7 @@ function checkScript() {
   const nums = [...new Set(spoken.flatMap(l => (l.match(/\d[\d,.]*/g) || []).map(x => x.replace(/,/g, '').replace(/\.$/, ''))))]
     .filter(x => !facts.replace(/,/g, '').includes(x));
   if (nums.length) out.push({ bad: true, text: `고른 기사에 없는 숫자 ${nums.length}개(${nums.slice(0, 4).join(', ')}) — 지우거나 기사 확인` });
-  const banned = (r.banned || []).filter(w => spoken.some(l => l.includes(w))); if (banned.length) out.push({ bad: true, text: `금지 표현: ${banned.join(', ')}` });
+  const banned = isShorts(p) ? [] : (r.banned || []).filter(w => spoken.some(l => l.includes(w))); if (banned.length) out.push({ bad: true, text: `금지 표현: ${banned.join(', ')}` });
   const slang = (r.slang || []).filter(w => spoken.some(l => l.includes(w))); if (slang.length) out.push({ bad: true, text: `비속어: ${slang.join(', ')}` });
   const joined = spoken.join('').replace(/\s+/g, ''), keys = new Set();
   for (const t of p.topics) for (const x of t.posts) for (const s of [x.title, ...(x.top_comments || []).map(c => c.text)]) { const k = String(s || '').replace(/\s+/g, ''); if (k.length >= 10) keys.add(k.slice(0, 18)); }

@@ -150,6 +150,12 @@ def test_validate_catches_violations():
         assert frag in warns
     assert "헤더 없음" in " ".join(validate_script("헤더 없는 대본\n", plan))
     assert normalize_script("```\n줄1\n\n\n줄2\n```") == "줄1\n\n줄2\n"
+    # 세로 쇼츠는 '충격' 같은 센 말을 허용한다
+    shorts = _plan("short")
+    shorts.format = "shorts"
+    assert not any(
+        "금지 표현" in w for w in validate_script("## 국방위 국감 질타\n충격적인 소식입니다.\n", shorts)
+    )
     # 3분 단독에는 '정리' 단락도 없어야 한다
     short = _plan("short")
     assert any(
