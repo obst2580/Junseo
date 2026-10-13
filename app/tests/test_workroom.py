@@ -248,3 +248,39 @@ def test_sources_with_slides_draws_slides_instead_of_photos(root, tmp_path):
     assert man["report"]["by_source"] == {"slide": len(plan)} and man["report"]["borrowed"] == len(plan) - 2
     xml = (tmp_path / "out" / "timeline.xml.txt").read_text(encoding="utf-8")
     assert "cap_" not in xml  # 슬라이드는 출처 표시 그림을 깔지 않는다
+
+
+def test_sources_shorts_makes_vertical_timeline(root, tmp_path):
+    """세로 쇼츠: 1080x1920 시퀀스, 사진도 세로 화면, 상단 제목(썸네일 문구)이 맨 위 트랙에 처음부터 끝까지, 자막 줄은 짧게."""
+    import re as _re
+
+    from PIL import Image
+
+    script = (DEMO / "2026-10-08_1810_short" / "script.txt").read_text(encoding="utf-8")
+    req = {
+        "id": "2026-10-13_1900_shorts",
+        "format": "shorts",
+        "thumb": "이게 사과입니까",
+        "script": script,
+        "audio": None,
+    }
+    man = asyncio.run(wr.sources(req, tmp_path / "out"))
+    assert man["size"] == [1080, 1920]
+    xml = (tmp_path / "out" / "timeline.xml.txt").read_text(encoding="utf-8")
+    fmt = xml.split("<format>", 1)[1].split("</format>", 1)[0]
+    assert "<width>1080</width>" in fmt and "<height>1920</height>" in fmt
+    heads = [f for f in man["files"] if f["name"].startswith("overlays/headline_")]
+    assert len(heads) == 1 and heads[0]["name"] in xml
+    total = int(_re.search(r"<sequence[^>]*>.*?<duration>(\d+)</duration>", xml, _re.S).group(1))
+    head_clip = xml.split('id="clipitem-head-1"', 1)[1].split("</clipitem>", 1)[0]
+    assert "<start>0</start>" in head_clip and f"<end>{total}</end>" in head_clip
+    photo = next(f for f in man["files"] if f["name"].startswith("assets/"))
+    assert Image.open(photo["path"]).size == (1080, 1920)
+    srt = (tmp_path / "out" / "narration.srt.txt").read_text(encoding="utf-8")
+    texts = [b.split("\n", 2)[2] for b in srt.strip().split("\n\n")]
+    assert texts and all(len(x) <= 18 for x in texts)  # 세로 화면: 한 줄 14자 안팎
+
+
+def test_vertical_only_for_shorts_format():
+    assert wr.is_vertical_format({"format": "shorts"})
+    assert not wr.is_vertical_format({"format": "short"}) and not wr.is_vertical_format({})

@@ -2,6 +2,7 @@
 
 - 이미지: 원본은 assets/original/에 보관하고, 시퀀스 크기(기본 1920x1080)로 커버 크롭한 JPEG를
   assets/<scene>_<rank>.jpg로 만든다 → 프리미어에서 Scale 100 = 화면 꽉 참(줌 연출 기준).
+  세로 쇼츠(1080x1920)면 자르지 않고 가운데 사진 칸에 넣고 바탕은 흐린 같은 사진(newsclip.vertical).
   WebP·AVIF·GIF 등도 JPEG로 바꿔 프리미어 호환 문제를 피한다.
 - 영상: yt-dlp로 필요한 구간만 받는다(장면 길이 + 앞뒤 2초, 1080p mp4).
   STUDIO_NEWSCLIP_FAKE_YTDLP=1이면 네트워크 없이 ffmpeg 테스트 패턴으로 같은 길이의 파일을 만든다(시연용).
@@ -62,12 +63,17 @@ def sha256_file(path: Path) -> str:
 
 
 def normalize_image(data: bytes, dest: Path, size: tuple[int, int]) -> tuple[int, int]:
-    """커버 크롭 + JPEG 저장. 원본 크기를 돌려준다."""
+    """커버 크롭(세로 화면이면 흐린 바탕 + 가운데 사진 칸) + JPEG 저장. 원본 크기를 돌려준다."""
+    from newsclip.vertical import compose_photo, is_vertical
+
     with Image.open(io.BytesIO(data)) as im:
         im = ImageOps.exif_transpose(im)
         orig = im.size
         rgb = im.convert("RGB")
-        fitted = ImageOps.fit(rgb, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
+        if is_vertical(size):
+            fitted = compose_photo(rgb, size)
+        else:
+            fitted = ImageOps.fit(rgb, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
         dest.parent.mkdir(parents=True, exist_ok=True)
         fitted.save(dest, "JPEG", quality=90)
     return orig

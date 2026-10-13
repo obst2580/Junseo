@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 from collections.abc import Callable
@@ -24,6 +25,7 @@ from newsclip.sources.naver_image import NaverImageSource
 from newsclip.sources.wikimedia import WikimediaSource
 from newsclip.sources.youtube_video import YouTubeVideoSource, is_blocked, thumb_video_id, video_channels
 from newsclip.srt import parse_srt
+from newsclip.vertical import is_vertical, render_headline
 from studio_core.config import ChannelConfig, Settings, TimelineSection, find_root, load_channel
 from studio_core.http import make_client
 from studio_core.keys import Unavailable
@@ -273,9 +275,11 @@ async def run_project(
     queries: dict | None = None,
     phrases: bool = False,
     slides: dict | None = None,
+    headline: str = "",
 ) -> tuple[SceneSet, RunReport]:
     """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳).
-    slides(증시 채널)가 있으면 사진을 찾지 않고 장면마다 슬라이드 그림을 그려 쓴다(newsclip.slides)."""
+    slides(증시 채널)가 있으면 사진을 찾지 않고 장면마다 슬라이드 그림을 그려 쓴다(newsclip.slides).
+    size가 세로(1080x1920, 쇼츠)면 사진을 세로 화면에 맞춰 넣고, headline(상단 제목)을 맨 위 트랙에 깐다."""
     script = (project / "script.txt").read_text(encoding="utf-8")
     cues = parse_srt((project / "narration.srt").read_text(encoding="utf-8"))
     scenes = build_scenes(cues, script, llm, phrases=phrases)
@@ -299,12 +303,20 @@ async def run_project(
     assets_dir = project / "assets"
     registry = DedupeRegistry()
     sem = asyncio.Semaphore(5)
-    if slides is not None:
-        report.skipped_sources.clear()
+    head_png: Path | None = None
+    fonts: dict[str, str] = {}
+    if slides is not None or (headline.strip() and is_vertical(size)):
         async with make_client() as client:
             fonts = await ensure_fonts(client, settings.data_dir / "fonts")
+    if headline.strip() and is_vertical(size):
+        digest = hashlib.sha1(headline.strip().encode()).hexdigest()[:8]
+        head_png = render_headline(
+            headline.strip(), project / "overlays" / f"headline_{digest}.png", size, fonts.get("ExtraBold")
+        )
+    if slides is not None:
+        report.skipped_sources.clear()
         report.borrowed = render_slides(scenes, slides, fonts, assets_dir, cfg.channel.name, project.name)
-        return _finish(project, sset, report, cfg, fps, size, video_max_sec, None)
+        return _finish(project, sset, report, cfg, fps, size, video_max_sec, None, head_png)
     async with make_client() as client:
         sources = make_sources(settings, cfg, client)
         found = await asyncio.gather(
@@ -360,7 +372,7 @@ async def run_project(
 
         await asyncio.gather(*(fetch(sc) for sc in scenes))
         report.borrowed = borrow_empty(scenes)
-    return _finish(project, sset, report, cfg, fps, size, video_max_sec, clip_scorer)
+    return _finish(project, sset, report, cfg, fps, size, video_max_sec, clip_scorer, head_png)
 
 
 def _finish(
@@ -372,6 +384,7 @@ def _finish(
     size: tuple[int, int],
     video_max_sec: float,
     clip_scorer: Callable | None,
+    headline: Path | None = None,
 ) -> tuple[SceneSet, RunReport]:
     """집계·scenes.json·assets.json·timeline.xml."""
     scenes = sset.scenes
@@ -399,6 +412,7 @@ def _finish(
         audio=audio if audio.exists() else None,
         video_max_sec=video_max_sec,
         options=cfg.timeline,
+        headline=headline,
     )
     return sset, report
 
@@ -433,6 +447,7 @@ def write_xml(
     audio: Path | None = None,
     video_max_sec: float = 20.0,
     options: TimelineSection | None = None,
+    headline: Path | None = None,
 ) -> list[str]:
     """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환.
 
@@ -452,6 +467,7 @@ def write_xml(
         video_max_sec=video_max_sec,
         subtitles=subtitles,
         attribution=opts.attribution,
+        headline=headline,
     )
     (project / "timeline.xml").write_text(xml, encoding="utf-8")
     return validate_xmeml(xml)

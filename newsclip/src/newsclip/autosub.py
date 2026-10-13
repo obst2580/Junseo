@@ -178,6 +178,16 @@ def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
     if len(text) <= limit + 2:
         return [text] if text else []
     k = -(-len(text) // (limit + 2))
+    lines = _split_lines(text, k)
+    for more in (1, 2):  # 띄어쓰기 자리 탓에 한 줄이 너무 길어지면(limit+4자 넘게) 한 줄 더 나눈다
+        if max(len(ln) for ln in lines) <= limit + 4:
+            break
+        lines = _split_lines(text, k + more)
+    return lines
+
+
+def _split_lines(text: str, k: int) -> list[str]:
+    """text를 띄어쓰기에서 k줄 안팎으로 고르게 나눈다(subtitle_lines의 한 번 나누기)."""
     spaces = [i for i, ch in enumerate(text) if ch == " "]
     lines, start = [], 0
     for part in range(1, k):

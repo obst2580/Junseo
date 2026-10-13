@@ -4,6 +4,7 @@
 - V1: 장면별 chosen을 start~end에. 영상이 짧으면 다음 후보로 채운다(영상 1클립 최대 video_max_sec).
 - 사진: Basic Motion scale 100 → 100×zoom(ease-out, 선형 키프레임 5개로 근사). 홀수 장면 줌인, 짝수 줌아웃.
 - V2: 각 클립 구간 동안 출처 자막 PNG(하단 좌측).
+- 세로 쇼츠(1080x1920)면 맨 위 트랙에 상단 제목 PNG 하나를 처음부터 끝까지(headline).
 - 자료 없는 장면은 "자료 없음: {keywords}", 건너뛴 장면은 "건너뛰기" 시퀀스 마커.
 - 생성 후 재파싱해 유효성 검사(validate_xmeml).
 """
@@ -199,8 +200,10 @@ def build_xmeml(
     video_max_sec: float = 20.0,
     subtitles: list | None = None,
     attribution: bool = True,
+    headline: Path | None = None,
 ) -> str:
-    """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막."""
+    """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막,
+    headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내."""
     segs, marks = plan_segments(sset, video_max_sec)
     seq_end = max([s.end_sec for s in sset.scenes] + [0.0])
     a_dur = audio_duration(audio) if audio else None
@@ -305,6 +308,20 @@ def build_xmeml(
             _text(sc_, "out", en - st)
             files.add(sc_, str(png), fps, en - st, size[0], size[1])
             last_end = en
+
+    # 맨 위: 상단 제목(세로 쇼츠) — 처음부터 끝까지 한 클립
+    if headline is not None and total > 0:
+        vh = ET.SubElement(video, "track")
+        hc = ET.SubElement(vh, "clipitem", {"id": "clipitem-head-1"})
+        _text(hc, "name", headline.name)
+        _text(hc, "enabled", "TRUE")
+        _text(hc, "duration", total)
+        _rate(hc, fps)
+        _text(hc, "start", 0)
+        _text(hc, "end", total)
+        _text(hc, "in", 0)
+        _text(hc, "out", total)
+        files.add(hc, str(headline), fps, total, size[0], size[1])
 
     if audio is not None:
         aud = ET.SubElement(media, "audio")

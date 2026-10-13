@@ -301,14 +301,29 @@ async def sources(
     slides: dict | None = None,
 ) -> dict:
     """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약).
-    queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식)."""
+    queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식).
+    세로 쇼츠(format "shorts")면 1080x1920 — 사진은 세로 화면에 맞추고, 썸네일 문구(thumb)를 상단 제목으로 깔고,
+    자막 줄을 짧게(14자)."""
+    from newsclip import vertical
+    from newsclip.autosub import SUB_LINE
     from newsclip.pipeline import run_project
 
     settings, pid, proj, _script, cues, matched, info, asr, words = _prepare(req, voice)
     cfg = load_channel(settings)
+    tall = is_vertical_format(req)
+    size = vertical.SIZE if tall else (1920, 1080)
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
     sset, report = await run_project(
-        settings, cfg, proj, per_scene=per_scene, videos=False, queries=queries, phrases=True, slides=slides
+        settings,
+        cfg,
+        proj,
+        per_scene=per_scene,
+        videos=False,
+        queries=queries,
+        phrases=True,
+        slides=slides,
+        size=size,
+        headline=str(req.get("thumb") or "") if tall else "",
     )
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
@@ -345,18 +360,20 @@ async def sources(
                 **({"borrowed": sc.borrowed} if sc.borrowed else {}),
             }
         )
-    # timeline.xml이 가리키는 그 밖의 파일(출처 표시 글자 그림 captions/cap_*.png)도 같이 올린다
-    for png in sorted((proj / "captions").glob("*.png")):
-        rel = f"captions/{png.name}"
-        if rel in xml and rel not in {f["name"] for f in files}:
-            files.append({"name": rel, "path": str(png), "media": "image", "sha": _sha(png)})
+    # timeline.xml이 가리키는 그 밖의 파일(출처 표시 captions/, 상단 제목 overlays/, 자막 subtitles/의 글자 그림)도 같이 올린다
+    for folder in ("captions", "overlays", "subtitles"):
+        for png in sorted((proj / folder).glob("*.png")):
+            rel = f"{folder}/{png.name}"
+            if rel in xml and rel not in {f["name"] for f in files}:
+                files.append({"name": rel, "path": str(png), "media": "image", "sha": _sha(png)})
     (out / "timeline.xml.txt").write_text(xml, encoding="utf-8")
-    # 프리미어 캡션용 자막(한 줄 20자 안팎, 장면 시각과 같은 시간축 — 음성을 올렸으면 그 음성에 맞춤)
+    # 프리미어 캡션용 자막(한 줄 20자 안팎 — 세로 쇼츠는 14자, 장면 시각과 같은 시간축 — 음성을 올렸으면 그 음성에 맞춤)
     from newsclip.autosub import subtitle_cues
     from newsclip.srt import write_srt
 
+    limit = vertical.SUB_LINE if tall else SUB_LINE
     (out / "narration.srt.txt").write_text(
-        write_srt(subtitle_cues(cues, info=info, words=words)), encoding="utf-8"
+        write_srt(subtitle_cues(cues, limit=limit, info=info, words=words)), encoding="utf-8"
     )
     manifest = {
         "project": pid,
@@ -377,12 +394,21 @@ async def sources(
             "errors": report.errors + report.xml_errors,
         },
         "audio_name": "narration" + ((req.get("audio") or {}).get("ext") or ".wav"),
+        "size": list(size),
         "timing": "voice+asr" if asr.get("words") else "voice" if info.silences else "estimated",
         "asr": asr,
         "base_token": f"file://localhost/{BASE}",
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
+
+
+def is_vertical_format(req: dict) -> bool:
+    """세로 화면으로 만들 프로젝트인가(형식 shorts = 세로 쇼츠)."""
+    from topicradar.models import FORMATS
+
+    spec = FORMATS.get(str(req.get("format") or ""))
+    return bool(spec and spec.vertical)
 
 
 def _sha(path: Path) -> str:
@@ -454,7 +480,7 @@ def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None
             missing.append(name)
     if missing:
         raise ValueError(f"자산 ID가 없는 파일 {len(missing)}개: {', '.join(missing[:10])}")
-    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr")
+    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr", "size")
     result = {k: manifest[k] for k in keys if k in manifest}
     result.update(
         files=files,

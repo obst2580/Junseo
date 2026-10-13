@@ -236,15 +236,15 @@ def make_plan(
     opinions·titles·thumbnail_text·link: 바깥(claude.ai 대본실)에서 정한 값. 비어 있는 것만 여기서 채운다.
     """
     if fmt not in FORMATS:
-        raise ValueError("형식은 long(10분 묶음) | short(3분 단독)")
+        raise ValueError("형식은 long(10분 묶음) | short(3분 단독) | shorts(세로 쇼츠)")
     spec = FORMATS[fmt]
     ids = list(dict.fromkeys(topic_ids))
     if len(ids) != len(topic_ids):
         raise ValueError("같은 주제를 두 번 골랐습니다")
     if not spec.min_topics <= len(ids) <= spec.max_topics:
         raise ValueError(
-            "3분 단독은 주제를 하나만 골라 주세요"
-            if fmt == "short"
+            f"{spec.name}는 주제를 하나만 골라 주세요"
+            if spec.max_topics == 1
             else f"10분 묶음은 연관 주제 {spec.min_topics}~{spec.max_topics}개를 골라 주세요"
         )
     items: list[VideoItem] = []

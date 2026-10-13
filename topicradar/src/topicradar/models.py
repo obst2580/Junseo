@@ -9,7 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-VideoFormat = Literal["long", "short"]
+VideoFormat = Literal["long", "short", "shorts"]
 SignalKind = Literal["domestic", "press", "overseas", "schedule", "competitor", "own", "community"]
 NEWS_KINDS = ("domestic", "press", "overseas")
 TopicKind = Literal["overseas", "announcement", "scheduled", "event"]
@@ -20,17 +20,19 @@ POLITICS_CORE = ("국회", "정부", "사법", "선거", "외교안보")
 
 
 class FormatSpec(BaseModel):
-    """영상 형식: 10분 묶음(연관 주제 2~3개) / 3분 단독(주제 1개)."""
+    """영상 형식: 10분 묶음(연관 주제 2~3개) / 3분 단독(주제 1개) / 세로 쇼츠(주제 1개, 1분, 1080x1920)."""
 
     name: str
     minutes: float
     min_topics: int
     max_topics: int
+    vertical: bool = False  # 세로 화면(timeline.xml 1080x1920)
 
 
 FORMATS: dict[str, FormatSpec] = {
     "long": FormatSpec(name="10분 묶음", minutes=10, min_topics=2, max_topics=3),
     "short": FormatSpec(name="3분 단독", minutes=3, min_topics=1, max_topics=1),
+    "shorts": FormatSpec(name="세로 쇼츠", minutes=1, min_topics=1, max_topics=1, vertical=True),
 }
 
 

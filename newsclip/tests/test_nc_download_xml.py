@@ -261,3 +261,39 @@ async def test_download_image_tries_https_first(tmp_path):
             sem,
         )
     assert got is not None and Path(got.local_path).exists() and not blocked.called
+
+
+def test_vertical_photo_and_headline(tmp_path):
+    """세로 쇼츠: 가로 사진은 가운데 사진 칸에 꽉 차고(바탕은 흐린 같은 사진), 상단 제목은 위쪽 자리에만 그린다."""
+    from newsclip.download import normalize_image
+    from newsclip.vertical import BOX, HEAD, SIZE, render_headline, split_head
+
+    buf = io.BytesIO()
+    Image.new("RGB", (1920, 1080), (200, 40, 40)).save(buf, "JPEG")
+    dest = tmp_path / "v.jpg"
+    normalize_image(buf.getvalue(), dest, SIZE)
+    im = Image.open(dest)
+    assert im.size == SIZE
+    mid = im.getpixel((SIZE[0] // 2, (BOX[1] + BOX[3]) // 2))
+    top = im.getpixel((SIZE[0] // 2, 60))
+    assert mid[0] > 150 and top[0] < mid[0]  # 사진 칸은 원래 색, 바깥은 어둡게 깐 바탕
+
+    assert split_head("이게 사과입니까") == ["이게", "사과입니까"]
+    assert split_head("한마디") == ["한마디"]
+    png = render_headline("민주당 지지율 진짜 이유", tmp_path / "h.png", SIZE)
+    alpha = Image.open(png).getchannel("A")
+    x0, y0, x1, y1 = alpha.getbbox()
+    assert HEAD[1] - 10 <= y0 and y1 <= HEAD[3] + 10 and x0 >= HEAD[0] - 10 and x1 <= HEAD[2] + 10
+
+
+def test_fcpxml_vertical_with_headline(tmp_path):
+    from newsclip.vertical import SIZE
+
+    s = _set(tmp_path)
+    head = tmp_path / "overlays" / "headline.png"
+    head.parent.mkdir()
+    Image.new("RGBA", SIZE, (0, 0, 0, 0)).save(head)
+    xml = build_xmeml(s, tmp_path, fps=30, size=SIZE, headline=head)
+    assert validate_xmeml(xml) == []
+    assert "<width>1080</width>" in xml and "<height>1920</height>" in xml
+    assert xml.count('id="clipitem-head-1"') == 1 and "headline.png" in xml

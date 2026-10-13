@@ -107,6 +107,7 @@ STOCK_RISK = {
     "poll_words": ["루머", "카더라", "찌라시"],
     "poll_note": "소문·루머는 쓰지 않기 — 기사로 확인된 것만 단정",
 }
+SHORTS_THUMB_MAX = 14  # 세로 쇼츠 상단 제목(썸네일 문구) 글자 수 — 두 줄로 나눠 영상 내내 위쪽에 띄운다
 STOCK_VAGUE_WORDS = ["호재", "악재", "모멘텀"]
 STOCK_VAGUE_MAX = 3
 
@@ -130,8 +131,10 @@ def channel_rules(cfg: ChannelConfig) -> dict:
                 "max_topics": f.max_topics,
                 "target_chars": list(target_chars(k, cpm)),
                 "lead_weight": LEAD_WEIGHT,
+                "vertical": f.vertical,
             }
             for k, f in FORMATS.items()
+            if k in prof["format_rules"]  # 채널마다 쓰는 형식만(증시 채널은 아직 쇼츠 없음)
         },
         "rules": {
             "identity": prof["identity"],
@@ -148,6 +151,8 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             "banned": BANNED,
             "slang": SLANG,
             "outro": cfg.script.outro,
+            "shorts_outro": cfg.script.shorts_outro or cfg.script.outro,
+            "shorts_thumb_max": SHORTS_THUMB_MAX,
             "fixed_hashtags": cfg.script.fixed_hashtags,
             "vague_words": STOCK_VAGUE_WORDS if stock else VAGUE_WORDS,
             "vague_max": STOCK_VAGUE_MAX if stock else VAGUE_MAX,

@@ -195,3 +195,24 @@ def test_stock_rules_are_news_only():
         "opinion.community" not in prompts.STOCK_SCRIPT_RULES
         and "게시판 글(posts)을 붙인다" not in prompts.STOCK_GROUP_TASK
     )
+
+
+def test_shorts_format_only_for_politics():
+    """세로 쇼츠(1분, 첫 10초 훅)는 정치 채널만. 증시 채널은 아직 쇼츠 없음."""
+    from studio_core.config import ChannelConfig
+    from topicradar.handoff import channel_rules
+
+    cfg = ChannelConfig.model_validate({"script": {"outro": "긴 마무리 인사", "shorts_outro": "짧은 인사"}})
+    r = channel_rules(cfg)
+    spec = r["formats"]["shorts"]
+    assert spec["vertical"] and spec["max_topics"] == 1 and spec["minutes"] == 1
+    assert not r["formats"]["short"]["vertical"]
+    rule = r["rules"]["format_rules"]["shorts"]
+    assert "처음 10초" in rule and "자극적" in rule and "없는 말을 만들지 않는다" in rule
+    assert r["rules"]["shorts_outro"] == "짧은 인사" and r["rules"]["outro"] == "긴 마무리 인사"
+    assert (
+        channel_rules(ChannelConfig.model_validate({"script": {"outro": "끝"}}))["rules"]["shorts_outro"]
+        == "끝"
+    )
+    stock = channel_rules(ChannelConfig.model_validate({"channel": {"profile": "stock"}}))
+    assert "shorts" not in stock["formats"] and "shorts" not in stock["rules"]["format_rules"]
