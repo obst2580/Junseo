@@ -139,3 +139,6 @@ def test_conservative_channel_config():
     urls = " ".join(c.list_url for c in cfg.communities)
     assert not any(x in urls for x in ("ilbe", "fmkorea", "dcinside", "mlbpark"))
     assert "자유뉴스365" in cfg.script.outro and "자유뉴스365" in cfg.script.shorts_outro
+    assert (
+        cfg.shorts.style == "navy_red" and ChannelConfig().shorts.style == "default"
+    )  # 쇼츠 디자인은 채널마다

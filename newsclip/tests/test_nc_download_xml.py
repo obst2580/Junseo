@@ -301,3 +301,20 @@ def test_fcpxml_vertical_with_headline(tmp_path):
     assert validate_xmeml(xml) == []
     assert "<width>1080</width>" in xml and "<height>1920</height>" in xml
     assert xml.count('id="clipitem-head-1"') == 1 and "headline.png" in xml
+
+
+def test_shorts_styles_differ_by_channel(tmp_path):
+    """자유뉴스365(navy_red)는 남색·빨강 띠 위 흰 글씨와 검은 바탕, 정치는푸르다(default)는 띠 없는 테두리 글씨와 흐린 사진 바탕."""
+    from newsclip.vertical import HEAD, NAVY, RED, SIZE, compose_photo, render_headline, style_of
+
+    assert style_of("없는 이름").name == "default" and style_of("navy_red").bands == (NAVY, RED)
+    band = Image.open(
+        render_headline("민주당 예산 폭주", tmp_path / "r.png", SIZE, style="navy_red")
+    ).convert("RGB")
+    plain = Image.open(render_headline("민주당 예산 폭주", tmp_path / "p.png", SIZE)).convert("RGBA")
+    colors = {c for _n, c in band.crop(HEAD).getcolors(1_000_000)}
+    assert NAVY in colors and RED in colors
+    assert not any(px[:3] in (NAVY, RED) for px in plain.crop(HEAD).getdata() if px[3])
+    photo = Image.new("RGB", (1920, 1080), (200, 160, 120))
+    assert compose_photo(photo, SIZE, "navy_red").getpixel((540, 60)) == (0, 0, 0)  # 사진 칸 위는 검은색
+    assert compose_photo(photo, SIZE).getpixel((540, 60)) != (0, 0, 0)  # 정치는푸르다는 흐린 사진 바탕

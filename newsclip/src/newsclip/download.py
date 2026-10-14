@@ -62,7 +62,9 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def normalize_image(data: bytes, dest: Path, size: tuple[int, int]) -> tuple[int, int]:
+def normalize_image(
+    data: bytes, dest: Path, size: tuple[int, int], style: str = "default"
+) -> tuple[int, int]:
     """커버 크롭(세로 화면이면 흐린 바탕 + 가운데 사진 칸) + JPEG 저장. 원본 크기를 돌려준다."""
     from newsclip.vertical import compose_photo, is_vertical
 
@@ -71,7 +73,7 @@ def normalize_image(data: bytes, dest: Path, size: tuple[int, int]) -> tuple[int
         orig = im.size
         rgb = im.convert("RGB")
         if is_vertical(size):
-            fitted = compose_photo(rgb, size)
+            fitted = compose_photo(rgb, size, style)
         else:
             fitted = ImageOps.fit(rgb, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -86,6 +88,7 @@ async def download_image(
     registry: DedupeRegistry,
     size: tuple[int, int],
     sem: asyncio.Semaphore,
+    style: str = "default",
 ) -> Asset | None:
     """이미지 1건(실패 시 None). http:// 주소는 https://로 먼저 받는다 — 네이버 뉴스 사진(imgnews.naver.net)은
     검색 결과가 http로 오는데, 클라우드(프록시)에서는 http가 막혀 뉴스 사진이 모두 실패했다."""
@@ -110,7 +113,7 @@ async def download_image(
         orig_dir = dest.parent / "original"
         orig_dir.mkdir(parents=True, exist_ok=True)
         (orig_dir / f"{dest.stem}.bin").write_bytes(data)
-        w, h = await asyncio.to_thread(normalize_image, data, dest, size)
+        w, h = await asyncio.to_thread(normalize_image, data, dest, size, style)
     except Exception as e:  # 손상·비이미지 응답
         log.warning("이미지 변환 실패 %s: %s", a.url, e)
         return None

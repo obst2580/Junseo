@@ -163,6 +163,12 @@ class TimelineSection(BaseModel):
     attribution: bool = True  # 출처 표시(왼쪽 위, 자료마다)
 
 
+class ShortsSection(BaseModel):
+    """세로 쇼츠 디자인."""
+
+    style: str = "default"  # default(흰·노랑 글씨 + 검은 테두리) | navy_red(남색·빨강 띠 + 블랙한산스 + 검은 바탕) — newsclip.vertical.STYLES
+
+
 class ClusteringSection(BaseModel):
     """군집 보조 설정."""
 
@@ -188,6 +194,7 @@ class ChannelConfig(BaseModel):
     clustering: ClusteringSection = Field(default_factory=ClusteringSection)
     script: ScriptSection = Field(default_factory=ScriptSection)
     timeline: TimelineSection = Field(default_factory=TimelineSection)
+    shorts: ShortsSection = Field(default_factory=ShortsSection)
     communities: list[CommunitySpec] = Field(default_factory=list)
     board: BoardSection = Field(default_factory=BoardSection)
 

@@ -11,13 +11,15 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from newsclip.vertical import box_top, is_vertical, sub_top
+from newsclip.vertical import box_top, is_vertical, style_of, sub_top
 from studio_core.fonts import korean_font_path, load_font
 
 log = logging.getLogger("newsclip.caption")
 
 
-def render_caption(text: str, out: Path, size: tuple[int, int] = (1920, 1080), font_size: int = 26) -> Path:
+def render_caption(
+    text: str, out: Path, size: tuple[int, int] = (1920, 1080), font_size: int = 26, style: str = "default"
+) -> Path:
     """출처 문구 PNG를 만든다(이미 같은 내용이면 재사용)."""
     if korean_font_path() is None:
         log.warning("한글 폰트를 찾지 못했습니다. STUDIO_FONT로 지정하세요(자막이 깨질 수 있음).")
@@ -30,7 +32,7 @@ def render_caption(text: str, out: Path, size: tuple[int, int] = (1920, 1080), f
     tw, th = box[2] - box[0], box[3] - box[1]
     x0, y0 = margin, (box_top(size) + margin if is_vertical(size) else margin)
     y1 = y0 + th + 2 * pad_y
-    draw.rounded_rectangle((x0, y0, x0 + tw + 2 * pad_x, y1), radius=8, fill=(0, 0, 0, 150))
+    draw.rounded_rectangle((x0, y0, x0 + tw + 2 * pad_x, y1), radius=8, fill=style_of(style).caption_box)
     draw.text((x0 + pad_x - box[0], y0 + pad_y - box[1]), text, font=font, fill=(255, 255, 255, 235))
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")

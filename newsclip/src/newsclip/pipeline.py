@@ -18,14 +18,14 @@ from newsclip.license_log import attribution_text, write_assets_json
 from newsclip.models import Asset, Scene, SceneSet, asset_id
 from newsclip.rank import asset_key, clip_scorer_or_none, rank, route_for
 from newsclip.scenes import build_scenes
-from newsclip.slides import Painter, ensure_fonts
+from newsclip.slides import Painter, ensure_fonts, fetch_font
 from newsclip.sources.base import Budget, SearchCache, Source
 from newsclip.sources.google_image import GoogleImageSource
 from newsclip.sources.naver_image import NaverImageSource
 from newsclip.sources.wikimedia import WikimediaSource
 from newsclip.sources.youtube_video import YouTubeVideoSource, is_blocked, thumb_video_id, video_channels
 from newsclip.srt import parse_srt
-from newsclip.vertical import is_vertical, render_headline
+from newsclip.vertical import is_vertical, render_headline, style_of
 from studio_core.config import ChannelConfig, Settings, TimelineSection, find_root, load_channel
 from studio_core.http import make_client
 from studio_core.keys import Unavailable
@@ -276,6 +276,7 @@ async def run_project(
     phrases: bool = False,
     slides: dict | None = None,
     headline: str = "",
+    style: str = "default",
 ) -> tuple[SceneSet, RunReport]:
     """newsclip run 전체. videos=False면 영상은 받지 않고 후보(링크)로만 남긴다(유튜브 받기가 막힌 곳).
     slides(증시 채널)가 있으면 사진을 찾지 않고 장면마다 슬라이드 그림을 그려 쓴다(newsclip.slides).
@@ -309,14 +310,22 @@ async def run_project(
         async with make_client() as client:
             fonts = await ensure_fonts(client, settings.data_dir / "fonts")
     if headline.strip() and is_vertical(size):
-        digest = hashlib.sha1(headline.strip().encode()).hexdigest()[:8]
+        st = style_of(style)
+        head_font = fonts.get("ExtraBold")
+        if st.font_url:  # 채널 디자인 폰트(자유뉴스365: 블랙한산스) — 못 받으면 Pretendard
+            async with make_client() as client:
+                head_font = (
+                    await fetch_font(client, settings.data_dir / "fonts", st.font_file, st.font_url)
+                    or head_font
+                )
+        digest = hashlib.sha1(f"{st.name}:{headline.strip()}".encode()).hexdigest()[:8]
         head_png = render_headline(
-            headline.strip(), project / "overlays" / f"headline_{digest}.png", size, fonts.get("ExtraBold")
+            headline.strip(), project / "overlays" / f"headline_{digest}.png", size, head_font, style=st.name
         )
     if slides is not None:
         report.skipped_sources.clear()
         report.borrowed = render_slides(scenes, slides, fonts, assets_dir, cfg.channel.name, project.name)
-        return _finish(project, sset, report, cfg, fps, size, video_max_sec, None, head_png)
+        return _finish(project, sset, report, cfg, fps, size, video_max_sec, None, head_png, style)
     async with make_client() as client:
         sources = make_sources(settings, cfg, client)
         found = await asyncio.gather(
@@ -361,7 +370,7 @@ async def run_project(
                 chunk = images[i : i + want - ok]
                 i += len(chunk)
                 res = await asyncio.gather(
-                    *(download_image(client, a, dest("jpg"), registry, size, sem) for a in chunk)
+                    *(download_image(client, a, dest("jpg"), registry, size, sem, style) for a in chunk)
                 )
                 for a in res:
                     if a is not None:
@@ -372,7 +381,7 @@ async def run_project(
 
         await asyncio.gather(*(fetch(sc) for sc in scenes))
         report.borrowed = borrow_empty(scenes)
-    return _finish(project, sset, report, cfg, fps, size, video_max_sec, clip_scorer, head_png)
+    return _finish(project, sset, report, cfg, fps, size, video_max_sec, clip_scorer, head_png, style)
 
 
 def _finish(
@@ -385,6 +394,7 @@ def _finish(
     video_max_sec: float,
     clip_scorer: Callable | None,
     headline: Path | None = None,
+    style: str = "default",
 ) -> tuple[SceneSet, RunReport]:
     """집계·scenes.json·assets.json·timeline.xml."""
     scenes = sset.scenes
@@ -413,6 +423,7 @@ def _finish(
         video_max_sec=video_max_sec,
         options=cfg.timeline,
         headline=headline,
+        style=style,
     )
     return sset, report
 
@@ -448,6 +459,7 @@ def write_xml(
     video_max_sec: float = 20.0,
     options: TimelineSection | None = None,
     headline: Path | None = None,
+    style: str = "default",
 ) -> list[str]:
     """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환.
 
@@ -468,6 +480,7 @@ def write_xml(
         subtitles=subtitles,
         attribution=opts.attribution,
         headline=headline,
+        style=style,
     )
     (project / "timeline.xml").write_text(xml, encoding="utf-8")
     return validate_xmeml(xml)

@@ -63,6 +63,21 @@ async def ensure_fonts(client: object, font_dir: Path) -> dict[str, str]:
     return out
 
 
+async def fetch_font(client: object, font_dir: Path, filename: str, url: str) -> str | None:
+    """폰트 파일 하나를 한 번 받아 둔다(쇼츠 디자인 폰트). 못 받으면 None."""
+    p = font_dir / filename
+    if not p.exists():
+        try:
+            resp = await client.get(url)  # type: ignore[attr-defined]
+            resp.raise_for_status()
+            font_dir.mkdir(parents=True, exist_ok=True)
+            p.write_bytes(resp.content)
+        except Exception as e:  # 폰트 받기 실패 → 기본 폰트
+            log.warning("쇼츠 폰트를 받지 못했습니다(%s): %s", filename, e)
+            return None
+    return str(p)
+
+
 class Painter:
     """폰트 묶음을 들고 슬라이드 하나를 그린다."""
 

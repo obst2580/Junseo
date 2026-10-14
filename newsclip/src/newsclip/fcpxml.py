@@ -201,6 +201,7 @@ def build_xmeml(
     subtitles: list | None = None,
     attribution: bool = True,
     headline: Path | None = None,
+    style: str = "default",
 ) -> str:
     """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막,
     headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내."""
@@ -270,9 +271,10 @@ def build_xmeml(
         if v2 is None or a.source == "slide":
             continue
         text = a.attribution_text or attribution_text(a)
-        png = cap_dir / f"cap_{hashlib.sha1(text.encode()).hexdigest()[:8]}.png"
+        key = text if style == "default" else f"{style}:{text}"  # 디자인이 다르면 출처 표시 그림도 따로
+        png = cap_dir / f"cap_{hashlib.sha1(key.encode()).hexdigest()[:8]}.png"
         if not png.exists():
-            render_caption(text, png, size)
+            render_caption(text, png, size, style=style)
         cc = ET.SubElement(v2, "clipitem", {"id": f"clipitem-v2-{n}"})
         _text(cc, "name", text)
         _text(cc, "enabled", "TRUE")

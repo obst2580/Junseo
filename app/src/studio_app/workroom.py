@@ -396,6 +396,7 @@ async def sources(
         slides=slides,
         size=size,
         headline=str(req.get("thumb") or "") if tall else "",
+        style=cfg.shorts.style if tall else "default",
     )
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
