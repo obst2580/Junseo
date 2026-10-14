@@ -198,7 +198,7 @@ def test_stock_rules_are_news_only():
 
 
 def test_shorts_format_only_for_politics():
-    """세로 쇼츠(1분, 첫 10초 훅)는 정치 채널만. 증시 채널은 아직 쇼츠 없음."""
+    """세로 쇼츠(1분, 첫 3초·10초 훅, 끝은 시청자 질문)는 정치 채널만. 증시 채널은 아직 쇼츠 없음."""
     from studio_core.config import ChannelConfig
     from topicradar.handoff import channel_rules
 
@@ -214,6 +214,9 @@ def test_shorts_format_only_for_politics():
         "뚝뚝 끊어" in rule and "문장 길이를 자막에 맞춰 줄이지 않는다" in rule
     )  # 짧은 문장 나열 말고 이어서
     assert "문장은 짧게" not in rule
+    assert "첫 1~3초(첫 문장, 25자 안쪽)" in rule and "강렬한 질문" in rule  # 첫 3초 훅
+    assert "시청자 의견을 묻는 질문으로 끝낸다" in rule and "댓글로 남겨 주세요" in rule  # 끝은 시청자 질문
+    assert "pinned_comment" in r["rules"]["plan_task"] and "첫 3초 훅" in r["rules"]["plan_task"]
     assert r["rules"]["shorts_outro"] == "짧은 인사" and r["rules"]["outro"] == "긴 마무리 인사"
     assert (
         channel_rules(ChannelConfig.model_validate({"script": {"outro": "끝"}}))["rules"]["shorts_outro"]
@@ -255,6 +258,11 @@ def test_conservative_profile_rules():
         and "이재명 대통령을 비난하는 제목은 금지" not in rules["plan_task"]
     )
     assert "이재명" not in rules["format_rules"]["shorts"] and "처음 10초" in rules["format_rules"]["shorts"]
+    assert (
+        "댓글로 남겨 주세요" in rules["format_rules"]["shorts"]
+        and "혐오·비하로 읽힐 선택지" in rules["format_rules"]["shorts"]
+        and "pinned_comment" in rules["plan_task"]
+    )
     assert (
         "더불어민주당 ○○ 의원" in rules["tone_rules"]
         and "이재명 대통령은 풍자하지 않는다" not in rules["tone_rules"]

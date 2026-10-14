@@ -248,6 +248,7 @@ footer { font-size: 13px; color: var(--muted); }
       <div class="t"><span>3안</span><input type="text" id="t3" maxlength="80"></div>
       <div class="t"><span id="thumb-label">썸네일</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="thumb" maxlength="20"><span class="count" id="thumb-n"></span></div></div>
       <div class="t"><span>해시태그</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="tags" maxlength="400" spellcheck="false"><button class="btn small" id="tags-copy" type="button">복사</button></div></div>
+      <div class="t" id="pin-row" hidden><span>고정 댓글</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="pin" maxlength="120" title="영상을 올린 뒤 댓글로 달고 고정하세요 — 시청자 의견을 끌어냅니다"><button class="btn small" id="pin-copy" type="button">복사</button></div></div>
     </div>
     <div class="row"><span class="spacer"></span><button class="btn primary" id="to-voice" type="button">다음: 음성</button></div>
   </section>
@@ -643,7 +644,7 @@ function selectProject(id, initial) {
     const d = snap.data();
     const mine = S.project;
     S.project = JSON.parse(JSON.stringify(d));
-    if (mine && pendingSave) { S.project.script = mine.script; S.project.titles = mine.titles; S.project.thumb = mine.thumb; S.project.link = mine.link; S.project.hashtags = mine.hashtags; }
+    if (mine && pendingSave) Object.assign(S.project, savedFields(mine));
     renderAll(true);
   }, () => {});
   renderAll();
@@ -652,6 +653,7 @@ function renderAll(fromSnap = false) { renderTabs(); renderScript(fromSnap); if 
 
 /* 저장(대본·제목): 입력이 멈추면 한 번 */
 let pendingSave = false, saveTimer = null;
+const savedFields = p => ({ script: p.script, script_by: p.script_by || '', script_key: p.script_key || '', titles: p.titles, thumb: p.thumb, link: p.link || '', hashtags: p.hashtags || [], pinned_comment: p.pinned_comment || '' });
 function queueSave(fields) {
   if (!S.project || !db) return;
   Object.assign(S.project, fields); pendingSave = true;
@@ -659,7 +661,7 @@ function queueSave(fields) {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {
     const p = S.project;
-    try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, script_by: p.script_by || '', titles: p.titles, thumb: p.thumb, link: p.link || '', hashtags: p.hashtags || [] }); $('#save-state').textContent = '저장됨'; }
+    try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); $('#save-state').textContent = '저장됨'; }
     catch (e) { $('#save-state').textContent = '저장 실패 — 다시 고치면 다시 저장합니다'; }
     finally { pendingSave = false; }
   }, 1200);
@@ -736,6 +738,17 @@ function joinCommaLines(text) {
   return out.join('\n');
 }
 const spokenLines = text => String(text || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+// 쇼츠 첫 문장(1~3초 훅)은 25자 안쪽 — 조금 넘는 건 봐준다
+const SHORTS_HOOK_MAX = 32;
+const firstSentence = line => (String(line || '').match(/^.*?[.?!…]['"”’」』)\]]*(?=\s|$)/) || [String(line || '')])[0];
+// 쇼츠 끝 질문: 마무리 인사 바로 앞 두 줄 안에서 물음표로 끝나는 문장
+function endQuestion(p) {
+  const spoken = spokenLines(p.script), outro = outroOf(p);
+  const at = outro ? spoken.findIndex(l => l.includes(outro.slice(0, 12))) : -1;
+  const before = spoken.slice(0, at >= 0 ? at : spoken.length).slice(-2);
+  for (const l of before.reverse()) { const q = l.match(/[^.?!…]*\?/g); if (q) return q.join(' ').trim(); }
+  return '';
+}
 function checkScript() {
   const p = S.project, spec = S.meta.formats[p.format], r = S.meta.rules, text = p.script || '';
   const lines = text.split('\n').map(l => l.trim()), spoken = spokenLines(text);
@@ -765,10 +778,14 @@ function checkScript() {
   if (commaBreaks) out.push({ bad: true, text: `쉼표 뒤에서 줄을 바꾼 곳 ${commaBreaks}개 — 쉼표로 이어지는 말은 한 줄에` });
   const outro = outroOf(p);
   if (outro && !text.includes(outro)) out.push({ bad: true, text: `끝에 채널 마무리 인사가 없습니다: '${outro.slice(0, 24)}…'` });
-  if (isShorts(p)) {  // 쇼츠는 첫 10초(첫 두세 문장)가 승부 — 인사·예고로 열지 않는다
-    const head = spoken.slice(0, 3).join(' ');
+  if (isShorts(p)) {  // 쇼츠는 첫 1~3초(첫 문장)와 첫 10초(첫 두세 문장)가 승부 — 인사·예고로 열지 않는다
+    const head = spoken.slice(0, 3).join(' '), first = firstSentence(spoken[0]);
     if (/^(안녕|여러분[, ]*안녕|오늘은|이번 영상|이번 시간|지금부터)/.test(spoken[0] || '') || /알아보겠습니다|살펴보겠습니다|준비했습니다/.test(head))
       out.push({ bad: true, text: '쇼츠 첫 10초가 인사·예고로 시작합니다 — 가장 센 발언·숫자·장면으로 바로 열기' });
+    if ([...first].length > SHORTS_HOOK_MAX)
+      out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 핵심 쟁점을 던지는 25자 안쪽 질문·단언으로` });
+    if (!endQuestion(p))
+      out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
   }
   const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
   if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
@@ -791,7 +808,7 @@ function renderScript(fromSnap) {
   const spec = S.meta.formats[p.format];
   $('#fmt-chip').textContent = `${spec.name} · ${spec.target_chars[0].toLocaleString()}~${spec.target_chars[1].toLocaleString()}자${spec.vertical ? ' · 세로 1080×1920' : ''}`;
   $('#thumb-label').textContent = isShorts(p) ? '상단 제목' : '썸네일';
-  $('#thumb').title = isShorts(p) ? '세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(두 줄, 둘째 줄 노랑)' : '';
+  $('#thumb').title = isShorts(p) ? `세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(${RIGHT ? '남색·빨강 띠 두 줄' : '두 줄, 둘째 줄 노랑'})` : '';
   $('#plan').innerHTML = planItems().map(({ t, order, sec }) => `<div class="item"><span class="rank">${order}</span><b>## ${esc(t.heading)}</b><span class="sec">${sec}초</span><span class="small muted">주장: ${esc(t.stance)}</span>${t.articles.length ? `<span class="badge">기사 ${t.articles.length}</span>` : '<span class="badge warn">기사 없음</span>'}</div>`).join('');
   $('#link-field').hidden = p.format !== 'long';
   const ae = document.activeElement;
@@ -801,6 +818,9 @@ function renderScript(fromSnap) {
   ['#t1', '#t2', '#t3'].forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = (p.titles || [])[i] || ''; });
   if (ae !== $('#thumb')) $('#thumb').value = p.thumb || '';
   if (ae !== $('#tags')) $('#tags').value = tagLine(p.hashtags);
+  $('#pin-row').hidden = !isShorts(p);
+  if (ae !== $('#pin')) $('#pin').value = p.pinned_comment || '';
+  $('#ti-go').textContent = isShorts(p) ? 'Claude로 제목·상단 제목·해시태그·고정 댓글 만들기' : 'Claude로 제목·썸네일·해시태그 만들기';
   thumbCount();
   const risks = riskNotes();
   const stale = p.rules_key !== rulesKey(), oldScript = !stale && (p.script || '').trim() && p.script_by === 'claude' && p.script_key !== scriptKey();
@@ -823,6 +843,8 @@ function cleanTags(list) {
 const tagLine = tags => cleanTags(tags || []).map(t => '#' + t).join(' ');
 $('#tags').addEventListener('input', e => queueSave({ hashtags: cleanTags(e.target.value.split(/[\s,]+/)) }));
 $('#tags-copy').onclick = () => copyText(tagLine(S.project && S.project.hashtags), '해시태그를');
+$('#pin').addEventListener('input', e => queueSave({ pinned_comment: e.target.value }));
+$('#pin-copy').onclick = () => copyText((S.project && S.project.pinned_comment) || '', '고정 댓글을');
 function thumbCount() { const n = [...($('#thumb').value || '')].length, max = thumbMax(S.project); const el = $('#thumb-n'); el.textContent = `${n}/${max}`; el.className = 'count' + (n > max ? ' bad' : ''); }
 
 async function runScript(mode) {
@@ -869,8 +891,9 @@ $('#sc-stop').onclick = () => ctl && ctl.abort();
 $('#ti-go').onclick = async () => {
   if (!claudeOk() || ctl) return;
   const p = S.project, r = S.meta.rules;
-  const payload = { format: fmtName(p.format), items: p.topics.map(t => ({ name: t.name, category: t.category, stance: t.stance, points: t.points, articles: t.articles.slice(0, 4).map(a => a.title) })), bundle_link: p.format === 'long' ? (p.link || null) : null };
-  const prompt = [r.identity, r.plan_task, isShorts(p) ? `세로 쇼츠다: 제목은 25자 안쪽, 썸네일 문구(thumbnail_text)는 영상 내내 화면 위쪽에 떠 있는 상단 제목으로 ${thumbMax(p)}자 이내 — 첫 10초 훅과 같은 결로 가장 센 한마디.` : `썸네일 문구는 ${r.thumb_max || 10}자 이내.`, `해시태그 ${fixedTags().join('·')}는 고정이라 따로 붙인다 — hashtags에는 그 밖의 것만.`, '출력: JSON 객체 하나만. 형식: {"titles":["1안","2안","3안"],"thumbnail_text":"…","hashtags":["태그1","태그2"],"link":null 또는 "한 문장"}', '', '영상:', JSON.stringify(payload)].join('\n');
+  const payload = { format: fmtName(p.format), items: p.topics.map(t => ({ name: t.name, category: t.category, stance: t.stance, points: t.points, articles: t.articles.slice(0, 4).map(a => a.title) })), bundle_link: p.format === 'long' ? (p.link || null) : null,
+    ...(isShorts(p) ? { script_question: endQuestion(p) } : {}) };
+  const prompt = [r.identity, r.plan_task, isShorts(p) ? `세로 쇼츠다: 제목은 25자 안쪽, 썸네일 문구(thumbnail_text)는 영상 내내 화면 위쪽에 떠 있는 상단 제목으로 ${thumbMax(p)}자 이내 — 첫 3초 훅과 같은 결로 핵심 쟁점을 가장 세게. pinned_comment는 시청자 의견을 묻는 고정 댓글 한 문장(40자 안쪽).` : `썸네일 문구는 ${r.thumb_max || 10}자 이내.`, `해시태그 ${fixedTags().join('·')}는 고정이라 따로 붙인다 — hashtags에는 그 밖의 것만.`, `출력: JSON 객체 하나만. 형식: {"titles":["1안","2안","3안"],"thumbnail_text":"…","hashtags":["태그1","태그2"],"link":null 또는 "한 문장"${isShorts(p) ? ',"pinned_comment":"…"' : ''}}`, '', '영상:', JSON.stringify(payload)].join('\n');
   ctl = new AbortController(); $('#ti-go').disabled = true; $('#ti-state').innerHTML = spinner('만드는 중…');
   try {
     const res = await sample.json(prompt, { modelTier: 'default', signal: ctl.signal });
@@ -878,6 +901,7 @@ $('#ti-go').onclick = async () => {
     const f = { titles: [titles[0] || '', titles[1] || '', titles[2] || ''], thumb: String((res && res.thumbnail_text) || '').trim() || p.thumb,
       hashtags: cleanTags(strList(res && res.hashtags, 12)) };
     if (p.format === 'long' && !p.link && res && res.link) f.link = String(res.link).trim();
+    if (isShorts(p) && res && res.pinned_comment) f.pinned_comment = String(res.pinned_comment).trim();
     queueSave(f); renderScript(); $('#ti-state').textContent = '만들었습니다 — 고쳐 써도 됩니다';
   } catch (e) { $('#ti-state').textContent = ''; if (e && e.code !== 'cancelled') toast(claudeError(e), true); }
   finally { ctl = null; $('#ti-go').disabled = false; }
@@ -1177,7 +1201,7 @@ $('#src-go').onclick = async () => {
   const p = S.project;
   sweepAssets(p);
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
-  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update({ script: p.script, titles: p.titles, thumb: p.thumb, link: p.link || '', hashtags: p.hashtags || [] }); } catch (e) { /* 다음에 */ } pendingSave = false; }
+  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
   const r = await requestWork('sources', $('#src-go'));
   $('#src-go').disabled = false;
