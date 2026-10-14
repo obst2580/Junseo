@@ -150,6 +150,11 @@ def test_validate_catches_violations():
         assert frag in warns
     assert "헤더 없음" in " ".join(validate_script("헤더 없는 대본\n", plan))
     assert normalize_script("```\n줄1\n\n\n줄2\n```") == "줄1\n\n줄2\n"
+    # 쉼표 뒤에서는 줄을 바꾸지 않는다(다음 줄과 잇는다). 빈 줄·헤더 앞에서는 잇지 않는다
+    assert (
+        normalize_script("막아섰는데요,\n이유는 기업 부담이랍니다.\n\n## 정리\n끝.\n")
+        == "막아섰는데요, 이유는 기업 부담이랍니다.\n\n## 정리\n끝.\n"
+    )
     # 세로 쇼츠는 '충격' 같은 센 말을 허용한다
     shorts = _plan("short")
     shorts.format = "shorts"

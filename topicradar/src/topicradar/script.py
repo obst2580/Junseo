@@ -347,7 +347,7 @@ def draft_script(plan: VideoPlan, llm: ClaudeLLM | None, tone: str = prompts.DEF
 
 
 def normalize_script(text: str) -> str:
-    """코드블록 제거, 줄 정리, 빈 줄 하나로."""
+    """코드블록 제거, 줄 정리, 빈 줄 하나로. 쉼표로 끝난 줄은 다음 줄과 잇는다(줄은 문장이 끝날 때만 바꾼다)."""
     text = re.sub(r"^```[a-z]*\s*|\s*```$", "", text.strip())
     out: list[str] = []
     for ln in text.splitlines():
@@ -355,6 +355,9 @@ def normalize_script(text: str) -> str:
         if not ln.strip():
             if out and out[-1] != "":
                 out.append("")
+            continue
+        if out and out[-1].endswith(",") and not ln.strip().startswith("#"):
+            out[-1] += " " + ln.strip()
             continue
         out.append(ln.strip())
     return "\n".join(out).strip() + "\n"

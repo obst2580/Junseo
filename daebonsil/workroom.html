@@ -720,9 +720,20 @@ function normalize(text) {
     ln = ln.trim();
     if (ln.startsWith('#') && !ln.startsWith('## ')) continue; // 출처·주석 줄은 대본에 남기지 않는다
     if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
+    if (out.length && out[out.length - 1].endsWith(',') && !ln.startsWith('#')) { out[out.length - 1] += ' ' + ln; continue; }  // 쉼표 뒤에서 줄을 바꾸지 않는다
     out.push(ln);
   }
   return out.join('\n').trim() + '\n';
+}
+// 쉼표로 끝난 줄을 다음 줄과 잇기만 한다(주석 줄·빈 줄은 그대로) — 이미 쓴 대본 고치기용
+function joinCommaLines(text) {
+  const out = [];
+  for (const raw of String(text || '').split('\n')) {
+    const ln = raw.trim(), prev = out.length ? out[out.length - 1] : '';
+    if (ln && !ln.startsWith('#') && prev.trim().endsWith(',') && !prev.trim().startsWith('#')) { out[out.length - 1] = prev.replace(/\s+$/, '') + ' ' + ln; continue; }
+    out.push(raw);
+  }
+  return out.join('\n');
 }
 const spokenLines = text => String(text || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 function checkScript() {
@@ -750,6 +761,8 @@ function checkScript() {
   for (const t of p.topics) for (const x of t.posts) for (const s of [x.title, ...(x.top_comments || []).map(c => c.text)]) { const k = String(s || '').replace(/\s+/g, ''); if (k.length >= 10) keys.add(k.slice(0, 18)); }
   const copied = [...keys].filter(k => joined.includes(k)).length;
   if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
+  const commaBreaks = lines.filter((l, i) => l && !l.startsWith('#') && l.endsWith(',') && lines[i + 1] && !lines[i + 1].startsWith('#')).length;
+  if (commaBreaks) out.push({ bad: true, text: `쉼표 뒤에서 줄을 바꾼 곳 ${commaBreaks}개 — 쉼표로 이어지는 말은 한 줄에` });
   const outro = outroOf(p);
   if (outro && !text.includes(outro)) out.push({ bad: true, text: `끝에 채널 마무리 인사가 없습니다: '${outro.slice(0, 24)}…'` });
   if (isShorts(p)) {  // 쇼츠는 첫 10초(첫 두세 문장)가 승부 — 인사·예고로 열지 않는다
@@ -817,6 +830,9 @@ async function runScript(mode) {
   const p = S.project, outro = outroOf(p);
   if (mode === 'fix' && outro && !(p.script || '').includes(outro)) {  // 마무리 인사는 Claude 없이 바로 붙인다
     p.script = withOutro(p.script, outro); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
+  }
+  if (mode === 'fix' && joinCommaLines(p.script) !== p.script) {  // 쉼표 뒤 줄바꿈도 Claude 없이 바로 잇는다
+    p.script = joinCommaLines(p.script); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
   }
   const problems = mode === 'fix' ? checkScript().filter(x => x.bad).map(x => x.text) : [];
   if (mode === 'fix' && !problems.length) { toast('점검에 걸린 것이 없습니다'); return; }
