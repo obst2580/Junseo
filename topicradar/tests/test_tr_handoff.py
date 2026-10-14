@@ -217,6 +217,9 @@ def test_shorts_format_only_for_politics():
     assert "첫 1~3초(첫 문장, 25자 안쪽)" in rule and "강렬한 질문" in rule  # 첫 3초 훅
     assert "시청자 의견을 묻는 질문으로 끝낸다" in rule and "댓글로 남겨 주세요" in rule  # 끝은 시청자 질문
     assert "pinned_comment" in r["rules"]["plan_task"] and "첫 3초 훅" in r["rules"]["plan_task"]
+    assert (
+        "검색되는 제목" in r["rules"]["plan_task"] and "팩트체크" in r["rules"]["plan_task"]
+    )  # 제목은 검색어부터
     assert r["rules"]["shorts_outro"] == "짧은 인사" and r["rules"]["outro"] == "긴 마무리 인사"
     assert (
         channel_rules(ChannelConfig.model_validate({"script": {"outro": "끝"}}))["rules"]["shorts_outro"]
@@ -263,6 +266,7 @@ def test_conservative_profile_rules():
         and "혐오·비하로 읽힐 선택지" in rules["format_rules"]["shorts"]
         and "pinned_comment" in rules["plan_task"]
     )
+    assert "검색되는 제목" in rules["plan_task"] and "강경 보수(국민의힘 지지) 시선에서" in rules["plan_task"]
     assert (
         "더불어민주당 ○○ 의원" in rules["tone_rules"]
         and "이재명 대통령은 풍자하지 않는다" not in rules["tone_rules"]
