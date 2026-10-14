@@ -1201,6 +1201,7 @@ $('#src-go').onclick = async () => {
   const p = S.project;
   sweepAssets(p);
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
+  if (isShorts(p) && !String(p.thumb || '').trim()) { toast('상단 제목을 먼저 써 주세요 — 세로 쇼츠는 이 문구가 영상 내내 위쪽에 뜹니다', true); setTab('script'); $('#thumb').focus(); return; }
   if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;
   const r = await requestWork('sources', $('#src-go'));
