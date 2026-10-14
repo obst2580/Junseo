@@ -200,8 +200,10 @@ class Settings:
 
     @property
     def channel(self) -> str:
-        """채널 이름(STUDIO_CHANNEL). 비우면 기본 채널(channel.yaml·data/·projects/)."""
-        return re.sub(r"[^a-z0-9_-]", "", os.environ.get("STUDIO_CHANNEL", "").strip().lower())
+        """채널 이름(STUDIO_CHANNEL). 비우거나 'politics'(제작실이 정치 채널 요청에 적는 이름)면 기본 채널
+        (channel.yaml·data/·projects/)."""
+        name = re.sub(r"[^a-z0-9_-]", "", os.environ.get("STUDIO_CHANNEL", "").strip().lower())
+        return "" if name == "politics" else name
 
     @property
     def data_dir(self) -> Path:

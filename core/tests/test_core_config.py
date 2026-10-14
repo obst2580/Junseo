@@ -97,6 +97,8 @@ def test_second_channel_uses_its_own_files(tmp_path, monkeypatch):
         "data-stock",
         "projects-stock",
     )
+    monkeypatch.setenv("STUDIO_CHANNEL", "politics")  # 제작실이 정치 채널 요청에 적는 이름 = 기본 채널
+    assert (s.channel_path.name, s.data_dir.name) == ("channel.yaml", "data")
     monkeypatch.setenv("STUDIO_CHANNEL", "../x")  # 경로 문자 제거
     assert s.channel == "x"
     import yaml
