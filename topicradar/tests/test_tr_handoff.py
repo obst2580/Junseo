@@ -214,7 +214,7 @@ def test_shorts_format_only_for_politics():
         "뚝뚝 끊어" in rule and "문장 길이를 자막에 맞춰 줄이지 않는다" in rule
     )  # 짧은 문장 나열 말고 이어서
     assert "문장은 짧게" not in rule
-    assert "첫 1~3초(첫 문장, 25자 안쪽)" in rule and "강렬한 질문" in rule  # 첫 3초 훅
+    assert "첫 1~3초(첫 문장, 25자 안쪽)" in rule and "가장 강력한 소식" in rule  # 첫 3초에 가장 센 소식
     assert "시청자 의견을 묻는 질문으로 끝낸다" in rule and "댓글로 남겨 주세요" in rule  # 끝은 시청자 질문
     assert "pinned_comment" in r["rules"]["plan_task"] and "첫 3초 훅" in r["rules"]["plan_task"]
     assert (

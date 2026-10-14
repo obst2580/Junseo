@@ -152,6 +152,7 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             "slang": SLANG,
             "outro": cfg.script.outro,
             "shorts_outro": cfg.script.shorts_outro or cfg.script.outro,
+            "like_ask": cfg.script.like_ask,
             "shorts_thumb_max": SHORTS_THUMB_MAX,
             "fixed_hashtags": cfg.script.fixed_hashtags,
             "vague_words": STOCK_VAGUE_WORDS if stock else VAGUE_WORDS,

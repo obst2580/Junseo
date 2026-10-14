@@ -59,6 +59,36 @@ def with_outro(text: str, outro: str) -> str:
     return text.rstrip() + "\n\n" + outro + "\n"
 
 
+def has_line(text: str, line: str) -> bool:
+    """대본에 그 말이 들어 있나(줄바꿈·띄어쓰기 차이는 무시 — 넣을 때 한 줄에 한 문장으로 나누므로)."""
+    return " ".join(line.split()) in " ".join(text.split())
+
+
+def with_like_ask(text: str, ask: str) -> str:
+    """대본 중간에 좋아요 부탁을 한 단락으로 넣는다(이미 있으면 그대로). 주제가 둘 이상이면 둘째 주제 헤더 바로 앞,
+    하나뿐이면 말하는 글자의 3분의 1쯤 지난 단락 뒤. 끝 인사 단락보다 뒤로는 가지 않는다."""
+    ask = (ask or "").strip()
+    if not ask or has_line(text, ask):
+        return text
+    block = "\n".join(s for s in re.split(r"(?<=[.?!])\s+", ask) if s)  # 한 줄에 한 문장
+    paras = [p for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
+    heads = [i for i, p in enumerate(paras) if p.lstrip().startswith("## ")]
+    if len(heads) >= 2:
+        at = heads[1]
+    else:
+        spoken = [
+            sum(len(ln.strip()) for ln in p.splitlines() if not ln.strip().startswith("#")) for p in paras
+        ]
+        total, run, at = sum(spoken), 0, len(paras)
+        for i, n in enumerate(spoken):
+            run += n
+            if total and run >= total / 3:
+                at = i + 1
+                break
+        at = min(at, max(1, len(paras) - 1))  # 끝 인사 단락 앞
+    return "\n\n".join([*paras[:at], block, *paras[at:]]) + "\n"
+
+
 def _one_line(text: str) -> list[str]:
     """대본 한 줄 = 한 문장(자막용으로 짧게 끊지 않는다)."""
     text = (text or "").strip()

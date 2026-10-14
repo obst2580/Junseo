@@ -416,3 +416,31 @@ def test_outro_is_always_last():
     text = with_outro("## 주제\n첫 문장입니다.\n", outro)
     assert text.endswith("\n\n" + outro + "\n") and with_outro(text, outro) == text  # 두 번 붙지 않음
     assert with_outro("본문.\n", "") == "본문.\n"
+
+
+def test_like_ask_goes_mid_script():
+    """좋아요 부탁: 주제가 둘 이상이면 둘째 주제 앞, 하나면 3분의 1쯤 뒤(끝 인사 앞). 두 번 넣지 않는다."""
+    from topicradar.script import with_like_ask
+
+    ask = "타 진영에서 싫어요를 많이 누르는 바람에 영상이 잘 노출되지 않고 있습니다. 여러분이 좋아요 눌러 주세요."
+    two = "## 가\n가 문장입니다.\n\n## 나\n나 문장입니다.\n\n마무리 인사입니다.\n"
+    out = with_like_ask(two, ask)
+    assert out.index("여러분이 좋아요") < out.index("## 나") and out.index("가 문장") < out.index("타 진영")
+    assert "있습니다.\n여러분이" in out  # 한 줄에 한 문장
+    assert with_like_ask(out, ask) == out and with_like_ask(two, "") == two
+    one = (
+        "## 가\n" + "\n\n".join(f"{i}번째 단락의 문장입니다." for i in range(6)) + "\n\n마무리 인사입니다.\n"
+    )
+    out1 = with_like_ask(one, ask)
+    assert out1.index("1번째") < out1.index("타 진영") < out1.index("3번째") and out1.rstrip().endswith(
+        "마무리 인사입니다."
+    )
+
+
+def test_like_ask_in_channel_rules():
+    from studio_core.config import ChannelConfig
+    from topicradar.handoff import channel_rules
+
+    r = channel_rules(ChannelConfig.model_validate({"script": {"like_ask": "좋아요 눌러 주세요."}}))["rules"]
+    assert r["like_ask"] == "좋아요 눌러 주세요."
+    assert channel_rules(ChannelConfig.model_validate({}))["rules"]["like_ask"] == ""

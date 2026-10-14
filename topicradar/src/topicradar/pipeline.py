@@ -27,7 +27,7 @@ from topicradar.db import Store, UploadRow
 from topicradar.history import history_report
 from topicradar.models import Board, Signal, VideoPlan
 from topicradar.report import notify_slack, render_report
-from topicradar.script import validate_script, with_outro, write_script
+from topicradar.script import validate_script, with_like_ask, with_outro, write_script
 
 
 def open_store(settings: Settings) -> Store:
@@ -255,15 +255,18 @@ def write_project(
     tone: str = "확신형+입담형",
     script: str | None = None,
     outro: str = "",
+    like_ask: str = "",
 ) -> VideoResult:
     """대본 생성·점검 후 report.md / script.txt / plan.json 저장. script: 바깥(대본실)에서 쓴 대본.
-    outro: 대본 끝에 언제나 붙이는 채널 마무리 인사."""
+    outro: 대본 끝에 언제나 붙이는 채널 마무리 인사. like_ask: 10분·3분 대본 중간에 넣는 좋아요 부탁."""
     proj = project_dir(settings, plan.id)
     if script is None:
         script, plan.script_mode, plan.script_note = write_script(plan, llm, tone)
     else:
         plan.script_mode, plan.script_note = "claude", handoff.SCRIPT_NOTE
     script = with_outro(script, outro)
+    if plan.format != "shorts":
+        script = with_like_ask(script, like_ask)
     warnings = validate_script(script, plan)
     script_path = proj / "script.txt"
     script_path.write_text(script, encoding="utf-8")
@@ -298,7 +301,9 @@ def run_video(
     now = now or now_kst()
     ctx = BoardContext(store=store, cfg=cfg, llm=llm)
     plan = make_plan(ctx, board, topic_ids, fmt, new_video_id(settings, store, fmt, now), now)
-    res = write_project(settings, store, plan, llm, cfg.script.tone, outro=cfg.script.outro)
+    res = write_project(
+        settings, store, plan, llm, cfg.script.tone, outro=cfg.script.outro, like_ask=cfg.script.like_ask
+    )
     for it in plan.items:
         store.mark_covered(it.topic.id, plan.id)
     return res
@@ -343,7 +348,14 @@ def run_import(
     if opinions:
         plan.llm_mode = "claude"
     res = write_project(
-        settings, store, plan, None, cfg.script.tone, script=sf.script, outro=cfg.script.outro
+        settings,
+        store,
+        plan,
+        None,
+        cfg.script.tone,
+        script=sf.script,
+        outro=cfg.script.outro,
+        like_ask=cfg.script.like_ask,
     )
     for it in plan.items:
         store.mark_covered(it.topic.id, plan.id)
@@ -365,7 +377,13 @@ def run_rewrite(
 ) -> VideoResult:
     """같은 계획으로 대본만 다시 쓰기."""
     return write_project(
-        settings, store, plan_from_project(store, project), llm, cfg.script.tone, outro=cfg.script.outro
+        settings,
+        store,
+        plan_from_project(store, project),
+        llm,
+        cfg.script.tone,
+        outro=cfg.script.outro,
+        like_ask=cfg.script.like_ask,
     )
 
 

@@ -407,6 +407,8 @@ const hasFormat = f => !!(S.meta && S.meta.formats && S.meta.formats[f]);
 const isShorts = p => !!(p && p.format === 'shorts');
 // 세로 쇼츠는 1분이라 끝 인사도 짧은 것(channel.yaml script.shorts_outro)
 const outroOf = p => String((S.meta && S.meta.rules && (isShorts(p) ? S.meta.rules.shorts_outro || S.meta.rules.outro : S.meta.rules.outro)) || '').trim();
+// 10분·3분 대본 중간에 프로그램이 넣는 좋아요 부탁(channel.yaml script.like_ask) — 쇼츠에는 없다
+const likeAskOf = p => isShorts(p) ? '' : String((S.meta && S.meta.rules && S.meta.rules.like_ask) || '').trim();
 const thumbMax = p => (S.meta && S.meta.rules && (isShorts(p) ? S.meta.rules.shorts_thumb_max || 14 : S.meta.rules.thumb_max)) || 10;
 
 /* ---------- 수집 데이터 ---------- */
@@ -715,6 +717,25 @@ function withOutro(text, outro) {
   if (!outro || String(text || '').includes(outro)) return text;
   return String(text || '').replace(/\s+$/, '') + '\n\n' + outro + '\n';
 }
+// 대본에 그 말이 들어 있나(줄바꿈·띄어쓰기 차이는 무시 — 좋아요 부탁은 한 줄에 한 문장으로 나뉘어 들어간다)
+const hasLine = (text, line) => String(text || '').split(/\s+/).join(' ').includes(String(line || '').split(/\s+/).join(' ').trim());
+// 좋아요 부탁 한 단락: 주제가 둘 이상이면 둘째 주제 헤더 바로 앞, 하나뿐이면 말하는 글자의 3분의 1쯤 지난 단락 뒤(끝 인사 앞)
+function withLikeAsk(text, ask) {
+  ask = String(ask || '').trim();
+  if (!ask || hasLine(text, ask)) return text;
+  const block = ask.split(/(?<=[.?!])\s+/).filter(Boolean).join('\n');
+  const paras = String(text || '').trim().split(/\n\s*\n/).filter(x => x.trim());
+  const heads = paras.map((x, i) => x.trimStart().startsWith('## ') ? i : -1).filter(i => i >= 0);
+  let at;
+  if (heads.length >= 2) at = heads[1];
+  else {
+    const n = paras.map(x => x.split('\n').filter(l => !l.trim().startsWith('#')).reduce((a, l) => a + l.trim().length, 0));
+    const total = n.reduce((a, b) => a + b, 0); let run = 0; at = paras.length;
+    for (let i = 0; i < n.length; i++) { run += n[i]; if (total && run >= total / 3) { at = i + 1; break; } }
+    at = Math.min(at, Math.max(1, paras.length - 1));
+  }
+  return [...paras.slice(0, at), block, ...paras.slice(at)].join('\n\n') + '\n';
+}
 function normalize(text) {
   const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
   const out = [];
@@ -778,12 +799,14 @@ function checkScript() {
   if (commaBreaks) out.push({ bad: true, text: `쉼표 뒤에서 줄을 바꾼 곳 ${commaBreaks}개 — 쉼표로 이어지는 말은 한 줄에` });
   const outro = outroOf(p);
   if (outro && !text.includes(outro)) out.push({ bad: true, text: `끝에 채널 마무리 인사가 없습니다: '${outro.slice(0, 24)}…'` });
+  const ask = likeAskOf(p);
+  if (ask && !hasLine(text, ask)) out.push({ bad: true, text: `중간에 좋아요 부탁이 없습니다: '${ask.slice(0, 24)}…' — [점검대로 고쳐 쓰기]가 바로 넣습니다` });
   if (isShorts(p)) {  // 쇼츠는 첫 1~3초(첫 문장)와 첫 10초(첫 두세 문장)가 승부 — 인사·예고로 열지 않는다
     const head = spoken.slice(0, 3).join(' '), first = firstSentence(spoken[0]);
     if (/^(안녕|여러분[, ]*안녕|오늘은|이번 영상|이번 시간|지금부터)/.test(spoken[0] || '') || /알아보겠습니다|살펴보겠습니다|준비했습니다/.test(head))
       out.push({ bad: true, text: '쇼츠 첫 10초가 인사·예고로 시작합니다 — 가장 센 발언·숫자·장면으로 바로 열기' });
     if ([...first].length > SHORTS_HOOK_MAX)
-      out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 핵심 쟁점을 던지는 25자 안쪽 질문·단언으로` });
+      out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 가장 강력한 소식 하나를 25자 안쪽으로` });
     if (!endQuestion(p))
       out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
   }
@@ -853,6 +876,9 @@ async function runScript(mode) {
   if (mode === 'fix' && outro && !(p.script || '').includes(outro)) {  // 마무리 인사는 Claude 없이 바로 붙인다
     p.script = withOutro(p.script, outro); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
   }
+  if (mode === 'fix' && likeAskOf(p) && !hasLine(p.script, likeAskOf(p))) {  // 좋아요 부탁도 Claude 없이 바로 넣는다
+    p.script = withLikeAsk(p.script, likeAskOf(p)); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
+  }
   if (mode === 'fix' && joinCommaLines(p.script) !== p.script) {  // 쉼표 뒤 줄바꿈도 Claude 없이 바로 잇는다
     p.script = joinCommaLines(p.script); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
   }
@@ -870,7 +896,7 @@ async function runScript(mode) {
   try {
     const { text, truncated } = await sample(prompt, { modelTier: 'complex', cache: false, signal: ctl.signal,
       onText: ({ text: whole }) => { if (!started) { started = true; state.textContent = '쓰는 중…'; } ta.value = whole; p.script = whole; updateMeter(); } });
-    p.script = withOutro(normalize(text), outroOf(p)); ta.value = p.script;
+    p.script = withLikeAsk(withOutro(normalize(text), outroOf(p)), likeAskOf(p)); ta.value = p.script;
     p.script_key = scriptKey(); queueSave({ script: p.script, script_by: 'claude', script_key: p.script_key });
     state.textContent = `다 썼습니다 · ${Math.round((Date.now() - t0) / 1000)}초`;
     if (truncated) $('#sc-msg').innerHTML = '<div class="note warn">대본이 길이 한도에서 잘렸습니다. 뒷부분을 확인하고 [점검대로 고쳐 쓰기]를 눌러 주세요.</div>';
