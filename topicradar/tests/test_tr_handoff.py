@@ -242,6 +242,10 @@ def test_conservative_profile_rules():
             assert line in text, (key, line)
         assert "친이재명" not in text
     assert "사설·칼럼" in rules["group_task"] and "보수 게시판" in rules["group_task"]
+    assert (
+        "쉼표 뒤에서는 줄을 바꾸지 않는다" in rules["script_rules"]
+        and "`## 주제명` 헤더" in rules["script_rules"]
+    )
     assert "무조건 국민의힘 편은 아니다" in rules["identity"] and "강경 보수" in rules["identity"]
     assert (
         "논평 채널" in rules["identity"] and "3분의 2 이상" in rules["script_rules"]
