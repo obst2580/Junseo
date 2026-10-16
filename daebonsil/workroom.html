@@ -761,6 +761,8 @@ function joinCommaLines(text) {
 const spokenLines = text => String(text || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
 // 쇼츠 첫 문장(1~3초 훅)은 25자 안쪽 — 조금 넘는 건 봐준다
 const SHORTS_HOOK_MAX = 32;
+// 이재명 대통령이 주인공인 주제인가(주제 이름·주장에 이름이 있으면) — 쇼츠면 첫 마디를 '이재명'으로
+const aboutLee = p => (p.topics || []).some(t => /이재명/.test(`${t.name || ''} ${t.stance || ''}`));
 const firstSentence = line => (String(line || '').match(/^.*?[.?!…]['"”’」』)\]]*(?=\s|$)/) || [String(line || '')])[0];
 // 쇼츠 끝 질문: 마무리 인사 바로 앞 두 줄 안에서 물음표로 끝나는 문장
 function endQuestion(p) {
@@ -809,6 +811,8 @@ function checkScript() {
       out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 가장 강력한 소식 하나를 25자 안쪽으로` });
     if (!endQuestion(p))
       out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
+    if (aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
+      out.push({ bad: true, text: "이재명 대통령 사안인데 첫 마디가 '이재명'이 아닙니다 — 첫 문장을 '이재명 대통령이 …'으로" });
   }
   const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
   if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });

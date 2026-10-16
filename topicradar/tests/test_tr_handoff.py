@@ -215,6 +215,7 @@ def test_shorts_format_only_for_politics():
     )  # 짧은 문장 나열 말고 이어서
     assert "문장은 짧게" not in rule
     assert "첫 1~3초(첫 문장, 25자 안쪽)" in rule and "가장 강력한 소식" in rule  # 첫 3초에 가장 센 소식
+    assert "첫 낱말을 '이재명'으로" in rule and "상단 제목도 '이재명'으로" in r["rules"]["plan_task"]
     assert "시청자 의견을 묻는 질문으로 끝낸다" in rule and "댓글로 남겨 주세요" in rule  # 끝은 시청자 질문
     assert "pinned_comment" in r["rules"]["plan_task"] and "첫 3초 훅" in r["rules"]["plan_task"]
     assert (
@@ -260,7 +261,9 @@ def test_conservative_profile_rules():
         "친이재명" not in rules["plan_task"]
         and "이재명 대통령을 비난하는 제목은 금지" not in rules["plan_task"]
     )
-    assert "이재명" not in rules["format_rules"]["shorts"] and "처음 10초" in rules["format_rules"]["shorts"]
+    shorts_r = rules["format_rules"]["shorts"]
+    assert "이재명 대통령을 겨냥해 쓰지 않는다" not in shorts_r and "깎아내리지 않는다" not in shorts_r
+    assert "처음 10초" in shorts_r and "첫 낱말을 '이재명'으로" in shorts_r  # 이재명 사안이면 이름부터
     assert (
         "댓글로 남겨 주세요" in rules["format_rules"]["shorts"]
         and "혐오·비하로 읽힐 선택지" in rules["format_rules"]["shorts"]
