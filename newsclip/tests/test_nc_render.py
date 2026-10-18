@@ -205,3 +205,22 @@ def test_shots_split_long_scenes_and_alternate_photos(tmp_path):
     assert [s.path.name for s in split[:3]] == ["a1.jpg", "a2.jpg", "a1.jpg"]  # 같은 장면의 사진을 번갈아
     assert split[0].zoom != split[1].zoom  # 줌 방향도 번갈아
     assert split[0].start == 0.0 and split[-1].end == 8.0
+
+
+def test_subtitles_follow_given_srt(tmp_path):
+    from newsclip.shorts_render import subtitles_for
+
+    audio = tmp_path / "n.wav"
+    _wav(audio, 3)
+    srt = tmp_path / "s.srt"
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:02,000\n이재명이 또 해냈습니다\n\n2\n00:00:02,000 --> 00:00:03,000\n둘째 줄\n",
+        encoding="utf-8",
+    )
+    arts, _spans, _info = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
+    assert [(a.start, a.end) for a in arts] == [
+        (0.0, 1.5),
+        (1.5, 2.0),
+        (2.0, 3.0),
+    ]  # 훅 → 같은 줄 아래 자막 → 둘째 줄
+    assert arts[0].height > arts[1].height

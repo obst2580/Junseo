@@ -121,15 +121,16 @@ def subtitles_for(
     asset_dir: Path,
     keywords: set[str],
     srt: Path | None = None,
+    words: list | None = None,
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo]:
-    """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩)."""
+    """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다."""
     info = analyze(audio)
     if srt is not None:
         # 받은 자막(SRT)을 그대로 쓴다: 제작실에서 본 자막과 같은 시간
         lines = parse_srt(srt.read_text(encoding="utf-8"))
     else:
-        cues, _matched = align(script_phrases(script), info)
-        lines = subtitle_cues(cues, limit=SUB_LINE, info=info)
+        cues, _matched = align(script_phrases(script), info, words=words)
+        lines = subtitle_cues(cues, limit=SUB_LINE, info=info, words=words)
     px = fit_sub_px([cue.text for cue in lines], size)
     arts = []
     for k, cue in enumerate(lines):
@@ -173,6 +174,7 @@ def build_plan(
     videos: dict[str, Path] | None = None,
     keywords: set[str] = frozenset(),
     max_shot_sec: float | None = None,
+    words: list | None = None,
 ) -> RenderPlan:
     """프로젝트 dict(script, thumb, scenes) + 자료 폴더 + 음성 → 렌더 계획."""
     from newsclip.autosub import wav_duration
@@ -184,7 +186,7 @@ def build_plan(
     first = min(scenes, key=lambda s: float(s["start"]))
     query_words = {w for w in str(first.get("query", "")).split() if len(w) >= 2}
     cues, _spans, _info = subtitles_for(
-        project["script"], audio, SIZE, asset_dir, set(keywords) | query_words
+        project["script"], audio, SIZE, asset_dir, set(keywords) | query_words, srt=srt, words=words
     )
     cues = [c for c in cues if c.start < total]
     caps = []
@@ -238,6 +240,7 @@ def render_short(
     videos: dict[str, Path] | None = None,
     keywords: set[str] = frozenset(),
     max_shot_sec: float | None = None,
+    words: list | None = None,
 ) -> Path:
     plan = build_plan(
         project,
@@ -248,5 +251,44 @@ def render_short(
         videos=videos,
         keywords=keywords,
         max_shot_sec=max_shot_sec,
+        words=words,
     )
     return render(plan, out)
+
+
+def voice_and_render(
+    project: dict,
+    asset_dir: Path,
+    out: Path,
+    *,
+    voice_id: str,
+    tempo: float = 1.0,
+    remove_silence_ms: int | None = None,
+    bgm: Path | None = None,
+    max_shot_sec: float | None = None,
+    keywords: set[str] = frozenset(),
+    client=None,  # noqa: ANN001 - 시험용 httpx.Client
+) -> Path:
+    """대본을 타입캐스트로 읽고(속도·쉼 조절), 장면 시간을 새 음성에 다시 맞춘 뒤 완성 mp4를 만든다."""
+    from newsclip.autosub import narration_text
+    from newsclip.typecast_tts import retime_scenes, synthesize
+
+    speech = synthesize(
+        narration_text(project["script"]),
+        voice_id,
+        asset_dir / "narration_typecast.wav",
+        tempo=tempo,
+        remove_silence_ms=remove_silence_ms,
+        client=client,
+    )
+    retimed = {**project, "scenes": retime_scenes(project["scenes"], speech.chars, speech.duration)}
+    return render_short(
+        retimed,
+        asset_dir,
+        speech.path,
+        out,
+        bgm=bgm,
+        keywords=keywords,
+        max_shot_sec=max_shot_sec,
+        words=speech.words,
+    )
