@@ -14,7 +14,7 @@ from pathlib import Path
 
 from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases, subtitle_cues
 from newsclip.models import Scene
-from newsclip.render import CueArt, Overlay, RenderPlan, Shot, render, render_cue
+from newsclip.render import CueArt, Overlay, RenderPlan, Shot, fit_sub_px, render, render_cue
 from newsclip.sfx import ensure_sfx, sfx_cues
 
 SIZE = (1080, 1920)
@@ -68,9 +68,12 @@ def subtitles_for(
     info = analyze(audio)
     cues, _matched = align(script_phrases(script), info)
     lines = subtitle_cues(cues, limit=SUB_LINE, info=info)
+    px = fit_sub_px([cue.text for cue in lines], size)
     arts = []
     for k, cue in enumerate(lines):
-        art = render_cue(cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords)
+        art = render_cue(
+            cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px
+        )
         if art is not None:
             arts.append(_timed(art, cue.start, cue.end))
     return arts, [(cue.start, cue.end) for cue in lines], info

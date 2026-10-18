@@ -14,7 +14,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-from newsclip.vertical import sub_top
 from studio_core.fonts import korean_font_path, load_font
 
 # 음성 자막 글꼴(210 모란봉 Light). 패키지 안에 같이 둔다.
@@ -24,6 +23,9 @@ FPS = 30
 WHITE = (255, 255, 255, 255)
 YELLOW = (255, 222, 64, 255)
 BOX = (0, 0, 0, 255)  # 자막 뒤 상자: 불투명한 검은색
+SUB_PX = 84  # 음성 자막 글자 크기(픽셀). 줄이 너무 넓으면 fit_sub_px가 줄인다
+SUB_MAX_W = 960  # 자막 한 줄의 최대 글자 폭(화면 1080 기준 좌우 여백 60)
+SUB_BOTTOM = 1300  # 세로 쇼츠: 자막 상자 아랫선(사진 칸 560~1370 안쪽)
 POP_SEC = 0.15  # 자막 등장 효과 길이
 POP_GROW = 0.12  # 등장할 때 처음 커지는 비율(12%)
 
@@ -86,18 +88,46 @@ def is_hot(word: str, keywords: set[str]) -> bool:
     return any(ch.isdigit() for ch in core) or any(k and core.startswith(k) for k in keywords)
 
 
+def _sub_font(px: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    return ImageFont.truetype(str(SUB_FONT), px) if SUB_FONT.exists() else load_font(px)
+
+
+def fit_sub_px(texts: list[str], size: tuple[int, int], px: int = SUB_PX) -> int:
+    """자막들이 모두 SUB_MAX_W 안에 드는 가장 큰 글자 크기(px, 최소 40)."""
+    probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    while px > 40:
+        font = _sub_font(px)
+        gap = probe.textlength(" ", font=font)
+        widest = 0.0
+        for text in texts:
+            for ln in text.split("\n"):
+                words = ln.split(" ")
+                if ln.strip():
+                    widest = max(
+                        widest, sum(probe.textlength(wd, font=font) for wd in words) + gap * (len(words) - 1)
+                    )
+        if widest <= SUB_MAX_W:
+            break
+        px -= 2
+    return px
+
+
 def render_cue(
-    text: str, out: Path, size: tuple[int, int], keywords: set[str] = frozenset()
+    text: str,
+    out: Path,
+    size: tuple[int, int],
+    keywords: set[str] = frozenset(),
+    px: int = SUB_PX,
 ) -> CueArt | None:
-    """자막 한 블록(줄바꿈은 \\n)을 검은 상자 PNG로 그린다. 핵심어는 노란색."""
+    """자막 한 블록(줄바꿈은 \\n)을 검은 상자 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다."""
     lines = [ln for ln in text.split("\n") if ln.strip()]
     if not lines:
         return None
     if not SUB_FONT.exists() and korean_font_path() is None:
         raise RuntimeError("한글 폰트가 없어 자막을 그릴 수 없습니다(STUDIO_FONT로 지정).")
     w, h = size
-    font_size = round(54 * 1.2 * min(w, h) / 1080)  # 세로 쇼츠 자막 크기(render_subtitle과 같은 기준)
-    font = ImageFont.truetype(str(SUB_FONT), font_size) if SUB_FONT.exists() else load_font(font_size)
+    font_size = fit_sub_px([text], size, px)  # 한 줄이 화면 폭을 넘지 않게 줄인다
+    font = _sub_font(font_size)
     pad_x, pad_y = round(28 * min(w, h) / 1080), round(14 * min(w, h) / 1080)
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     line_h = round(font_size * 1.3)
@@ -122,7 +152,7 @@ def render_cue(
             x += draw.textlength(word, font=font)
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
-    top = sub_top(size) if h > w else round(h * 0.75)
+    top = SUB_BOTTOM - bh if h > w else round(h * 0.75)
     return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top)
 
 

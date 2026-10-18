@@ -8,7 +8,18 @@ from pathlib import Path
 
 from PIL import Image
 
-from newsclip.render import Overlay, RenderPlan, Shot, build_command, is_hot, render, render_cue
+from newsclip.render import (
+    SUB_BOTTOM,
+    SUB_PX,
+    Overlay,
+    RenderPlan,
+    Shot,
+    build_command,
+    fit_sub_px,
+    is_hot,
+    render,
+    render_cue,
+)
 
 
 def test_is_hot_numbers_and_keyword_prefix():
@@ -27,8 +38,15 @@ def _wav(path: Path, seconds: float) -> None:
 def test_render_cue_box_and_highlight(tmp_path):
     art = render_cue("경기도 총 국회의원 60명", tmp_path / "c.png", (1080, 1920), keywords={"국회"})
     assert art is not None and art.width > 0 and art.height > 0
-    assert Image.open(art.path).mode == "RGBA" and art.top == 1400
+    assert Image.open(art.path).mode == "RGBA" and art.top + art.height == SUB_BOTTOM
+    assert 560 < art.top and art.top + art.height < 1370  # 사진 칸 안쪽 아랫부분
     assert render_cue("\n", tmp_path / "e.png", (1080, 1920)) is None
+
+
+def test_fit_sub_px_shrinks_only_when_needed():
+    assert fit_sub_px(["짧은 자막"], (1080, 1920)) == SUB_PX
+    long_line = "이재명 대통령이 빈소에서 고인의 딸이 일곱 살이라는 대답을 듣고 한동안 말을 잇지 못했습니다"
+    assert fit_sub_px([long_line], (1080, 1920)) < SUB_PX
 
 
 def test_build_command_wires_video_audio_and_effects(tmp_path):
