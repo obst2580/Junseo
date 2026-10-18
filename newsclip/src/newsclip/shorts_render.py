@@ -35,7 +35,7 @@ from newsclip.render import (
     render_cue,
     render_emph,
 )
-from newsclip.sfx import HIT, ensure_sfx, sfx_cues
+from newsclip.sfx import HIT, HIT_EARLY, HIT_LEAD, ensure_sfx, sfx_cues
 from newsclip.srt import parse_srt
 from newsclip.vertical import BOX
 
@@ -366,10 +366,11 @@ def build_plan(
     sfx_dir = ensure_sfx(asset_dir)
     sounds = [cue for cue in sfx_cues(scene_models) if cue.at < total]
     sfx = [(cue.at, sfx_dir[cue.name]) for cue in sounds]
-    # 강조 자막(색 글자)이 뜰 때 쿵 — 다른 효과음과 0.5초 안에 겹치면 빼고
+    # 강조 자막(색 글자)이 뜰 때 강조음 — 올라오는 소리만큼 먼저 틀고, '탁'은 말 직전 쉼에(HIT_EARLY).
+    # 다른 효과음과 0.5초 안이면 빼고
     for at in [c.start for c in cues if c.intro]:
         if all(abs(at - a) >= 0.5 for a, _p in sfx):
-            sfx.append((at, sfx_dir[HIT]))
+            sfx.append((max(0.0, at - HIT_LEAD - HIT_EARLY), sfx_dir[HIT]))
     sfx.sort()
     # 넘기는 효과음(whoosh)이 나는 장면은 화면도 확대 펀치 전환으로 넘긴다
     whoosh = [cue.at for cue in sounds if cue.name == "whoosh"]

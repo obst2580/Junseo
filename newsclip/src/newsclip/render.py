@@ -471,7 +471,7 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
     count = len(mixed)
     # 내레이션 + 배경음악 + 효과음이 겹쳐도 찢어지지 않게 마지막에 리미터(크기 자동 키우기는 끔)
     mix.append(
-        f"{''.join(mixed)}amix=inputs={count}:duration=first:normalize=0,alimiter=limit=0.9:level=false[aout]"
+        f"{''.join(mixed)}amix=inputs={count}:duration=first:normalize=0,alimiter=limit=0.95:level=false[aout]"
     )
 
     filt = ";".join(chains + mix)
