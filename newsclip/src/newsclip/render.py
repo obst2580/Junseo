@@ -23,7 +23,7 @@ SUB_FONT = Path(__file__).parent / "fonts" / "210Moranbong-Light.TTF"
 FPS = 30
 WHITE = (255, 255, 255, 255)
 YELLOW = (255, 222, 64, 255)
-BOX = (0, 0, 0, 170)
+BOX = (0, 0, 0, 255)  # 자막 뒤 상자: 불투명한 검은색
 POP_SEC = 0.15  # 자막 등장 효과 길이
 POP_GROW = 0.12  # 등장할 때 처음 커지는 비율(12%)
 
