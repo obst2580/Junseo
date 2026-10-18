@@ -420,8 +420,10 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dst)
     # 자료를 모은 뒤 바뀐 디자인(바탕·상단 제목)을 지금 디자인으로 맞춘다
-    style = load_channel(load_settings()).shorts.style
-    refreshed = refresh_design(proj, str(req.get("thumb") or ""), style)
+    settings = load_settings()
+    style = load_channel(settings).shorts.style
+    bold = settings.data_dir / "fonts" / "Pretendard-ExtraBold.otf"  # 자료 모을 때 받아 둔 상단 제목 폰트
+    refreshed = refresh_design(proj, str(req.get("thumb") or ""), style, str(bold) if bold.exists() else None)
     audio = req["audio"]
     narration = out / "narration.wav"  # 자막 분석·렌더는 wav로
     _ffmpeg(

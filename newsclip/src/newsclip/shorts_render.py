@@ -708,9 +708,12 @@ def _photo_fade(asset_dir: Path, style: str = "default") -> Path | None:
     return out
 
 
-def refresh_design(asset_dir: Path, headline: str, style: str = "default") -> int:
+def refresh_design(
+    asset_dir: Path, headline: str, style: str = "default", font_path: str | None = None
+) -> int:
     """자료를 모은 뒤 디자인이 바뀌었으면 지금 디자인으로 다시 맞춘다: 사진 칸 바깥(바탕)이 지금 디자인과 다른 사진은
-    사진 칸만 잘라 다시 합성하고, 상단 제목 그림은 지금 디자인으로 다시 그린다. 다시 합성한 사진 수를 돌려준다."""
+    사진 칸만 잘라 다시 합성하고, 상단 제목 그림은 지금 디자인으로 다시 그린다(font_path: 패키지 폰트가 없는 디자인의
+    상단 제목 폰트 — 자료 모을 때 받아 둔 Pretendard ExtraBold). 다시 합성한 사진 수를 돌려준다."""
     import numpy as np
 
     from newsclip.vertical import compose_photo, local_font, plain_background, render_headline, style_of
@@ -733,7 +736,11 @@ def refresh_design(asset_dir: Path, headline: str, style: str = "default") -> in
         for old in (asset_dir / "overlays").glob("headline_*.png"):
             old.unlink()
         render_headline(
-            headline.strip(), asset_dir / "overlays" / "headline_now.png", SIZE, local_font(st), style=st.name
+            headline.strip(),
+            asset_dir / "overlays" / "headline_now.png",
+            SIZE,
+            local_font(st) or font_path,  # 패키지 폰트가 없는 디자인(널스윤서)은 받아 둔 Pretendard ExtraBold
+            style=st.name,
         )
     return n
 

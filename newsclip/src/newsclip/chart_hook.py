@@ -256,7 +256,11 @@ class ChartHook:
         y = self._base(reds[0]) - self.font.size * 0.35
         rot_dx = (self.shadow.width - CB_W) / 2  # 회전하며 늘어난 만큼
         rot_dy = (self.shadow.height - CB_H) / 2
-        return ox + rot_dx + x, oy + rot_dy + y + self.font.size * 0.6  # 둘째 줄도 조금 보이게 살짝 아래로
+        last = max(w.line for w in self.words)
+        lower = (
+            self.font.size * 0.6 if reds[0].line < last else 0.0
+        )  # 뒤에 줄이 있으면 그 줄도 조금 보이게 살짝 아래로
+        return ox + rot_dx + x, oy + rot_dy + y + lower
 
     def _circle(self, cb: Image.Image, p: float) -> None:
         reds = [w for w in self.words if w.red]
