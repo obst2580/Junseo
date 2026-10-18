@@ -57,11 +57,13 @@ class CueArt:
 
 @dataclass
 class Overlay:
-    """그림 한 장을 시간 구간에 얹는다(캡션 등)."""
+    """그림 한 장을 시간 구간에 얹는다(출처 표시 등). x, y는 화면에서의 위치(잘라 낸 그림 기준)."""
 
     path: Path
     start: float
     end: float
+    x: int = 0
+    y: int = 0
 
 
 @dataclass
@@ -228,7 +230,7 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
     if plan.headline is not None:
         add_overlay(plan.headline, None)
     for cap in plan.captions:
-        add_overlay(cap.path, f"between(t,{cap.start:.3f},{cap.end:.3f})")
+        add_overlay(cap.path, f"between(t,{cap.start:.3f},{cap.end:.3f})", x=str(cap.x), y=str(cap.y))
     for cue in plan.cues:
         args.extend(["-loop", "1", "-t", f"{plan.total:.4f}", "-i", str(cue.path)])
         chains.append(_cue_chain(idx, cue))

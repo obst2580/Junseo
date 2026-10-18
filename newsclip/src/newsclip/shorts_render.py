@@ -12,6 +12,8 @@ import subprocess
 from dataclasses import replace
 from pathlib import Path
 
+from PIL import Image
+
 from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases, subtitle_cues
 from newsclip.models import Scene
 from newsclip.render import RED, YELLOW, CueArt, Overlay, RenderPlan, Shot, fit_sub_px, render, render_cue
@@ -153,11 +155,20 @@ def build_plan(
         project["script"], audio, SIZE, asset_dir, set(keywords) | query_words
     )
     cues = [c for c in cues if c.start < total]
-    caps = [
-        Overlay(asset_dir / caption_name(sc["attribution"]), float(sc["start"]), float(sc["end"]))
-        for sc in scenes
-        if sc.get("attribution") and (asset_dir / caption_name(sc["attribution"])).exists()
-    ]
+    caps = []
+    for k, sc in enumerate(scenes):
+        src = asset_dir / caption_name(sc["attribution"]) if sc.get("attribution") else None
+        if src is None or not src.exists():
+            continue
+        # 출처 그림은 전체 화면 크기라서, 글자가 있는 부분만 잘라 쓴다(렌더 속도)
+        img = Image.open(src).convert("RGBA")
+        box = img.getchannel("A").getbbox()
+        if box is None:
+            continue
+        cut = asset_dir / "subtitles" / f"cap_{k:03d}.png"
+        cut.parent.mkdir(parents=True, exist_ok=True)
+        img.crop(box).save(cut, "PNG")
+        caps.append(Overlay(cut, float(sc["start"]), float(sc["end"]), x=box[0], y=box[1]))
     head = next(iter(sorted((asset_dir / "overlays").glob("headline_*.png"))), None)
     scene_models = [
         Scene(
