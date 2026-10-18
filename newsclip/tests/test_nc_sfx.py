@@ -40,10 +40,10 @@ def test_ensure_sfx_writes_mono_48k_wav(tmp_path):
         assert path.parent == tmp_path / "sfx" and path.exists()
         with wave.open(str(path), "rb") as w:
             assert w.getnchannels() == 1 and w.getframerate() == 48000 and w.getsampwidth() == 2
-            assert 0.4 < w.getnframes() / 48000 < 1.0
+            assert 0.2 < w.getnframes() / 48000 < 1.0
             pcm = w.readframes(w.getnframes())
         peaks[name] = max(abs(v) for v in struct.unpack(f"<{len(pcm) // 2}h", pcm))
-    assert peaks[HIT] > peaks[WHOOSH] * 1.5  # 강조음은 또렷하게
+    assert peaks[HIT] > peaks[WHOOSH] * 1.5  # 강조음(받지 못했을 때 합성 팝)도 또렷하게
 
 
 def test_fcpxml_adds_sfx_track_under_narration(tmp_path):
@@ -82,3 +82,55 @@ def test_fcpxml_without_sfx_keeps_one_audio_track(tmp_path):
     xml = build_xmeml(sset, tmp_path, fps=30, size=(1080, 1920), audio=wav, attribution=False, sfx=False)
     root = ET.fromstring(xml.split("\n", 2)[2])
     assert len(root.findall("./sequence/media/audio/track")) == 1
+
+
+def test_hit_uses_recorded_pop_when_fetch_works(tmp_path, monkeypatch):
+    """완성본 렌더는 강조음으로 녹음된 팝을 받아 쓴다(앞 쉼을 잘라 48kHz 모노로). 받지 못하면 합성 팝."""
+    import subprocess
+    import urllib.request
+
+    mp3 = tmp_path / "src.mp3"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=stereo:d=0.2",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=f=700:d=0.3",
+            "-filter_complex",
+            "[0:a][1:a]concat=n=2:v=0:a=1",
+            str(mp3),
+        ],
+        check=True,
+    )
+
+    class Resp:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return mp3.read_bytes()
+
+    seen = []
+    monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout: seen.append(url) or Resp())
+    hit = ensure_sfx(tmp_path / "p", fetch=True)[HIT]
+    assert seen and "2357" in seen[0]
+    with wave.open(str(hit), "rb") as w:
+        assert w.getnchannels() == 1 and w.getframerate() == 48000
+        assert w.getnframes() / 48000 < 0.4  # 앞 0.2초 쉼은 잘라 냈다
+
+    def fail(url, timeout):
+        raise OSError("offline")
+
+    monkeypatch.setattr(urllib.request, "urlopen", fail)
+    hit2 = ensure_sfx(tmp_path / "q", fetch=True)[HIT]
+    assert hit2.exists()  # 합성 팝으로 대신

@@ -2,11 +2,12 @@
 
 - 전환음(whoosh): 주제가 바뀌는 장면, 또는 '그런데·하지만·문제는…'으로 시작하는 장면의 첫머리.
 - 질문음(ding): 물음표로 끝나는 장면(시청자에게 묻는 문장)이 시작하는 자리.
-- 강조음(hit): 색 글자 강조 자막이 뜨는 자리. 휴대폰 스피커에서도 또렷하게 들리도록 중·고음 위주로 —
-  0.18초 '슉' 올라오는 소리(HIT_LEAD) 끝에 '탁'(밝은 타격) + '펑'(중음) + '쿵'(저음). 자리는 완성본 렌더가 정한다.
+- 강조음(hit): 색 글자 강조 자막이 뜨는 자리의 짧고 깔끔한 '팝'(정신없지 않게). 녹음된 효과음(Mixkit 무료
+  라이선스 — 상업적 사용·출처 표시 없이 가능, 파일 자체를 다시 배포하지는 않으므로 저장소에 넣지 않고 처음 쓸 때
+  받아 프로젝트 sfx/에 둔다)을 쓰고, 받지 못하면 합성한 팝으로 대신한다. 자리는 완성본 렌더가 정한다.
 
-소리는 저작권이 없도록 여기서 합성한다. 프로젝트 폴더의 sfx/whoosh.wav, sfx/ding.wav가 이미 있으면
-그 파일을 쓴다(직접 고른 효과음을 넣을 때). 내레이션을 덮지 않게 피크를 낮게 맞춘다.
+전환음·질문음은 저작권이 없도록 여기서 합성한다. 프로젝트 폴더의 sfx/whoosh.wav, sfx/ding.wav, sfx/hit.wav가
+이미 있으면 그 파일을 쓴다(직접 고른 효과음을 넣을 때). 내레이션을 덮지 않게 피크를 낮게 맞춘다.
 """
 
 from __future__ import annotations
@@ -22,11 +23,11 @@ from newsclip.models import Scene
 
 SR = 48000
 PEAK = 0.25  # 내레이션(대략 0.5 이하)보다 확실히 작게
-HIT_PEAK = 1.0  # 강조음은 또렷하게 들리도록 크게(짧아서 말을 덮지 않고, 완성본 끝 리미터가 찢어짐을 막는다)
-HIT_LEAD = 0.18  # 강조음 파일 앞부분의 올라오는 소리 길이 — 이만큼 먼저 틀어 '탁'이 자막과 함께 나게
-HIT_EARLY = (
-    0.06  # '탁'을 자막(=말이 시작되는 때)보다 이만큼 먼저 — 말 직전 쉼에 떨어져야 말소리에 묻히지 않는다
-)
+HIT_PEAK = 0.9  # 강조음 최대 크기(짧은 팝이라 크게 해도 말을 덮지 않는다. 완성본 끝 리미터가 찢어짐을 막는다)
+HIT_EARLY = 0.03  # 팝을 자막(=말이 시작되는 때)보다 이만큼 먼저 — 말 직전 쉼에 떨어져야 묻히지 않는다
+# 강조음 후보(Mixkit 효과음 번호): A 아주 짧은 팝, B 팝(기본), C 나무 '탁', D 펀치
+HIT_CHOICES = {"A": 2354, "B": 2357, "C": 2182, "D": 2150}
+HIT_CHOICE = "B"
 GAP_SEC = 1.0  # 이 간격보다 가까운 효과음은 앞의 것만 낸다
 TRANSITION_WORDS = ("그런데", "하지만", "그러나", "반면", "문제는", "결국", "분명한 건", "진짜")
 WHOOSH, DING, HIT = "whoosh", "ding", "hit"
@@ -91,51 +92,75 @@ def _ding(sec: float = 0.9) -> list[float]:
     ]
 
 
-def _hit(seed: int = 7) -> list[float]:
-    """올라오는 '슉'(HIT_LEAD초) → '쾅': 밝은 타격(탁) + 거친 중고음(800~3000Hz 잡음, 휴대폰에서 잘 들리는 대역)
-    + 400→180Hz로 떨어지는 중음을 세게 찌그러뜨린 몸통(배음이 많아 작은 스피커에서도 들림) + 낮은 쿵 + 울림 꼬리."""
-    rng = random.Random(seed)
-    lead = int(SR * HIT_LEAD)
-    n = lead + int(SR * 0.6)
+def _pop(sec: float = 0.25) -> list[float]:
+    """받지 못했을 때 쓰는 합성 팝: 900→500Hz로 빠르게 떨어지는 짧은 소리."""
+    n = int(SR * sec)
     out: list[float] = []
-    lp = lp2 = hp_lp = band_hi = band_lo = 0.0
-    ph_mid = ph_sub = 0.0
+    phase = 0.0
     for i in range(n):
-        noise = rng.uniform(-1.0, 1.0)
-        if i < lead:  # 슉: 점점 밝아지고 커지는 잡음
-            t = i / lead
-            lp += (0.03 + 0.45 * t * t) * (noise - lp)
-            out.append(0.8 * (t**2) * lp)
-            continue
-        t = (i - lead) / SR
-        hp_lp += 0.3 * (noise - hp_lp)
-        snap = (noise - hp_lp) * math.exp(-t / 0.025)  # 탁
-        band_hi += 0.5 * (noise - band_hi)
-        band_lo += 0.08 * (noise - band_lo)
-        crunch = (band_hi - band_lo) * math.exp(-t / 0.09)  # 거친 중고음
-        f_mid = 180 + 220 * math.exp(-t / 0.04)
-        ph_mid += 2 * math.pi * f_mid / SR
-        punch = math.tanh(4.0 * math.sin(ph_mid)) * math.exp(-t / 0.15)  # 몸통(찌그러뜨린 중음)
-        f_sub = 45 + 45 * math.exp(-t / 0.05)
-        ph_sub += 2 * math.pi * f_sub / SR
-        boom = math.sin(ph_sub) * math.exp(-t / 0.16)  # 쿵
-        lp2 += 0.08 * (noise - lp2)
-        tail = lp2 * math.exp(-t / 0.25)  # 울림 꼬리
-        attack = min(1.0, t / 0.001)
-        out.append(attack * (0.8 * snap + 1.4 * crunch + 0.9 * punch + 0.35 * boom + 0.5 * tail))
+        t = i / SR
+        phase += 2 * math.pi * (500 + 400 * math.exp(-t / 0.02)) / SR
+        out.append(min(1.0, t / 0.002) * math.exp(-t / 0.05) * math.sin(phase))
     return out
 
 
-_MAKERS = {WHOOSH: _whoosh, DING: _ding, HIT: _hit}
+def _fetch_hit(path: Path, choice: str = HIT_CHOICE) -> bool:
+    """강조음 녹음 파일을 받아 48kHz 모노 WAV(앞 쉼 잘라 냄, 크기 HIT_PEAK)로 저장. 실패하면 False."""
+    import shutil
+    import subprocess
+    import urllib.request
+
+    num = HIT_CHOICES.get(choice, HIT_CHOICES["B"])
+    url = f"https://assets.mixkit.co/active_storage/sfx/{num}/{num}-preview.mp3"
+    if shutil.which("ffmpeg") is None:
+        return False
+    try:
+        with urllib.request.urlopen(url, timeout=20) as resp:  # noqa: S310 - 고정된 https 주소
+            data = resp.read()
+    except OSError:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    src = path.with_suffix(".mp3")
+    src.write_bytes(data)
+    proc = subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-i",
+            str(src),
+            "-af",
+            "silenceremove=start_periods=1:start_threshold=-45dB",
+            "-ac",
+            "1",
+            "-ar",
+            str(SR),
+            "-f",
+            "s16le",
+            "-",
+        ],
+        capture_output=True,
+    )
+    src.unlink(missing_ok=True)
+    if proc.returncode != 0 or len(proc.stdout) < 2:
+        return False
+    pcm = proc.stdout[: len(proc.stdout) // 2 * 2]
+    samples = [v / 32768 for v in struct.unpack(f"<{len(pcm) // 2}h", pcm)]
+    _write_wav(path, samples, HIT_PEAK)  # 최대 크기를 HIT_PEAK로 맞춘다
+    return True
+
+
+_MAKERS = {WHOOSH: _whoosh, DING: _ding, HIT: _pop}
 _LEVEL = {HIT: HIT_PEAK}
 
 
-def ensure_sfx(project_dir: Path) -> dict[str, Path]:
-    """sfx/ 폴더에 효과음 WAV를 준비하고 이름 → 경로를 돌려준다(이미 있으면 그대로 쓴다)."""
+def ensure_sfx(project_dir: Path, fetch: bool = False) -> dict[str, Path]:
+    """sfx/ 폴더에 효과음 WAV를 준비하고 이름 → 경로를 돌려준다(이미 있으면 그대로 쓴다 — 직접 고른 소리를 넣을 때).
+    fetch면 강조음은 녹음된 효과음을 받아 쓰고(완성본 렌더), 아니면·실패하면 합성한다."""
     out: dict[str, Path] = {}
     for name, make in _MAKERS.items():
         path = project_dir / "sfx" / f"{name}.wav"
-        if not path.exists():
+        if not path.exists() and not (name == HIT and fetch and _fetch_hit(path)):
             _write_wav(path, make(), _LEVEL.get(name, PEAK))
         out[name] = path
     return out
