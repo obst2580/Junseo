@@ -44,6 +44,14 @@ HOOK_SEC = 3.5  # 훅: 이 시각 전에 시작하는 첫 문장 자막을 짧�
 HOOK_CHUNK = 6  # 훅 한 번에 보이는 글자 수(공백 빼고)
 HOOK_PX = 140  # 훅 자막 글자 크기(px, 폭이 넘으면 자동으로 줄어든다)
 HOOK_CENTER_Y = (BOX[1] + BOX[3]) // 2  # 훅 자막은 사진 칸 한가운데에 띄운다
+HOOK_KEY_PX = 150  # 훅의 핵심(발언·행위) 강조 글자 크기
+# 훅 문장의 핵심: 따옴표 안 발언, 없으면 문장 끝 행위(서술어). 발언 뒤가 '~고 했습니다'처럼 전하는 말뿐이면
+# 발언을 훅이 끝날 때까지 띄워 둔다.
+QUOTE_SPAN = re.compile("[\"“‘']([^\"“”‘’']{2,30})[\"”’']")
+PREDICATE = re.compile("(다|요|니다|죠)[.!?…,]*$")
+REPORT_VERB = re.compile(
+    "^(고|라고|이라고|라며|며|란|라는)?\\s*(했|말했|밝혔|표현했|주장했|썼|적었|발언했|물었|외쳤|비판했|지적했)"
+)
 # 컷 편집: 장면 안에서 후보 사진을 바꿔 쓰는 때를 자막이 바뀌는 때에 맞춘다. 사진 한 장은 장면에서 한 번만
 # 쓰고(같은 사진을 가깝게 다시 쓰는 펀치인은 정신없어서 뺐다), 컷마다 줌 인·줌 아웃을 번갈아 준다.
 SHOT_SEC = 2.5  # 한 컷 목표 길이(장면의 사진이 모자라면 그만큼 길어진다)
@@ -226,6 +234,73 @@ def emph_color(text: str, keywords: set[str]) -> tuple[int, int, int] | None:
     return None
 
 
+def hook_key(sentence: str) -> tuple[str, str] | None:
+    """훅 문장의 핵심 → ("quote", 따옴표 안 발언) 또는 ("act", 문장 끝 행위 — 서술어와 앞 낱말 하나, 9자 안쪽).
+    서술어로 끝나지 않는 문장(훅이 문장 중간에서 끝남)은 None."""
+    m = QUOTE_SPAN.search(sentence)
+    if m:
+        return ("quote", m.group(1).strip())
+    words = sentence.split()
+    if not words or not PREDICATE.search(words[-1]):
+        return None
+    last = re.sub("[.,…]+$", "", words[-1])
+    if len(words) >= 2 and len(words[-2] + last) <= 9:
+        return ("act", f"{words[-2]} {last}")
+    return ("act", last)
+
+
+def hook_arts(
+    cues: list, asset_dir: Path, size: tuple[int, int], keywords: set[str], words: list | None
+) -> list[CueArt]:
+    """훅(첫 문장) 자막: 앞부분은 짧게 잘라 빠르게, 핵심(발언은 "따옴표"째 손글씨 노랑, 행위는 빨강)은 그 말이
+    들리는 순간 사진 칸 가운데에 크게 띄운다. 핵심 뒤가 '~고 했습니다'처럼 전하는 말뿐이면 핵심을 훅 끝까지 둔다."""
+    start, end = cues[0].start, cues[-1].end
+    text = " ".join(c.text.strip() for c in cues)
+    key = hook_key(text)
+    pieces: list[tuple[str, str]] = []  # (글, 종류: chunk | quote | act)
+    if key is not None and key[1] in text:
+        kind, phrase = key
+        at = text.index(phrase)
+        pre = text[:at].rstrip(" \"“‘'")
+        post = text[at + len(phrase) :].lstrip("\"”’'")
+        pieces = [(p, "chunk") for p in hook_chunks(pre)] + [(phrase, kind)]
+        if len(re.sub("[\\s.!?…,]", "", post)) > 5 and not REPORT_VERB.match(post.strip()):
+            pieces += [(p, "chunk") for p in hook_chunks(post)]
+    else:
+        pieces = [(p, "chunk") for p in hook_chunks(text)]
+    starts = chunk_starts([p for p, _k in pieces], start, end, words)
+    arts: list[CueArt] = []
+    for j, (piece, kind) in enumerate(pieces):
+        at, until = starts[j], (starts[j + 1] if j + 1 < len(pieces) else end)
+        out = asset_dir / "subtitles" / f"hook_{j:02d}.png"
+        if kind == "quote":
+            art = render_emph(
+                f"“{piece}”",
+                out,
+                size,
+                color=EMPH_YELLOW,
+                px=HOOK_KEY_PX,
+                font_path=QUOTE_FONT,
+                center_y=HOOK_CENTER_Y,
+            )
+        elif kind == "act":
+            art = render_emph(piece, out, size, color=EMPH_RED, px=HOOK_KEY_PX, center_y=HOOK_CENTER_Y)
+        else:
+            art = render_cue(
+                piece,
+                out,
+                size,
+                keywords=keywords,
+                px=HOOK_PX,
+                center_y=HOOK_CENTER_Y,
+                text_color=YELLOW,
+                hot_color=RED,
+            )
+        if art is not None:
+            arts.append(_timed(art, at, until))
+    return arts
+
+
 def chunk_starts(pieces: list[str], start: float, end: float, words: list | None) -> list[float]:
     """훅 조각마다 뜨는 시각. 낱말 시각(타입캐스트나 음성 인식)이 있으면 그 조각의 말이 들리는 때에 맞추고,
     없거나 못 찾은 조각은 글자 수 비율로 나눈다."""
@@ -289,25 +364,10 @@ def subtitles_for(
     px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
     arts = []
     emph = pick_emphasis(lines, keywords, start=hook_n)
+    if hook_n:
+        arts += hook_arts(lines[:hook_n], asset_dir, size, keywords, words)
     for k, cue in enumerate(lines):
         if k < hook_n:
-            pieces = hook_chunks(cue.text)
-            starts = chunk_starts(pieces, cue.start, cue.end, words)
-            for j, piece in enumerate(pieces):
-                at = starts[j]
-                span = (starts[j + 1] if j + 1 < len(pieces) else cue.end) - at
-                hook = render_cue(
-                    piece,
-                    asset_dir / "subtitles" / f"hook_{k:02d}_{j:02d}.png",
-                    size,
-                    keywords=keywords,
-                    px=HOOK_PX,
-                    center_y=HOOK_CENTER_Y,
-                    text_color=YELLOW,
-                    hot_color=RED,
-                )
-                if hook is not None:
-                    arts.append(_timed(hook, at, at + span))
             continue
         if k in emph:
             # 직접 인용(노랑)은 손글씨 글꼴로 — 그 사람이 한 말처럼 보이게

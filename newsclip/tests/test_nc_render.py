@@ -222,10 +222,36 @@ def test_subtitles_follow_given_srt(tmp_path):
         encoding="utf-8",
     )
     arts, _spans, _info = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
-    # 첫 문장(느낌표로 끝)은 훅: '이재명이 또' / '해냈습니다!'를 글자 수 비율로 빠르게, 그다음은 일반 자막
-    assert [(round(a.start, 2), round(a.end, 2)) for a in arts] == [(0.0, 0.91), (0.91, 2.0), (2.0, 3.0)]
-    hook_mid = arts[0].top + arts[0].height / 2
-    assert abs(hook_mid - HOOK_CENTER_Y) <= 1 and arts[0].height > arts[2].height
+    # 첫 문장(느낌표로 끝)은 훅: '이재명이'를 짧게, 핵심 행위 '또 해냈습니다!'는 크게 강조(글자 수 비율 시각),
+    # 그다음은 일반 자막
+    assert [(round(a.start, 2), round(a.end, 2)) for a in arts] == [(0.0, 0.73), (0.73, 2.0), (2.0, 3.0)]
+    assert not arts[0].intro and arts[1].intro  # 핵심은 강조 자막(흐린 데서 또렷하게 + 강조음)
+    for a in arts[:2]:
+        assert abs(a.top + a.height / 2 - HOOK_CENTER_Y) <= 1  # 둘 다 사진 칸 가운데
+    assert arts[0].height > arts[2].height
+
+
+def test_hook_shows_quoted_remark_until_hook_ends(tmp_path):
+    """훅에 발언이 있으면 "발언"을 크게 띄우고, 뒤가 '~고 했습니다'뿐이면 훅이 끝날 때까지 둔다."""
+    from newsclip.shorts_render import hook_key, subtitles_for
+
+    assert hook_key("윤 전 대통령이 한동훈을 '패 죽이고 싶었다'고 했습니다!") == ("quote", "패 죽이고 싶었다")
+    assert hook_key("이재명이 또 해냈습니다.") == ("act", "또 해냈습니다")
+    assert hook_key("'5·18은 폭동' 발언이 항소심에서 무죄를 받았습니다!") == ("quote", "5·18은 폭동")
+    assert hook_key("홍준표 전 대구시장이 방송 대담에서 윤석열 전 대통령과") is None  # 문장이 안 끝남
+    audio = tmp_path / "n.wav"
+    _wav(audio, 4)
+    srt = tmp_path / "s.srt"
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:03,000\n윤 전 대통령이 한동훈을 '패 죽이고 싶었다'고 했습니다!\n\n"
+        "2\n00:00:03,000 --> 00:00:04,000\n둘째 줄\n",
+        encoding="utf-8",
+    )
+    arts, _s, _i = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
+    hook = [a for a in arts if a.path.name.startswith("hook_")]
+    # '윤 전 대통령이' / '한동훈을'은 짧게, 그다음 "발언"은 강조 자막
+    assert [bool(a.intro) for a in hook] == [False, False, True]
+    assert hook[-1].end == 3.0  # '고 했습니다!'는 따로 띄우지 않고 발언을 훅 끝까지
 
 
 def test_long_subtitle_goes_to_two_lines(tmp_path):

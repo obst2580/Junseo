@@ -261,6 +261,7 @@ def render_emph(
     color: tuple[int, int, int] = EMPH_GREEN,
     px: int = EMPH_PX,
     font_path: Path | None = None,
+    center_y: int | None = None,
 ) -> CueArt | None:
     """강조 자막(색 글자) PNG와 등장용 흐린 그림들(out_b0.png…)을 만든다. 자리는 보통 자막 첫 줄과 가운데를 맞춘다."""
     lines = sub_lines(text)
@@ -318,8 +319,11 @@ def render_emph(
         b = out.with_name(f"{out.stem}_b{i}.png")
         img.convert("RGBa").filter(ImageFilter.GaussianBlur(r)).convert("RGBA").save(b, "PNG")
         intro.append(b)
-    first_mid = SUB_TEXT_Y + round(SUB_PX * 0.6)  # 보통 자막 첫 줄 가운데
-    top = first_mid - pad - round(fs * 0.6)
+    if center_y is not None:
+        top = center_y - bh // 2  # 훅의 핵심(발언·행위): 사진 칸 가운데
+    else:
+        first_mid = SUB_TEXT_Y + round(SUB_PX * 0.6)  # 보통 자막 첫 줄 가운데
+        top = first_mid - pad - round(fs * 0.6)
     return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top, intro=tuple(intro))
 
 
