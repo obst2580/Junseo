@@ -1,7 +1,7 @@
 """세로 쇼츠 완성본(mp4) 만들기 — ffmpeg로 화면·자막·효과음·배경음악을 한 번에 합친다.
 
 timeline.xml(프리미어용)과 같은 자리를 쓴다. 컷마다 사진(사진 칸 안만 천천히 다가가기, 가깝게 끊어 쓰면 크게
-확대)이나 영상(블러 배경 위에 맞춤), 컷 사이 바로 컷 또는 빠른 확대 전환, 자막(검은 테두리 + 그림자, 핵심어 노랑,
+확대)이나 영상(블러 배경 위에 맞춤), 컷 사이 바로 컷 또는 확대 펀치 전환, 자막(검은 테두리 + 그림자, 핵심어 노랑,
 살짝 커지며 올라오는 등장), 짧은 핵심 자막은 색 글자로 흐린 데서 또렷하게, 맨 위 상단 제목, 출처 표시,
 화제 전환·질문 효과음, 배경음악(내레이션이 나올 때 자동으로 낮춤)을 넣는다.
 """
@@ -42,12 +42,16 @@ SUB_STROKE = 0.06  # 자막 글자 검은 테두리 두께(글자 크기 대비,
 # 강조 자막: 짧은 핵심 자막 한 줄을 통째로 색 글자(위 밝고 아래 진한 그러데이션 + 흰 안쪽 테두리 + 진한 바깥 테두리
 # + 같은 색 번짐)로 크게 띄운다. 흐린 그림에서 또렷해지며 나타난다.
 EMPH_FONT = Path(__file__).parent / "fonts" / "210MammothPpang-R.TTF"
+QUOTE_FONT = (
+    Path(__file__).parent / "fonts" / "210Yeohaengilgi-B.TTF"
+)  # 직접 인용 강조: 손글씨(그 사람이 한 말)
 EMPH_PX = 128
 EMPH_GREEN = (64, 200, 72)
 EMPH_RED = (228, 36, 36)
 EMPH_YELLOW = (255, 196, 30)
 EMPH_BLUR = (18, 9, 4)  # 등장할 때 거치는 흐림 단계(픽셀 반경) — 한 단계에 EMPH_STEP초
 EMPH_STEP = 2 / 30
+PUNCH_GROW = 0.25  # 확대 펀치 전환: 앞 컷 끝은 이만큼 빠르게 다가가고, 다음 컷은 이만큼 다가간 데서 제자리로
 
 
 @dataclass(frozen=True)
@@ -61,7 +65,7 @@ class Shot:
     zoom: tuple[float, float] = (1.0, 1.04)  # 사진: 확대 비율 시작·끝
     in_sec: float = 0.0  # 영상: 원본에서 시작하는 초
     focus: tuple[float, float] = (0.5, 0.5)  # 사진: 확대할 때 붙잡는 자리(사진 칸 안 가로·세로 비율)
-    xfade: float = 0.0  # 앞 조각에서 이 조각으로 넘어올 때 빠른 확대 전환 길이(초, 0이면 바로 컷)
+    xfade: float = 0.0  # 앞 조각에서 이 조각으로 넘어올 때 확대 펀치 전환 길이(초, 0이면 바로 컷)
 
 
 @dataclass(frozen=True)
@@ -240,8 +244,9 @@ def render_cue(
     return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top)
 
 
-def _emph_font(px: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    return ImageFont.truetype(str(EMPH_FONT), px) if EMPH_FONT.exists() else _sub_font(px)
+def _emph_font(px: int, path: Path | None = None) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    p = path or EMPH_FONT
+    return ImageFont.truetype(str(p), px) if p.exists() else _sub_font(px)
 
 
 def _mix(c: tuple[int, int, int], other: tuple[int, int, int], k: float) -> tuple[int, int, int]:
@@ -254,6 +259,7 @@ def render_emph(
     size: tuple[int, int],
     color: tuple[int, int, int] = EMPH_GREEN,
     px: int = EMPH_PX,
+    font_path: Path | None = None,
 ) -> CueArt | None:
     """강조 자막(색 글자) PNG와 등장용 흐린 그림들(out_b0.png…)을 만든다. 자리는 보통 자막 첫 줄과 가운데를 맞춘다."""
     lines = sub_lines(text)
@@ -262,12 +268,12 @@ def render_emph(
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     fs = px
     while fs > 48:
-        font = _emph_font(fs)
+        font = _emph_font(fs, font_path)
         widest = max(probe.textlength(ln, font=font) for ln in lines) + 2 * round(fs * 0.14)
         if widest <= SUB_MAX_W:
             break
         fs -= 2
-    font = _emph_font(fs)
+    font = _emph_font(fs, font_path)
     outer, inner, glow = round(fs * 0.14), round(fs * 0.06), round(fs * 0.16)
     pad = outer + 2 * glow
     line_h = round(fs * 1.18)
@@ -320,14 +326,27 @@ def render_emph(
 
 
 def _shot_chain(
-    i: int, shot: Shot, size: tuple[int, int], box: tuple[int, int, int, int] | None = None
+    i: int,
+    shot: Shot,
+    size: tuple[int, int],
+    box: tuple[int, int, int, int] | None = None,
+    frames: int | None = None,
+    tail_sec: float = 0.0,
 ) -> str:
+    """조각 하나 → [s{i}]. frames면 딱 그 프레임 수로 자른다(컷 길이 반올림이 쌓여 영상이 밀리지 않게).
+    사진은 확대 펀치 전환을 줌에 넣는다: 이 조각이 xfade로 들어오면 PUNCH_GROW만큼 다가간 데서 시작해 제자리로,
+    tail_sec(다음 조각의 xfade)가 있으면 끝에서 그만큼 빠르게 다가간다."""
     W, H = size
-    dur = shot.end - shot.start
-    tail = f"fps={FPS},format=yuv420p,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[s{i}]"
+    dur = (frames / FPS) if frames else shot.end - shot.start
+    cut = f"trim=end_frame={frames}," if frames else ""
+    tail = f"fps={FPS},{cut}format=yuv420p,setsar=1,setpts=PTS-STARTPTS[s{i}]"
     if shot.kind == "image":
         z0, z1 = shot.zoom
         grow = f"({z0}+({z1}-{z0})*min(t/{dur:.4f},1))"
+        if shot.xfade:
+            grow += f"*(1+{PUNCH_GROW}*pow(max(0,1-t/{shot.xfade:.3f}),2))"
+        if tail_sec:
+            grow += f"*(1+{PUNCH_GROW}*pow(max(0,(t-{dur - tail_sec:.4f})/{tail_sec:.3f}),2))"
         fx, fy = shot.focus
         if box is not None:
             # 사진 칸만 잘라 확대(붙잡는 자리 기준)한 뒤 제자리에 — 바탕(하늘색 테두리)은 그대로
@@ -368,33 +387,19 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
     chains: list[str] = []
     idx = 0
     for k, shot in enumerate(plan.shots):
-        dur = shot.end - shot.start
-        if k + 1 < len(plan.shots):
-            dur += plan.shots[k + 1].xfade  # 다음 조각으로 넘어가는 동안 겹쳐 보일 만큼 더
+        # 컷 길이는 프레임 단위로: 화면 시각(초×FPS)을 반올림한 경계 사이 프레임 수 — 다 더하면 전체 길이와 같다
+        frames = max(1, round(shot.end * FPS) - round(shot.start * FPS))
+        span = frames / FPS + 0.2
         if shot.kind == "image":
-            args += ["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.4f}", "-i", str(shot.path)]
+            args += ["-loop", "1", "-framerate", str(FPS), "-t", f"{span:.4f}", "-i", str(shot.path)]
         else:
-            args += ["-ss", f"{shot.in_sec:.4f}", "-t", f"{dur:.4f}", "-i", str(shot.path)]
-        chains.append(_shot_chain(idx, shot, plan.size, plan.photo_box))
+            args += ["-ss", f"{shot.in_sec:.4f}", "-t", f"{span:.4f}", "-i", str(shot.path)]
+        nxt = plan.shots[k + 1].xfade if k + 1 < len(plan.shots) else 0.0
+        chains.append(_shot_chain(idx, shot, plan.size, plan.photo_box, frames=frames, tail_sec=nxt))
         idx += 1
     n = len(plan.shots)
-    if not any(s.xfade for s in plan.shots[1:]):
-        concat_in = "".join(f"[s{i}]" for i in range(n))
-        chains.append(f"{concat_in}concat=n={n}:v=1:a=0[base]")
-    else:
-        # 조각을 차례로 잇는다: 전환이 있으면 빠른 확대 전환(xfade zoomin), 없으면 바로 컷
-        prev = "[s0]"
-        for k in range(1, n):
-            shot = plan.shots[k]
-            nxt = f"[j{k}]"
-            if shot.xfade:
-                chains.append(
-                    f"{prev}[s{k}]xfade=transition=zoomin:duration={shot.xfade:.3f}:offset={shot.start:.4f}{nxt}"
-                )
-            else:
-                chains.append(f"{prev}[s{k}]concat=n=2:v=1:a=0{nxt}")
-            prev = nxt
-        chains.append(f"{prev}null[base]")
+    concat_in = "".join(f"[s{i}]" for i in range(n))
+    chains.append(f"{concat_in}concat=n={n}:v=1:a=0[base]")
     cur = "[base]"
 
     def add_overlay(

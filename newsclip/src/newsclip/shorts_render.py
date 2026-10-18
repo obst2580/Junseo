@@ -22,6 +22,7 @@ from newsclip.render import (
     EMPH_GREEN,
     EMPH_RED,
     EMPH_YELLOW,
+    QUOTE_FONT,
     RED,
     YELLOW,
     CueArt,
@@ -50,7 +51,7 @@ SHOT_MAX = 3.2  # 자막 경계가 없어도 이보다 길면 나눈다
 PUNCH = 1.32  # 가깝게 다시 쓸 때 확대 배율
 PUSH = 0.06  # 한 컷 동안 천천히 다가가는 정도
 FOCUS = (0.5, 0.33)  # 확대 기준점(사진 칸 위쪽 가운데 — 보통 얼굴 자리)
-XFADE_SEC = 0.16  # 화제가 바뀌는 장면에서 빠른 확대 전환
+XFADE_SEC = 0.16  # 화제가 바뀌는 장면에서 확대 펀치 전환(앞 컷이 빠르게 다가가고 다음 컷이 제자리로)
 EMPH_MAX = 12  # 강조 자막(색 글자)이 될 수 있는 자막 길이(공백 빼고)
 EMPH_GAP = 4.0  # 강조 자막 사이 최소 간격(초) — 너무 자주 나오면 강조가 아니다
 # 센 말 → 빨강, 따옴표로 옮긴 말(직접 인용) → 노랑, 핵심 인물·키워드 → 초록
@@ -284,7 +285,10 @@ def subtitles_for(
                 at += span
             continue
         if k in emph:
-            art = render_emph(cue.text, asset_dir / "subtitles" / f"emph_{k:03d}.png", size, color=emph[k])
+            # 직접 인용(노랑)은 손글씨 글꼴로 — 그 사람이 한 말처럼 보이게
+            font = QUOTE_FONT if emph[k] == EMPH_YELLOW else None
+            out = asset_dir / "subtitles" / f"emph_{k:03d}.png"
+            art = render_emph(cue.text, out, size, color=emph[k], font_path=font)
         else:
             art = render_cue(
                 cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px

@@ -301,7 +301,7 @@ def test_cut_editing_punches_in_and_zooms_on_turns(tmp_path):
     assert shots[-1].end == 8.0
 
 
-def test_build_command_zooms_inside_photo_box_and_crossfades(tmp_path):
+def test_build_command_zooms_inside_photo_box_and_punches(tmp_path):
     photo = tmp_path / "p.jpg"
     Image.new("RGB", (1080, 1920), (90, 90, 90)).save(photo)
     narration = tmp_path / "n.wav"
@@ -318,7 +318,9 @@ def test_build_command_zooms_inside_photo_box_and_crossfades(tmp_path):
     filt = build_command(plan, tmp_path / "o.mp4")
     filt = filt[filt.index("-filter_complex") + 1]
     assert "crop=1080:810:0:560" in filt and "overlay=0:560" in filt  # 사진 칸만 확대해 제자리에
-    assert "xfade=transition=zoomin:duration=0.160:offset=1.0000" in filt
+    assert "trim=end_frame=30" in filt  # 컷 길이는 프레임 단위로
+    # 확대 펀치 전환: 앞 컷 끝은 빠르게 다가가고, 다음 컷은 다가간 데서 제자리로(가로·세로 크기 식에 각각)
+    assert filt.count("pow(") == 4
     out = render(plan, tmp_path / "o.mp4")
     probe = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(out)],
