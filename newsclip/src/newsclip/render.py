@@ -49,8 +49,8 @@ EMPH_PX = 128
 EMPH_GREEN = (64, 200, 72)
 EMPH_RED = (228, 36, 36)
 EMPH_YELLOW = (255, 196, 30)
-EMPH_BLUR = (18, 9, 4)  # 등장할 때 거치는 흐림 단계(픽셀 반경) — 한 단계에 EMPH_STEP초
-EMPH_STEP = 2 / 30
+EMPH_BLUR = (16, 7, 3)  # 등장할 때 거치는 흐림 단계(픽셀 반경) — 한 단계에 EMPH_STEP초(모두 0.1초)
+EMPH_STEP = 1 / 30
 PUNCH_GROW = 0.25  # 확대 펀치 전환: 앞 컷 끝은 이만큼 빠르게 다가가고, 다음 컷은 이만큼 다가간 데서 제자리로
 
 
@@ -408,10 +408,18 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
         """그림 한 장을 start~end에만 얹는다. 그 구간 길이만큼만 읽어 시각을 옮겨 붙인다(60초 내내 읽지 않아
         메모리·시간을 아낀다). chain은 그림에 더 걸 필터(등장 효과 등, 시각 t는 화면 기준)."""
         nonlocal idx, cur
-        span = max(end - start, 1 / FPS)
-        args.extend(["-loop", "1", "-framerate", str(FPS), "-t", f"{span:.4f}", "-i", str(path)])
-        chains.append(f"[{idx}:v]format=rgba,setpts=PTS-STARTPTS+{start:.4f}/TB{chain}[o{idx}]")
-        opts = f"x='{x}':y='{y}':eof_action=pass:enable='between(t,{start:.3f},{end:.3f})'"
+        # 프레임 단위로: 화면 프레임 경계에 맞춰 시작하고 딱 n프레임만(1프레임짜리 흐림 단계도 빠지지 않게).
+        # 소수 오차(8.1초가 8.0999…)로 프레임을 놓치지 않게 그림은 1/4프레임 일찍 대기시키고, 표시 구간은
+        # 앞뒤 반 프레임 여유를 둔다.
+        f0, f1 = round(start * FPS), round(end * FPS)
+        n = max(1, f1 - f0)
+        args.extend(["-loop", "1", "-framerate", str(FPS), "-t", f"{(n + 0.5) / FPS:.4f}", "-i", str(path)])
+        ready = (f0 - 0.25) / FPS
+        chains.append(
+            f"[{idx}:v]format=rgba,trim=end_frame={n},settb=AVTB,setpts=PTS-STARTPTS+{ready:.6f}/TB{chain}[o{idx}]"
+        )
+        first, last = (f0 - 0.5) / FPS, (f0 + n - 0.5) / FPS
+        opts = f"x='{x}':y='{y}':enable='between(t,{first:.4f},{last:.4f})'"
         chains.append(f"{cur}[o{idx}]overlay={opts}[v{idx}]")
         cur = f"[v{idx}]"
         idx += 1
@@ -461,7 +469,10 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
         mixed.append(f"[f{k}]")
         idx += 1
     count = len(mixed)
-    mix.append(f"{''.join(mixed)}amix=inputs={count}:duration=first:normalize=0[aout]")
+    # 내레이션 + 배경음악 + 효과음이 겹쳐도 찢어지지 않게 마지막에 리미터(크기 자동 키우기는 끔)
+    mix.append(
+        f"{''.join(mixed)}amix=inputs={count}:duration=first:normalize=0,alimiter=limit=0.9:level=false[aout]"
+    )
 
     filt = ";".join(chains + mix)
     args += ["-filter_complex", filt, "-map", "[vout]", "-map", "[aout]", "-t", f"{plan.total:.4f}"]

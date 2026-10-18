@@ -1,11 +1,12 @@
 """효과음: 전환·질문 자리 찾기, 합성 WAV, A2 트랙."""
 
+import struct
 import wave
 import xml.etree.ElementTree as ET
 
 from newsclip.fcpxml import build_xmeml, validate_xmeml
 from newsclip.models import Scene, SceneSet
-from newsclip.sfx import DING, WHOOSH, ensure_sfx, sfx_cues
+from newsclip.sfx import DING, HIT, WHOOSH, ensure_sfx, sfx_cues
 
 
 def _scene(i, start, end, text, topic="도입"):
@@ -33,12 +34,16 @@ def test_sfx_cues_keep_a_gap_between_effects():
 
 def test_ensure_sfx_writes_mono_48k_wav(tmp_path):
     files = ensure_sfx(tmp_path)
-    assert set(files) == {WHOOSH, DING}
-    for path in files.values():
+    assert set(files) == {WHOOSH, DING, HIT}
+    peaks = {}
+    for name, path in files.items():
         assert path.parent == tmp_path / "sfx" and path.exists()
         with wave.open(str(path), "rb") as w:
             assert w.getnchannels() == 1 and w.getframerate() == 48000 and w.getsampwidth() == 2
-            assert 0.5 < w.getnframes() / 48000 < 1.0
+            assert 0.4 < w.getnframes() / 48000 < 1.0
+            pcm = w.readframes(w.getnframes())
+        peaks[name] = max(abs(v) for v in struct.unpack(f"<{len(pcm) // 2}h", pcm))
+    assert peaks[HIT] > peaks[WHOOSH] * 1.5  # 강조음은 또렷하게
 
 
 def test_fcpxml_adds_sfx_track_under_narration(tmp_path):

@@ -35,7 +35,7 @@ from newsclip.render import (
     render_cue,
     render_emph,
 )
-from newsclip.sfx import ensure_sfx, sfx_cues
+from newsclip.sfx import HIT, ensure_sfx, sfx_cues
 from newsclip.srt import parse_srt
 from newsclip.vertical import BOX
 
@@ -44,13 +44,12 @@ HOOK_SEC = 3.5  # 훅: 이 시각 전에 시작하는 첫 문장 자막을 짧�
 HOOK_CHUNK = 6  # 훅 한 번에 보이는 글자 수(공백 빼고)
 HOOK_PX = 140  # 훅 자막 글자 크기(px, 폭이 넘으면 자동으로 줄어든다)
 HOOK_CENTER_Y = (BOX[1] + BOX[3]) // 2  # 훅 자막은 사진 칸 한가운데에 띄운다
-# 컷 편집: 자막이 바뀌는 때에 맞춰 사진을 1.5~2초마다 바꾼다(같은 사진은 넓게 → 가깝게 끊어 쓴다)
-SHOT_SEC = 2.0  # 한 컷 목표 길이
+# 컷 편집: 장면 안에서 후보 사진을 바꿔 쓰는 때를 자막이 바뀌는 때에 맞춘다. 사진 한 장은 장면에서 한 번만
+# 쓰고(같은 사진을 가깝게 다시 쓰는 펀치인은 정신없어서 뺐다), 컷마다 줌 인·줌 아웃을 번갈아 준다.
+SHOT_SEC = 2.5  # 한 컷 목표 길이(장면의 사진이 모자라면 그만큼 길어진다)
 SHOT_MIN = 1.2  # 이보다 짧은 컷은 만들지 않는다
-SHOT_MAX = 3.2  # 자막 경계가 없어도 이보다 길면 나눈다
-PUNCH = 1.32  # 가깝게 다시 쓸 때 확대 배율
-PUSH = 0.06  # 한 컷 동안 천천히 다가가는 정도
-FOCUS = (0.5, 0.33)  # 확대 기준점(사진 칸 위쪽 가운데 — 보통 얼굴 자리)
+PUSH = 0.06  # 한 컷 동안 다가가거나(줌 인) 물러나는(줌 아웃) 정도
+FOCUS = (0.5, 0.33)  # 줌 기준점(사진 칸 위쪽 가운데 — 보통 얼굴 자리)
 XFADE_SEC = 0.16  # 화제가 바뀌는 장면에서 확대 펀치 전환(앞 컷이 빠르게 다가가고 다음 컷이 제자리로)
 EMPH_MAX = 12  # 강조 자막(색 글자)이 될 수 있는 자막 길이(공백 빼고)
 EMPH_GAP = 4.0  # 강조 자막 사이 최소 간격(초) — 너무 자주 나오면 강조가 아니다
@@ -93,24 +92,22 @@ def _pieces(start: float, end: float, max_sec: float | None) -> list[tuple[float
 
 
 def cut_pieces(
-    start: float, end: float, cuts: list[float], target: float = SHOT_SEC, min_len: float = SHOT_MIN
+    start: float, end: float, cuts: list[float], k: int, min_len: float = SHOT_MIN
 ) -> list[tuple[float, float]]:
-    """장면 구간을 자막 경계(cuts)에서 target초 안팎 컷으로 나눈다. 경계가 없어 SHOT_MAX보다 긴 컷은 고르게 나눈다."""
-    out: list[tuple[float, float]] = []
-    cur = start
-    inner = sorted(c for c in cuts if start < c < end - min_len)
-    for k, c in enumerate(inner):
-        if c - cur < min_len:
-            continue
-        nxt = next((n for n in inner[k + 1 :] if end - n >= min_len), end)
-        if abs(c - cur - target) <= abs(nxt - cur - target):  # 목표 길이에 더 가까운 경계에서 자른다
-            out.append((cur, c))
-            cur = c
-    out.append((cur, end))
-    fixed: list[tuple[float, float]] = []
-    for a, b in out:
-        fixed += _pieces(a, b, SHOT_MAX)
-    return fixed
+    """장면 구간을 k컷으로 나눈다. 나누는 자리는 고르게 나눈 시각에 가장 가까운 자막 경계(cuts) — 말 중간에서
+    사진이 바뀌지 않게. 알맞은 경계가 없으면 그 자리는 나누지 않는다."""
+    if k <= 1:
+        return [(start, end)]
+    points: list[float] = []
+    prev = start
+    for j in range(1, k):
+        target = start + (end - start) * j / k
+        cands = [c for c in cuts if c - prev >= min_len and end - c >= min_len * (k - j)]
+        if cands:
+            prev = min(cands, key=lambda c: abs(c - target))
+            points.append(prev)
+    edges = [start, *points, end]
+    return list(zip(edges, edges[1:], strict=False))
 
 
 def shots_for(
@@ -123,9 +120,9 @@ def shots_for(
     xfade_at: list[float] = (),
 ) -> list[Shot]:
     """장면 → 화면 조각. 장면 사이 틈은 앞 조각을 늘려 메운다. videos[장면 id]가 있으면 그 장면은 영상(길이 안)으로.
-    cuts(자막이 바뀌는 시각)를 주면 컷 편집: 그 경계에서 SHOT_SEC초 안팎으로 끊고, 같은 사진은 넓게 → 가깝게
-    (PUNCH배) 번갈아 쓰며, 화제가 바뀌는 장면이나 xfade_at(넘기는 효과음 시각)에서 시작하는 장면의 첫 컷은
-    빠른 확대 전환으로 넘어간다.
+    cuts(자막이 바뀌는 시각)를 주면 컷 편집: 장면의 후보 사진을 SHOT_SEC초 안팎으로 하나씩 바꿔 쓰되 바꾸는
+    때를 자막 경계에 맞추고, 컷마다 줌 인·아웃을 번갈아 준다. 화제가 바뀌는 장면이나 xfade_at(넘기는 효과음
+    시각)에서 시작하는 장면의 첫 컷은 확대 펀치 전환으로 넘어간다.
     cuts가 없으면 max_shot_sec보다 길게 나오지 않도록만 나눈다(같은 장면의 다른 사진을 번갈아 쓴다)."""
     shots: list[Shot] = []
     count = 0  # 줌 방향을 조각 순서대로 번갈아 쓰려고 센다(나누지 않으면 장면 번호와 같다)
@@ -145,13 +142,13 @@ def shots_for(
             continue
         pool = _photo_pool(sc, asset_dir) or [asset_dir / sc["chosen"]]
         if cuts is not None:
-            for i, (a, b) in enumerate(cut_pieces(start, end, cuts)):
-                photo = pool[(i // 2) % len(pool)]
-                tight = i % 2 == 1  # 넓게 → 가깝게 → (다음 사진) 넓게 → 가깝게
-                z = PUNCH if tight else 1.0
-                turn = new_topic or any(abs(start - t) < 0.05 for t in xfade_at)
+            k = min(len(pool), max(1, round((end - start) / SHOT_SEC)))
+            turn = new_topic or any(abs(start - t) < 0.05 for t in xfade_at)
+            for i, (a, b) in enumerate(cut_pieces(start, end, cuts, k)):
+                count += 1
+                zoom = (1.0, 1.0 + PUSH) if count % 2 else (1.0 + PUSH, 1.0)
                 xf = XFADE_SEC if (i == 0 and turn and start > 0) else 0.0
-                shots.append(Shot(photo, "image", a, b, zoom=(z, z + PUSH), focus=FOCUS, xfade=xf))
+                shots.append(Shot(pool[i], "image", a, b, zoom=zoom, focus=FOCUS, xfade=xf))
             continue
         for i, (a, b) in enumerate(_pieces(start, end, max_shot_sec)):
             count += 1
@@ -220,6 +217,26 @@ def emph_color(text: str, keywords: set[str]) -> tuple[int, int, int] | None:
     return None
 
 
+def chunk_starts(pieces: list[str], start: float, end: float, words: list | None) -> list[float]:
+    """훅 조각마다 뜨는 시각. 낱말 시각(타입캐스트나 음성 인식)이 있으면 그 조각의 말이 들리는 때에 맞추고,
+    없거나 못 찾은 조각은 글자 수 비율로 나눈다."""
+    from newsclip.autosub import asr_boundaries
+
+    weights = [max(1, len(p.replace(" ", ""))) for p in pieces]
+    total = sum(weights)
+    starts = [start + (end - start) * sum(weights[:j]) / total for j in range(len(pieces))]
+    near = [w for w in words or [] if w[2] > start - 0.3 and w[1] < end + 0.3]
+    if near and len(pieces) > 1:
+        heard = asr_boundaries(pieces, [(str(w[0]), float(w[1]), float(w[2])) for w in near])
+        for j in range(1, len(pieces)):
+            h = heard[j]
+            if h is not None and start < h[0] < end:
+                starts[j] = h[0]
+    for j in range(1, len(starts)):  # 순서가 뒤집히지 않게, 한 조각은 0.1초 이상
+        starts[j] = max(starts[j], starts[j - 1] + 0.1)
+    return starts
+
+
 def pick_emphasis(cues: list, keywords: set[str], start: int = 0) -> dict[int, tuple[int, int, int]]:
     """강조 자막 고르기: 빨강 → 노랑 → 초록 순으로, 이미 고른 강조와 EMPH_GAP초 안에 붙지 않는 것만.
     반환: {자막 번호: 색}. start 앞(훅)은 고르지 않는다."""
@@ -266,10 +283,10 @@ def subtitles_for(
     for k, cue in enumerate(lines):
         if k < hook_n:
             pieces = hook_chunks(cue.text)
-            weights = [max(1, len(p.replace(" ", ""))) for p in pieces]
-            at = cue.start
-            for j, (piece, wt) in enumerate(zip(pieces, weights, strict=True)):
-                span = (cue.end - cue.start) * wt / sum(weights)
+            starts = chunk_starts(pieces, cue.start, cue.end, words)
+            for j, piece in enumerate(pieces):
+                at = starts[j]
+                span = (starts[j + 1] if j + 1 < len(pieces) else cue.end) - at
                 hook = render_cue(
                     piece,
                     asset_dir / "subtitles" / f"hook_{k:02d}_{j:02d}.png",
@@ -282,7 +299,6 @@ def subtitles_for(
                 )
                 if hook is not None:
                     arts.append(_timed(hook, at, at + span))
-                at += span
             continue
         if k in emph:
             # 직접 인용(노랑)은 손글씨 글꼴로 — 그 사람이 한 말처럼 보이게
@@ -319,6 +335,14 @@ def build_plan(
 
     total = wav_duration(audio)
     scenes = project["scenes"]
+    if words is None:
+        # 받은 음성이면 음성 인식으로 낱말 시각을 얻어 훅 조각을 실제 말에 맞춘다(같은 음성은 저장해 둔 결과)
+        try:
+            from newsclip.asr import transcribe
+
+            words = transcribe(audio, cache_dir=asset_dir)
+        except Exception:  # noqa: BLE001 - 듣지 못하면 글자 수 비율로
+            words = None
     # 핵심어: 호출자가 준 말 + 첫 장면 검색어의 말(훅에서 빨간색으로 강조)
     first = min(scenes, key=lambda s: float(s["start"]))
     # 검색어는 사진을 찾는 말이라 다 강조하면 빨강·노랑이 넘친다 — 첫 낱말(보통 인물 이름) 하나만 핵심어로
@@ -342,7 +366,12 @@ def build_plan(
     sfx_dir = ensure_sfx(asset_dir)
     sounds = [cue for cue in sfx_cues(scene_models) if cue.at < total]
     sfx = [(cue.at, sfx_dir[cue.name]) for cue in sounds]
-    # 넘기는 효과음(whoosh)이 나는 장면은 화면도 빠른 확대 전환으로 넘긴다
+    # 강조 자막(색 글자)이 뜰 때 쿵 — 다른 효과음과 0.5초 안에 겹치면 빼고
+    for at in [c.start for c in cues if c.intro]:
+        if all(abs(at - a) >= 0.5 for a, _p in sfx):
+            sfx.append((at, sfx_dir[HIT]))
+    sfx.sort()
+    # 넘기는 효과음(whoosh)이 나는 장면은 화면도 확대 펀치 전환으로 넘긴다
     whoosh = [cue.at for cue in sounds if cue.name == "whoosh"]
     shots = shots_for(scenes, asset_dir, total, videos or {}, max_shot_sec, cuts=cut_at, xfade_at=whoosh)
     caps = []

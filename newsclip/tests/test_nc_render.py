@@ -94,7 +94,7 @@ def test_build_command_wires_video_audio_and_effects(tmp_path):
     cmd = build_command(plan, tmp_path / "out.mp4")
     joined = " ".join(cmd)
     assert "concat=n=2" in joined and "sidechaincompress" in joined and "adelay=2000" in joined
-    assert "between(t,0.500,2.000)" in joined and "[vout]" in joined and "[aout]" in joined
+    assert "between(t,0.4833,1.9833)" in joined and "[vout]" in joined and "[aout]" in joined
     assert (
         "fade=" not in joined and "28*max(0,1-(t-0.500)/0.18)" in joined
     )  # 전환: 흐려지지 않고 아래에서 올라옴
@@ -270,13 +270,14 @@ def test_only_one_keyword_highlighted_per_subtitle(tmp_path):
     assert reds and max(reds) < img.width * 0.6
 
 
-def test_cut_editing_punches_in_and_zooms_on_turns(tmp_path):
-    """자막 경계에 맞춘 컷 편집: 2초 안팎으로 끊고, 같은 사진은 넓게 → 가깝게, 넘기는 장면은 빠른 확대 전환."""
-    from newsclip.shorts_render import PUNCH, XFADE_SEC, cut_pieces, shots_for
+def test_cut_editing_switches_photos_on_subtitle_bounds(tmp_path):
+    """컷 편집: 장면의 후보 사진을 한 장씩 바꿔 쓰되 자막 경계에서, 줌 인·아웃을 번갈아, 넘기는 장면은 펀치 전환.
+    같은 사진을 가깝게 다시 쓰지 않는다(펀치인 없음)."""
+    from newsclip.shorts_render import PUSH, XFADE_SEC, cut_pieces, shots_for
 
-    assert cut_pieces(0, 6, [0.8, 1.6, 2.1, 3.0, 4.4, 5.5]) == [(0, 2.1), (2.1, 4.4), (4.4, 6)]
-    no_bounds = cut_pieces(0, 7, [])  # 경계가 없어도 3.2초보다 길면 고르게 나눈다
-    assert len(no_bounds) == 3 and no_bounds[-1][1] == 7
+    assert cut_pieces(0, 6, [0.8, 1.6, 2.1, 3.0, 4.4, 5.5], 2) == [(0, 3.0), (3.0, 6)]
+    assert cut_pieces(0, 6, [0.8, 1.6, 2.1, 3.0, 4.4, 5.5], 3) == [(0, 2.1), (2.1, 4.4), (4.4, 6)]
+    assert cut_pieces(0, 6, [], 2) == [(0, 6)]  # 자막 경계가 없으면 말 중간에서 바꾸지 않는다
     for name in ("assets/a1.jpg", "assets/a2.jpg", "assets/b1.jpg"):
         (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
         Image.new("RGB", (1080, 1920), (90, 90, 90)).save(tmp_path / name)
@@ -291,14 +292,25 @@ def test_cut_editing_punches_in_and_zooms_on_turns(tmp_path):
         {"id": "s002", "start": 6, "end": 8, "chosen": "assets/b1.jpg", "files": ["assets/b1.jpg"]},
     ]
     shots = shots_for(scenes, tmp_path, 8.0, {}, cuts=[1.6, 3.0, 4.4, 6.0, 7.0], xfade_at=[6.0])
-    assert [(s.path.name, s.zoom[0]) for s in shots[:4]] == [
-        ("a1.jpg", 1.0),
-        ("a1.jpg", PUNCH),
-        ("a2.jpg", 1.0),
-        ("a2.jpg", PUNCH),
+    assert [(s.path.name, s.start, s.end) for s in shots] == [
+        ("a1.jpg", 0.0, 3.0),
+        ("a2.jpg", 3.0, 6.0),
+        ("b1.jpg", 6.0, 8.0),
     ]
-    assert [s.xfade for s in shots] == [0.0, 0.0, 0.0, 0.0, XFADE_SEC]
-    assert shots[-1].end == 8.0
+    assert [s.zoom for s in shots] == [(1.0, 1.0 + PUSH), (1.0 + PUSH, 1.0), (1.0, 1.0 + PUSH)]
+    assert [s.xfade for s in shots] == [0.0, 0.0, XFADE_SEC]
+
+
+def test_hook_chunks_follow_spoken_words():
+    """훅 조각은 낱말 시각이 있으면 그 말이 들리는 때에 뜬다(없으면 글자 수 비율)."""
+    from newsclip.shorts_render import chunk_starts
+
+    pieces = ["홍준표 전", "대구시장이", "방송"]
+    words = [("홍준표", 0.0, 0.44), ("전", 0.44, 0.66), ("대구시장이", 0.66, 1.14), ("방송", 1.14, 1.64)]
+    heard = chunk_starts(pieces, 0.0, 1.64, words)
+    assert heard[0] == 0.0 and abs(heard[1] - 0.66) < 0.05 and abs(heard[2] - 1.14) < 0.05
+    plain = chunk_starts(pieces, 0.0, 1.64, None)
+    assert abs(plain[2] - 1.64 * 9 / 11) < 0.01  # 글자 수 비율(3+1+5 : 2)
 
 
 def test_build_command_zooms_inside_photo_box_and_punches(tmp_path):
@@ -352,3 +364,40 @@ def test_emphasis_cues_colored_and_spaced(tmp_path):
     art = render_emph("배신자 낙인", tmp_path / "e.png", (1080, 1920), color=EMPH_RED)
     assert art is not None and len(art.intro) == len(EMPH_BLUR) and all(p.exists() for p in art.intro)
     assert Image.open(art.intro[0]).size == Image.open(art.path).size
+
+
+def test_one_frame_overlays_are_drawn(tmp_path):
+    """1프레임짜리 그림(강조 자막의 흐림 단계)도 정확히 그 프레임에 그려진다."""
+    photo = tmp_path / "p.jpg"
+    Image.new("RGB", (1080, 1920), (0, 0, 0)).save(photo)
+    dot = tmp_path / "dot.png"
+    Image.new("RGBA", (200, 200), (255, 255, 255, 255)).save(dot)
+    narration = tmp_path / "n.wav"
+    _wav(narration, 1)
+    from newsclip.render import CueArt
+
+    cue = CueArt(path=dot, start=0.5, end=0.8, width=200, height=200, top=800, intro=(dot, dot))
+    plan = RenderPlan(
+        shots=[Shot(photo, "image", 0, 1.0, zoom=(1.0, 1.0))], total=1.0, narration=narration, cues=[cue]
+    )
+    out = render(plan, tmp_path / "o.mp4")
+    raw = subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-i",
+            str(out),
+            "-vf",
+            "crop=10:10:535:895",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "gray",
+            "-",
+        ],
+        capture_output=True,
+        check=True,
+    ).stdout
+    lit = [i for i in range(len(raw) // 100) if raw[i * 100 + 55] > 128]
+    assert lit[0] == 15 and lit[-1] == 23  # 0.5초(15번째 프레임)부터 0.8초 전까지
