@@ -34,12 +34,55 @@ class TypecastError(RuntimeError):
 
 @dataclass
 class Speech:
-    """읽은 결과: 음성 파일, 길이, 낱말 시각, 글자 시각(공백 포함)."""
+    """읽은 결과: 음성 파일, 길이, 낱말 시각, 글자 시각(공백 포함), 다시 읽은 문장 수, 남은 의심 구간."""
 
     path: Path
     duration: float
     words: list[Word] = field(default_factory=list)
     chars: list[Word] = field(default_factory=list)
+    retried: int = 0
+    warnings: list[str] = field(default_factory=list)
+
+
+GAP_SEC = 0.6  # 낱말 시각 사이가 이보다 길고
+GAP_VOICED = 0.5  # 그 틈의 이만큼(비율) 넘게 소리가 나면 '시각에 없는 말'(같은 말을 한 번 더 읽음)로 본다
+VOICED_DB = -35.0  # 소리가 난다고 보는 크기(20ms 창 RMS, dBFS)
+RETRIES = 2  # 의심 문장을 다시 읽어 보는 횟수
+
+
+def unlisted_speech(
+    pcm: bytes, sampwidth: int, rate: int, words: list[Word], duration: float
+) -> list[tuple[float, float]]:
+    """낱말 시각에 없는데 소리가 나는 구간 — 타입캐스트가 문장·낱말을 한 번 더 읽으면 그 말은 낱말 시각에 빠진 채
+    음성에만 남는다(2026-10 '바로 잠에서 깬 직후래요'를 두 번 읽음). 반환: [(시작, 끝)]."""
+    import numpy as np
+
+    if sampwidth != 2 or not pcm:
+        return []
+    x = np.frombuffer(pcm, dtype="<i2").astype(np.float32) / 32768.0
+    hop = max(1, rate // 50)  # 20ms
+    n = len(x) // hop
+    if n == 0:
+        return []
+    rms = np.sqrt(np.mean(x[: n * hop].reshape(n, hop) ** 2, axis=1) + 1e-12)
+    voiced = 20 * np.log10(rms) > VOICED_DB
+    out = []
+    edges = [(0.0, 0.0), *[(a, b) for _w, a, b in words], (duration, duration)]
+    for (_a0, b0), (a1, _b1) in zip(edges, edges[1:], strict=False):
+        if a1 - b0 < GAP_SEC:
+            continue
+        i0, i1 = int(b0 * 50), min(n, int(a1 * 50))
+        if i1 > i0 and voiced[i0:i1].mean() > GAP_VOICED:
+            out.append((round(b0, 2), round(a1, 2)))
+    return out
+
+
+def sentences(text: str) -> list[str]:
+    """읽는 글 → 문장들(줄 끝·문장 부호 뒤에서 자른다)."""
+    out: list[str] = []
+    for line in text.splitlines():
+        out += [s.strip() for s in _SENT_RE.split(line) if s.strip()]
+    return out
 
 
 def api_key() -> str:
@@ -144,12 +187,16 @@ def synthesize(
     target_lufs: float = -14.0,
     smart: bool = True,
     client: httpx.Client | None = None,
+    per_sentence: bool = False,
 ) -> Speech:
-    """대본(읽는 글) → WAV + 낱말·글자 시각. 조각이 여러 개면 이어 붙이고 시각을 민다."""
+    """대본(읽는 글) → WAV + 낱말·글자 시각. 조각이 여러 개면 이어 붙이고 시각을 민다.
+    per_sentence면 문장마다 따로 읽고(앞뒤 문장은 문맥으로 넘김), 낱말 시각에 없는 말이 들리면(같은 말을 한 번 더
+    읽음) 그 문장만 RETRIES번까지 다시 읽는다 — 긴 글을 한 번에 읽히면 문장을 되풀이하는 일이 있다."""
     if not 0.5 <= tempo <= 2.0:
         raise TypecastError("읽는 속도(tempo)는 0.5~2.0 사이여야 합니다.")
     c = _client(client)
-    chunks = split_text(text)
+    chunks = sentences(text) if per_sentence else split_text(text)
+    retried, warnings = 0, []
     frames: list[bytes] = []
     params: tuple | None = None
     words: list[Word] = []
@@ -173,14 +220,31 @@ def synthesize(
             if i + 1 < len(chunks):
                 prompt["next_text"] = _edge(chunks[i + 1], last=False)
             body["prompt"] = prompt
-        resp = c.post("/v1/text-to-speech/with-timestamps", json=body, headers=_headers())
-        _check(resp)
-        data = resp.json()
-        with wave.open(io.BytesIO(base64.b64decode(data["audio"])), "rb") as w:
-            if params is None:
-                params = w.getparams()
-            frames.append(w.readframes(w.getnframes()))
-            dur = w.getnframes() / float(w.getframerate())
+        best = None
+        for _attempt in range(1 + (RETRIES if per_sentence else 0)):
+            resp = c.post("/v1/text-to-speech/with-timestamps", json=body, headers=_headers())
+            _check(resp)
+            data = resp.json()
+            with wave.open(io.BytesIO(base64.b64decode(data["audio"])), "rb") as w:
+                wparams = w.getparams()
+                pcm = w.readframes(w.getnframes())
+                dur = w.getnframes() / float(w.getframerate())
+            if not per_sentence:
+                best = (data, wparams, pcm, dur, [])
+                break
+            local = [(x["text"], float(x["start"]), float(x["end"])) for x in data.get("words") or []]
+            bad = unlisted_speech(pcm, wparams.sampwidth, wparams.framerate, local, dur)
+            if best is None or len(bad) < len(best[4]):
+                best = (data, wparams, pcm, dur, bad)
+            if not bad:
+                break
+            retried += 1
+        data, wparams, pcm, dur, bad = best
+        if bad:
+            warnings.append(f"'{chunk[:20]}…' 되풀이 의심 {bad} — 다시 읽어도 남음")
+        if params is None:
+            params = wparams
+        frames.append(pcm)
         words += [
             (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
             for s in data.get("words") or []
@@ -196,7 +260,9 @@ def synthesize(
         w.setparams(params)
         for fr in frames:
             w.writeframes(fr)
-    return Speech(path=out, duration=round(offset, 3), words=words, chars=chars)
+    return Speech(
+        path=out, duration=round(offset, 3), words=words, chars=chars, retried=retried, warnings=warnings
+    )
 
 
 def retime_scenes(scenes: list[dict], chars: list[Word], duration: float) -> list[dict]:

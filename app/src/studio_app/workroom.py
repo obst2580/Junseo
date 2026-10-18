@@ -323,6 +323,7 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
         tempo=tempo,
         remove_silence_ms=silence,
         client=client,
+        per_sentence=cfg.per_sentence,
     )
     info = analyze(speech.path, min_silence=0.15)
     chars = len(text.replace("\n", ""))
@@ -345,6 +346,9 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
         "chars": chars,
         "cpm": round(chars / (speech.duration / 60)) if speech.duration else 0,
         "credits": len(text),
+        # 문장마다 읽은 채널: 같은 말을 두 번 읽어 다시 읽은 문장 수, 다시 읽어도 남은 의심 구간
+        **({"retried": speech.retried} if speech.retried else {}),
+        **({"warnings": speech.warnings} if speech.warnings else {}),
         "words": [[w, s, e] for w, s, e in speech.words],
         "analyzed_at": _iso(now_kst()),
     }
@@ -1011,10 +1015,11 @@ def main() -> None:
     if a.cmd == "voice":
         rq = _load_project(a.request) if a.request else {}
         audio = make_voice(req, a.out, rq.get("voice"))
-        keys = ("voice", "voice_id", "tempo", "duration", "chars", "credits")
+        keys = ("voice", "voice_id", "tempo", "duration", "chars", "credits", "retried", "warnings")
         print(
             json.dumps(
-                {**{k: audio[k] for k in keys}, "file": str(a.out / "narration.mp4")}, ensure_ascii=False
+                {**{k: audio[k] for k in keys if k in audio}, "file": str(a.out / "narration.mp4")},
+                ensure_ascii=False,
             )
         )
         return

@@ -191,6 +191,9 @@ class VoiceSection(BaseModel):
     model: str = "ssfm-v30"
     tempo: float = 1.0  # 읽는 속도(0.5~2.0). 제작실에서 영상마다 바꿀 수 있다
     remove_silence_ms: int | None = None  # 문장 사이 쉼을 이만큼(ms)만 남긴다. 비우면 그대로
+    # 문장마다 따로 읽고, 같은 말을 한 번 더 읽은 문장(낱말 시각에 없는 말이 들림)은 다시 읽는다(널스윤서 — 긴 대본을
+    # 한 번에 읽히면 문장을 되풀이하는 일이 있었다). 크레딧은 같고(글자 수), 다시 읽은 문장만큼 더 든다
+    per_sentence: bool = False
 
 
 class ClusteringSection(BaseModel):

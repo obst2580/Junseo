@@ -162,7 +162,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    uv run python -m studio_app.workroom voice --project /tmp/wr/projects/<ID>.json --request /tmp/wr/requests/<요청 ID>.json --out /tmp/wr-voice
    ```
 
-   출력: 목소리·voice_id·속도·길이(초)·글자 수·차감 크레딧. 길이는 읽은 그대로 씁니다(1분에 억지로 맞추지 않음). 실패하면(키 없음 401, 크레딧 부족 402, 목소리 못 찾음 등)
+   출력: 목소리·voice_id·속도·길이(초)·글자 수·차감 크레딧(널스윤서는 문장마다 읽어 `retried`=같은 말을 두 번 읽어 다시 읽은 문장 수, `warnings`=다시 읽어도 남은 의심 — 있으면 note에 적기). 길이는 읽은 그대로 씁니다(1분에 억지로 맞추지 않음). 실패하면(키 없음 401, 크레딧 부족 402, 목소리 못 찾음 등)
    요청을 `error`로, 메시지를 그대로 `error`에 적습니다.
 3. `/tmp/wr-voice/narration.mp4`(오디오만 든 mp4 — 제작실 자산은 wav·mp3를 받지 않습니다)를 `Artifact`(`url`: 제작실,
    `asset: true`, `file_path`)로 올리고 자산 ID를 받습니다.

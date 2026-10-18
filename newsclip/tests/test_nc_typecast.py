@@ -142,3 +142,65 @@ def test_unusual_activity_block_gets_plain_reason(monkeypatch, tmp_path):
     client = httpx.Client(base_url="https://api.typecast.ai", transport=httpx.MockTransport(handler))
     with pytest.raises(TypecastError, match="유료 API 플랜"):
         synthesize("글", "tc_x", tmp_path / "x.wav", client=client)
+
+
+def _tone_wav(seconds: float, voiced: list[tuple[float, float]]) -> bytes:
+    """voiced 구간만 소리(440Hz)가 나는 WAV 바이트."""
+    import math
+
+    rate = 16000
+    out = bytearray()
+    for i in range(int(rate * seconds)):
+        t = i / rate
+        v = 8000 if any(a <= t < b for a, b in voiced) else 0
+        out += int(v * math.sin(2 * math.pi * 440 * t)).to_bytes(2, "little", signed=True)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(rate)
+        w.writeframes(bytes(out))
+    return buf.getvalue()
+
+
+def test_unlisted_speech_flags_voiced_gap_only():
+    from newsclip.typecast_tts import unlisted_speech
+
+    words = [("바로", 0.0, 0.5), ("직후래요.", 0.5, 1.0), ("하루", 2.5, 3.0)]
+    # 1.0~2.5초: 낱말 시각은 없는데 소리가 난다(같은 말을 한 번 더 읽음)
+    data = _tone_wav(3.0, [(0.0, 3.0)])
+    with wave.open(io.BytesIO(data)) as w:
+        pcm = w.readframes(w.getnframes())
+    assert unlisted_speech(pcm, 2, 16000, words, 3.0) == [(1.0, 2.5)]
+    quiet = _tone_wav(3.0, [(0.0, 1.0), (2.5, 3.0)])  # 같은 틈이 조용하면(문장 사이 쉼) 문제없다
+    with wave.open(io.BytesIO(quiet)) as w:
+        pcm = w.readframes(w.getnframes())
+    assert unlisted_speech(pcm, 2, 16000, words, 3.0) == []
+
+
+def test_per_sentence_rereads_repeated_sentence(monkeypatch, tmp_path):
+    """문장마다 읽고, 되풀이가 의심되는 문장만 다시 읽는다(두 번째 시도에서 깨끗하면 그것을 쓴다)."""
+    monkeypatch.setenv("TYPECAST_API_KEY", "test-key")
+    calls: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        text = json.loads(req.content)["text"]
+        calls.append(text)
+        repeated = text.startswith("바로") and calls.count(text) == 1  # 첫 시도만 되풀이
+        audio = _tone_wav(3.0, [(0.0, 3.0)] if repeated else [(0.0, 1.0)])
+        words = [{"text": w, "start": i * 0.5, "end": (i + 1) * 0.5} for i, w in enumerate(text.split()[:2])]
+        return httpx.Response(
+            200, json={"audio": base64.b64encode(audio).decode(), "words": words, "characters": []}
+        )
+
+    client = httpx.Client(base_url="https://api.typecast.ai", transport=httpx.MockTransport(handler))
+    speech = synthesize(
+        "가을 아침이에요. 바로 잠에서 깬 직후래요.",
+        "tc_x",
+        tmp_path / "n.wav",
+        client=client,
+        per_sentence=True,
+    )
+    assert calls == ["가을 아침이에요.", "바로 잠에서 깬 직후래요.", "바로 잠에서 깬 직후래요."]
+    assert speech.retried == 1 and speech.warnings == []
+    assert speech.duration == pytest.approx(6.0)  # 깨끗한 두 번째 시도(3초)를 썼다
