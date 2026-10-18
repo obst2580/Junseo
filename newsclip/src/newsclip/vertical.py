@@ -67,11 +67,20 @@ class Style:
     sub_shift: int = 0  # 대본 자막을 기본 자리(render.SUB_TEXT_Y)에서 이만큼 아래로(사진 칸이 다른 디자인)
     # 첫 문장 훅: flash(짧게 잘라 사진 칸 가운데에 크게) | chart(간호 차트판 손글씨, newsclip.chart_hook)
     hook: str = "flash"
+    # 뉴스 채널 편집 규칙(널스윤서와 따로 간다 — 기본값은 예전 그대로)
+    emph_sag: float = 0.0  # 강조 자막: 0이면 4초 간격으로 여럿, 있으면 흐름이 이만큼(초) 늘어질 때만 하나씩
+    quote_pairs: bool = False  # 인용이 두 자막에 걸치면 조각마다 따옴표 짝을 맞춘다
+    wide_top: bool = False  # 칸보다 납작한 사진(파노라마)을 칸 위에 붙인다(출처 표시가 사진 위에 앉게)
+    peak: float = 0.95  # 소리 최고점(믹스 끝 리미터, 1.0 = 0 dBFS)
 
     @property
     def font_url(self) -> str:
         return FONT_CDN + self.font_path if self.font_path else ""
 
+
+# 뉴스 채널(정치는푸르다·자유뉴스365) 쇼츠 편집: 강조 자막은 흐름이 8초 늘어질 때만, 인용 따옴표 짝 맞추기,
+# 납작한 사진은 칸 위에, 소리 최고점 -1.4 dBFS(유튜브 재압축 뒤에도 -1 dBTP 안쪽)
+NEWS_EDIT = {"emph_sag": 8.0, "quote_pairs": True, "wide_top": True, "peak": 0.85}
 
 STYLES: dict[str, Style] = {
     # 정치는푸르다: 210 매머드빵 큰 글씨(테두리 없이 흐린 그림자), 둘째 줄 진한 노랑. 바탕은 검정, 화면 위·아래 끝은
@@ -89,6 +98,7 @@ STYLES: dict[str, Style] = {
         edge_top=520,
         edge_bottom=380,
         photo_fade=260,
+        **NEWS_EDIT,
     ),
     "navy_red": Style(
         "navy_red",
@@ -98,6 +108,7 @@ STYLES: dict[str, Style] = {
         bands=(NAVY, RED),
         text_colors=((255, 255, 255), (255, 255, 255)),
         caption_box=(*NAVY, 200),
+        **NEWS_EDIT,
     ),
     # 널스윤서(건강): 위쪽은 흰 바탕에 검은 글씨, 둘째 줄은 하늘색 강조 글씨, 그 아래 하늘색 선. 사진 칸은 거의
     # 정사각형으로 크게(세로 소재가 덜 잘린다). 사진 아랫부분 그라데이션과 자막 자리는 정치는푸르다와 같은 구성.
@@ -164,7 +175,9 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
     else:
         photo = ImageOps.contain(rgb, (bw, bh), method=Image.Resampling.LANCZOS)
     mask = _fade_mask(photo.size, round(st.photo_fade * h / SIZE[1])) if st.photo_fade else None
-    bg.paste(photo, (x0 + (x1 - x0 - photo.width) // 2, y0 + (y1 - y0 - photo.height) // 2), mask)
+    # 칸보다 납작한 사진(파노라마)은 칸 위에 붙인다 — 가운데에 띄우면 위에 검은 띠가 생기고 출처 표시가 사진 밖에 뜬다
+    top = y0 if st.wide_top and photo.height < bh else y0 + (bh - photo.height) // 2
+    bg.paste(photo, (x0 + (bw - photo.width) // 2, top), mask)
     return bg
 
 

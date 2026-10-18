@@ -109,6 +109,7 @@ class RenderPlan:
     photo_box: tuple[int, int, int, int] | None = None  # 사진 칸(x0, y0, x1, y1) — 있으면 칸 안만 확대한다
     photo_fade: Path | None = None  # 사진 칸 아래를 검정으로 잇는 그림(photo_box 자리에 얹는다)
     crf: int = 18  # 화질(낮을수록 좋고 파일이 큼). 제작실에 올릴 완성본은 크기 한도 때문에 조금 높인다
+    peak: float = 0.95  # 소리 최고점(믹스 끝 리미터, 1.0 = 0 dBFS) — 디자인(vertical.Style.peak)에서 받는다
 
 
 # ---------- 자막 그림 ----------
@@ -476,7 +477,8 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
     count = len(mixed)
     # 내레이션 + 배경음악 + 효과음이 겹쳐도 찢어지지 않게 마지막에 리미터(크기 자동 키우기는 끔)
     mix.append(
-        f"{''.join(mixed)}amix=inputs={count}:duration=first:normalize=0,alimiter=limit=0.95:level=false[aout]"
+        f"{''.join(mixed)}amix=inputs={count}:duration=first:normalize=0,"
+        f"alimiter=limit={plan.peak}:level=false[aout]"
     )
 
     filt = ";".join(chains + mix)

@@ -125,10 +125,14 @@ def score_asset(
     stock_video = (
         a.media == "video" and a.source in cfg.images.sources
     )  # 소재 사이트 영상도 제목(설명)이 있다
+    news = not cfg.images.sources  # 뉴스 사진을 찾는 채널(소재 사이트만 쓰는 널스윤서와 따로 간다)
     if a.media == "image" or stock_video:
         title = a.title.lower()
         if scene.query:  # 작업자가 대사를 읽고 쓴 검색어 — 그 말이 사진 제목에 있어야 그 장면 사진
-            words = [w.lower() for w in scene.query.split() if len(w) >= 2]
+            # 뉴스 채널: SNS·페이스북 같은 말은 사진에 담기지 않는다 — 제목에 글자로만 맞으면 'SNS 중독 좌담회' 같은
+            # 딴 행사 사진이 뽑힌다
+            skip = MEDIA_WORDS if news else set()
+            words = [w.lower() for w in scene.query.split() if len(w) >= 2 and w.lower() not in skip]
             qh = sum(1 for w in words if w in title)
             if qh:
                 s += min(30, 10 * qh)
@@ -136,6 +140,10 @@ def score_asset(
             elif words:
                 s -= 20
                 notes.append("제목에 검색어 없음 −20")
+            literal = [w for w in scene.query.lower().split() if w in skip and w in title]
+            if literal:  # 제목이 SNS를 다룬 행사·기사(그 사람이 SNS에 쓴 일과 상관없다)
+                s -= 10
+                notes.append(f"'{literal[0]}' 글자만 맞음 −10")
     if a.media == "image":
         title = a.title.lower()
         if a.source_domain in NEWS_PHOTO_HOSTS:
@@ -153,6 +161,23 @@ def score_asset(
             elif year <= now - 6:
                 s -= 5
                 notes.append(f"{year}년 사진 −5")
+    if a.media == "image" and news:
+        scene_hay = f"{scene.text} {scene.query} {scene.topic}"
+        people = title_people(a.title)
+        others = [
+            p for p in people if p not in scene_hay and not any(a in scene_hay for a in _ALIASES.get(p, ()))
+        ]
+        if people and people[0] in others:  # 사진 주인공이 다른 사람 — 그 사람이 한 말·일처럼 보인다
+            s -= 25
+            notes.append(f"제목 주인공 {people[0]}이(가) 장면에 없음 −25")
+        extra = [p for p in others if p != people[0]]
+        if extra:  # 지지도 기사 합성 사진처럼 장면과 상관없는 얼굴이 섞인 사진
+            s -= 8 * len(extra)
+            notes.append(f"장면에 없는 인물 {len(extra)}명 −{8 * len(extra)}")
+        abroad = [m for m in _FOREIGN_RE.findall(a.title) if m not in scene_hay]
+        if abroad:
+            s -= 30
+            notes.append(f"외국 사진({abroad[0]}) −30")
     return s, notes
 
 
@@ -162,6 +187,50 @@ _DOC_RE = re.compile(
     r"google sheets|google docs|casenote|판결문|판례|서식|양식|\.pdf|\.hwp|\.xlsx?|스프레드시트"
 )
 _YEAR_RE = re.compile(r"/(20\d\d)/(?:0[1-9]|1[0-2])/")
+MEDIA_WORDS = {"sns", "페이스북", "유튜브", "인스타그램", "트위터", "텔레그램", "블로그", "게시글", "댓글"}
+# 사진 제목의 인물: '추미애 경기도지사', '장동혁 국민의힘 대표', '추미애 27.0%'(지지도), 맨 앞 '李'(대통령 줄임)
+_ROLE = r"(?:대통령|원내대표|대표|의원|지사|시장|장관|총리|위원장|원장|후보|최고위원|대변인|비서실장|수석|청장|총장|당선인)"
+_PERSON_RE = re.compile(
+    rf"(?<![가-힣])([가-힣]{{2,3}})\s+(?:[가-힣]{{1,8}}(?:당|힘|부|청|원|도|시|회|실|처)\s+)?[가-힣]{{0,6}}?{_ROLE}(?![가-힣])"
+    r"|(?<![가-힣])([가-힣]{2,3})\s?\d+(?:\.\d+)?%"
+)
+_LEADER_RE = re.compile(r"^(?:\[[^\]]*\]\s*)?(李|尹|文)(?=[\s“\"‘'…,])")
+_LEADERS = {"李": "이재명", "尹": "윤석열", "文": "문재인"}
+_ALIASES = {"이재명": ("대통령", "李")}  # 장면에 '대통령'만 있어도 그 사람이 나오는 장면
+_NOT_PEOPLE = {
+    "경기도",
+    "서울시",
+    "정부",
+    "국회",
+    "여당",
+    "야당",
+    "당정",
+    "신임",
+    "차기",
+    "전직",
+    "현직",
+    "前",
+}
+_FOREIGN_RE = re.compile(
+    "미국|美|워싱턴|백악관|뉴욕|일본|도쿄|중국|베이징|러시아|모스크바|영국|런던|프랑스|독일|베를린|유럽|우크라이나|이스라엘"
+)
+
+
+def title_people(title: str) -> list[str]:
+    """사진 제목에 나온 인물 이름(나온 순서, 중복 없이). 맨 앞 '李' 같은 줄임은 이름으로 바꾼다."""
+    found: list[tuple[int, str]] = []
+    m = _LEADER_RE.search(title)
+    if m:
+        found.append((m.start(1), _LEADERS[m.group(1)]))
+    for m in _PERSON_RE.finditer(title):
+        name = m.group(1) or m.group(2)
+        if name not in _NOT_PEOPLE and not name.endswith("당"):
+            found.append((m.start(), name))
+    out: list[str] = []
+    for _pos, name in sorted(found):
+        if name not in out:
+            out.append(name)
+    return out
 
 
 def photo_year(a: Asset) -> int | None:

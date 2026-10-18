@@ -66,6 +66,9 @@ HOLD_ZOOM = (
 XFADE_SEC = 0.16  # 화제가 바뀌는 장면에서 확대 펀치 전환(앞 컷이 빠르게 다가가고 다음 컷이 제자리로)
 EMPH_MAX = 12  # 강조 자막(색 글자)이 될 수 있는 자막 길이(공백 빼고)
 EMPH_GAP = 4.0  # 강조 자막 사이 최소 간격(초) — 너무 자주 나오면 강조가 아니다
+# 디자인에 emph_sag가 있으면(뉴스 채널) 흐름이 늘어질 때만 하나씩: 넣을 때가 되면 그 뒤 이 시간 안의 후보 중
+# 가장 센 것(빨강 → 노랑 → 초록)을 고른다
+EMPH_LOOK = 3.0
 # 센 말 → 빨강, 따옴표로 옮긴 말(직접 인용) → 노랑, 핵심 인물·키워드 → 초록
 STRONG = re.compile(
     "폭로|막말|논란|의혹|충격|비판|비난|반발|구속|탄핵|거짓|위반|폭동|망언|파문|저격|고발|기소|경고|분노|격돌|최악"
@@ -267,6 +270,24 @@ def hook_chunks(text: str, limit: int = HOOK_CHUNK) -> list[str]:
 
 
 _SENT_END = re.compile(r"[.!?…][\"'”’」』)]*$")
+_PAIRS = {'"': '"', "'": "'", "“": "”", "‘": "’"}
+
+
+def pair_quotes(texts: list[str]) -> list[str]:
+    """자막 조각마다 따옴표 짝을 맞춘다: 인용 하나가 두 자막에 걸치면 앞 조각 끝에 닫는 따옴표, 뒤 조각 앞에
+    여는 따옴표를 붙인다(한쪽 따옴표만 있으면 인용이 끊겨 보인다)."""
+    out: list[str] = []
+    inside: tuple[str, str] | None = None  # 지금 열려 있는 인용의 (여는, 닫는) 따옴표
+    for text in texts:
+        shown = inside[0] + text if inside else text
+        for ch in text:
+            if inside is None:
+                if ch in _PAIRS:
+                    inside = (ch, _PAIRS[ch])
+            elif ch == inside[1]:
+                inside = None
+        out.append(shown + inside[1] if inside else shown)
+    return out
 
 
 def emph_color(text: str, keywords: set[str]) -> tuple[int, int, int] | None:
@@ -370,18 +391,34 @@ def chunk_starts(pieces: list[str], start: float, end: float, words: list | None
     return starts
 
 
-def pick_emphasis(cues: list, keywords: set[str], start: int = 0) -> dict[int, tuple[int, int, int]]:
-    """강조 자막 고르기: 빨강 → 노랑 → 초록 순으로, 이미 고른 강조와 EMPH_GAP초 안에 붙지 않는 것만.
-    반환: {자막 번호: 색}. start 앞(훅)은 고르지 않는다."""
+def pick_emphasis(
+    cues: list, keywords: set[str], start: int = 0, sag: float = 0.0
+) -> dict[int, tuple[int, int, int]]:
+    """강조 자막 고르기. 반환: {자막 번호: 색}. start 앞(훅)은 고르지 않는다.
+    sag가 0이면 빨강 → 노랑 → 초록 순으로, 이미 고른 강조와 EMPH_GAP초 안에 붙지 않는 것만.
+    sag가 있으면 흐름이 늘어질 때만 하나씩: 훅 끝(또는 영상 시작)이나 앞 강조에서 sag초가 지난 뒤 처음 나오는 후보
+    때부터 EMPH_LOOK초 안의 후보 중 가장 센 것(같으면 먼저 나오는 것)."""
     order = (EMPH_RED, EMPH_YELLOW, EMPH_GREEN)
-    cands = [(k, emph_color(c.text, keywords)) for k, c in enumerate(cues) if k >= start]
-    cands = sorted(
-        ((k, col) for k, col in cands if col is not None), key=lambda kc: (order.index(kc[1]), kc[0])
-    )
+    cands = [(k, col) for k, c in enumerate(cues) if k >= start and (col := emph_color(c.text, keywords))]
     picked: dict[int, tuple[int, int, int]] = {}
-    for k, col in cands:
-        if all(abs(cues[k].start - cues[j].start) >= EMPH_GAP for j in picked):
-            picked[k] = col
+    if sag <= 0:
+        for k, col in sorted(cands, key=lambda kc: (order.index(kc[1]), kc[0])):
+            if all(abs(cues[k].start - cues[j].start) >= EMPH_GAP for j in picked):
+                picked[k] = col
+        return picked
+    last = cues[start - 1].end if 0 < start <= len(cues) else 0.0
+    i = 0
+    while i < len(cands):
+        t = cues[cands[i][0]].start
+        if t - last < sag:
+            i += 1
+            continue
+        window = [j for j in range(i, len(cands)) if cues[cands[j][0]].start - t <= EMPH_LOOK]
+        best = min(window, key=lambda j: (order.index(cands[j][1]), j))
+        k, col = cands[best]
+        picked[k] = col
+        last = cues[k].start
+        i = best + 1
     return picked
 
 
@@ -395,10 +432,13 @@ def subtitles_for(
     words: list | None = None,
     hook_mode: str = "flash",
     sub_shift: int = 0,
+    emph_sag: float = 0.0,
+    quote_pairs: bool = False,
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo, tuple[str, float, float] | None]:
     """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다.
     hook_mode "chart"(널스윤서)면 첫 문장 자막을 만들지 않는다 — 그동안 화면은 차트판 훅(chart_hook)이 첫 문장을
-    손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). 마지막 값은 첫 문장 (글, 시작, 끝)."""
+    손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). emph_sag는 강조 자막 고르기
+    (pick_emphasis), quote_pairs면 훅 뒤 자막의 따옴표 짝을 맞춘다(pair_quotes). 마지막 값은 첫 문장 (글, 시작, 끝)."""
     info = analyze(audio)
     if srt is not None:
         # 받은 자막(SRT)을 그대로 쓴다: 제작실에서 본 자막과 같은 시간
@@ -416,7 +456,9 @@ def subtitles_for(
             break
     px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
     arts = []
-    emph = pick_emphasis(lines, keywords, start=hook_n)
+    emph = pick_emphasis(lines, keywords, start=hook_n, sag=emph_sag)
+    # 훅 자막은 첫 문장을 이어 붙여 핵심(따옴표 안 발언)을 찾으므로 그대로 두고, 그 뒤 자막만 짝을 맞춘다
+    texts = pair_quotes([c.text for c in lines]) if quote_pairs else [c.text for c in lines]
     hook = (
         (" ".join(c.text.strip() for c in lines[:hook_n]), lines[0].start, lines[hook_n - 1].end)
         if hook_n
@@ -431,10 +473,10 @@ def subtitles_for(
             # 직접 인용(노랑)은 손글씨 글꼴로 — 그 사람이 한 말처럼 보이게
             font = QUOTE_FONT if emph[k] == EMPH_YELLOW else None
             out = asset_dir / "subtitles" / f"emph_{k:03d}.png"
-            art = render_emph(cue.text, out, size, color=emph[k], font_path=font)
+            art = render_emph(texts[k], out, size, color=emph[k], font_path=font)
         else:
             art = render_cue(
-                cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px
+                texts[k], asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px
             )
         if art is not None:
             arts.append(replace(_timed(art, cue.start, cue.end), top=art.top + sub_shift))
@@ -486,6 +528,8 @@ def build_plan(
         words=words,
         hook_mode=st.hook,
         sub_shift=st.sub_shift,
+        emph_sag=st.emph_sag,
+        quote_pairs=st.quote_pairs,
     )
     cues = [c for c in cues if c.start < total]
     # 컷 편집: 자막이 바뀌는 때(훅 조각 포함)에 맞춰 사진을 바꾼다. max_shot_sec를 주면 예전 방식(길이로만 나눔)
@@ -573,6 +617,7 @@ def build_plan(
         bgm=bgm,
         photo_box=box_of(st),
         photo_fade=_photo_fade(asset_dir, style),
+        peak=st.peak,
     )
 
 
