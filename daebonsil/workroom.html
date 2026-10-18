@@ -289,6 +289,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div id="audio-state"></div>
     <canvas class="wave" id="wave" width="900" height="72" hidden></canvas>
     <div class="facts" id="audio-facts"></div>
+    <div id="audio-play" class="bgmrow"></div>
     <div class="row"><span class="spacer"></span><button class="btn primary" id="to-sources" type="button">다음: 자료·XML</button></div>
   </section>
 
@@ -1135,6 +1136,12 @@ function renderVoice() {
   fillTc(); $('#tc-go').disabled = !tts;
   watchRequest('voice', p.voice_request_id || null);
   const a = p.audio;
+  // 올린 음성(타입캐스트로 만든 것 포함) 바로 듣기 — 바뀔 때만 다시 그려 듣는 중에 끊기지 않게
+  const play = $('#audio-play'), aid = (a && a.asset_id) || '';
+  if (play.dataset.id !== aid) {
+    play.dataset.id = aid;
+    play.innerHTML = aid ? `<span class="small"><b>음성 듣기</b></span><audio controls preload="none" src="/_blob/${esc(aid)}"></audio>` : '';
+  }
   if (!a) { $('#audio-facts').innerHTML = ''; return; }
   const target = S.meta ? S.meta.formats[p.format].minutes * 60 : 0;
   $('#audio-facts').innerHTML = `<div class="fact"><div class="k">파일</div><div class="v" style="font-size:14px;overflow-wrap:anywhere">${esc(a.name)}</div></div>
