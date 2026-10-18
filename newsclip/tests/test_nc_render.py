@@ -179,3 +179,29 @@ def test_hook_colors_yellow_text_red_keywords(tmp_path):
     reds = sum(1 for r, g, b in pixels if r > 200 and g < 120 and b < 120)
     yellows = sum(1 for r, g, b in pixels if r > 230 and g > 200 and b < 120)
     assert reds > 500 and yellows > 500
+
+
+def test_shots_split_long_scenes_and_alternate_photos(tmp_path):
+    from newsclip.shorts_render import shots_for
+
+    for name in ("assets/a1.jpg", "assets/a2.jpg", "assets/b1.jpg"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (1080, 1920), (90, 90, 90)).save(tmp_path / name)
+    scenes = [
+        {
+            "id": "s001",
+            "start": 0,
+            "end": 6,
+            "chosen": "assets/a1.jpg",
+            "files": ["assets/a1.jpg", "assets/a2.jpg"],
+        },
+        {"id": "s002", "start": 6, "end": 8, "chosen": "assets/b1.jpg", "files": ["assets/b1.jpg"]},
+    ]
+    plain = shots_for(scenes, tmp_path, 8.0, {})
+    assert len(plain) == 2
+    split = shots_for(scenes, tmp_path, 8.0, {}, max_shot_sec=2.5)
+    assert len(split) == 4  # 6초 장면은 3조각, 2초 장면은 그대로
+    assert [round(s.end - s.start, 2) for s in split] == [2.0, 2.0, 2.0, 2.0]
+    assert [s.path.name for s in split[:3]] == ["a1.jpg", "a2.jpg", "a1.jpg"]  # 같은 장면의 사진을 번갈아
+    assert split[0].zoom != split[1].zoom  # 줌 방향도 번갈아
+    assert split[0].start == 0.0 and split[-1].end == 8.0

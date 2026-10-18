@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -41,21 +42,51 @@ def caption_name(attribution: str) -> str:
     return f"captions/cap_{hashlib.sha1(attribution.encode()).hexdigest()[:8]}.png"
 
 
-def shots_for(scenes: list[dict], asset_dir: Path, total: float, videos: dict[str, Path]) -> list[Shot]:
-    """장면 → 화면 조각. 장면 사이 틈은 앞 조각을 늘려 메운다. videos[장면 id]가 있으면 그 장면은 영상(길이 안)으로."""
+def _photo_pool(sc: dict, asset_dir: Path) -> list[Path]:
+    """장면의 사진 목록: 골라 쓴 사진 먼저, 그다음 같은 장면의 다른 후보 사진."""
+    names = [sc["chosen"]] + [n for n in sc.get("files", []) if n != sc["chosen"] and n.startswith("assets/")]
+    return [asset_dir / n for n in names if (asset_dir / n).exists()]
+
+
+def _pieces(start: float, end: float, max_sec: float | None) -> list[tuple[float, float]]:
+    """장면을 max_sec 이하 조각으로 나눈다(사진 간격 줄이기). max_sec가 없으면 그대로."""
+    if not max_sec or end - start <= max_sec:
+        return [(start, end)]
+    k = math.ceil((end - start) / max_sec)
+    step = (end - start) / k
+    return [(start + i * step, start + (i + 1) * step) for i in range(k)]
+
+
+def shots_for(
+    scenes: list[dict],
+    asset_dir: Path,
+    total: float,
+    videos: dict[str, Path],
+    max_shot_sec: float | None = None,
+) -> list[Shot]:
+    """장면 → 화면 조각. 장면 사이 틈은 앞 조각을 늘려 메운다. videos[장면 id]가 있으면 그 장면은 영상(길이 안)으로.
+    max_shot_sec를 주면 사진 한 장이 그보다 길게 나오지 않도록 장면을 나눈다(같은 장면의 다른 사진을 번갈아 쓴다)."""
     shots: list[Shot] = []
-    for n, sc in enumerate(sorted(scenes, key=lambda s: s["start"]), start=1):
+    count = 0  # 줌 방향을 조각 순서대로 번갈아 쓰려고 센다(나누지 않으면 장면 번호와 같다)
+    for sc in sorted(scenes, key=lambda s: s["start"]):
         start, end = float(sc["start"]), float(sc["end"])
-        photo = asset_dir / sc["chosen"]
-        zoom = (1.0, 1.04) if n % 2 else (1.04, 1.0)  # 홀수 장면 줌인, 짝수 줌아웃(fcpxml과 같은 규칙)
         clip = videos.get(sc["id"])
         if clip is not None:
+            count += 1
             span = min(end - start, probe_duration(clip))
             shots.append(Shot(clip, "video", start, start + span, in_sec=0.0))
             if start + span < end:
-                shots.append(Shot(photo, "image", start + span, end, zoom=zoom))
-        else:
-            shots.append(Shot(photo, "image", start, end, zoom=zoom))
+                zoom = (1.0, 1.04) if count % 2 else (1.04, 1.0)
+                shots.append(Shot(asset_dir / sc["chosen"], "image", start + span, end, zoom=zoom))
+            continue
+        pool = _photo_pool(sc, asset_dir)
+        for i, (a, b) in enumerate(_pieces(start, end, max_shot_sec)):
+            count += 1
+            zoom = (
+                (1.0, 1.04) if count % 2 else (1.04, 1.0)
+            )  # 홀수 조각 줌인, 짝수 줌아웃(fcpxml과 같은 규칙)
+            photo = pool[i % len(pool)] if pool else asset_dir / sc["chosen"]
+            shots.append(Shot(photo, "image", a, b, zoom=zoom))
     if shots:
         shots[0] = replace(shots[0], start=0.0)
         shots[-1] = replace(shots[-1], end=total)
@@ -141,13 +172,14 @@ def build_plan(
     bgm: Path | None = None,
     videos: dict[str, Path] | None = None,
     keywords: set[str] = frozenset(),
+    max_shot_sec: float | None = None,
 ) -> RenderPlan:
     """프로젝트 dict(script, thumb, scenes) + 자료 폴더 + 음성 → 렌더 계획."""
     from newsclip.autosub import wav_duration
 
     total = wav_duration(audio)
     scenes = project["scenes"]
-    shots = shots_for(scenes, asset_dir, total, videos or {})
+    shots = shots_for(scenes, asset_dir, total, videos or {}, max_shot_sec)
     # 핵심어: 호출자가 준 말 + 첫 장면 검색어의 말(훅에서 빨간색으로 강조)
     first = min(scenes, key=lambda s: float(s["start"]))
     query_words = {w for w in str(first.get("query", "")).split() if len(w) >= 2}
@@ -205,6 +237,16 @@ def render_short(
     bgm: Path | None = None,
     videos: dict[str, Path] | None = None,
     keywords: set[str] = frozenset(),
+    max_shot_sec: float | None = None,
 ) -> Path:
-    plan = build_plan(project, asset_dir, audio, srt=srt, bgm=bgm, videos=videos, keywords=keywords)
+    plan = build_plan(
+        project,
+        asset_dir,
+        audio,
+        srt=srt,
+        bgm=bgm,
+        videos=videos,
+        keywords=keywords,
+        max_shot_sec=max_shot_sec,
+    )
     return render(plan, out)
