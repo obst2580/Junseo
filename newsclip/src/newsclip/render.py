@@ -118,6 +118,7 @@ def render_cue(
     size: tuple[int, int],
     keywords: set[str] = frozenset(),
     px: int = SUB_PX,
+    center_y: int | None = None,
 ) -> CueArt | None:
     """자막 한 블록(줄바꿈은 \\n)을 검은 상자 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다."""
     lines = [ln for ln in text.split("\n") if ln.strip()]
@@ -152,7 +153,10 @@ def render_cue(
             x += draw.textlength(word, font=font)
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
-    top = SUB_BOTTOM - bh if h > w else round(h * 0.75)
+    if center_y is not None:
+        top = center_y - bh // 2  # 훅 자막: 사진 칸 가운데
+    else:
+        top = SUB_BOTTOM - bh if h > w else round(h * 0.75)
     return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top)
 
 

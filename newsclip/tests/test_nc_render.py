@@ -148,3 +148,15 @@ def test_other_day_photo_flag_marks_caption(tmp_path):
     assert caption_for(scene, asset) == "다른 날 사진 · 출처: imgnews.naver.net"
     scene.other_day = False
     assert caption_for(scene, asset) == "출처: imgnews.naver.net"
+
+
+def test_hook_cue_centered_and_big(tmp_path):
+    from newsclip.shorts_render import wrap_hook
+
+    assert wrap_hook("이재명이 또 해냈습니다") == "이재명이 또\n해냈습니다"
+    normal = render_cue("이재명이 또 해냈습니다", tmp_path / "n.png", (1080, 1920), px=84)
+    hook = render_cue(
+        wrap_hook("이재명이 또 해냈습니다"), tmp_path / "h.png", (1080, 1920), px=124, center_y=965
+    )
+    assert hook.height > normal.height * 1.5 and hook.width <= 1080
+    assert abs((hook.top + hook.height / 2) - 965) <= 1

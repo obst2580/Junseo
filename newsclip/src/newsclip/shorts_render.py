@@ -18,6 +18,9 @@ from newsclip.render import CueArt, Overlay, RenderPlan, Shot, fit_sub_px, rende
 from newsclip.sfx import ensure_sfx, sfx_cues
 
 SIZE = (1080, 1920)
+HOOK_SEC = 1.5  # 첫 문장을 크게 띄우는 시간(초)
+HOOK_PX = 124  # 훅 자막 글자 크기(px, 폭이 넘으면 자동으로 줄어든다)
+HOOK_CENTER_Y = 965  # 훅 자막 가운데 위치(사진 칸 560~1370의 가운데)
 
 
 def probe_duration(path: Path) -> float:
@@ -61,6 +64,22 @@ def shots_for(scenes: list[dict], asset_dir: Path, total: float, videos: dict[st
     return [s for s in filled if s.end > s.start]
 
 
+def wrap_hook(text: str, limit: int = 8) -> str:
+    """훅 자막은 크게 띄우므로 한 줄을 공백 뺀 8글자 안쪽으로 다시 나눈다."""
+    lines: list[str] = []
+    cur = ""
+    for word in text.replace("\n", " ").split():
+        cand = f"{cur} {word}".strip()
+        if cur and len(cand.replace(" ", "")) > limit:
+            lines.append(cur)
+            cur = word
+        else:
+            cur = cand
+    if cur:
+        lines.append(cur)
+    return "\n".join(lines)
+
+
 def subtitles_for(
     script: str, audio: Path, size: tuple[int, int], asset_dir: Path, keywords: set[str]
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo]:
@@ -74,8 +93,24 @@ def subtitles_for(
         art = render_cue(
             cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px
         )
-        if art is not None:
-            arts.append(_timed(art, cue.start, cue.end))
+        if art is None:
+            continue
+        if k == 0 and cue.start < HOOK_SEC:
+            # 첫 문장은 첫 1.5초 동안 화면 가운데에 크게 띄운 뒤, 아래 자막으로 이어 간다
+            hook_end = min(HOOK_SEC, cue.end)
+            hook = render_cue(
+                wrap_hook(cue.text),
+                asset_dir / "subtitles" / "hook.png",
+                size,
+                keywords=keywords,
+                px=HOOK_PX,
+                center_y=HOOK_CENTER_Y,
+            )
+            arts.append(_timed(hook, cue.start, hook_end))
+            if cue.end > hook_end:
+                arts.append(_timed(art, hook_end, cue.end))
+            continue
+        arts.append(_timed(art, cue.start, cue.end))
     return arts, [(cue.start, cue.end) for cue in lines], info
 
 
