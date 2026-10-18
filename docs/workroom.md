@@ -117,7 +117,9 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    uv run python -m studio_app.workroom voice --project /tmp/wr/projects/<ID>.json --request /tmp/wr/requests/<요청 ID>.json --out /tmp/wr-voice
    ```
 
-   출력: 목소리·voice_id·속도·길이(초)·글자 수·차감 크레딧. 실패하면(키 없음 401, 크레딧 부족 402, 목소리 못 찾음 등)
+   출력: 목소리·voice_id·속도·읽은 길이·1분 맞춤 배율(`fit`)·길이(초)·글자 수·차감 크레딧. 쇼츠는 읽은 음성이
+   60초를 넘으면 다시 읽지 않고 최대 1.15배까지 빠르게 해 60초에 맞춥니다(낱말 시각도 함께 당김, 크레딧 추가 없음).
+   그래도 60초를 넘으면 note에 `1분 넘음 — 대본 줄이기`를 덧붙입니다. 실패하면(키 없음 401, 크레딧 부족 402, 목소리 못 찾음 등)
    요청을 `error`로, 메시지를 그대로 `error`에 적습니다.
 3. `/tmp/wr-voice/narration.wav`를 `Artifact`(`url`: 제작실, `asset: true`, `file_path`)로 올리고 자산 ID를 받습니다.
 4. 자산 ID를 붙여 프로젝트에 쓸 값을 만듭니다.
@@ -128,7 +130,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 
 5. `ArtifactData update` — `projects/<ID>`에 `file_path: /tmp/wr-voice/update.json`(1단계 `version`으로 `if_version`).
    `audio`에는 `source: "typecast"`와 낱말 시각(`words`)이 들어 있어, 자료를 모을 때 음성을 다시 듣지 않고 그 시각에 맞춥니다.
-6. 요청을 `done`으로, note 예: `이겸 · 속도 1.1 · 57.8초 · 530자(크레딧 530)`.
+6. 요청을 `done`으로, note 예: `이겸 · 속도 1.1 · 57.8초 · 530자(크레딧 530)`, 맞췄으면 `· 61.2초→1.02배`.
 
 ## kind = sources (자료·timeline.xml)
 

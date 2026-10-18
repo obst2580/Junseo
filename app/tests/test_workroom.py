@@ -348,7 +348,7 @@ def test_opinion_body_prefers_body_box_then_og_description():
     assert wr.opinion_body(og).startswith("경복궁이 야외 결혼식")
 
 
-def _typecast_client(seen: list):
+def _typecast_client(seen: list, seconds: float = 3.0):
     import base64
     import io
     import wave
@@ -383,9 +383,9 @@ def _typecast_client(seen: list):
         return httpx.Response(
             200,
             json={
-                "audio": wav_b64(3.0),
+                "audio": wav_b64(seconds),
                 "audio_format": "wav",
-                "audio_duration": 3.0,
+                "audio_duration": seconds,
                 "words": [{"text": w, "start": 0.2 * i, "end": 0.2 * i + 0.18} for i, w in enumerate(words)],
                 "characters": [],
             },
@@ -412,6 +412,19 @@ def test_make_voice_with_typecast_then_update_doc(root, tmp_path, monkeypatch):
     doc = wr.voice_doc(tmp_path / "v" / "voice.json", "a" * 32)
     assert doc["status"] == "voice" and doc["audio"]["asset_id"] == "a" * 32
     assert json.loads((tmp_path / "v" / "update.json").read_text(encoding="utf-8")) == doc
+
+
+def test_make_voice_fits_shorts_into_one_minute(root, tmp_path, monkeypatch):
+    """쇼츠는 읽은 음성이 1분을 넘으면 다시 읽지 않고 조금 빠르게 해 60초에 맞춘다(낱말 시각도 함께 당김)."""
+    monkeypatch.setenv("TYPECAST_API_KEY", "test-key")
+    req = {"id": "p3", "format": "shorts", "script": "이재명이 또 해냈습니다. 정말 놀라운 소식입니다.\n"}
+    audio = wr.make_voice(req, tmp_path / "v", {"name": "이겸"}, client=_typecast_client([], seconds=63.0))
+    assert audio["read_duration"] == 63.0 and audio["fit"] == 1.05
+    assert 59.9 <= audio["duration"] <= 60.05
+    assert audio["words"][1][1] == round(0.2 / 1.05, 3)
+    long = {**req, "id": "p4", "format": "long"}
+    audio = wr.make_voice(long, tmp_path / "w", {"name": "이겸"}, client=_typecast_client([], seconds=63.0))
+    assert audio["fit"] == 1.0 and audio["duration"] == 63.0
 
 
 def test_sources_use_typecast_word_times(root, tmp_path):
