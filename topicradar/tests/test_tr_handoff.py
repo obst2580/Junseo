@@ -277,3 +277,30 @@ def test_conservative_profile_rules():
     )
     # 정치 채널 규칙은 그대로
     assert prompts.PROFILES["politics"]["identity"] == prompts.IDENTITY and "친이재명" in prompts.IDENTITY
+
+
+def test_health_profile_rules(monkeypatch):
+    """건강 채널(널스윤서): 쇼츠만, 간호사 친구 말투, 근거 규칙·넘지 않는 선, 설명란 고지, 이달의 계절 주제."""
+    from studio_core.config import ChannelConfig, Settings, load_channel
+    from topicradar import prompts
+    from topicradar.handoff import channel_rules
+
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-18T09:00:00")
+    root = __import__("pathlib").Path(__file__).resolve().parents[2]
+    monkeypatch.setenv("STUDIO_CHANNEL", "health")
+    cfg = load_channel(Settings(root=root))
+    assert cfg.channel.profile == "health" and cfg.channel.name == "널스윤서"
+    assert cfg.communities == [] and cfg.images.sources[0] == "pexels_video"
+    r = channel_rules(cfg)
+    assert list(r["formats"]) == ["shorts"]
+    rules = r["rules"]
+    assert rules["identity"] == prompts.HEALTH_IDENTITY and "전직 간호사" in rules["identity"]
+    assert "동물" in rules["script_rules"] and "약을 끊거나" in rules["script_rules"]
+    assert "건강기능식품" in rules["risk"]["legal_words"] and "완치" in rules["risk"]["legal_words"]
+    assert "간호사" in rules["tone_rules"] and rules["shorts_outro"].startswith("지금까지 널스윤서였습니다!")
+    assert "진단이나 치료를 대신하지 않습니다" in rules["notice"]
+    assert "독감 예방접종" in rules["season"]  # 10월
+    assert "독감 예방접종" in cfg.sources.queries_now(10) and "질병관리청" in cfg.sources.queries_now(10)
+    assert "독감 예방접종" not in cfg.sources.queries_now(6)
+    base = channel_rules(ChannelConfig())["rules"]
+    assert base["notice"] == "" and base["season"] == []

@@ -59,8 +59,9 @@ def build_collectors(
         OverseasCollector(overseas, client),  # type: ignore[arg-type]
         ManualScheduleCollector(settings.data_dir / "schedule"),
     ]
-    if cfg.sources.naver_queries:
-        cols.append(NaverNewsCollector(cfg.sources.naver_queries, client))  # type: ignore[arg-type]
+    queries = cfg.sources.queries_now(now_kst().month)  # 고정 검색어 + 이달의 계절 주제(건강 채널)
+    if queries:
+        cols.append(NaverNewsCollector(queries, client))  # type: ignore[arg-type]
     if cfg.communities:
         cols.append(
             CommunityCollector(
@@ -88,7 +89,7 @@ async def run_collect(
             [s for s in report.signals if s.kind in ("community", "opinion")],
             cfg.board.derived_queries,
             set(cfg.clustering.generic_tokens),
-            exclude=set(cfg.sources.naver_queries),
+            exclude=set(cfg.sources.queries_now(now_kst().month)),
         )
         if queries:
             extra = await collect_all([NaverNewsCollector(queries, client)], since)  # type: ignore[arg-type]

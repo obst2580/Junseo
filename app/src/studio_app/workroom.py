@@ -140,12 +140,13 @@ def chunk(items: list[dict], key: str, limit: int = DOC_LIMIT) -> list[dict]:
     return [{key: part} for part in out if part]
 
 
-async def collect(out: Path, hours: int = 24) -> dict:
-    """수집 → out/meta.json, posts-N.json, articles-N.json. 반환: meta."""
+async def collect(out: Path, hours: int | None = None) -> dict:
+    """수집 → out/meta.json, posts-N.json, articles-N.json. 반환: meta. hours를 비우면 채널 설정(board.window_hours)."""
     from topicradar import handoff, pipeline
 
     settings = load_settings()
     cfg = load_channel(settings)
+    hours = hours or cfg.board.window_hours
     now = now_kst()
     with pipeline.open_store(settings) as store:
         last = store.get_meta("last_collect")
@@ -209,15 +210,17 @@ async def collect(out: Path, hours: int = 24) -> dict:
             "title": s.title,
             "summary": (s.summary or "")[:ARTICLE_SUMMARY],
             "url": s.url,
+            **({"kind": "press"} if s.kind == "press" else {}),  # 공공기관 보도자료(건강 채널 근거의 첫째)
         }
         for s in sorted(news, key=lambda s: s.published_at, reverse=True)
         if s.url
     ]
-    # 커뮤니티 화제와 겹치는 기사는 본문까지 받는다(대본의 사실 근거). 증시 채널은 주제를 기사로 정하므로
-    # 최근 기사(시황·종목)도 본문을 받는다 — 숫자(지수·수급·환율)는 본문에 있다.
+    # 커뮤니티 화제와 겹치는 기사는 본문까지 받는다(대본의 사실 근거). 증시·건강 채널은 주제를 기사로 정하므로
+    # 최근 기사도 본문을 받는다 — 숫자(지수·수급·환율, 기준값·연구 규모)는 본문에 있다.
     related = related_articles(posts, articles, set(cfg.clustering.generic_tokens), BODY_ARTICLES)
-    if cfg.channel.profile == "stock":
+    if cfg.channel.profile in ("stock", "health"):
         want = set(related[: BODY_ARTICLES // 3]) | {a["id"] for a in articles[:BODY_ARTICLES]}
+        want |= {a["id"] for a in articles if a.get("kind") == "press"}  # 보도자료는 오래돼도 본문까지
     else:
         want = set(related)
     sem = asyncio.Semaphore(4)
@@ -417,7 +420,8 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dst)
     # 자료를 모은 뒤 바뀐 디자인(바탕·상단 제목)을 지금 디자인으로 맞춘다
-    refreshed = refresh_design(proj, str(req.get("thumb") or ""), load_channel(load_settings()).shorts.style)
+    style = load_channel(load_settings()).shorts.style
+    refreshed = refresh_design(proj, str(req.get("thumb") or ""), style)
     audio = req["audio"]
     narration = out / "narration.wav"  # 자막 분석·렌더는 wav로
     _ffmpeg(
@@ -437,7 +441,15 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
     project = {"script": req["script"], "scenes": req["result"]["scenes"]}
     final = out / "final.mp4"
     render_short(
-        project, proj, narration, final, srt=srt if srt.exists() else None, bgm=bgm_path, words=words, crf=crf
+        project,
+        proj,
+        narration,
+        final,
+        srt=srt if srt.exists() else None,
+        bgm=bgm_path,
+        words=words,
+        crf=crf,
+        style=style,
     )
     if final.stat().st_size > RENDER_MAX_BYTES:  # 한도를 넘으면 화면만 조금 더 압축
         smaller = out / "final-small.mp4"
@@ -691,9 +703,19 @@ async def sources(
         ),
         "asr": asr,
         "base_token": f"file://localhost/{BASE}",
+        # 무료 소재 출처(받은 때·사이트·소재 번호·작가·주소) — 화면에서 설명란용으로 복사, 저작권 신고 이의 제기용
+        "credits": _credits(proj),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
+
+
+def _credits(proj: Path) -> list[str]:
+    """프로젝트의 credits.txt(무료 소재 출처) 줄들. 없으면 빈 목록."""
+    path = proj / "credits.txt"
+    if not path.exists():
+        return []
+    return [ln for ln in path.read_text(encoding="utf-8").splitlines()[1:] if ln.strip()]
 
 
 def is_vertical_format(req: dict) -> bool:
@@ -773,7 +795,7 @@ def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None
             missing.append(name)
     if missing:
         raise ValueError(f"자산 ID가 없는 파일 {len(missing)}개: {', '.join(missing[:10])}")
-    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr", "size")
+    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr", "size", "credits")
     result = {k: manifest[k] for k in keys if k in manifest}
     result.update(
         files=files,
@@ -843,7 +865,9 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("collect")
     c.add_argument("--out", type=Path, required=True)
-    c.add_argument("--hours", type=int, default=24)
+    c.add_argument(
+        "--hours", type=int, help="최근 몇 시간(비우면 채널 설정 board.window_hours — 보통 24, 건강 48)"
+    )
     s = sub.add_parser("sources")
     s.add_argument("--project", type=Path, required=True)
     s.add_argument("--out", type=Path, required=True)

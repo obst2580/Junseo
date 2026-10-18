@@ -191,7 +191,7 @@ footer { font-size: 13px; color: var(--muted); }
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="right">자유뉴스365</option><option value="stock">오늘증시 김시연</option></select></label><span class="by" id="by"></span></div>
+    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="right">자유뉴스365</option><option value="stock">오늘증시 김시연</option><option value="health">널스윤서</option></select></label><span class="by" id="by"></span></div>
     <p class="lede" id="lede"></p>
     <div class="row" id="status"></div>
   </header>
@@ -257,6 +257,7 @@ footer { font-size: 13px; color: var(--muted); }
       <div class="t"><span id="thumb-label">썸네일</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="thumb" maxlength="20"><span class="count" id="thumb-n"></span></div></div>
       <div class="t"><span>해시태그</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="tags" maxlength="400" spellcheck="false"><button class="btn small" id="tags-copy" type="button">복사</button></div></div>
       <div class="t" id="pin-row" hidden><span>고정 댓글</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="pin" maxlength="120" title="영상을 올린 뒤 댓글로 달고 고정하세요 — 시청자 의견을 끌어냅니다"><button class="btn small" id="pin-copy" type="button">복사</button></div></div>
+      <div class="t" id="notice-row" hidden><span>설명란 고지</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="notice" readonly title="영상 설명란에 붙이세요(채널 설정 script.notice)"><button class="btn small" id="notice-copy" type="button">복사</button></div></div>
     </div>
     <div class="row"><span class="spacer"></span><button class="btn primary" id="to-voice" type="button">다음: 음성</button></div>
   </section>
@@ -343,9 +344,14 @@ const CHANNELS = {
     lede: '국민의힘 지지 중심의 강경 보수 <b>논평</b> 채널 영상을 만듭니다(뉴스 전달이 아니라 의견). 시선은 <b>보수 언론 사설·칼럼</b>(조선·동아·한경·데일리안·펜앤드마이크)에서 가져오고, 사실은 기사로만 씁니다. 부정선거 음모론·5·18 왜곡·계엄 미화·혐오 표현은 쓰지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
   stock: { name: '오늘증시 김시연', prefix: 'stock_', tags: ['주식', '증시뉴스'], by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
     lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
+  health: { name: '널스윤서', prefix: 'health_', tags: ['건강', '건강정보'], by: 'studio · 보도자료·건강 기사로 고르고, 친구처럼 쉽게, 쇼츠까지',
+    lede: '40~50대를 위한 건강 정보 <b>세로 쇼츠</b>를 만듭니다. 진행자는 전직 간호사 윤서 — 또래 친구처럼 쉽게 풀어 줍니다. 주제·사실은 <b>공공기관 보도자료·의학 전문지·건강 기사</b>와 이달의 계절 주제로만 정하고(커뮤니티는 쓰지 않음), 근거의 무게(공공기관·진료지침·연구 종류)를 밝힙니다. 진단·처방, 약을 바꾸라는 말, 제품·건강기능식품 효능 광고는 하지 않습니다. 화면은 <b>Pexels·Pixabay 영상·사진을 자동으로</b> 모으고, 숫자는 표·차트 컷으로 지나갑니다.' },
 };
-const CH = CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
+const LOCKED = /*__CHANNEL__*/null;  // 채널 하나만 쓰는 제작실(build.py --channel)이면 그 채널로 고정
+const CH = LOCKED && CHANNELS[LOCKED] ? LOCKED : CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
 const STOCK = CH === 'stock';
+const HEALTH = CH === 'health';  // 건강 채널: 증시처럼 기사로만 주제를 정하고(커뮤니티 없음), 세로 쇼츠만
+const NEWS = STOCK || HEALTH;  // 기사로만 주제를 정하는 채널
 const RIGHT = CH === 'right';  // 보수 채널: 게시판 글 자리에 사설·칼럼이 함께 들어온다
 const COL = n => CHANNELS[CH].prefix + n;  // raw → stock_raw, topics → stock_topics, projects → stock_projects
 const lsk = k => (CH === 'politics' ? k : `${k}:${CH}`);  // 채널마다 따로 기억할 것(열어 둔 프로젝트 등)
@@ -480,20 +486,31 @@ function renderSites() {
 /* ---------- 1. 주제 묶기(Claude) ---------- */
 function groupPrompt() {
   // 증시는 뉴스만: 커뮤니티 글은 보내지 않는다
-  const m = S.meta, posts = STOCK ? [] : activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 120);
+  const m = S.meta, posts = NEWS ? [] : activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 120);
   const pmap = {}, amap = {};
   const P = posts.map((p, i) => { const id = 'p' + (i + 1); pmap[id] = p.id; return {
     id, site: p.site, ...(p.kind ? { kind: p.kind } : {}), title: p.title, comments: p.comments, votes: p.votes,
     body: (p.body || '').slice(0, p.kind === 'opinion' ? 300 : 150),  // 사설·칼럼은 주장이 본문에 있어 조금 길게
     top_comments: (p.top_comments || []).slice(0, 3).map(c => ({ text: c.text.slice(0, 100), votes: c.votes })) }; });
   // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만). 마감 시황 기사를 앞에, 같은 제목 되풀이는 하나만
-  const A = (STOCK ? stockPick(S.articles, 260) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
-    return STOCK ? { id, source: a.source, title: a.title, summary: (a.summary || '').slice(0, 120) } : { id, title: a.title }; });
+  const A = (STOCK ? stockPick(S.articles, 260) : HEALTH ? healthPick(S.articles, 220) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
+    return NEWS ? { id, source: a.source, ...(a.kind ? { kind: a.kind } : {}), title: a.title, summary: (a.summary || '').slice(0, 120) } : { id, title: a.title }; });
   const text = [m.rules.identity, m.rules.group_task,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
     `{"topics":[{"id":"t1","name":"…","category":"…","angle":"${angles()[0]}","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}`,
-    ...(STOCK ? [] : ['', 'posts:', JSON.stringify(P)]), '', 'articles:', JSON.stringify(A)].join('\n');
+    ...(HEALTH && m.rules.season && m.rules.season.length ? ['', 'season(이달의 계절 주제): ' + JSON.stringify(m.rules.season)] : []),
+    ...(NEWS ? [] : ['', 'posts:', JSON.stringify(P)]), '', 'articles:', JSON.stringify(A)].join('\n');
   return { text, pmap, amap };
+}
+function healthPick(arts, n) {  // 공공기관 보도자료 먼저, 그다음 최신 순 — 같은 제목 되풀이는 하나만
+  const seen = new Set(), out = [];
+  for (const a of [...arts.filter(x => x.kind === 'press'), ...arts.filter(x => x.kind !== 'press')]) {
+    const k = String(a.title || '').replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g, '').slice(0, 16);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(a);
+    if (out.length >= n) break;
+  }
+  return out;
 }
 const WRAP_RE = /마감|코스피|코스닥|뉴욕증시|나스닥|다우|환율|외국인|순매수|순매도/;
 function stockPick(arts, n) {  // 마감 시황·지수 기사 먼저, 그다음 최신 순 — 제목 앞 16자가 같은 기사(종합·속보 꼬리 무시)는 하나만
@@ -527,7 +544,7 @@ const angleBadge = a => !a ? '' : `<span class="badge ${a === '당내 비판' ? 
 const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
 async function runGroup() {
   if (!claudeOk() || ctl || !S.meta) return;
-  if (!(STOCK ? S.articles.length : S.posts.length)) { toast(`수집된 ${STOCK ? '기사' : '글'}가 없습니다. [새로 모으기]를 먼저 눌러 주세요.`, true); return; }
+  if (!(NEWS ? S.articles.length : S.posts.length)) { toast(`수집된 ${NEWS ? '기사' : '글'}가 없습니다. [새로 모으기]를 먼저 눌러 주세요.`, true); return; }
   const { text, pmap, amap } = groupPrompt();
   ctl = new AbortController();
   $('#group').disabled = true; $('#group-stop').hidden = false; $('#group-msg').innerHTML = '';
@@ -538,19 +555,19 @@ async function runGroup() {
     const topics = [];
     for (const t of (res && Array.isArray(res.topics) ? res.topics : [])) {
       const post_ids = [...new Set(strList(t.post_ids, 40).map(x => pmap[x]).filter(Boolean))];
-      const article_ids = [...new Set(strList(t.article_ids, STOCK ? 8 : 6).map(x => amap[x]).filter(Boolean))];
+      const article_ids = [...new Set(strList(t.article_ids, NEWS ? 8 : 6).map(x => amap[x]).filter(Boolean))];
       // 정치는 커뮤니티 글이 있어야 주제, 증시는 기사만 있어도 주제
-      if (!(STOCK ? article_ids.length : post_ids.length) || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
+      if (!(NEWS ? article_ids.length : post_ids.length) || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
       const angle = angles().includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '';
       topics.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(), angle,
         post_ids, article_ids, stance: String(t.stance).trim(), points: strList(t.points, 4),
         minority: String(t.minority || '').trim() || null, questions: strList(t.questions, 2),
-        heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean), STOCK ? article_ids.length : 0) });
+        heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean), NEWS ? article_ids.length : 0) });
     }
     if (!topics.length) throw { code: 'invalid_json' };
     // 커뮤니티 반응이 큰 순(당내 비판도 뒤로 미루지 않는다)
     // 증시는 Claude가 매긴 순서(시장 영향이 큰 순)를 그대로 쓴다
-    if (!STOCK) topics.sort((a, b) => b.heat.score - a.heat.score);
+    if (!NEWS) topics.sort((a, b) => b.heat.score - a.heat.score);
     topics.forEach((t, i) => { t.id = 'T' + (i + 1); });
     const keyToId = Object.fromEntries(topics.map(t => [t.key, t.id]));
     const bundles = [];
@@ -576,8 +593,9 @@ function renderTopics() {
   const m = S.meta;
   $('#raw-meta').innerHTML = m
     ? (STOCK ? `최근 24시간 증시 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
+      : HEALTH ? `건강 기사·보도자료 <b>${m.articles}</b>건(보도자료 ${S.articles.filter(a => a.kind === 'press').length}건 · 본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}${m.rules && m.rules.season && m.rules.season.length ? ` · 이달의 계절 주제: ${esc(m.rules.season.join(', '))}` : ''}`
       : `최근 24시간 커뮤니티 글 <b>${activePosts().length}</b>개 · 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`)
-    : `아직 모은 ${STOCK ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스' : '커뮤니티·뉴스'}를 모읍니다.`;
+    : `아직 모은 ${NEWS ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스' : HEALTH ? '보도자료·건강 기사' : '커뮤니티·뉴스'}를 모읍니다.`;
   const T = S.topics;
   const fresh = T && m && T.raw_at === m.collected_at;
   $('#group').textContent = T ? (fresh ? 'Claude로 다시 묶기' : '새 글로 다시 묶기') : 'Claude로 주제 묶기·의견 정리';
@@ -585,7 +603,7 @@ function renderTopics() {
   if (!T || !T.topics.length) {
     $('#topics-wrap').hidden = true; $('#bundles-wrap').hidden = true; $('#pickbar').hidden = true;
     const top = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 8);
-    if (STOCK) { const ar = S.articles.slice(0, 8); $('#topics-empty').innerHTML = ar.length ? `<div class="note info"><b class="t">최근 증시 기사</b>Claude가 기사를 이슈로 묶고, 이슈마다 핵심 숫자와 원인을 정리합니다.</div>
+    if (NEWS) { const ar = HEALTH ? healthPick(S.articles, 8) : S.articles.slice(0, 8); $('#topics-empty').innerHTML = ar.length ? `<div class="note info"><b class="t">${HEALTH ? '최근 건강 기사·보도자료' : '최근 증시 기사'}</b>${HEALTH ? 'Claude가 기사를 주제로 묶고, 주제마다 핵심과 근거 수준(공공기관·진료지침·연구 종류)을 정리합니다.' : 'Claude가 기사를 이슈로 묶고, 이슈마다 핵심 숫자와 원인을 정리합니다.'}</div>
       <ul class="postlist" style="margin-top:8px">${ar.map(a => `<li><span class="num">${esc(when(a.time).split(' ').pop())}</span><span>${esc(a.title)} <span class="small muted">${esc(a.source)}</span></span></li>`).join('')}</ul>` : ''; return; }
     $('#topics-empty').innerHTML = top.length ? `<div class="note info"><b class="t">반응 큰 글</b>Claude가 이 글들을 주제로 묶고 커뮤니티 의견을 정리합니다.</div>
       <ul class="postlist" style="margin-top:8px">${top.map(p => `<li><span class="num">댓글 ${p.comments}${p.votes ? `<br>공감 ${p.votes}` : ''}</span><span>${esc(p.title)} <span class="small muted">${esc(p.site)}</span></span></li>`).join('')}</ul>` : '';
@@ -603,7 +621,7 @@ function renderTopics() {
   const postsById = Object.fromEntries(S.posts.map(p => [p.id, p]));
   const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
   $('#topics-wrap').hidden = false;
-  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
+  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : HEALTH ? '40~50대에게 가깝고 근거 탄탄한 순' : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
   $('#topics').innerHTML = T.topics.map((t, i) => {
     const on = S.picked.includes(t.id), order = S.picked.indexOf(t.id) + 1;
     const posts = t.post_ids.map(x => postsById[x]).filter(Boolean);
@@ -611,15 +629,15 @@ function renderTopics() {
     const sites = [...new Set(posts.map(p => p.site))].join('·');
     return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
       <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
-      ${STOCK ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건 · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
-      ${STOCK ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
-      <div class="stance"><span class="tag">${STOCK ? '핵심' : RIGHT ? '채널 시선' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
+      ${NEWS ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건${HEALTH && arts.some(a => a.kind === 'press') ? ' · <b>보도자료</b>' : ''} · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
+      ${NEWS ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
+      <div class="stance"><span class="tag">${NEWS ? '핵심' : RIGHT ? '채널 시선' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
+      ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : HEALTH ? '한계·주의' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
       ${t.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(t.questions.join(' / '))}</div>` : ''}
-      <details class="ev"><summary>근거 보기 · ${STOCK ? '' : `글 ${posts.length} · `}기사 ${arts.length}</summary>
+      <details class="ev"><summary>근거 보기 · ${NEWS ? '' : `글 ${posts.length} · `}기사 ${arts.length}</summary>
         <ul>${posts.map(p => `<li>[${esc(p.site)} · 댓글 ${p.comments}${p.votes ? ` · 공감 ${p.votes}` : ''}] ${esc(p.title)}${(p.top_comments || []).slice(0, 2).map(c => `<br><span class="muted">└ [공감 ${c.votes}] ${esc(c.text)}</span>`).join('')}</li>`).join('')}</ul>
-        ${arts.length ? `<ul>${arts.map(a => `<li>[${esc(a.source)} ${esc(when(a.time).split(' ').pop())}] <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>${a.body ? ' <span class="badge ok">본문</span>' : ''}</li>`).join('')}</ul>` : ''}
+        ${arts.length ? `<ul>${arts.map(a => `<li>[${esc(a.source)} ${esc(when(a.time).split(' ').pop())}]${a.kind === 'press' ? ' <span class="badge ok">보도자료</span>' : ''} <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>${a.body ? ' <span class="badge ok">본문</span>' : ''}</li>`).join('')}</ul>` : ''}
       </details></div></div>`;
   }).join('');
   $$('[data-pick]').forEach(c => c.onchange = () => {
@@ -629,8 +647,9 @@ function renderTopics() {
   });
   const n = S.picked.length;
   $('#pickbar').hidden = !n;
-  $('#pick-sum').innerHTML = `고른 주제 <b>${n}</b>개${n > 3 ? ' · <span style="color:var(--bad)">10분 묶음은 3개까지</span>' : n === 1 ? ' · 하나 더 고르면 10분 묶음' : ''}`;
+  $('#pick-sum').innerHTML = HEALTH ? `고른 주제 <b>${n}</b>개${n > 1 ? ' · <span style="color:var(--bad)">쇼츠는 주제 하나</span>' : ''}` : `고른 주제 <b>${n}</b>개${n > 3 ? ' · <span style="color:var(--bad)">10분 묶음은 3개까지</span>' : n === 1 ? ' · 하나 더 고르면 10분 묶음' : ''}`;
   $('#go-short').disabled = n !== 1; $('#go-long').disabled = n < 2 || n > 3;
+  $('#go-short').hidden = !hasFormat('short'); $('#go-long').hidden = !hasFormat('long');  // 건강 채널은 쇼츠만
   $('#go-shorts').hidden = !hasFormat('shorts'); $('#go-shorts').disabled = n !== 1;
 }
 $('#pick-clear').onclick = () => { S.picked = []; renderTopics(); };
@@ -840,9 +859,14 @@ function checkScript() {
     if ([...first].length > SHORTS_HOOK_MAX)
       out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 가장 강력한 소식 하나를 25자 안쪽으로` });
     if (!endQuestion(p))
-      out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
-    if (aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
+      out.push({ bad: true, text: HEALTH ? "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 댓글로 답하기 쉬운 질문 하나('여러분은 [습관] 몇 번 하세요?')"
+        : "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
+    if (!HEALTH && aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
       out.push({ bad: true, text: "이재명 대통령 사안인데 첫 마디가 '이재명'이 아닙니다 — 첫 문장을 '이재명 대통령이 …'으로" });
+  }
+  if (HEALTH) {  // 건강: 단정·효능 광고·약 바꾸라는 말(식품표시광고법·의료법, 유튜브 의료 잘못된 정보 정책)
+    const risky = ((r.risk && r.risk.legal_words) || []).filter(w => spoken.some(l => l.includes(w)));
+    if (risky.length) out.push({ bad: true, text: `조심할 말: ${risky.join(', ')} — ${(r.risk && r.risk.legal_note) || '단정·효능 광고 빼기'}` });
   }
   const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
   if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
@@ -865,7 +889,7 @@ function renderScript(fromSnap) {
   const spec = S.meta.formats[p.format];
   $('#fmt-chip').textContent = `${spec.name} · ${spec.target_chars[0].toLocaleString()}~${spec.target_chars[1].toLocaleString()}자${spec.vertical ? ' · 세로 1080×1920' : ''}`;
   $('#thumb-label').textContent = isShorts(p) ? '상단 제목' : '썸네일';
-  $('#thumb').title = isShorts(p) ? `세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(${RIGHT ? '남색·빨강 띠 두 줄' : '두 줄, 둘째 줄 노랑'})` : '';
+  $('#thumb').title = isShorts(p) ? `세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(${RIGHT ? '남색·빨강 띠 두 줄' : HEALTH ? '흰 바탕 두 줄, 첫 줄 검정·둘째 줄 하늘색 강조' : '두 줄, 둘째 줄 노랑'})` : '';
   $('#plan').innerHTML = planItems().map(({ t, order, sec }) => `<div class="item"><span class="rank">${order}</span><b>## ${esc(t.heading)}</b><span class="sec">${sec}초</span><span class="small muted">주장: ${esc(t.stance)}</span>${t.articles.length ? `<span class="badge">기사 ${t.articles.length}</span>` : '<span class="badge warn">기사 없음</span>'}</div>`).join('');
   $('#link-field').hidden = p.format !== 'long';
   const ae = document.activeElement;
@@ -876,6 +900,8 @@ function renderScript(fromSnap) {
   if (ae !== $('#thumb')) $('#thumb').value = p.thumb || '';
   if (ae !== $('#tags')) $('#tags').value = tagLine(p.hashtags);
   $('#pin-row').hidden = !isShorts(p);
+  const notice = String((S.meta && S.meta.rules && S.meta.rules.notice) || '');
+  $('#notice-row').hidden = !notice; $('#notice').value = notice;
   if (ae !== $('#pin')) $('#pin').value = p.pinned_comment || '';
   $('#ti-go').textContent = isShorts(p) ? 'Claude로 제목·상단 제목·해시태그·고정 댓글 만들기' : 'Claude로 제목·썸네일·해시태그 만들기';
   thumbCount();
@@ -901,6 +927,7 @@ const tagLine = tags => cleanTags(tags || []).map(t => '#' + t).join(' ');
 $('#tags').addEventListener('input', e => queueSave({ hashtags: cleanTags(e.target.value.split(/[\s,]+/)) }));
 $('#tags-copy').onclick = () => copyText(tagLine(S.project && S.project.hashtags), '해시태그를');
 $('#pin').addEventListener('input', e => queueSave({ pinned_comment: e.target.value }));
+$('#notice-copy').onclick = () => copyText($('#notice').value, '설명란 고지를');
 $('#pin-copy').onclick = () => copyText((S.project && S.project.pinned_comment) || '', '고정 댓글을');
 function thumbCount() { const n = [...($('#thumb').value || '')].length, max = thumbMax(S.project); const el = $('#thumb-n'); el.textContent = `${n}/${max}`; el.className = 'count' + (n > max ? ' bad' : ''); }
 
@@ -1168,6 +1195,7 @@ $('#tc-go').onclick = async () => {
   const tempo = Math.min(2, Math.max(0.5, parseFloat($('#tc-tempo').value) || 1));
   const sil = $('#tc-silence').value;
   const voice = { name: $('#tc-voice').value.trim(), tempo, remove_silence_ms: sil === '' ? null : Number(sil) };
+  if (HEALTH && !voice.name) { toast('목소리 이름을 적어 주세요(타입캐스트 목소리 이름 — 널스윤서는 기본 목소리 없이 직접 고릅니다).', true); $('#tc-voice').focus(); return; }
   ls.set(lsk('tc_voice'), voice);
   $('#tc-go').disabled = true;
   const r = await requestWork('voice', $('#tc-go'), { voice });
@@ -1425,6 +1453,9 @@ function renderResult() {
       ${skipped.length ? `<span class="small">못 쓴 검색: ${skipped.map(([k, v]) => esc(k + ' — ' + v)).join(' / ')}</span>` : ''}
       ${vidScenes ? `<span class="small">유튜브 영상 후보가 있는 장면 ${vidScenes}개 — 클라우드에서는 영상을 받을 수 없어 링크로 남겼습니다(압축 파일의 <span class="mono">영상후보.txt</span>). 쓰려면 직접 받아 그 장면 위에 얹으세요.</span>` : ''}</div>
     <div class="scenes${res.size && res.size[1] > res.size[0] ? ' tall' : ''}">${sc}</div>
+    ${(res.credits || []).length ? `<h3>화면 소재 출처 <button class="btn small" id="credits-copy" type="button">복사</button></h3>
+      <div class="small muted">Pexels·Pixabay에서 자동으로 받은 소재(받은 때 · 사이트 · 소재 번호 · 작가 · 주소). 화면에 출처를 띄우지 않으니 설명란에 붙이거나, 저작권 신고에 이의를 제기할 때 쓰세요.</div>
+      <ul class="small mono" style="max-height:160px;overflow:auto">${res.credits.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
     <h3>받기</h3>
     <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
       <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
@@ -1433,6 +1464,7 @@ function renderResult() {
     <div class="row"><span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
     <div id="zip-state" class="small"></div>`;
   $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));
+  if ($('#credits-copy')) $('#credits-copy').onclick = () => copyText(res.credits.join('\n'), '소재 출처를');
   $('#zip').onclick = makeZip;
 }
 function folderUrl(folder) {
@@ -1495,7 +1527,9 @@ function renderProjects() {
 /* ---------- 시작 ---------- */
 renderStatus(); renderTopics(); renderTabs();
 if (RIGHT) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>이나 <b>세로 쇼츠</b>(1분), 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 여러 매체가 함께 다룬 순이고, 국민의힘 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.';
+if (HEALTH) $('#pickhint').innerHTML = '주제 하나를 고르면 <b>세로 쇼츠</b>(1분)를 만듭니다. <b>보도자료</b> 표시가 있거나 근거(공공기관·진료지침)가 탄탄한 주제가 좋습니다.';
 if (STOCK) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>, 2~3개를 고르면 <b>10분 시황 브리핑</b>입니다. 고른 순서가 영상 순서입니다. 10분은 <b>시황</b> 이슈를 먼저 고르면 브리핑 흐름이 자연스럽습니다.';
+if (LOCKED) $('.chsel').hidden = true;  // 채널 하나만 쓰는 제작실
 $('#channel').value = CH; $('#by').textContent = CHANNELS[CH].by; $('#lede').innerHTML = CHANNELS[CH].lede;
 $('#channel').onchange = e => { ls.set('channel', e.target.value); location.reload(); };
 setTab((location.hash || '').replace('#', '') || 'topics');

@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from studio_core.config import ChannelConfig
+from studio_core.config import ChannelConfig, now_kst
 from studio_core.text import short_name
 from topicradar import prompts
 from topicradar.board import LEAD_WEIGHT
@@ -107,6 +107,27 @@ STOCK_RISK = {
     "poll_words": ["루머", "카더라", "찌라시"],
     "poll_note": "소문·루머는 쓰지 않기 — 기사로 확인된 것만 단정",
 }
+# 건강 채널: 단정·효능 광고·약 바꾸라는 말(대본 점검에서 경고 — 식품표시광고법·의료법, 유튜브 의료 잘못된 정보 정책)
+HEALTH_RISK = {
+    "legal_words": [
+        "완치",
+        "특효",
+        "기적",
+        "100%",
+        "무조건",
+        "부작용 없",
+        "만 먹으면",
+        "약 끊",
+        "약을 끊",
+        "끊으세요",
+        "의사도 놀란",
+        "건강기능식품",
+    ],
+    "legal_note": "단정·효능 광고·진단·약 바꾸라는 말은 빼기 — 공공기관·학회 지침과 기사로 확인된 것만, 연구 종류를 밝혀서",
+    "poll_words": ["카더라", "민간요법", "한 방에"],
+    "poll_note": "소문·민간요법은 쓰지 않기 — 근거(공공기관·진료지침·연구 종류)를 붙인 것만",
+}
+HEALTH_VAGUE_WORDS = ["면역력", "디톡스", "혈액순환"]
 SHORTS_THUMB_MAX = 14  # 세로 쇼츠 상단 제목(썸네일 문구) 글자 수 — 두 줄로 나눠 영상 내내 위쪽에 띄운다
 STOCK_VAGUE_WORDS = ["호재", "악재", "모멘텀"]
 STOCK_VAGUE_MAX = 3
@@ -117,6 +138,19 @@ def channel_rules(cfg: ChannelConfig) -> dict:
     cpm = cfg.script.chars_per_minute
     prof = prompts.profile(cfg.channel.profile)
     stock = cfg.channel.profile == "stock"
+    health = cfg.channel.profile == "health"
+    risk = (
+        STOCK_RISK
+        if stock
+        else HEALTH_RISK
+        if health
+        else {
+            "legal_words": LEGAL_WORDS,
+            "legal_note": "수사·재판 진행 중: '확인된 사실'과 '의혹·주장'을 구분해 쓰고 확정 표현 금지",
+            "poll_words": POLL_WORDS,
+            "poll_note": "여론조사 인용 시 조사의뢰자·조사기관·조사기간·조사방법·표본크기·오차범위 명시",
+        }
+    )
     return {
         "profile": cfg.channel.profile,
         "channel_name": cfg.channel.name,
@@ -155,17 +189,14 @@ def channel_rules(cfg: ChannelConfig) -> dict:
             "like_ask": cfg.script.like_ask,
             "shorts_thumb_max": SHORTS_THUMB_MAX,
             "fixed_hashtags": cfg.script.fixed_hashtags,
-            "vague_words": STOCK_VAGUE_WORDS if stock else VAGUE_WORDS,
-            "vague_max": STOCK_VAGUE_MAX if stock else VAGUE_MAX,
+            "vague_words": STOCK_VAGUE_WORDS if stock else HEALTH_VAGUE_WORDS if health else VAGUE_WORDS,
+            "vague_max": STOCK_VAGUE_MAX if stock or health else VAGUE_MAX,
             # 표시 전용 리스크(대본 규칙에 같이 넘긴다)
-            "risk": STOCK_RISK
-            if stock
-            else {
-                "legal_words": LEGAL_WORDS,
-                "legal_note": "수사·재판 진행 중: '확인된 사실'과 '의혹·주장'을 구분해 쓰고 확정 표현 금지",
-                "poll_words": POLL_WORDS,
-                "poll_note": "여론조사 인용 시 조사의뢰자·조사기관·조사기간·조사방법·표본크기·오차범위 명시",
-            },
+            "risk": risk,
+            # 영상 설명란에 붙이는 고지(건강 채널: 진단·치료를 대신하지 않는다)
+            "notice": cfg.script.notice,
+            # 이달의 계절 주제(건강 채널 주제 묶기에 넘긴다)
+            "season": cfg.sources.season_queries.get(now_kst().month, []),
         },
     }
 

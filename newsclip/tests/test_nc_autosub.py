@@ -254,3 +254,21 @@ def test_asr_boundaries_between_and_inside_words():
     assert h[1][1] > 0.5 and h[1][2] < 2.2  # 쉼은 '라마'를 말할 시간 뒤, '바사아자'를 말할 시간 앞이어야
     h2 = asr_boundaries(["가나다 라마 바사", "아자"], [("가나다라마바사아자", 0.0, 1.8)])
     assert abs(h2[1][0] - 1.4) < 1e-9  # 한 단어 안(띄어쓰기 차이) → 그 글자 자리
+
+
+def test_align_with_words_survives_all_silent_audio():
+    """음성 분석이 전부 쉼으로 나온 경우(아주 작은 소리)에도 낱말 시각으로 맞추다 멈추지 않는다(예전: IndexError)."""
+    from newsclip.autosub import AudioInfo, align, narration_text, script_phrases
+
+    script = (
+        "## 아침 혈압 재는 법\n혈압, 아무 때나 재고 계시죠?\n"
+        "그런데 대한고혈압학회 진료지침을 보면, 집에서는 아침에 일어나서 한 시간 안에 재라고 하거든요.\n"
+        "화장실 다녀온 뒤에, 약 먹기 전에, 앉아서 5분 쉬고 재는 게 기본이에요.\n그럼 몇이 넘으면 신경 써야 할까요?\n"
+        "집에서 잰 혈압은 135에 85를 넘으면 고혈압으로 본대요.\n병원 기준인 140에 90보다 조금 낮죠?\n"
+        "집이 더 편해서 혈압이 낮게 나오기 때문이래요.\n그러니까 오늘부터 아침마다 두 번 재서 평균을 적어 보세요!\n"
+        "여러분은 혈압 언제 재세요?\n\n지금까지 널스윤서였습니다! 더 건강한 삶을 위해서 영상 오른쪽 하트와 구독 버튼을 눌러주세요!\n"
+    )
+    toks = narration_text(script).split()
+    words = [(t, i * 32.5 / len(toks), (i + 1) * 32.5 / len(toks) - 0.02) for i, t in enumerate(toks)]
+    cues, _ = align(script_phrases(script), AudioInfo(33.0, [(0.0, 33.0)]), words=words)
+    assert cues and cues[-1].end <= 33.0 + 1e-6

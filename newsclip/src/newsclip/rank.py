@@ -107,12 +107,13 @@ def score_asset(
         if a.width >= 1280:
             s += 5
             notes.append("1280+ +5")
-        if a.width > a.height:
+        portrait = cfg.images.orientation == "portrait"  # 세로 쇼츠 채널은 세로 소재가 낫다
+        if (a.height > a.width) if portrait else (a.width > a.height):
             s += 8
-            notes.append("가로형 +8")
-        elif a.height > a.width:
+            notes.append(f"{'세로형' if portrait else '가로형'} +8")
+        elif (a.width > a.height) if portrait else (a.height > a.width):
             s -= 8
-            notes.append("세로형 −8")
+            notes.append(f"{'가로형' if portrait else '세로형'} −8")
         if a.width < 480:
             s -= 10
             notes.append("작은 사진 −10")
@@ -121,7 +122,10 @@ def score_asset(
     if hits:
         s += min(20, 5 * hits)
         notes.append(f"키워드 {hits}개 +{min(20, 5 * hits)}")
-    if a.media == "image":
+    stock_video = (
+        a.media == "video" and a.source in cfg.images.sources
+    )  # 소재 사이트 영상도 제목(설명)이 있다
+    if a.media == "image" or stock_video:
         title = a.title.lower()
         if scene.query:  # 작업자가 대사를 읽고 쓴 검색어 — 그 말이 사진 제목에 있어야 그 장면 사진
             words = [w.lower() for w in scene.query.split() if len(w) >= 2]
@@ -132,6 +136,8 @@ def score_asset(
             elif words:
                 s -= 20
                 notes.append("제목에 검색어 없음 −20")
+    if a.media == "image":
+        title = a.title.lower()
         if a.source_domain in NEWS_PHOTO_HOSTS:
             s += 10
             notes.append("뉴스 사진 +10")
@@ -174,7 +180,7 @@ def rank(
 ) -> list[Asset]:
     """정렬된 후보(차단 제외). 점수·근거는 Asset.score / score_notes에 기록.
     used: 앞 장면들이 이미 고른 자료 ID와 횟수(같은 사진이 영상 내내 되풀이되지 않게 감점)."""
-    route = route_for(scene)
+    route = cfg.images.sources or route_for(scene)  # 소재 사이트만 쓰는 채널은 설정 순서가 곧 순위
     scored: list[Asset] = []
     for a in assets:
         res = score_asset(a, scene, route, cfg)

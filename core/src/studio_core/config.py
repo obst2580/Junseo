@@ -109,7 +109,7 @@ class ChannelSection(BaseModel):
 
     youtube_channel_id: str = ""
     name: str = ""  # 채널 이름(화면 표시용)
-    profile: str = "politics"  # 대본·주제 규칙 묶음: politics(진보 정치) | stock(증시 뉴스)
+    profile: str = "politics"  # 대본·주제 규칙 묶음: politics(진보 정치) | stock(증시 뉴스) | conservative | health(건강 정보)
     stance: str = ""
     categories: list[str] = Field(
         default_factory=lambda: ["국회", "정부", "사법", "선거", "외교안보", "국제", "경제", "노동", "복지"]
@@ -125,7 +125,13 @@ class SourcesSection(BaseModel):
     rss: list[FeedSpec] = Field(default_factory=list)
     overseas_rss: list[FeedSpec] = Field(default_factory=list)
     naver_queries: list[str] = Field(default_factory=list)
+    # 달마다 더하는 네이버 뉴스 검색어(계절 주제표, 건강 채널) — {월(1~12): [검색어]}. 이번 달 것만 naver_queries에 더한다
+    season_queries: dict[int, list[str]] = Field(default_factory=dict)
     kogl: list[str] = Field(default_factory=list)
+
+    def queries_now(self, month: int) -> list[str]:
+        """이번 달에 쓸 네이버 뉴스 검색어: 고정 검색어 + 이달의 계절 주제(겹치면 하나만)."""
+        return list(dict.fromkeys([*self.naver_queries, *self.season_queries.get(month, [])]))
 
 
 class ImagesSection(BaseModel):
@@ -135,6 +141,12 @@ class ImagesSection(BaseModel):
     blocked_domains: list[str] = Field(default_factory=list)
     # 사진 검색에 섞여 나오는 유튜브 썸네일(i.ytimg.com)은 이 채널(뉴스 공식 채널) 것만 쓴다. 비우면 썸네일을 안 씀
     youtube_thumb_channels: list[str] = Field(default_factory=list)
+    # 장면 자료를 찾을 곳과 순서(무료 소재 사이트, 건강 채널): pexels_video | pexels_image | pixabay_video |
+    # pixabay_image. 비우면 기본 경로(구글·네이버 이미지·Wikimedia·유튜브 — 장면 성격별)
+    sources: list[str] = Field(default_factory=list)
+    orientation: Literal["", "portrait", "landscape"] = (
+        ""  # 소재 사이트에서 먼저 찾을 화면 방향(비우면 가리지 않음)
+    )
 
 
 class VideosSection(BaseModel):
@@ -155,6 +167,7 @@ class ScriptSection(BaseModel):
     outro: str = ""  # 대본 끝에 언제나 붙이는 채널 마무리 인사(Claude가 쓰지 않고 프로그램이 붙인다)
     shorts_outro: str = ""  # 세로 쇼츠 끝 인사(1분 영상이라 짧게). 비우면 outro
     like_ask: str = ""  # 10분·3분 대본 중간에 프로그램이 넣는 좋아요 부탁(쇼츠에는 넣지 않는다). 비우면 없음
+    notice: str = ""  # 영상 설명란에 붙이는 고지(건강 채널: 진단·치료를 대신하지 않는다). 비우면 없음
 
 
 class TimelineSection(BaseModel):
@@ -167,7 +180,7 @@ class TimelineSection(BaseModel):
 class ShortsSection(BaseModel):
     """세로 쇼츠 디자인."""
 
-    style: str = "default"  # default(흰·노랑 글씨 + 검은 테두리) | navy_red(남색·빨강 띠 + 블랙한산스 + 검은 바탕) — newsclip.vertical.STYLES
+    style: str = "default"  # default(흰·노랑 글씨 + 검은 테두리) | navy_red(남색·빨강 띠 + 블랙한산스 + 검은 바탕) | health(흰 바탕 위 검정·하늘색 글씨) — newsclip.vertical.STYLES
 
 
 class VoiceSection(BaseModel):
@@ -192,6 +205,8 @@ class BudgetSection(BaseModel):
     google_cse_per_day: int = 90
     youtube_search_per_day: int = 80
     naver_per_day: int = 20000
+    pexels_per_day: int = 600  # Pexels: 시간당 200회·달 2만 회
+    pixabay_per_day: int = 3000  # Pixabay: 60초에 100회
 
 
 class ChannelConfig(BaseModel):

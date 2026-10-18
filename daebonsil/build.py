@@ -8,6 +8,7 @@
 (실제 커뮤니티·언론사 주소로 이어지지 않게).
 
 실행: uv run python scripts/demo.py && uv run python daebonsil/build.py
+      채널 하나만 쓰는 제작실: uv run python daebonsil/build.py --channel=health(작업자: worker.health.json)
 """
 
 from __future__ import annotations
@@ -45,18 +46,27 @@ def build() -> Path:
     return OUT
 
 
-def build_workroom() -> Path:
-    """제작실 페이지: workroom.html + 작업자 기본값(worker.json: 요청을 보낼 세션·아티팩트 주소)."""
+def build_workroom(channel: str = "") -> Path:
+    """제작실 페이지: workroom.html + 작업자 기본값(worker.json: 요청을 보낼 세션·아티팩트 주소).
+    channel을 주면 그 채널 하나만 쓰는 제작실(채널 고르기 없이 고정) — 작업자는 worker.<채널>.json,
+    결과는 dist/workroom-<채널>.html."""
     page = (HERE / "workroom.html").read_text(encoding="utf-8")
-    worker = json.loads((HERE / "worker.json").read_text(encoding="utf-8"))
-    marker = "/*__WORKER__*/{}"
-    assert page.count(marker) == 1, "workroom.html에 작업자 자리가 없습니다"
-    out = HERE / "dist" / "workroom.html"
+    worker = json.loads(
+        (HERE / (f"worker.{channel}.json" if channel else "worker.json")).read_text(encoding="utf-8")
+    )
+    for marker, value in (("/*__WORKER__*/{}", worker), ("/*__CHANNEL__*/null", channel or None)):
+        assert page.count(marker) == 1, f"workroom.html에 {marker} 자리가 없습니다"
+        page = page.replace(marker, json.dumps(value, ensure_ascii=False))
+    out = HERE / "dist" / (f"workroom-{channel}.html" if channel else "workroom.html")
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(page.replace(marker, json.dumps(worker, ensure_ascii=False)), encoding="utf-8")
+    out.write_text(page, encoding="utf-8")
     return out
 
 
 if __name__ == "__main__":
-    for out in (build(), build_workroom()):
+    import sys
+
+    chans = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--channel=")]
+    outs = [build_workroom(c) for c in chans] if chans else [build(), build_workroom()]
+    for out in outs:
         print(f"{out} ({out.stat().st_size / 1024:.0f} KB)")

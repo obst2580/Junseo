@@ -29,6 +29,7 @@ HEAD_LINE_COLORS = ((255, 255, 255), (255, 222, 64))  # 첫 줄 흰색, 둘째 �
 STROKE = (12, 12, 12)
 NAVY, RED = (11, 31, 75), (215, 20, 26)
 CHANNEL_BLUE = (62, 136, 200)  # 정치는푸르다 채널 아이콘 하늘색
+SKY = (0, 156, 222)  # 널스윤서 강조 하늘색(흰 바탕에서 또렷하게 읽히는 진한 하늘색)
 FONT_CDN = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/"
 
 
@@ -55,6 +56,13 @@ class Style:
     edge_top: int = 0  # 위 끝에서 이 높이까지 edge 색 → 검정 그라데이션
     edge_bottom: int = 0  # 아래 끝에서 이 높이까지 검정 → edge 색 그라데이션
     photo_fade: int = 0  # 사진 칸 아랫부분 이 높이만큼을 검정으로 자연스럽게 잇는다
+    top_bg: tuple[int, int, int] | None = (
+        None  # 있으면 바탕을 검정으로 깔고 화면 위부터 top_until까지 이 색으로 칠한다
+    )
+    top_until: int = 0  # top_bg를 칠할 높이(1080x1920 기준, 보통 사진 칸 윗선)
+    fill_box: bool = (
+        False  # 세로 사진도 칸에 꽉 차게 잘라 넣는다(검은 옆 띠 없이 — 세로 소재를 주로 쓰는 채널)
+    )
 
     @property
     def font_url(self) -> str:
@@ -87,6 +95,20 @@ STYLES: dict[str, Style] = {
         text_colors=((255, 255, 255), (255, 255, 255)),
         caption_box=(*NAVY, 200),
     ),
+    # 널스윤서(건강): 위쪽은 흰 바탕에 검은 글씨, 둘째 줄은 하늘색 강조 글씨. 사진 칸 아래는 검정으로 이어져 자막은
+    # 다른 채널과 같은 자리·같은 모양으로 앉는다
+    "health": Style(
+        "health",
+        top_bg=(255, 255, 255),
+        top_until=BOX[1],
+        text_colors=((17, 17, 17), SKY),
+        head_box=(40, 150, 1040, 540),
+        head_px=132,
+        head_line=1.16,
+        stroke=0.0,
+        fill_box=True,
+        photo_fade=200,  # 수치 카드 내용(위쪽 600px)이 가리지 않게 다른 채널(260)보다 짧게
+    ),
 }
 
 
@@ -113,10 +135,9 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
     st = style_of(style)
     w, h = size
     rgb = im.convert("RGB")
-    if st.edge is not None:
-        bg = _edge_background(size, st)
-    elif st.solid_bg is not None:
-        bg = Image.new("RGB", size, st.solid_bg)
+    plain = plain_background(size, st)
+    if plain is not None:
+        bg = plain
     else:
         small = ImageOps.fit(
             rgb, (w // 4, h // 4), method=Image.Resampling.BILINEAR
@@ -127,11 +148,28 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
     bw, bh = x1 - x0, y1 - y0
     if 1.0 <= rgb.width / rgb.height <= CROP_MAX:  # 16:9까지는 양옆만 조금 잘라 칸을 채운다
         photo = ImageOps.fit(rgb, (bw, bh), method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
+    elif (
+        st.fill_box and rgb.width < rgb.height
+    ):  # 세로 사진: 위쪽(보통 얼굴·손) 중심으로 가로 띠를 잘라 칸을 채운다
+        photo = ImageOps.fit(rgb, (bw, bh), method=Image.Resampling.LANCZOS, centering=(0.5, 0.35))
     else:
         photo = ImageOps.contain(rgb, (bw, bh), method=Image.Resampling.LANCZOS)
     mask = _fade_mask(photo.size, round(st.photo_fade * h / SIZE[1])) if st.photo_fade else None
     bg.paste(photo, (x0 + (x1 - x0 - photo.width) // 2, y0 + (y1 - y0 - photo.height) // 2), mask)
     return bg
+
+
+def plain_background(size: tuple[int, int], st: Style) -> Image.Image | None:
+    """사진과 상관없는 디자인 바탕(위쪽 단색 / 위·아래 끝 색 / 한 가지 색). 흐린 사진 바탕 디자인이면 None."""
+    if st.top_bg is not None:
+        bg = Image.new("RGB", size, (0, 0, 0))
+        bg.paste(st.top_bg, (0, 0, size[0], round(st.top_until * size[1] / SIZE[1])))
+        return bg
+    if st.edge is not None:
+        return _edge_background(size, st)
+    if st.solid_bg is not None:
+        return Image.new("RGB", size, st.solid_bg)
+    return None
 
 
 def _edge_background(size: tuple[int, int], st: Style) -> Image.Image:

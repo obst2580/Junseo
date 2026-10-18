@@ -34,16 +34,17 @@ unset STUDIO_FIXTURES
 타입캐스트 키(`TYPECAST_API_KEY`)도 같은 곳에 둡니다. 환경 변수는 세션이 시작될 때 읽으므로, 키를 넣은 뒤에는 작업자 세션을 새로 엽니다.
 키 값은 화면·파일·메시지 어디에도 적지 않습니다.
 
-## 채널(정치 / 보수 / 증시)
+## 채널(정치 / 보수 / 증시 / 건강)
 
-제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`, `"right"`) 그 채널입니다.
+제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`, `"right"`, `"health"`) 그 채널입니다.
+널스윤서(건강)는 채널을 고정한 **따로 만든 제작실**(`uv run python daebonsil/build.py --channel=health`, 작업자는 `daebonsil/worker.health.json`)에서도 씁니다.
 
-| | 정치는푸르다(기본, `channel: "politics"` 또는 없음) | 자유뉴스365(`channel: "right"`) | 오늘증시 김시연(`channel: "stock"`) |
-|---|---|---|---|
-| 설정 | `channel.yaml` | `channel.right.yaml` | `channel.stock.yaml` |
-| 작업자 명령 | `uv run python -m studio_app.workroom …` | `… workroom --channel right …` (모든 하위 명령) | `… workroom --channel stock …` (모든 하위 명령) |
-| 아티팩트 데이터 | `raw/…`, `topics/current`, `projects/<ID>` | `right_raw/…`, `right_topics/current`, `right_projects/<ID>` | `stock_raw/…`, `stock_topics/current`, `stock_projects/<ID>` |
-| 로컬 폴더 | `data/`, `projects/` | `data-right/`, `projects-right/` | `data-stock/`, `projects-stock/` |
+| | 정치는푸르다(기본, `channel: "politics"` 또는 없음) | 자유뉴스365(`channel: "right"`) | 오늘증시 김시연(`channel: "stock"`) | 널스윤서(`channel: "health"`) |
+|---|---|---|---|---|
+| 설정 | `channel.yaml` | `channel.right.yaml` | `channel.stock.yaml` | `channel.health.yaml` |
+| 작업자 명령 | `uv run python -m studio_app.workroom …` | `… workroom --channel right …` (모든 하위 명령) | `… workroom --channel stock …` (모든 하위 명령) | `… workroom --channel health …` (모든 하위 명령) |
+| 아티팩트 데이터 | `raw/…`, `topics/current`, `projects/<ID>` | `right_raw/…`, `right_topics/current`, `right_projects/<ID>` | `stock_raw/…`, `stock_topics/current`, `stock_projects/<ID>` | `health_raw/…`, `health_topics/current`, `health_projects/<ID>` |
+| 로컬 폴더 | `data/`, `projects/` | `data-right/`, `projects-right/` | `data-stock/`, `projects-stock/` | `data-health/`, `projects-health/` |
 
 `requests/<ID>`와 `config/worker`는 세 채널이 함께 씁니다. 아래 절차의 `raw/`·`projects/`는 채널에 맞게 `right_raw/`·`stock_projects/`처럼 읽습니다.
 **자유뉴스365는 정치 채널과 절차가 같습니다**(사진 검색어 queries.json, 세로 쇼츠 포함). 다른 점은 수집뿐입니다 — 보수 언론
@@ -77,6 +78,34 @@ unset STUDIO_FIXTURES
 - 투자 권유 문구(사라·팔라·목표가)는 넣지 않습니다. 마무리 인사 장면은 채널 이름 title 하나("오늘증시 김시연", sub: "구독하고 매일 시장 소식 받기").
 
 정치 채널 장면은 지금처럼 사진 검색어(queries.json)를 씁니다.
+
+**널스윤서(건강) 채널은 세로 쇼츠만, 화면 소재는 Pexels·Pixabay에서 자동으로 받습니다**(키: 환경 변수 `PEXELS_API_KEY`·`PIXABAY_API_KEY`).
+수집(collect)은 보도자료(복지부·식약처 RSS, `kind: press`)·의학 전문지·건강 기사와 네이버 검색어(+ 이달의 계절 주제, `season_queries`)를
+최근 48시간(`board.window_hours`) 받습니다. 커뮤니티는 쓰지 않습니다. 3단계 queries.json은 이렇게 씁니다.
+
+```json
+{"scenes": {"s001": "blood pressure monitor", "s002": "woman sitting relaxing sofa", "s003": "morning wake up bedroom"},
+ "cards": {
+  "s006": {"layout": "table", "title": "고혈압 기준", "cols": ["어디서", "기준"], "rows": [["집에서", "135/85 이상"], ["병원에서", "140/90 이상"]], "hi": 0},
+  "s009": {"layout": "number", "kicker": "아침마다", "value": "2번", "label": "재서 평균 적기", "note": "일어나서 1시간 안"}
+ }}
+```
+
+- 검색어는 **영어로**, 화면에 보일 장면을 구체적으로(사람·동작·사물·장소 2~5낱말). 소재 사이트는 영어 검색이 훨씬 정확합니다.
+  장면마다 Pexels 세로 영상 → Pexels 사진 → Pixabay 영상(가로는 가운데를 잘라 씀) → Pixabay 사진 순으로 찾고, 영상 하나 + 사진 하나를 받습니다.
+  영상은 받을 때 장면 길이로 자르고, 원래 소리를 빼고, 세로 화면 사진 칸에 맞춰 둡니다(`assets/<장면>_1.mp4`).
+- `cards`(수치 카드)는 대사에 기준값·비교 숫자가 나오는 장면에만, **5장면에 하나 정도**. 그 장면의 첫 컷으로 1~2초 지나가고 이어서 영상·사진이 나옵니다.
+  바로 앞 장면에 카드가 있으면 건너뜁니다(이어지면 슬라이드쇼가 됩니다). 숫자는 대사에 나온 그대로만.
+  - `number`: kicker, value, unit, label, note, level(`ok`·`warn`·`bad`) — 숫자 하나
+  - `bars`: title, unit, items[{label, value, text}] (2~4개), hi(강조 번호) — 가로 막대 비교
+  - `table`: title, cols[2~3], rows[2~4줄], hi(강조 줄) — 정상·주의·위험 기준표
+  - `compare`: title, left{label, value}, right{label, value}, note — 전후·두 무리 비교
+  - 글자는 짧게: 제목 12자, 칸 하나 8자 안쪽. 카드 내용은 사진 칸 위쪽에 그려지고 아랫부분은 자막 자리로 검게 이어집니다.
+- 화면에 출처를 띄우지 않습니다. 받은 소재의 출처(받은 때·사이트·소재 번호·작가·주소)는 프로젝트의 `credits.txt`·`assets.json`과
+  결과의 `credits`(제작실 화면에서 복사)에 남습니다 — 영상 설명란이나 저작권 신고 이의 제기에 씁니다.
+- 상단 제목은 흰 바탕 위 두 줄(첫 줄 검정, 둘째 줄 하늘색 강조), 자막은 다른 채널과 같습니다(`shorts.style: health`).
+- 음성(타입캐스트)은 채널 기본 목소리가 없어 화면에서 고른 목소리 이름이 요청 문서 `voice.name`에 있어야 합니다. 없으면 요청을 `error`로.
+
 
 **세로 쇼츠**(프로젝트 `format`이 `shorts`, 정치 채널·자유뉴스365): 절차는 같고, `sources`가 `format`을 보고 알아서 세로(1080×1920)로
 만듭니다 — 사진은 가운데 4:3 칸에 크게(바탕은 흐린 같은 사진), 프로젝트의 `thumb`(상단 제목)를 맨 위 트랙에 영상 내내

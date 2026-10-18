@@ -117,7 +117,12 @@ async def download_image(
     except Exception as e:  # 손상·비이미지 응답
         log.warning("이미지 변환 실패 %s: %s", a.url, e)
         return None
-    return a.model_copy(update={"local_path": str(dest), "sha256": digest, "width": w, "height": h})
+    from studio_core.config import now_kst
+
+    fetched = now_kst().isoformat(timespec="seconds")
+    return a.model_copy(
+        update={"local_path": str(dest), "sha256": digest, "width": w, "height": h, "fetched_at": fetched}
+    )
 
 
 def section_for(a: Asset, scene_duration: float, max_sec: float) -> tuple[float, float]:
@@ -229,3 +234,168 @@ async def download_video(
 def in_point(a: Asset) -> float:
     """잘라 온 파일 안에서 장면이 시작할 지점(초)."""
     return min(PAD_SEC, a.clip_start_sec or 0.0)
+
+
+# ---- 무료 소재 영상(Pexels·Pixabay) -----------------------------------------------------------
+STOCK_VIDEO_MAX_BYTES = 80 * 1024 * 1024  # 이보다 큰 원본은 받지 않는다
+STOCK_CLIP_PAD = 0.6  # 장면보다 조금 길게(렌더가 프레임 단위로 자를 여유)
+STOCK_CLIP_MIN, STOCK_CLIP_MAX = 2.0, 20.0
+STOCK_FPS = 30
+
+
+def stock_clip_seconds(scene_duration: float) -> float:
+    """장면에 쓸 영상 조각 길이."""
+    return round(min(STOCK_CLIP_MAX, max(STOCK_CLIP_MIN, scene_duration + STOCK_CLIP_PAD)), 2)
+
+
+def probe_video(path: Path) -> tuple[float, int, int]:
+    """(길이 초, 폭, 높이)."""
+    import json
+
+    out = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height:format=duration",
+            "-of",
+            "json",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    info = json.loads(out)
+    st = (info.get("streams") or [{}])[0]
+    return (
+        float(info.get("format", {}).get("duration") or 0),
+        int(st.get("width") or 0),
+        int(st.get("height") or 0),
+    )
+
+
+def prepare_clip(
+    src: Path, dest: Path, seconds: float, size: tuple[int, int], style: str = "default"
+) -> tuple[int, int]:
+    """원본 영상 → 장면에 바로 쓰는 조각(mp4, 소리 없음, 30fps, seconds초). 짧은 영상은 되풀이해 길이를 채운다.
+    가로 화면이면 화면 크기로 가운데를 잘라 채우고, 세로 화면(쇼츠)이면 사진과 같은 디자인으로: 바탕(디자인 바탕 또는
+    흐린 첫 장면) 위 가운데 사진 칸에 영상을 칸 비율로 가운데를 잘라 넣고, 칸 아랫부분은 바탕으로 자연스럽게 잇는다.
+    원래 소리는 늘 뺀다(-an). 원본 크기(폭, 높이)를 돌려준다."""
+    from newsclip.vertical import _box, _fade_mask, compose_photo, is_vertical, style_of
+
+    _dur, sw, sh = probe_video(src)
+    W, H = size
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    common = ["-t", f"{seconds:.2f}", "-an", "-r", str(STOCK_FPS), "-c:v", "libx264", "-preset", "veryfast"]
+    common += ["-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dest)]
+    if not is_vertical(size):
+        vf = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1"
+        cmd = ["ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "-1", "-i", str(src), "-vf", vf, *common]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+        return sw, sh
+    work = dest.parent / "original"
+    work.mkdir(parents=True, exist_ok=True)
+    frame = work / f"{dest.stem}_frame.jpg"
+    subprocess.run(
+        ["ffmpeg", "-y", "-loglevel", "error", "-ss", "0.5", "-i", str(src), "-frames:v", "1", str(frame)],
+        check=True,
+        capture_output=True,
+        timeout=120,
+    )
+    if not frame.exists():  # 아주 짧은 영상 — 첫 프레임
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src), "-frames:v", "1", str(frame)],
+            check=True,
+            capture_output=True,
+            timeout=120,
+        )
+    st = style_of(style)
+    with Image.open(frame) as im:
+        bg = compose_photo(im.convert("RGB"), size, style)  # 사진과 같은 바탕(사진 칸은 영상이 덮는다)
+    bg_path = work / f"{dest.stem}_bg.png"
+    bg.save(bg_path)
+    x0, y0, x1, y1 = _box(size)
+    bw, bh = x1 - x0, y1 - y0
+    inputs = ["-loop", "1", "-i", str(bg_path), "-stream_loop", "-1", "-i", str(src)]
+    chain = (
+        f"[1:v]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},setsar=1[v];"
+        f"[0:v][v]overlay={x0}:{y0}:shortest=1[o]"
+    )
+    last = "[o]"
+    if st.photo_fade:
+        fade_h = min(bh, round(st.photo_fade * H / 1920))
+        mask = _fade_mask((bw, bh), fade_h)
+        shade = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+        shade.putalpha(mask.point(lambda v: 255 - v))
+        fade_path = work / f"{dest.stem}_fade.png"
+        shade.save(fade_path)
+        inputs += ["-loop", "1", "-i", str(fade_path)]
+        chain += f";[o][2:v]overlay={x0}:{y0}:shortest=1[f]"
+        last = "[f]"
+    chain += f";{last}format=yuv420p[out]"
+    cmd = ["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", chain, "-map", "[out]", *common]
+    subprocess.run(cmd, check=True, capture_output=True, timeout=300)
+    for tmp in (frame, bg_path):
+        tmp.unlink(missing_ok=True)
+    return sw, sh
+
+
+async def download_stock_video(
+    client: httpx.AsyncClient,
+    a: Asset,
+    dest: Path,
+    scene_duration: float,
+    registry: DedupeRegistry,
+    size: tuple[int, int],
+    sem: asyncio.Semaphore,
+    style: str = "default",
+) -> Asset | None:
+    """무료 소재 영상 1건: 원본을 받아(assets/original/) 장면 길이 조각으로 다듬는다(prepare_clip). 실패하면 None."""
+    from studio_core.config import now_kst
+
+    url = a.download_url or a.url
+    orig = dest.parent / "original" / f"{dest.stem}.src.mp4"
+    async with sem:
+        try:
+            orig.parent.mkdir(parents=True, exist_ok=True)
+            n = 0
+            async with client.stream("GET", url, timeout=120) as resp:
+                resp.raise_for_status()
+                with orig.open("wb") as f:
+                    async for chunk in resp.aiter_bytes(1 << 16):
+                        n += len(chunk)
+                        if n > STOCK_VIDEO_MAX_BYTES:
+                            raise ValueError("원본 영상이 너무 큽니다")
+                        f.write(chunk)
+        except Exception as e:  # 실패 격리(주소에 키는 없다 — 소재 파일 주소)
+            log.warning("소재 영상 받기 실패 %s: %s", a.source_page_url or a.id, type(e).__name__)
+            orig.unlink(missing_ok=True)
+            return None
+    digest = sha256_file(orig)
+    seconds = stock_clip_seconds(scene_duration)
+    dup = registry.check(digest, str(dest))
+    if dup is not None:
+        orig.unlink(missing_ok=True)
+        return a.model_copy(update={"local_path": dup, "sha256": digest, "duration_sec": seconds})
+    try:
+        w, h = await asyncio.to_thread(prepare_clip, orig, dest, seconds, size, style)
+    except Exception as e:  # 손상된 영상·ffmpeg 실패
+        log.warning("소재 영상 다듬기 실패 %s: %s", a.source_page_url or a.id, e)
+        return None
+    finally:
+        orig.unlink(missing_ok=True)  # 원본은 무거워서 지운다(다시 받을 주소는 assets.json에)
+    return a.model_copy(
+        update={
+            "local_path": str(dest),
+            "sha256": digest,
+            "width": w,
+            "height": h,
+            "duration_sec": seconds,
+            "clip_start_sec": 0.0,
+            "fetched_at": now_kst().isoformat(timespec="seconds"),
+        }
+    )

@@ -38,6 +38,8 @@ class Asset(BaseModel):
     media: Media = "image"
     license: str | None = None  # Wikimedia 등 라이선스가 명시된 경우
     sha256: str | None = None
+    provider_id: str = ""  # 소재 사이트의 소재 번호(Pexels·Pixabay — 저작권 신고 이의 제기용)
+    fetched_at: str | None = None  # 받은 때(KST ISO)
     score_notes: list[str] = Field(default_factory=list)
 
 

@@ -12,11 +12,16 @@ from pathlib import Path
 from newsclip.models import Asset, SceneSet
 from studio_core.config import now_kst
 
+STOCK_SOURCES = ("pexels_image", "pexels_video", "pixabay_image", "pixabay_video")
+
 
 def attribution_text(a: Asset) -> str:
     """표기 문구: '출처: {도메인 또는 채널명}', Wikimedia는 작가·라이선스까지."""
     if a.source == "wikimedia":
         return f"사진: {a.author_or_channel or '작자 미상'} / Wikimedia Commons / {a.license or '라이선스 확인 필요'}"
+    if a.source in STOCK_SOURCES:
+        site = "Pexels" if a.source.startswith("pexels") else "Pixabay"
+        return f"{'영상' if a.media == 'video' else '사진'}: {a.author_or_channel or '작가 미상'} / {site}"
     if a.media == "video":
         return f"출처: {a.author_or_channel or a.source_domain} (YouTube)"
     return f"출처: {a.source_domain or a.author_or_channel or '출처 미상'}"
@@ -45,6 +50,9 @@ def write_assets_json(path: Path, sset: SceneSet) -> None:
                     "sha256": a.sha256,
                     "clip_start_sec": a.clip_start_sec,
                     "duration_sec": a.duration_sec,
+                    "provider_id": a.provider_id,
+                    "fetched_at": a.fetched_at,
+                    "query": sc.query,
                 }
             )
     doc = {
@@ -54,3 +62,25 @@ def write_assets_json(path: Path, sset: SceneSet) -> None:
         "assets": rows,
     }
     path.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def write_credits(path: Path, sset: SceneSet) -> int:
+    """무료 소재 사이트(Pexels·Pixabay)에서 받은 소재의 출처 목록 → credits.txt(영상 설명란·저작권 신고 이의 제기용).
+    받은 소재 수를 돌려준다(없으면 파일을 쓰지 않는다)."""
+    seen: dict[str, Asset] = {}
+    for sc in sset.scenes:
+        for a in sc.candidates:
+            if a.local_path and a.source in STOCK_SOURCES:
+                seen.setdefault(a.id, a)
+    if not seen:
+        return 0
+    lines = [f"# {sset.project} 화면 소재 출처(받은 때 · 사이트 · 소재 번호 · 작가 · 주소)"]
+    for a in seen.values():
+        site = "Pexels" if a.source.startswith("pexels") else "Pixabay"
+        kind = "영상" if a.media == "video" else "사진"
+        lines.append(
+            f"{a.fetched_at or '-'} · {site} {kind} #{a.provider_id or '-'} · {a.author_or_channel or '작가 미상'}"
+            f" · {a.source_page_url or a.url} · {a.license or ''}".rstrip(" ·")
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return len(seen)

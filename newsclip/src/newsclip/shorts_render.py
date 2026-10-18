@@ -94,6 +94,11 @@ def _photo_pool(sc: dict, asset_dir: Path) -> list[Path]:
     return [asset_dir / n for n in names if (asset_dir / n).exists()]
 
 
+def is_clip(path: Path) -> bool:
+    """장면 자료가 영상 조각인가(mp4)."""
+    return path.suffix.lower() in (".mp4", ".mov", ".webm")
+
+
 def _pieces(start: float, end: float, max_sec: float | None) -> list[tuple[float, float]]:
     """장면을 max_sec 이하 조각으로 나눈다(사진 간격 줄이기). max_sec가 없으면 그대로."""
     if not max_sec or end - start <= max_sec:
@@ -161,6 +166,11 @@ def shots_for(
             usable = [c for c in cuts if c >= hold_until - 0.05]  # 훅 동안은 사진을 바꾸지 않는다
             for i, (a, b) in enumerate(cut_pieces(start, end, usable, k)):
                 count += 1
+                if is_clip(
+                    pool[i]
+                ):  # 영상 조각(무료 소재 — 받을 때 사진 칸에 맞춰 다듬어 둠): 줌 없이 그대로
+                    shots.append(Shot(pool[i], "video", a, b, in_sec=0.0))
+                    continue
                 zoom = (1.0, 1.0 + PUSH) if count % 2 else (1.0 + PUSH, 1.0)
                 if a < hold_until:
                     zoom = HOLD_ZOOM
@@ -173,6 +183,9 @@ def shots_for(
                 (1.0, 1.04) if count % 2 else (1.04, 1.0)
             )  # 홀수 조각 줌인, 짝수 줌아웃(fcpxml과 같은 규칙)
             photo = pool[i % len(pool)]
+            if is_clip(photo):
+                shots.append(Shot(photo, "video", a, b, in_sec=0.0))
+                continue
             shots.append(Shot(photo, "image", a, b, zoom=zoom))
     if shots:
         shots[0] = replace(shots[0], start=0.0)
@@ -398,6 +411,7 @@ def build_plan(
     keywords: set[str] = frozenset(),
     max_shot_sec: float | None = None,
     words: list | None = None,
+    style: str = "default",
 ) -> RenderPlan:
     """프로젝트 dict(script, thumb, scenes) + 자료 폴더 + 음성 → 렌더 계획."""
     from newsclip.autosub import wav_duration
@@ -479,15 +493,15 @@ def build_plan(
         sfx=sfx,
         bgm=bgm,
         photo_box=BOX,
-        photo_fade=_photo_fade(asset_dir),
+        photo_fade=_photo_fade(asset_dir, style),
     )
 
 
-def _photo_fade(asset_dir: Path) -> Path | None:
+def _photo_fade(asset_dir: Path, style: str = "default") -> Path | None:
     """사진 칸 아래를 바탕 검정으로 잇는 그림(확대해도 사진 아래 끝이 늘 부드럽게 사라지게). 디자인에 없으면 None."""
     from newsclip.vertical import _fade_mask, style_of
 
-    st = style_of("default")
+    st = style_of(style)
     if not st.photo_fade:
         return None
     x0, y0, x1, y1 = BOX
@@ -505,14 +519,10 @@ def refresh_design(asset_dir: Path, headline: str, style: str = "default") -> in
     사진 칸만 잘라 다시 합성하고, 상단 제목 그림은 지금 디자인으로 다시 그린다. 다시 합성한 사진 수를 돌려준다."""
     import numpy as np
 
-    from newsclip.vertical import _edge_background, compose_photo, local_font, render_headline, style_of
+    from newsclip.vertical import compose_photo, local_font, plain_background, render_headline, style_of
 
     st = style_of(style)
-    bg = None
-    if st.edge is not None:
-        bg = _edge_background(SIZE, st)
-    elif st.solid_bg is not None:
-        bg = Image.new("RGB", SIZE, st.solid_bg)
+    bg = plain_background(SIZE, st)
     n = 0
     if bg is not None:
         ref = np.asarray(bg.crop((0, 0, SIZE[0], BOX[1])), dtype=np.int16)
@@ -546,6 +556,7 @@ def render_short(
     max_shot_sec: float | None = None,
     words: list | None = None,
     crf: int = 18,
+    style: str = "default",
 ) -> Path:
     plan = build_plan(
         project,
@@ -557,6 +568,7 @@ def render_short(
         keywords=keywords,
         max_shot_sec=max_shot_sec,
         words=words,
+        style=style,
     )
     return render(replace(plan, crf=crf), out)
 

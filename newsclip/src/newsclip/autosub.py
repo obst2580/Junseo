@@ -587,6 +587,9 @@ def _band_match(S: list[str], ts: list[float], A: list[str], ta: list[float], wi
     m = [-1] * n
     i, j = n, max(range(base[n], top[n] + 1), key=lambda x: rows[n][x - base[n]])
     while i > 0 and j >= 0:
+        if not base[i] <= j <= top[i]:  # 이 줄에서 맞댈 수 없는 자리(인식이 창 밖) — 대본 글자를 건너뛴다
+            i -= 1
+            continue
         how = back[i][j - base[i]]
         if how == 0:
             if A[j - 1] == S[i - 1]:

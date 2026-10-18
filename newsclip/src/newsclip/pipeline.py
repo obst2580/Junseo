@@ -12,9 +12,9 @@ from pathlib import Path
 
 import httpx
 
-from newsclip.download import DedupeRegistry, download_image, download_video
+from newsclip.download import DedupeRegistry, download_image, download_stock_video, download_video
 from newsclip.fcpxml import build_xmeml, validate_xmeml
-from newsclip.license_log import attribution_text, write_assets_json
+from newsclip.license_log import STOCK_SOURCES, attribution_text, write_assets_json, write_credits
 from newsclip.models import Asset, Scene, SceneSet, asset_id
 from newsclip.rank import asset_key, clip_scorer_or_none, rank, route_for
 from newsclip.scenes import build_scenes
@@ -22,6 +22,8 @@ from newsclip.slides import Painter, ensure_fonts, fetch_font
 from newsclip.sources.base import Budget, SearchCache, Source
 from newsclip.sources.google_image import GoogleImageSource
 from newsclip.sources.naver_image import NaverImageSource
+from newsclip.sources.pexels import PexelsSource
+from newsclip.sources.pixabay import PixabaySource
 from newsclip.sources.wikimedia import WikimediaSource
 from newsclip.sources.youtube_video import YouTubeVideoSource, is_blocked, thumb_video_id, video_channels
 from newsclip.srt import parse_srt
@@ -60,6 +62,19 @@ def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClie
         },
     )
     cache = SearchCache(settings.data_dir / "search_cache.json")
+    if cfg.images.sources:  # 무료 소재 사이트만(건강 채널) — 설정 순서가 곧 찾는 순서
+        per_day = {"pexels": cfg.budget.pexels_per_day, "pixabay": cfg.budget.pixabay_per_day}
+        made: dict[str, Source] = {}
+        for name in cfg.images.sources:
+            site, _, media = name.partition("_")
+            cls = {"pexels": PexelsSource, "pixabay": PixabaySource}.get(site)
+            if cls is None or media not in ("image", "video"):
+                raise ValueError(
+                    f"모르는 소재 사이트: {name} (pexels_video·pexels_image·pixabay_video·pixabay_image)"
+                )
+            budget.limits[name] = per_day[site]
+            made[name] = cls(client, budget, cache, media=media, orientation=cfg.images.orientation)
+        return made
     return {
         "google_image": GoogleImageSource(client, budget, cache),
         "naver_image": NaverImageSource(client, budget, cache),
@@ -101,6 +116,8 @@ def query_for(scene: Scene, source: str) -> str:
     사진은 주제 대표 말 + 그 장면에만 두드러진 말(장면마다 다른 사진이 나오게)."""
     if source == "wikimedia":
         return " ".join(scene.keywords_en[:2]) or " ".join(scene.keywords_ko[:2])
+    if source in STOCK_SOURCES:  # 소재 사이트는 영어 검색이 정확하다 — 작업자가 쓴 영어 검색어 그대로
+        return scene.query or " ".join(scene.keywords_en[:3]) or " ".join(scene.keywords_ko[:2])
     if source == "youtube_video":
         return topic_query(scene)
     if scene.query:
@@ -111,9 +128,10 @@ def query_for(scene: Scene, source: str) -> str:
 
 
 async def gather_candidates(
-    scene: Scene, sources: dict[str, Source], report: RunReport, want: int
+    scene: Scene, sources: dict[str, Source], report: RunReport, want: int, want_videos: int = 0
 ) -> list[Asset]:
-    """우선순위대로 검색해 후보를 모은다(사진이 충분히 모이면 멈춤, 키 없는 소스는 경고 후 건너뜀).
+    """우선순위대로 검색해 후보를 모은다(사진이 want장, 영상이 want_videos개 모이면 멈춤, 키 없는 소스는 경고 후 건너뜀).
+    무료 소재 사이트만 쓰는 채널은 설정 순서(images.sources)가 곧 찾는 순서다.
     영상 후보는 사진 수에 세지 않아서 영상 장면에도 사진이 같이 모인다. 장면 검색어로 사진이 모자라면
     주제 검색어로 한 번 더 찾는다."""
     out: list[Asset] = []
@@ -139,14 +157,21 @@ async def gather_candidates(
     def images() -> int:
         return sum(1 for a in out if a.media == "image")
 
-    route = route_for(scene)
+    def enough() -> bool:
+        return images() >= want and sum(1 for a in out if a.media == "video") >= want_videos
+
+    route = [n for n in route_for(scene) if n in sources] or list(sources)
     for name in route:
-        if images() >= want:
+        if enough():
             break
         await search(name, query_for(scene, name))
     fallback = topic_query(scene)
     for name in route:
-        if images() >= want or name in ("youtube_video", "wikimedia"):
+        if enough() or name in (
+            "youtube_video",
+            "wikimedia",
+            *STOCK_SOURCES,
+        ):  # 소재 사이트에 한국어 주제어는 헛검색
             continue
         if fallback and fallback != query_for(scene, name) and name not in report.skipped_sources:
             await search(name, fallback)
@@ -244,6 +269,43 @@ def render_slides(
 
 
 MAX_TRIES = 8  # 장면마다 받아 볼 사진 후보 수(앞 후보가 막히면 다음으로)
+STOCK_VIDEOS = (
+    1  # 장면마다 받을 무료 소재 영상 수(나머지 컷은 사진 — 장면이 2~5초라 영상 하나 + 사진 하나면 충분)
+)
+STOCK_TRIES = 3  # 받아 볼 영상 후보 수
+
+
+def add_cards(
+    scenes: list[Scene],
+    specs: dict,
+    fonts: dict[str, str],
+    assets_dir: Path,
+    size: tuple[int, int],
+    style: str,
+    project_id: str,
+) -> int:
+    """수치 카드(newsclip.cards)를 그 장면의 첫 컷으로 넣는다 — 이어서 장면의 사진·영상이 나온다. 넣은 카드 수."""
+    from newsclip.cards import render_cards
+
+    made = render_cards(specs, fonts, assets_dir, size, style)
+    for sc in scenes:
+        path = made.get(sc.id)
+        if path is None:
+            continue
+        spec = specs.get(sc.id) or {}
+        card = Asset(
+            source="card",
+            id=asset_id("card", f"{project_id}/{sc.id}"),
+            title=str(spec.get("title") or spec.get("label") or spec.get("kicker") or sc.topic)[:80],
+            url=f"card:{sc.id}",
+            width=size[0],
+            height=size[1],
+            local_path=str(path),
+            media="image",
+        )
+        sc.candidates = [card, *sc.candidates]
+        sc.chosen = card
+    return len(made)
 
 
 def borrow_empty(scenes: list[Scene]) -> int:
@@ -297,7 +359,8 @@ async def run_project(
     )
     report = RunReport(scenes=len(scenes))
     try:
-        GoogleImageSource.check_ready(None)  # type: ignore[arg-type]
+        if not cfg.images.sources:  # 소재 사이트만 쓰는 채널은 구글을 찾지 않는다
+            GoogleImageSource.check_ready(None)  # type: ignore[arg-type]
     except Unavailable as e:
         report.skipped_sources["google_image"] = f"{e} → 네이버 이미지가 1순위"
     clip_scorer: Callable | None = clip_scorer_or_none() if use_clip else None
@@ -332,8 +395,14 @@ async def run_project(
         return _finish(project, sset, report, cfg, fps, size, video_max_sec, None, head_png, style)
     async with make_client() as client:
         sources = make_sources(settings, cfg, client)
+        stock_video = any(n.endswith("_video") and n in STOCK_SOURCES for n in sources)
         found = await asyncio.gather(
-            *(gather_candidates(sc, sources, report, want=per_scene * 3) for sc in scenes)
+            *(
+                gather_candidates(
+                    sc, sources, report, want=per_scene * 3, want_videos=3 if stock_video else 0
+                )
+                for sc in scenes
+            )
         )
         found = await keep_news_thumbs(client, found, cfg.images.youtube_thumb_channels, report)
         prev_key: str | None = None
@@ -361,8 +430,22 @@ async def run_project(
                 n += 1
                 return assets_dir / f"{sc.id}_{n}.{ext}"
 
+            # 무료 소재 영상(Pexels·Pixabay): 장면마다 STOCK_VIDEOS개를 순위대로 받아 본다(실패하면 다음 후보)
+            stock = [a for a in sc.candidates if a.media == "video" and a.source in STOCK_SOURCES]
+            for a in stock[:STOCK_TRIES]:
+                if sum(1 for x in got.values() if x.media == "video") >= STOCK_VIDEOS:
+                    break
+                res = await download_stock_video(
+                    client, a, dest("mp4"), sc.duration, registry, size, sem, style
+                )
+                if res is not None:
+                    got[res.id] = res
             if videos:
-                vids = [a for a in sc.candidates[:per_scene] if a.media == "video"]
+                vids = [
+                    a
+                    for a in sc.candidates[:per_scene]
+                    if a.media == "video" and a.source not in STOCK_SOURCES
+                ]
                 res = await asyncio.gather(
                     *(download_video(a, dest("mp4"), sc.duration, video_max_sec, registry, sem) for a in vids)
                 )
@@ -384,6 +467,10 @@ async def run_project(
             sc.chosen = next((a for a in sc.candidates if a.local_path), None)
 
         await asyncio.gather(*(fetch(sc) for sc in scenes))
+        if queries and isinstance(queries.get("cards"), dict) and queries["cards"]:
+            if not fonts:
+                fonts = await ensure_fonts(client, settings.data_dir / "fonts")
+            add_cards(scenes, queries["cards"], fonts, assets_dir, size, style, project.name)
         report.borrowed = borrow_empty(scenes)
     return _finish(project, sset, report, cfg, fps, size, video_max_sec, clip_scorer, head_png, style)
 
@@ -417,6 +504,7 @@ def _finish(
         report.skipped_sources.pop(name, None)
     save_scenes(project, sset)
     write_assets_json(project / "assets.json", sset)
+    write_credits(project / "credits.txt", sset)
     audio = project / "narration.wav"
     report.xml_errors = write_xml(
         project,
