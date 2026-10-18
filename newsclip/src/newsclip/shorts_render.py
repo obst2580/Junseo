@@ -36,7 +36,7 @@ from newsclip.render import (
     render_cue,
     render_emph,
 )
-from newsclip.sfx import HIT, HIT_EARLY, ensure_sfx, sfx_cues
+from newsclip.sfx import HIT, HIT_EARLY, WHOOSH, ensure_sfx, sfx_cues
 from newsclip.srt import parse_srt
 from newsclip.vertical import BOX, box_of, style_of
 
@@ -535,7 +535,13 @@ def build_plan(
         key = spec.get("key") or default_key(hook[0])
         starts = chunk_starts(" ".join(lines).split(), hook[1], hook_end, words)
         out = asset_dir / "subtitles" / "chart_hook.mp4"
-        clip, circle_at = make_chart_clip(hook[0], key, starts, hook_end, out, SIZE, style, lines=lines)
+        clip, punch_at, circle_at = make_chart_clip(
+            hook[0], key, starts, hook_end, out, SIZE, style, lines=lines
+        )
+        if (
+            punch_at is not None and punch_at < hook_end
+        ):  # 펀치인에 휙 소리(소리가 가장 클 때 당김이 끝나게 조금 먼저)
+            sfx.append((max(0.0, punch_at - 0.12), sfx_dir[WHOOSH]))
         shots = [Shot(clip, "video", 0.0, hook_end, in_sec=0.0), *after(shots, hook_end)]
         if circle_at is not None and circle_at < hook_end:  # 동그라미 칠 때 짧은 팝
             sfx.append((max(0.0, circle_at - HIT_EARLY), sfx_dir[HIT]))

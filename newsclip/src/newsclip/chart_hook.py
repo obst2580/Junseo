@@ -2,7 +2,7 @@
 
 첫 문장을 두 줄로 나눠 차트판 종이에 크게 쓴다. 낱말은 목소리가 그 말을 읽는 때에 맞춰 왼쪽부터 써지고(starts),
 핵심 말(key)은 빨간 글씨로 쓴 뒤 빨간 펜 동그라미를 친다. 차트판은 처음에 아래에서 올라와 자리 잡고, 핵심 말이
-들리는 순간 끊고 그 말 쪽으로 확 당긴 화면(줌 컷)으로 넘어가며, 끝 0.2초는 흐려지며 다음 컷으로 넘어간다. 화면 위쪽 제목 띠·바탕은 사진과 같은 디자인
+들리는 순간 그 말 쪽으로 빠르게 당기고(펀치인 — 살짝 지나쳤다 제자리, 줌 흐림, 휙 소리), 끝 0.2초는 흐려지며 다음 컷으로 넘어간다. 화면 위쪽 제목 띠·바탕은 사진과 같은 디자인
 (vertical.plain_background)이고, 차트판은 사진 칸 안에 그린다.
 """
 
@@ -37,9 +37,18 @@ CIRCLE_SEC = 0.3  # 동그라미가 그려지는 시간
 RISE_SEC = 0.3  # 차트판이 올라오는 시간
 RISE_PX = 110
 PUSH = 0.05  # 영상 내내 다가가는 정도
-PUNCH_ZOOM = 1.5  # 핵심 말 줌 컷: 이만큼 당긴 화면으로 끊어 넘어간다
+PUNCH_ZOOM = 1.5  # 핵심 말 펀치인: 이만큼 당긴다
+PUNCH_SEC = 0.28  # 당기는 데 걸리는 시간(살짝 지나쳤다 제자리까지)
+PUNCH_OVER = 1.8  # 지나치는 정도(ease-out-back 세기)
+ZOOM_TRAIL = 0.12  # 줌 흐림: 겹치는 화면들이 덜 당긴 정도
 BLUR_SEC = 0.2  # 끝에서 흐려지는 시간
 BLUR_MAX = 14
+
+
+def _ease_out_back(p: float, s: float = PUNCH_OVER) -> float:
+    """0→1, 끝 무렵 살짝 1을 넘었다가 1로(펀치인 손맛)."""
+    p -= 1
+    return 1 + (s + 1) * p**3 + s * p**2
 
 
 def split_lines(text: str, n: int = 2) -> list[str]:
@@ -198,28 +207,47 @@ class ChartHook:
         ox = (desk.width - rot.width) // 2
         desk.alpha_composite(self.shadow, (ox + 14, oy + 22))
         desk.alpha_composite(rot, (ox, oy))
-        box_img = desk.convert("RGB")
+        box_img = box_img_src = desk.convert("RGB")
         bw, bh = box_img.size
+        k = 1 + PUSH * min(1.0, t / max(self.duration, 0.01))  # 아주 살짝 다가간다(글씨 가운데 쪽으로)
+        cx, cy = bw * 0.5, bh * 0.42
+        moving = 0.0  # 줌이 움직이는 세기(0~1) — 움직이는 동안 줌 흐림
         if self.punch_at is not None and t >= self.punch_at:
-            # 핵심 말이 들리는 순간 끊고 그 말 쪽으로 확 당긴 화면(줌 컷) — 그 뒤로도 아주 살짝 다가간다
+            # 핵심 말이 들리는 순간 그 말 쪽으로 빠르게 당긴다(살짝 지나쳤다 제자리 — 펀치인), 그 뒤로도 아주 살짝 다가간다
+            p = min(1.0, (t - self.punch_at) / PUNCH_SEC)
             span = max(self.duration - self.punch_at, 0.01)
-            k = PUNCH_ZOOM + PUSH * min(1.0, (t - self.punch_at) / span)
-            cx, cy = self._key_center(ox, oy)
-        else:
-            k = 1 + PUSH * min(1.0, t / max(self.duration, 0.01))  # 아주 살짝 다가간다(글씨 가운데 쪽으로)
-            cx, cy = bw * 0.5, bh * 0.42
+            k1 = PUNCH_ZOOM + PUSH * min(1.0, (t - self.punch_at) / span)
+            k = k + (k1 - k) * _ease_out_back(p)
+            kx, ky = self._key_center(ox, oy)
+            e = 1 - (1 - p) ** 3
+            cx, cy = cx + (kx - cx) * e, cy + (ky - cy) * e
+            moving = 1 - p
         if k > 1.0005:
-            zw, zh = round(bw * k), round(bh * k)
-            big = box_img.resize((zw, zh), Image.BICUBIC)
-            left = round(min(max(cx * k - bw / 2, 0), zw - bw))
-            top = round(min(max(cy * k - bh / 2, 0), zh - bh))
-            box_img = big.crop((left, top, left + bw, top + bh))
+            box_img = self._zoom(box_img, k, cx, cy)
+            if moving > 0.05:  # 줌 흐림: 조금 덜 당긴 화면들을 겹쳐 안쪽으로 빨려 드는 느낌
+                trail = [
+                    self._zoom(box_img_src, k * (1 - ZOOM_TRAIL * moving * j / 3), cx, cy) for j in (1, 2, 3)
+                ]
+                for j, im in enumerate(trail, start=1):
+                    box_img = Image.blend(box_img, im, 0.5 / (j + 1))
         left = self.duration - t
         if left < BLUR_SEC:
             box_img = box_img.filter(ImageFilter.GaussianBlur(BLUR_MAX * (1 - left / BLUR_SEC)))
         out = self.bg.copy()
         out.paste(box_img, self.box[:2])
         return out
+
+    @staticmethod
+    def _zoom(img: Image.Image, k: float, cx: float, cy: float) -> Image.Image:
+        """(cx, cy)를 가운데 쪽에 두고 k배 당긴 화면(가장자리 밖은 잘리지 않게 붙잡는다)."""
+        bw, bh = img.size
+        zw, zh = round(bw * k), round(bh * k)
+        if zw <= bw or zh <= bh:
+            return img
+        big = img.resize((zw, zh), Image.BICUBIC)
+        left = round(min(max(cx * k - bw / 2, 0), zw - bw))
+        top = round(min(max(cy * k - bh / 2, 0), zh - bh))
+        return big.crop((left, top, left + bw, top + bh))
 
     def _key_center(self, ox: int, oy: int) -> tuple[float, float]:
         """핵심 말 가운데의 사진 칸 안 자리(차트판이 자리 잡은 뒤 기준, 기울기는 작아서 무시)."""
@@ -280,9 +308,9 @@ def make_chart_clip(
     size: tuple[int, int],
     style: str = "health",
     lines: list[str] | None = None,
-) -> tuple[Path, float | None]:
+) -> tuple[Path, float | None, float | None]:
     """첫 문장 → 차트판 훅 mp4. starts는 낱말마다 써지기 시작하는 때(lines를 띄어쓰기로 나눈 순서). 돌려주는 값:
-    (파일, 동그라미가 그려지기 시작하는 때 — 효과음 자리, 핵심 말이 없으면 None)."""
+    (파일, 펀치인 시작 때, 동그라미가 그려지기 시작하는 때 — 효과음 자리, 핵심 말이 없으면 None)."""
     ls = lines or split_lines(text)
     hook = ChartHook(ls, key, starts, duration, size, style)
-    return hook.write(out), hook.circle_at
+    return hook.write(out), hook.punch_at, hook.circle_at
