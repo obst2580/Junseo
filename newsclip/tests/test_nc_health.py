@@ -181,7 +181,7 @@ def test_health_style_white_top_black_title_sky_emphasis():
     assert box[3] - box[1] > 1000 and box[1] < BOX[1]  # 거의 정사각형으로 큰 사진 칸
     assert frame.getpixel((540, box[1] - 3))[2] > 200  # 제목 띠와 사진 칸 사이 하늘색 선
     assert frame.getpixel((10, box[1] + 20))[0] > 150  # 세로 사진도 칸을 꽉 채운다(검은 옆 띠 없음)
-    assert frame.getpixel((540, 1800)) == (0, 0, 0)  # 칸 아래는 검정
+    assert frame.getpixel((540, 1800)) == (255, 255, 255)  # 칸 아래도 흰색
 
 
 def test_cards_render_and_skip_back_to_back(tmp_path):
@@ -319,3 +319,17 @@ def test_chart_hook_lines_key_and_frames():
     assert ink(written) > ink(early) + 300  # 시간이 지나면 글씨가 써진다
     red = lambda im: sum(1 for p in im.getdata() if p[0] > 180 and p[1] < 80 and p[2] < 80)  # noqa: E731
     assert red(hook.frame(1.6)) > 3 * red(hook.frame(0.79)) + 1000  # 핵심 말에서 줌 컷 → 빨간 글씨가 크게
+
+
+def test_health_emphasis_splits_long_cue():
+    from newsclip.shorts_render import HEALTH_STRONG, phrase_in, split_emphasis
+    from newsclip.srt import Cue
+
+    text = "집에서 잰 혈압은 135에 85를 넘으면 고혈압으로 본대요."
+    assert phrase_in(text, ["두 번", "135에 85를"], HEALTH_STRONG) == "135에 85를"
+    assert phrase_in("이건 꼭 기억하세요.", [], HEALTH_STRONG) == "꼭"  # 고른 문구가 없으면 건강 강조어
+    assert phrase_in(text, ["없는 말"], None) is None
+    parts = split_emphasis(Cue(1, 13.0, 16.0, text), "135에 85를", None)
+    assert [p[0] for p in parts] == ["집에서 잰 혈압은", "135에 85를", "넘으면 고혈압으로 본대요."]
+    assert [p[3] for p in parts] == [False, True, False]
+    assert parts[0][1] == 13.0 and parts[-1][2] == 16.0 and parts[0][2] == parts[1][1]

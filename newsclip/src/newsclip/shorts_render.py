@@ -37,7 +37,7 @@ from newsclip.render import (
     render_emph,
 )
 from newsclip.sfx import HIT, HIT_EARLY, WHOOSH, ensure_sfx, sfx_cues
-from newsclip.srt import parse_srt
+from newsclip.srt import Cue, parse_srt
 from newsclip.vertical import BOX, box_of, style_of
 
 SIZE = (1080, 1920)
@@ -72,6 +72,10 @@ STRONG = re.compile(
     "|배신|자멸|민낯|죽이|막장|몰락|폭망|박살"
 )
 QUOTE = re.compile("[\"“”‘’']")
+# 건강(널스윤서) 강조어: 정치 채널의 센 말 대신 — 작업자가 고른 강조 문구(emphasis)가 없을 때 이 말이 든 낱말을 빨간 강조로
+HEALTH_STRONG = re.compile(
+    "위험|주의|경고|조심|꼭|반드시|절대|두 배|2배|세 배|3배|급증|사망|치매|뇌졸중|심근경색|돌연사|최악|놓치면|몰랐던|비상"
+)
 
 
 def probe_duration(path: Path) -> float:
@@ -269,12 +273,12 @@ def hook_chunks(text: str, limit: int = HOOK_CHUNK) -> list[str]:
 _SENT_END = re.compile(r"[.!?…][\"'”’」』)]*$")
 
 
-def emph_color(text: str, keywords: set[str]) -> tuple[int, int, int] | None:
+def emph_color(text: str, keywords: set[str], strong: re.Pattern = STRONG) -> tuple[int, int, int] | None:
     """짧은 자막 중 강조할 것의 색: 센 말 → 빨강, 직접 인용 → 노랑, 핵심 키워드(숫자 말고) → 초록, 아니면 None."""
     core = re.sub(r"\s+", "", text)
     if not core or len(core) > EMPH_MAX:
         return None
-    if STRONG.search(core):
+    if strong.search(core):
         return EMPH_RED
     if QUOTE.search(core):
         return EMPH_YELLOW
@@ -370,11 +374,13 @@ def chunk_starts(pieces: list[str], start: float, end: float, words: list | None
     return starts
 
 
-def pick_emphasis(cues: list, keywords: set[str], start: int = 0) -> dict[int, tuple[int, int, int]]:
+def pick_emphasis(
+    cues: list, keywords: set[str], start: int = 0, strong: re.Pattern = STRONG
+) -> dict[int, tuple[int, int, int]]:
     """강조 자막 고르기: 빨강 → 노랑 → 초록 순으로, 이미 고른 강조와 EMPH_GAP초 안에 붙지 않는 것만.
     반환: {자막 번호: 색}. start 앞(훅)은 고르지 않는다."""
     order = (EMPH_RED, EMPH_YELLOW, EMPH_GREEN)
-    cands = [(k, emph_color(c.text, keywords)) for k, c in enumerate(cues) if k >= start]
+    cands = [(k, emph_color(c.text, keywords, strong)) for k, c in enumerate(cues) if k >= start]
     cands = sorted(
         ((k, col) for k, col in cands if col is not None), key=lambda kc: (order.index(kc[1]), kc[0])
     )
@@ -383,6 +389,33 @@ def pick_emphasis(cues: list, keywords: set[str], start: int = 0) -> dict[int, t
         if all(abs(cues[k].start - cues[j].start) >= EMPH_GAP for j in picked):
             picked[k] = col
     return picked
+
+
+def phrase_in(text: str, phrases: list[str], strong: re.Pattern | None) -> str | None:
+    """긴 자막 안에서 강조할 문구: 작업자가 고른 문구(phrases) 중 이 자막에 든 것, 없으면 strong 말이 든 낱말.
+    EMPH_MAX자를 넘는 문구, 자막 전체와 같은 문구는 고르지 않는다(자막 전체는 pick_emphasis가 맡는다)."""
+    core = re.sub(r"\s+", "", text)
+    for ph in phrases:
+        ph = ph.strip()
+        if ph and ph in text and len(ph.replace(" ", "")) <= EMPH_MAX and ph.replace(" ", "") != core:
+            return ph
+    if strong is not None:
+        for w in text.split():
+            bare = w.strip(".,!?…\"'“”‘’")
+            if bare and strong.search(bare) and bare.replace(" ", "") != core:
+                return bare
+    return None
+
+
+def split_emphasis(cue: Cue, phrase: str, words: list | None) -> list[tuple[str, float, float, bool]]:
+    """자막 하나를 강조 문구 앞·문구·뒤로 나눈다 → [(글, 시작, 끝, 강조?)]. 시각은 그 말이 들리는 때(낱말 시각,
+    없으면 글자 수 비율)."""
+    at = cue.text.index(phrase)
+    parts = [(cue.text[:at].strip(), False), (phrase, True), (cue.text[at + len(phrase) :].strip(), False)]
+    parts = [(t, e) for t, e in parts if re.sub("[\\s.,!?…]", "", t)]
+    starts = chunk_starts([t for t, _e in parts], cue.start, cue.end, words)
+    ends = [*starts[1:], cue.end]
+    return [(t, a, b, e) for (t, e), a, b in zip(parts, starts, ends, strict=True)]
 
 
 def subtitles_for(
@@ -395,10 +428,14 @@ def subtitles_for(
     words: list | None = None,
     hook_mode: str = "flash",
     sub_shift: int = 0,
+    emphasis: list[str] | None = None,
+    strong: re.Pattern = STRONG,
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo, tuple[str, float, float] | None]:
     """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다.
     hook_mode "chart"(널스윤서)면 첫 문장 자막을 만들지 않는다 — 그동안 화면은 차트판 훅(chart_hook)이 첫 문장을
-    손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). 마지막 값은 첫 문장 (글, 시작, 끝)."""
+    손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). 마지막 값은 첫 문장 (글, 시작, 끝).
+    emphasis(강조 문구 목록, 널스윤서)를 주면 긴 자막 안의 그 문구를 잘라 강조 자막(정치 채널과 같은 효과)으로 띄운다 —
+    자막을 문구 앞·문구·뒤로 나눠 그 말이 들리는 때에 차례로. strong은 강조할 센 말(채널마다)."""
     info = analyze(audio)
     if srt is not None:
         # 받은 자막(SRT)을 그대로 쓴다: 제작실에서 본 자막과 같은 시간
@@ -416,7 +453,16 @@ def subtitles_for(
             break
     px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
     arts = []
-    emph = pick_emphasis(lines, keywords, start=hook_n)
+    emph = pick_emphasis(lines, keywords, start=hook_n, strong=strong)
+    split: dict[int, str] = {}  # 자막 번호 → 그 안에서 강조할 문구
+    if emphasis is not None:
+        for k, cue in enumerate(lines):
+            if k < hook_n or k in emph:
+                continue
+            ph = phrase_in(cue.text, emphasis, strong)
+            near = [lines[j].start for j in [*emph, *split]]
+            if ph and all(abs(cue.start - t) >= EMPH_GAP for t in near):
+                split[k] = ph
     hook = (
         (" ".join(c.text.strip() for c in lines[:hook_n]), lines[0].start, lines[hook_n - 1].end)
         if hook_n
@@ -426,6 +472,17 @@ def subtitles_for(
         arts += hook_arts(lines[:hook_n], asset_dir, size, keywords, words)
     for k, cue in enumerate(lines):
         if k < hook_n:
+            continue
+        if k in split:  # 긴 자막 안 강조 문구: 앞은 보통 자막, 문구는 강조 자막, 뒤는 다시 보통 자막
+            for j, (text, a, b, hot) in enumerate(split_emphasis(cue, split[k], words)):
+                name = asset_dir / "subtitles" / f"{'emph' if hot else 'cue'}_{k:03d}_{j}.png"
+                part = (
+                    render_emph(text, name, size, color=EMPH_RED)
+                    if hot
+                    else render_cue(text, name, size, keywords=keywords, px=px)
+                )
+                if part is not None:
+                    arts.append(replace(_timed(part, a, b), top=part.top + sub_shift))
             continue
         if k in emph:
             # 직접 인용(노랑)은 손글씨 글꼴로 — 그 사람이 한 말처럼 보이게
@@ -486,6 +543,8 @@ def build_plan(
         words=words,
         hook_mode=st.hook,
         sub_shift=st.sub_shift,
+        emphasis=list(project.get("emphasis") or []) if st.hook == "chart" else None,
+        strong=HEALTH_STRONG if st.hook == "chart" else STRONG,
     )
     cues = [c for c in cues if c.start < total]
     # 컷 편집: 자막이 바뀌는 때(훅 조각 포함)에 맞춰 사진을 바꾼다. max_shot_sec를 주면 예전 방식(길이로만 나눔)
@@ -576,6 +635,11 @@ def build_plan(
     )
 
 
+def fade_color(st) -> tuple[int, int, int]:  # noqa: ANN001
+    """사진 아랫부분이 이어지는 바탕 색(보통 검정, 널스윤서는 흰색)."""
+    return st.under_bg if st.top_bg is not None else (0, 0, 0)
+
+
 def _photo_fade(asset_dir: Path, style: str = "default") -> Path | None:
     """사진 칸 아래를 바탕 검정으로 잇는 그림(확대해도 사진 아래 끝이 늘 부드럽게 사라지게). 디자인에 없으면 None."""
     from newsclip.vertical import _fade_mask, style_of
@@ -585,7 +649,7 @@ def _photo_fade(asset_dir: Path, style: str = "default") -> Path | None:
         return None
     x0, y0, x1, y1 = box_of(st)
     mask = _fade_mask((x1 - x0, y1 - y0), st.photo_fade)
-    img = Image.new("RGBA", mask.size, (0, 0, 0, 0))
+    img = Image.new("RGBA", mask.size, (*fade_color(st), 0))  # 바탕 색으로 잇는다
     img.putalpha(mask.point(lambda v: 255 - v))
     out = asset_dir / "subtitles" / "photo_fade.png"
     out.parent.mkdir(parents=True, exist_ok=True)

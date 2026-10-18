@@ -61,6 +61,11 @@ class Style:
     top_bg: tuple[int, int, int] | None = None
     top_until: int = 0  # top_bg를 칠할 높이(1080x1920 기준, 보통 사진 칸 윗선)
     top_line: tuple[int, int, int] | None = None  # 있으면 top_bg 아래 끝에 이 색 선(제목 띠와 사진 칸 사이)
+    under_bg: tuple[int, int, int] = (
+        0,
+        0,
+        0,
+    )  # top_bg 디자인에서 그 아래(사진 칸 둘레·아래) 색 — 사진 아랫부분도 이 색으로 이어진다
     # 세로 사진도 칸에 꽉 차게 잘라 넣는다(검은 옆 띠 없이 — 세로 소재를 주로 쓰는 채널)
     fill_box: bool = False
     box: tuple[int, int, int, int] | None = None  # 사진 칸(1080x1920 기준). 비우면 BOX(4:3)
@@ -114,7 +119,8 @@ STYLES: dict[str, Style] = {
         stroke=0.0,
         fill_box=True,
         box=HEALTH_BOX,
-        photo_fade=260,  # 정치는푸르다처럼 사진 아랫부분을 검정으로 자연스럽게 잇고 그 위에 자막
+        under_bg=(255, 255, 255),  # 사진 칸 아래도 흰색
+        photo_fade=260,  # 정치는푸르다처럼 사진 아랫부분을 바탕(흰색)으로 자연스럽게 잇고 그 위에 자막
         sub_shift=HEALTH_BOX[3] - BOX[3],  # 자막도 정치는푸르다처럼 사진 칸 아래 끝에서 같은 높이
         hook="chart",
     ),
@@ -171,7 +177,7 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
 def plain_background(size: tuple[int, int], st: Style) -> Image.Image | None:
     """사진과 상관없는 디자인 바탕(위쪽 단색 / 위·아래 끝 색 / 한 가지 색). 흐린 사진 바탕 디자인이면 None."""
     if st.top_bg is not None:
-        bg = Image.new("RGB", size, (0, 0, 0))
+        bg = Image.new("RGB", size, st.under_bg)
         until = round(st.top_until * size[1] / SIZE[1])
         bg.paste(st.top_bg, (0, 0, size[0], until))
         if st.top_line is not None:

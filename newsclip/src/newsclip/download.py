@@ -329,7 +329,7 @@ def prepare_clip(
     if st.photo_fade:
         fade_h = min(bh, round(st.photo_fade * H / 1920))
         mask = _fade_mask((bw, bh), fade_h)
-        shade = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+        shade = Image.new("RGBA", (bw, bh), (*(st.under_bg if st.top_bg is not None else (0, 0, 0)), 0))
         shade.putalpha(mask.point(lambda v: 255 - v))
         fade_path = work / f"{dest.stem}_fade.png"
         shade.save(fade_path)

@@ -438,7 +438,13 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
     bgm_path = _fetched(fetched, bgm["asset_id"], "bgm") if bgm and bgm.get("asset_id") else None
     words = audio.get("words") if audio.get("source") == "typecast" else None
     srt = proj / "narration.srt"
-    project = {"script": req["script"], "scenes": req["result"]["scenes"], "hook": req["result"].get("hook")}
+    res = req["result"]
+    project = {
+        "script": req["script"],
+        "scenes": res["scenes"],
+        "hook": res.get("hook"),
+        "emphasis": res.get("emphasis"),
+    }
     final = out / "final.mp4"
     render_short(
         project,
@@ -709,9 +715,19 @@ async def sources(
         "credits": _credits(proj),
         # 차트판 훅(널스윤서): 첫 문장에서 동그라미 칠 핵심 말·줄 나눔(queries.json "hook") — 완성 영상 렌더가 쓴다
         **({"hook": _hook_spec(queries)} if _hook_spec(queries) else {}),
+        # 강조 자막 문구(널스윤서): 긴 자막 안에서 잘라 정치 채널과 같은 강조 효과로 띄울 말(queries.json "emphasis")
+        **({"emphasis": _emphasis(queries)} if _emphasis(queries) else {}),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
+
+
+def _emphasis(queries: dict | None) -> list[str]:
+    """queries.json의 "emphasis" → 강조 문구 목록(빈 것·겹치는 것 빼고, 많아야 8개)."""
+    items = (queries or {}).get("emphasis")
+    if not isinstance(items, list):
+        return []
+    return list(dict.fromkeys(str(x).strip() for x in items if str(x).strip()))[:8]
 
 
 def _hook_spec(queries: dict | None) -> dict:
@@ -813,7 +829,18 @@ def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None
             missing.append(name)
     if missing:
         raise ValueError(f"자산 ID가 없는 파일 {len(missing)}개: {', '.join(missing[:10])}")
-    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr", "size", "credits", "hook")
+    keys = (
+        "made_at",
+        "scenes",
+        "report",
+        "base_token",
+        "timing",
+        "asr",
+        "size",
+        "credits",
+        "hook",
+        "emphasis",
+    )
     result = {k: manifest[k] for k in keys if k in manifest}
     result.update(
         files=files,
