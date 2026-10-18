@@ -22,12 +22,13 @@ from studio_core.fonts import korean_font_path
 SIZE = (1080, 1920)
 HEAD = (60, 220, 1020, 520)  # 상단 제목 자리(x0, y0, x1, y1)
 BOX = (0, 560, 1080, 1370)  # 사진 칸(4:3)
-SUB_TOP = 1400  # 대본 자막 윗선(BOX 바로 아래)
+SUB_TOP = 1340  # 대본 자막 윗선(사진 아랫부분이 검게 이어지는 자리)
 CROP_MAX = 1.9  # 이보다 넓은 사진(파노라마)은 자르지 않고 넣는다
 SUB_LINE = 14  # 세로 화면 자막 한 줄 글자 수(가로는 20)
 HEAD_LINE_COLORS = ((255, 255, 255), (255, 222, 64))  # 첫 줄 흰색, 둘째 줄 노랑
 STROKE = (12, 12, 12)
 NAVY, RED = (11, 31, 75), (215, 20, 26)
+CHANNEL_BLUE = (62, 136, 200)  # 정치는푸르다 채널 아이콘 하늘색
 FONT_CDN = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/"
 
 
@@ -48,7 +49,12 @@ class Style:
     head_box: tuple[int, int, int, int] = HEAD  # 상단 제목 자리(1080x1920 기준)
     head_px: int = 124  # 상단 제목 시작 글자 크기(자리에 안 들어가면 줄인다)
     head_line: float = 1.22  # 줄 간격(글자 크기 배수)
-    stroke: float = 0.08  # 검은 테두리 두께(글자 크기 배수)
+    stroke: float = 0.08  # 검은 테두리 두께(글자 크기 배수). 0이면 테두리 없이
+    shadow: float = 0.0  # 글자 뒤 흐린 그림자 세기(0~1). 0이면 그림자 없음
+    edge: tuple[int, int, int] | None = None  # 있으면 바탕을 검정으로 깔고 화면 위·아래 끝을 이 색으로 마감
+    edge_top: int = 0  # 위 끝에서 이 높이까지 edge 색 → 검정 그라데이션
+    edge_bottom: int = 0  # 아래 끝에서 이 높이까지 검정 → edge 색 그라데이션
+    photo_fade: int = 0  # 사진 칸 아랫부분 이 높이만큼을 검정으로 자연스럽게 잇는다
 
     @property
     def font_url(self) -> str:
@@ -56,7 +62,8 @@ class Style:
 
 
 STYLES: dict[str, Style] = {
-    # 정치는푸르다: 210 매머드빵, 화면 폭을 거의 채우는 큰 글씨 + 두꺼운 검은 테두리, 둘째 줄 진한 노랑
+    # 정치는푸르다: 210 매머드빵 큰 글씨(테두리 없이 흐린 그림자), 둘째 줄 진한 노랑. 바탕은 검정, 화면 위·아래 끝은
+    # 채널 아이콘 하늘색으로 마감, 사진 아랫부분은 검정으로 자연스럽게 이어져 그 위에 자막이 앉는다
     "default": Style(
         "default",
         font_local="210MammothPpang-R.TTF",
@@ -64,7 +71,12 @@ STYLES: dict[str, Style] = {
         head_box=(24, 190, 1056, 540),
         head_px=150,
         head_line=1.12,
-        stroke=0.13,
+        stroke=0.0,
+        shadow=0.85,
+        edge=CHANNEL_BLUE,
+        edge_top=520,
+        edge_bottom=380,
+        photo_fade=260,
     ),
     "navy_red": Style(
         "navy_red",
@@ -101,7 +113,9 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
     st = style_of(style)
     w, h = size
     rgb = im.convert("RGB")
-    if st.solid_bg is not None:
+    if st.edge is not None:
+        bg = _edge_background(size, st)
+    elif st.solid_bg is not None:
         bg = Image.new("RGB", size, st.solid_bg)
     else:
         small = ImageOps.fit(
@@ -115,8 +129,36 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
         photo = ImageOps.fit(rgb, (bw, bh), method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
     else:
         photo = ImageOps.contain(rgb, (bw, bh), method=Image.Resampling.LANCZOS)
-    bg.paste(photo, (x0 + (x1 - x0 - photo.width) // 2, y0 + (y1 - y0 - photo.height) // 2))
+    mask = _fade_mask(photo.size, round(st.photo_fade * h / SIZE[1])) if st.photo_fade else None
+    bg.paste(photo, (x0 + (x1 - x0 - photo.width) // 2, y0 + (y1 - y0 - photo.height) // 2), mask)
     return bg
+
+
+def _edge_background(size: tuple[int, int], st: Style) -> Image.Image:
+    """검정 바탕에 위 끝은 edge 색 → 검정, 아래 끝은 검정 → edge 색으로 이어지는 세로 그라데이션."""
+    w, h = size
+    top, bottom = round(st.edge_top * h / SIZE[1]), round(st.edge_bottom * h / SIZE[1])
+    col = Image.new("RGB", (1, h), (0, 0, 0))
+    px = col.load()
+    for y in range(h):
+        t = 0.0
+        if top and y < top:
+            t = (1 - y / top) ** 1.6
+        elif bottom and y >= h - bottom:
+            t = ((y - (h - bottom)) / bottom) ** 1.6
+        px[0, y] = tuple(round(c * t) for c in st.edge)
+    return col.resize(size, Image.Resampling.NEAREST)
+
+
+def _fade_mask(size: tuple[int, int], fade: int) -> Image.Image:
+    """사진 붙이기 마스크: 위는 그대로, 아랫부분 fade 높이에서 점점 투명해져 바탕(검정)으로 이어진다."""
+    w, h = size
+    col = Image.new("L", (1, h), 255)
+    px = col.load()
+    fade = min(fade, h)
+    for y in range(h - fade, h):
+        px[0, y] = round(255 * (1 - (y - (h - fade)) / fade) ** 1.3)
+    return col.resize(size, Image.Resampling.NEAREST)
 
 
 def _box(size: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -207,6 +249,26 @@ def render_headline(
             break
         fsize -= round(6 * s) or 1
     y = y0 + (y1 - y0 - total) // 2
+    if st.shadow:
+        # 테두리 대신 글자 뒤에 흐린 검은 그림자를 깔아 어떤 바탕에서도 글자가 떠 보이게 한다
+        sh = Image.new("RGBA", size, (0, 0, 0, 0))
+        sd = ImageDraw.Draw(sh)
+        ys = y
+        for r, width in zip(runs, widths, strict=True):
+            xs = (w - width) / 2
+            for t, f in r:
+                sd.text(
+                    (xs, ys + lh // 2 + round(fsize * 0.04)),
+                    t,
+                    font=f,
+                    fill=(0, 0, 0, round(255 * st.shadow)),
+                    anchor="lm",
+                    stroke_width=round(fsize * 0.06),
+                    stroke_fill=(0, 0, 0, round(255 * st.shadow)),
+                )
+                xs += sd.textlength(t, font=f)
+            ys += lh + gap
+        img.alpha_composite(sh.filter(ImageFilter.GaussianBlur(fsize * 0.09)))
     for i, (r, width) in enumerate(zip(runs, widths, strict=True)):
         k = min(i, 1) if len(lines) > 1 else 0
         color = st.text_colors[min(k, len(st.text_colors) - 1)]
@@ -224,7 +286,7 @@ def render_headline(
                 font=f,
                 fill=color,
                 anchor="lm",
-                stroke_width=0 if st.bands else max(4, round(fsize * st.stroke)),
+                stroke_width=0 if st.bands or not st.stroke else max(4, round(fsize * st.stroke)),
                 stroke_fill=STROKE,
             )
             if f is not font:  # 대신 쓴 폰트는 보통 굵기라 같은 색 테두리로 한 번 더 그려 굵게 맞춘다

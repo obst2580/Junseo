@@ -266,7 +266,7 @@ async def test_download_image_tries_https_first(tmp_path):
 def test_vertical_photo_and_headline(tmp_path):
     """세로 쇼츠: 가로 사진은 가운데 사진 칸에 꽉 차고(바탕은 흐린 같은 사진), 상단 제목은 위쪽 자리에만 그린다."""
     from newsclip.download import normalize_image
-    from newsclip.vertical import BOX, HEAD, SIZE, render_headline, split_head
+    from newsclip.vertical import BOX, SIZE, render_headline, split_head, style_of
 
     buf = io.BytesIO()
     Image.new("RGB", (1920, 1080), (200, 40, 40)).save(buf, "JPEG")
@@ -286,8 +286,9 @@ def test_vertical_photo_and_headline(tmp_path):
     ]  # 한 글자 낱말('등') 뒤에서 안 자름
     png = render_headline("민주당 지지율 진짜 이유", tmp_path / "h.png", SIZE)
     alpha = Image.open(png).getchannel("A")
-    x0, y0, x1, y1 = alpha.getbbox()
-    assert HEAD[1] - 10 <= y0 and y1 <= HEAD[3] + 10 and x0 >= HEAD[0] - 10 and x1 <= HEAD[2] + 10
+    hb = style_of("default").head_box
+    x0, y0, x1, y1 = alpha.point(lambda a: 255 if a > 200 else 0).getbbox()  # 글자(그림자 가장자리는 빼고)
+    assert hb[1] - 30 <= y0 and y1 <= hb[3] + 30 and x0 >= hb[0] - 30 and x1 <= hb[2] + 30
 
 
 def test_fcpxml_vertical_with_headline(tmp_path):

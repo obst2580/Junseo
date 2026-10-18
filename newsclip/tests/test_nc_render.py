@@ -39,7 +39,7 @@ def test_render_cue_box_and_highlight(tmp_path):
     art = render_cue("경기도 총 국회의원 60명", tmp_path / "c.png", (1080, 1920), keywords={"국회"})
     assert art is not None and art.width > 0 and art.height > 0
     assert Image.open(art.path).mode == "RGBA" and art.top + art.height == SUB_BOTTOM
-    assert 560 < art.top and art.top + art.height < 1370  # 사진 칸 안쪽 아랫부분
+    assert 1200 < art.top  # 사진 아랫부분이 검게 이어지는 자리(사진 칸 560~1370의 끝자락 아래)
     assert render_cue("\n", tmp_path / "e.png", (1080, 1920)) is None
 
 
