@@ -378,6 +378,7 @@ async def sources(
     자막 줄을 짧게(14자)."""
     from newsclip import vertical
     from newsclip.autosub import SUB_LINE
+    from newsclip.fcpxml import caption_for
     from newsclip.pipeline import run_project
 
     settings, pid, proj, _script, cues, matched, info, asr, words = _prepare(req, voice)
@@ -426,7 +427,7 @@ async def sources(
                 "topic": sc.topic,
                 "query": sc.query,
                 "chosen": next((n for n in names if chosen and n.endswith(chosen)), None),
-                "attribution": sc.chosen.attribution_text if sc.chosen else "",
+                "attribution": caption_for(sc, sc.chosen) if sc.chosen else "",
                 "photo_title": (sc.chosen.title or "")[:80] if sc.chosen else "",
                 "files": names,
                 "videos": video_links(sc.candidates),

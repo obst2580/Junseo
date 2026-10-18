@@ -182,6 +182,12 @@ class _Files:
                 _text(sc, "height", h)
 
 
+def caption_for(scene: Scene, asset: Asset) -> str:
+    """출처 칸 문구. 같은 인물이지만 사건과 다른 날 찍은 사진이면 앞에 '다른 날 사진 ·'을 붙인다."""
+    text = asset.attribution_text or attribution_text(asset)
+    return f"다른 날 사진 · {text}" if scene.other_day else text
+
+
 def audio_duration(path: Path) -> float | None:
     """WAV 길이(초). WAV가 아니면 None."""
     try:
@@ -273,7 +279,7 @@ def build_xmeml(
         # V2 출처 표시(직접 그린 슬라이드는 출처 표시 없음)
         if v2 is None or a.source == "slide":
             continue
-        text = a.attribution_text or attribution_text(a)
+        text = caption_for(seg.scene, a)
         key = text if style == "default" else f"{style}:{text}"  # 디자인이 다르면 출처 표시 그림도 따로
         png = cap_dir / f"cap_{hashlib.sha1(key.encode()).hexdigest()[:8]}.png"
         if not png.exists():

@@ -63,6 +63,8 @@ class Scene(BaseModel):
     chosen: Asset | None = None
     skipped: bool = False
     cue_ids: list[int] = Field(default_factory=list)
+    # 사진이 이 장면의 사건과 다른 날 찍은 사진(같은 인물)이면 출처 칸에 '다른 날 사진'을 붙인다
+    other_day: bool = False
 
     @property
     def duration(self) -> float:

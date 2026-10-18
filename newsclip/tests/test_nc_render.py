@@ -126,3 +126,25 @@ def test_render_short_real_file(tmp_path):
     video = next(s for s in info["streams"] if s["codec_type"] == "video")
     assert (video["width"], video["height"]) == (1080, 1920)
     assert abs(float(info["format"]["duration"]) - 3.0) < 0.2
+
+
+def test_other_day_photo_flag_marks_caption(tmp_path):
+    from newsclip.fcpxml import caption_for
+    from newsclip.models import Asset, Scene
+    from newsclip.pipeline import apply_queries
+
+    asset = Asset(
+        id="a1",
+        source="naver_image",
+        media="image",
+        title="발언하는 인물",
+        url="x",
+        attribution_text="출처: imgnews.naver.net",
+        local_path=str(tmp_path / "p.jpg"),
+    )
+    scene = Scene(id="s001", start_sec=0, end_sec=3, text="이재명이 또 해냈습니다.", topic="도입")
+    apply_queries([scene], {"scenes": {"s001": {"q": "인물 발언 장면", "other_day": True}}})
+    assert scene.other_day and scene.query == "인물 발언 장면"
+    assert caption_for(scene, asset) == "다른 날 사진 · 출처: imgnews.naver.net"
+    scene.other_day = False
+    assert caption_for(scene, asset) == "출처: imgnews.naver.net"

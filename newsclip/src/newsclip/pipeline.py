@@ -88,6 +88,8 @@ def apply_queries(scenes: list[Scene], queries: dict | None) -> None:
             sc.query = q.strip()
             words = [w for w in sc.query.split() if len(w) >= 2]
             sc.keywords_ko = list(dict.fromkeys([*words, *sc.keywords_ko]))[:3]
+        if isinstance(item, dict) and item.get("other_day"):
+            sc.other_day = True
         if video:
             sc.kind = "video"
         if per_topic.get(sc.topic, "").strip():
