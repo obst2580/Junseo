@@ -57,6 +57,14 @@ def build_workroom(channel: str = "") -> Path:
     for marker, value in (("/*__WORKER__*/{}", worker), ("/*__CHANNEL__*/null", channel or None)):
         assert page.count(marker) == 1, f"workroom.html에 {marker} 자리가 없습니다"
         page = page.replace(marker, json.dumps(value, ensure_ascii=False))
+    if channel:  # 채널 이름으로 페이지 이름(갤러리·탭에서 다른 제작실과 구별)
+        import yaml
+
+        name = (yaml.safe_load((ROOT / f"channel.{channel}.yaml").read_text(encoding="utf-8")) or {}).get(
+            "channel", {}
+        ).get("name") or channel
+        assert page.count("<title>studio 제작실</title>") == 1, "workroom.html 제목이 바뀌었습니다"
+        page = page.replace("<title>studio 제작실</title>", f"<title>{name} 제작실</title>")
     out = HERE / "dist" / (f"workroom-{channel}.html" if channel else "workroom.html")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(page, encoding="utf-8")
