@@ -26,7 +26,9 @@ RED = (255, 70, 70, 255)
 BOX = (0, 0, 0, 255)  # 자막 뒤 상자: 불투명한 검은색
 SUB_PX = 112  # 음성 자막 글자 크기(픽셀). 줄이 너무 넓으면 fit_sub_px가 줄인다
 SUB_MAX_W = 960  # 자막 한 줄의 최대 글자 폭(화면 1080 기준 좌우 여백 60)
-SUB_BOTTOM = 1500  # 세로 쇼츠: 자막 상자 아랫선(사진 아랫부분이 검게 이어지는 자리)
+SUB_TEXT_Y = (
+    1180  # 세로 쇼츠: 자막 첫 줄 글자 윗선 — 한 줄이든 두 줄이든 첫 줄 자리는 같다(두 줄이면 아래로 늘어남)
+)
 SUB_WRAP = 8  # 자막 한 줄 글자 수(공백 빼고). 넘으면 두 줄로 나눈다
 SUB_BOX = False  # 자막 뒤 검은 상자. False면 상자 없이 그림자만(정치는푸르다가 고른 방식)
 SUB_SHADOW = 1.0  # 상자 없을 때 글자 뒤 흐린 검은 그림자 세기(0~1)
@@ -208,7 +210,7 @@ def render_cue(
     if center_y is not None:
         top = center_y - bh // 2  # 훅 자막: 사진 칸 가운데
     else:
-        top = SUB_BOTTOM - bh if h > w else round(h * 0.75)
+        top = SUB_TEXT_Y - pad_y if h > w else round(h * 0.75)
     return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top)
 
 

@@ -9,8 +9,8 @@ from pathlib import Path
 from PIL import Image
 
 from newsclip.render import (
-    SUB_BOTTOM,
     SUB_PX,
+    SUB_TEXT_Y,
     Overlay,
     RenderPlan,
     Shot,
@@ -38,7 +38,7 @@ def _wav(path: Path, seconds: float) -> None:
 def test_render_cue_box_and_highlight(tmp_path):
     art = render_cue("경기도 총 국회의원 60명", tmp_path / "c.png", (1080, 1920), keywords={"국회"})
     assert art is not None and art.width > 0 and art.height > 0
-    assert Image.open(art.path).mode == "RGBA" and art.top + art.height == SUB_BOTTOM
+    assert Image.open(art.path).mode == "RGBA" and SUB_TEXT_Y - 80 < art.top < SUB_TEXT_Y
     assert 1100 < art.top  # 사진 아랫부분이 검게 이어지는 자리
     assert render_cue("\n", tmp_path / "e.png", (1080, 1920)) is None
 
@@ -236,7 +236,7 @@ def test_long_subtitle_goes_to_two_lines(tmp_path):
     assert sub_lines("짧은 자막") == ["짧은 자막"] and sub_lines("첫 줄\n둘째 줄") == ["첫 줄", "둘째 줄"]
     one = render_cue("짧은 자막", tmp_path / "a.png", (1080, 1920))
     two = render_cue("한동훈 의원이 하도 깐죽대니까", tmp_path / "b.png", (1080, 1920))
-    assert two.height > one.height * 1.5 and two.top + two.height == one.top + one.height == SUB_BOTTOM
+    assert two.height > one.height * 1.5 and two.top == one.top  # 한 줄·두 줄 모두 첫 줄 자리가 같다
 
 
 def test_subtitle_shadow_without_box(tmp_path):
