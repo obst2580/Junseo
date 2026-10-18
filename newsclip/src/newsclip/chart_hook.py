@@ -1,8 +1,8 @@
 """널스윤서 첫 문장 훅: 간호 차트판(클립보드)에 손글씨(210 여행일기 Bold)로 써지는 짧은 영상(mp4, 소리 없음).
 
 첫 문장을 두 줄로 나눠 차트판 종이에 크게 쓴다. 낱말은 목소리가 그 말을 읽는 때에 맞춰 왼쪽부터 써지고(starts),
-핵심 말(key)은 빨간 글씨로 쓴 뒤 빨간 펜 동그라미를 친다. 차트판은 처음에 아래에서 올라와 자리 잡고, 영상 내내
-아주 살짝 다가가며, 끝 0.2초는 흐려지며 다음 컷으로 넘어간다. 화면 위쪽 제목 띠·바탕은 사진과 같은 디자인
+핵심 말(key)은 빨간 글씨로 쓴 뒤 빨간 펜 동그라미를 친다. 차트판은 처음에 아래에서 올라와 자리 잡고, 핵심 말이
+들리는 순간 끊고 그 말 쪽으로 확 당긴 화면(줌 컷)으로 넘어가며, 끝 0.2초는 흐려지며 다음 컷으로 넘어간다. 화면 위쪽 제목 띠·바탕은 사진과 같은 디자인
 (vertical.plain_background)이고, 차트판은 사진 칸 안에 그린다.
 """
 
@@ -37,6 +37,7 @@ CIRCLE_SEC = 0.3  # 동그라미가 그려지는 시간
 RISE_SEC = 0.3  # 차트판이 올라오는 시간
 RISE_PX = 110
 PUSH = 0.05  # 영상 내내 다가가는 정도
+PUNCH_ZOOM = 1.5  # 핵심 말 줌 컷: 이만큼 당긴 화면으로 끊어 넘어간다
 BLUR_SEC = 0.2  # 끝에서 흐려지는 시간
 BLUR_MAX = 14
 
@@ -125,6 +126,7 @@ class ChartHook:
         self.starts = (list(starts) + [duration] * len(self.words))[: len(self.words)]
         reds = [i for i, w in enumerate(self.words) if w.red]
         self.circle_at = (self.starts[reds[-1]] + WRITE_SEC) if reds else None
+        self.punch_at = self.starts[reds[0]] if reds and reds[0] > 0 else None  # 핵심 말 앞까지 쓰고 줌 컷
         self.board = self._board()
         self.ink = self._ink()
         self.desk = self._desk()
@@ -197,13 +199,20 @@ class ChartHook:
         desk.alpha_composite(self.shadow, (ox + 14, oy + 22))
         desk.alpha_composite(rot, (ox, oy))
         box_img = desk.convert("RGB")
-        k = 1 + PUSH * min(1.0, t / max(self.duration, 0.01))  # 아주 살짝 다가간다(글씨 가운데 쪽으로)
+        bw, bh = box_img.size
+        if self.punch_at is not None and t >= self.punch_at:
+            # 핵심 말이 들리는 순간 끊고 그 말 쪽으로 확 당긴 화면(줌 컷) — 그 뒤로도 아주 살짝 다가간다
+            span = max(self.duration - self.punch_at, 0.01)
+            k = PUNCH_ZOOM + PUSH * min(1.0, (t - self.punch_at) / span)
+            cx, cy = self._key_center(ox, oy)
+        else:
+            k = 1 + PUSH * min(1.0, t / max(self.duration, 0.01))  # 아주 살짝 다가간다(글씨 가운데 쪽으로)
+            cx, cy = bw * 0.5, bh * 0.42
         if k > 1.0005:
-            bw, bh = box_img.size
             zw, zh = round(bw * k), round(bh * k)
             big = box_img.resize((zw, zh), Image.BICUBIC)
-            fx, fy = 0.5, 0.42
-            left, top = round((zw - bw) * fx), round((zh - bh) * fy)
+            left = round(min(max(cx * k - bw / 2, 0), zw - bw))
+            top = round(min(max(cy * k - bh / 2, 0), zh - bh))
             box_img = big.crop((left, top, left + bw, top + bh))
         left = self.duration - t
         if left < BLUR_SEC:
@@ -211,6 +220,15 @@ class ChartHook:
         out = self.bg.copy()
         out.paste(box_img, self.box[:2])
         return out
+
+    def _key_center(self, ox: int, oy: int) -> tuple[float, float]:
+        """핵심 말 가운데의 사진 칸 안 자리(차트판이 자리 잡은 뒤 기준, 기울기는 작아서 무시)."""
+        reds = [w for w in self.words if w.red]
+        x = (min(w.x for w in reds) + max(w.x + w.width for w in reds)) / 2
+        y = self._base(reds[0]) - self.font.size * 0.35
+        rot_dx = (self.shadow.width - CB_W) / 2  # 회전하며 늘어난 만큼
+        rot_dy = (self.shadow.height - CB_H) / 2
+        return ox + rot_dx + x, oy + rot_dy + y + self.font.size * 0.6  # 둘째 줄도 조금 보이게 살짝 아래로
 
     def _circle(self, cb: Image.Image, p: float) -> None:
         reds = [w for w in self.words if w.red]

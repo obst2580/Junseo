@@ -517,6 +517,8 @@ def build_plan(
         if hook_end < CHART_MIN:
             hook_end = next((c.end for c in cues if c.start < CHART_MIN <= c.end + 0.05), CHART_MIN)
         hook_end = min(hook_end, total)
+        # 차트판이 떠 있는 동안은 자막을 띄우지 않는다(손글씨를 가린다) — 걸친 자막은 차트판이 끝나면 뜬다
+        cues = [replace(c, start=max(c.start, hook_end)) for c in cues if c.end > hook_end + 0.2]
     shots = shots_for(
         scenes,
         asset_dir,
