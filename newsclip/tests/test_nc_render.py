@@ -246,3 +246,26 @@ def test_subtitle_shadow_without_box(tmp_path):
     assert shadow.getpixel((2, 2))[3] == 0  # 그림자만: 모서리는 투명
     dark = sum(1 for r, g, b, a in shadow.getdata() if a > 120 and r < 40 and g < 40 and b < 40)
     assert dark > 1000  # 글자 뒤 진한 그림자
+
+
+def test_only_one_keyword_highlighted_per_subtitle(tmp_path):
+    from newsclip.render import RED, YELLOW
+
+    art = render_cue(
+        "홍준표 대구시장이 방송 대담에서",
+        tmp_path / "k.png",
+        (1080, 1920),
+        keywords={"홍준표", "대구시장", "방송", "대담"},
+        text_color=YELLOW,
+        hot_color=RED,
+        box=True,
+    )
+    img = Image.open(art.path).convert("RGB")
+    reds = [
+        x
+        for x in range(img.width)
+        for y in range(0, img.height, 4)
+        if img.getpixel((x, y))[0] > 200 and img.getpixel((x, y))[1] < 120
+    ]
+    # 빨강은 첫 핵심어(홍준표) 자리에만 — 오른쪽 절반에는 없다
+    assert reds and max(reds) < img.width * 0.6

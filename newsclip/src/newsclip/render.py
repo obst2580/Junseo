@@ -145,6 +145,7 @@ def render_cue(
     hot_color: tuple[int, int, int, int] = YELLOW,
     box: bool | None = None,
     shadow: float | None = None,
+    max_hot: int = 1,
 ) -> CueArt | None:
     """자막 한 블록(줄바꿈은 \\n)을 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다.
     box면 뒤에 검은 상자, 아니면 shadow 세기만큼 글자 뒤에 흐린 검은 그림자를 깐다(비우면 SUB_BOX·SUB_SHADOW)."""
@@ -175,13 +176,17 @@ def render_cue(
     img = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     spots: list[tuple[float, float, str, tuple]] = []  # 낱말마다 (x, y, 낱말, 색)
+    used = 0  # 핵심어로 강조한 낱말 수(숫자는 세지 않음) — 한 자막에 max_hot개까지만
     for row, ln in enumerate(lines):
         x = (bw - line_w[row] - gap * (len(ln.split(" ")) - 1)) / 2
         y = pad_y + row * line_h
         for k, word in enumerate(ln.split(" ")):
             if k:
                 x += gap
-            spots.append((x, y, word, hot_color if is_hot(word, keywords) else text_color))
+            hot = is_hot(word, set())  # 숫자는 늘 강조
+            if not hot and used < max_hot and is_hot(word, keywords):
+                hot, used = True, used + 1
+            spots.append((x, y, word, hot_color if hot else text_color))
             x += draw.textlength(word, font=font)
     if use_box:
         draw.rounded_rectangle((0, 0, bw - 1, bh - 1), radius=round(12 * min(w, h) / 1080), fill=BOX)

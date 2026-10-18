@@ -184,7 +184,8 @@ def build_plan(
     shots = shots_for(scenes, asset_dir, total, videos or {}, max_shot_sec)
     # 핵심어: 호출자가 준 말 + 첫 장면 검색어의 말(훅에서 빨간색으로 강조)
     first = min(scenes, key=lambda s: float(s["start"]))
-    query_words = {w for w in str(first.get("query", "")).split() if len(w) >= 2}
+    # 검색어는 사진을 찾는 말이라 다 강조하면 빨강·노랑이 넘친다 — 첫 낱말(보통 인물 이름) 하나만 핵심어로
+    query_words = {w for w in str(first.get("query", "")).split()[:1] if len(w) >= 2}
     cues, _spans, _info = subtitles_for(
         project["script"], audio, SIZE, asset_dir, set(keywords) | query_words, srt=srt, words=words
     )
