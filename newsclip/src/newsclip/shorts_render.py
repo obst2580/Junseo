@@ -50,6 +50,10 @@ SHOT_SEC = 2.5  # 한 컷 목표 길이(장면의 사진이 모자라면 그만�
 SHOT_MIN = 1.2  # 이보다 짧은 컷은 만들지 않는다
 PUSH = 0.06  # 한 컷 동안 다가가거나(줌 인) 물러나는(줌 아웃) 정도
 FOCUS = (0.5, 0.33)  # 줌 기준점(사진 칸 위쪽 가운데 — 보통 얼굴 자리)
+HOLD_ZOOM = (
+    1.0,
+    1.02,
+)  # 훅이 나오는 동안의 사진: 바꾸지 않고 아주 살짝만 다가간다(글자가 읽히게 배경은 차분히)
 XFADE_SEC = 0.16  # 화제가 바뀌는 장면에서 확대 펀치 전환(앞 컷이 빠르게 다가가고 다음 컷이 제자리로)
 EMPH_MAX = 12  # 강조 자막(색 글자)이 될 수 있는 자막 길이(공백 빼고)
 EMPH_GAP = 4.0  # 강조 자막 사이 최소 간격(초) — 너무 자주 나오면 강조가 아니다
@@ -118,11 +122,13 @@ def shots_for(
     max_shot_sec: float | None = None,
     cuts: list[float] | None = None,
     xfade_at: list[float] = (),
+    hold_until: float = 0.0,
 ) -> list[Shot]:
     """장면 → 화면 조각. 장면 사이 틈은 앞 조각을 늘려 메운다. videos[장면 id]가 있으면 그 장면은 영상(길이 안)으로.
     cuts(자막이 바뀌는 시각)를 주면 컷 편집: 장면의 후보 사진을 SHOT_SEC초 안팎으로 하나씩 바꿔 쓰되 바꾸는
     때를 자막 경계에 맞추고, 컷마다 줌 인·아웃을 번갈아 준다. 화제가 바뀌는 장면이나 xfade_at(넘기는 효과음
-    시각)에서 시작하는 장면의 첫 컷은 확대 펀치 전환으로 넘어간다.
+    시각)에서 시작하는 장면의 첫 컷은 확대 펀치 전환으로 넘어간다. hold_until(훅이 끝나는 때)까지는 사진을 바꾸지
+    않고 그 컷은 HOLD_ZOOM으로 아주 살짝만 움직인다.
     cuts가 없으면 max_shot_sec보다 길게 나오지 않도록만 나눈다(같은 장면의 다른 사진을 번갈아 쓴다)."""
     shots: list[Shot] = []
     count = 0  # 줌 방향을 조각 순서대로 번갈아 쓰려고 센다(나누지 않으면 장면 번호와 같다)
@@ -144,9 +150,12 @@ def shots_for(
         if cuts is not None:
             k = min(len(pool), max(1, round((end - start) / SHOT_SEC)))
             turn = new_topic or any(abs(start - t) < 0.05 for t in xfade_at)
-            for i, (a, b) in enumerate(cut_pieces(start, end, cuts, k)):
+            usable = [c for c in cuts if c >= hold_until - 0.05]  # 훅 동안은 사진을 바꾸지 않는다
+            for i, (a, b) in enumerate(cut_pieces(start, end, usable, k)):
                 count += 1
                 zoom = (1.0, 1.0 + PUSH) if count % 2 else (1.0 + PUSH, 1.0)
+                if a < hold_until:
+                    zoom = HOLD_ZOOM
                 xf = XFADE_SEC if (i == 0 and turn and start > 0) else 0.0
                 shots.append(Shot(pool[i], "image", a, b, zoom=zoom, focus=FOCUS, xfade=xf))
             continue
@@ -373,7 +382,17 @@ def build_plan(
     sfx.sort()
     # 넘기는 효과음(whoosh)이 나는 장면은 화면도 확대 펀치 전환으로 넘긴다
     whoosh = [cue.at for cue in sounds if cue.name == "whoosh"]
-    shots = shots_for(scenes, asset_dir, total, videos or {}, max_shot_sec, cuts=cut_at, xfade_at=whoosh)
+    hook_end = max((c.end for c in cues if c.path.name.startswith("hook_")), default=0.0)
+    shots = shots_for(
+        scenes,
+        asset_dir,
+        total,
+        videos or {},
+        max_shot_sec,
+        cuts=cut_at,
+        xfade_at=whoosh,
+        hold_until=hook_end,
+    )
     caps = []
     for k, sc in enumerate(scenes):
         src = asset_dir / caption_name(sc["attribution"]) if sc.get("attribution") else None

@@ -401,3 +401,24 @@ def test_one_frame_overlays_are_drawn(tmp_path):
     ).stdout
     lit = [i for i in range(len(raw) // 100) if raw[i * 100 + 55] > 128]
     assert lit[0] == 15 and lit[-1] == 23  # 0.5초(15번째 프레임)부터 0.8초 전까지
+
+
+def test_background_holds_still_during_hook(tmp_path):
+    """훅이 나오는 동안은 사진을 바꾸지 않고 아주 살짝만 움직인다."""
+    from newsclip.shorts_render import HOLD_ZOOM, shots_for
+
+    for name in ("assets/a1.jpg", "assets/a2.jpg"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (1080, 1920), (90, 90, 90)).save(tmp_path / name)
+    scenes = [
+        {
+            "id": "s001",
+            "start": 0,
+            "end": 5,
+            "chosen": "assets/a1.jpg",
+            "files": ["assets/a1.jpg", "assets/a2.jpg"],
+        }
+    ]
+    shots = shots_for(scenes, tmp_path, 5.0, {}, cuts=[0.6, 1.2, 2.2, 3.5, 4.2], hold_until=3.5)
+    assert shots[0].start == 0.0 and shots[0].end >= 3.5 and shots[0].zoom == HOLD_ZOOM
+    assert len(shots) == 2 and shots[1].start == 3.5
