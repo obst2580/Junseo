@@ -250,3 +250,64 @@ def test_rank_rules():
     ]
     assert route_for(scene("x", 0, 1, kind="video"), google=False) == ["youtube_video", "naver_image"]
     _ = date
+
+
+def test_rank_skips_photos_of_other_people_abroad_and_sns_events():
+    """뉴스 채널: 사진 주인공이 장면에 없는 사람(李 대통령 사진에 추미애 발언), 장면과 상관없는 얼굴이 섞인 합성,
+    외국 사진, 'SNS'가 글자로만 맞은 행사 사진은 뒤로. 소재 사이트만 쓰는 채널(널스윤서)은 예전 그대로."""
+    from newsclip.rank import title_people
+
+    assert title_people("李 “소방관에 천금 준들 아깝겠나”…추미애 ‘재정 빨대’ 발언 저격?") == ["이재명"]
+    assert title_people("[경기도지사 후보 지지도] 추미애 27.0% - 김동연 21.2% - 한준호 17.2%") == [
+        "추미애",
+        "김동연",
+        "한준호",
+    ]
+    assert title_people("발언하는 장동혁 국민의힘 대표") == ["장동혁"]
+    assert title_people("순직 소방관 빈소 찾은 추미애 지사") == ["추미애"]
+    assert title_people("[포토] 더불어민주당 최고위원회의") == []
+
+    def pick(sc, titles):
+        assets = [
+            asset(
+                "naver_image",
+                f"https://i/{k}.jpg",
+                width=1600,
+                height=1200,
+                title=t,
+                source_domain="imgnews.naver.net",
+            )
+            for k, t in enumerate(titles)
+        ]
+        return [a.title for a in rank(sc, assets, CFG)]
+
+    quote = scene("s003", 0, 3, text='"소방이 재정 빨대 같다"고 했는데요,', query="추미애 재정 빨대 발언")
+    lee = "李 “소방관에 천금 준들 아깝겠나”…추미애 ‘재정 빨대’ 발언 저격?"
+    choo = "추미애 경기도지사 ‘재정 빨대’ 발언 해명"
+    assert pick(quote, [lee, choo])[0] == choo
+    # 장면에 '대통령'이 나오면 대통령 사진은 그대로
+    pres = scene("s013", 0, 3, text="대통령과 정부의 개혁에 힘을 모아야 할 때", query="대통령 국무회의")
+    assert (
+        pick(pres, ["국무회의 발언하는 이재명 대통령", "국무회의 자료"])[0]
+        == "국무회의 발언하는 이재명 대통령"
+    )
+    poll = "[경기도지사 후보 지지도] 추미애 27.0% - 김동연 21.2% - 한준호 17.2%"
+    solo = "국정감사 답변하는 추미애 경기도지사"
+    assert (
+        pick(scene("s014", 0, 3, text="스스로 만든 악재입니다.", query="추미애 경기도지사"), [poll, solo])[0]
+        == solo
+    )
+    us = "미 워싱턴 DC에 위치한 미국 국회의사당 전경."
+    kr = "여의도 국회의사당 전경"
+    assert pick(scene("s017", 0, 3, text="구독과 좋아요", query="국회의사당 전경"), [us, kr])[0] == kr
+    sns = "[포토] 아동청소년 SNS 중독 좌담회서 발언하는 장동혁 대표"
+    plain = "발언하는 장동혁 국민의힘 대표"
+    out = pick(
+        scene("s010", 0, 3, text='"닷새 만에 등 떠밀려 내놓은 사과",', query="장동혁 대표 SNS"), [sns, plain]
+    )
+    assert out[0] == plain
+    # 소재 사이트만 쓰는 채널은 이 규칙을 쓰지 않는다
+    stock = ChannelConfig.model_validate({"images": {"sources": ["naver_image"]}})
+    a = asset("naver_image", "https://i/lee.jpg", width=1600, height=1200, title=lee)
+    notes = rank(quote, [a], stock)[0].score_notes
+    assert not any("장면에 없음" in n or "외국" in n for n in notes)

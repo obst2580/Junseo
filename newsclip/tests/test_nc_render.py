@@ -387,6 +387,17 @@ def test_emphasis_cues_colored_and_spaced(tmp_path):
         Cue(4, 9, 10, "한동훈 의원"),
     ]
     assert pick_emphasis(cues, {"한동훈"}) == {1: EMPH_RED, 3: EMPH_GREEN}  # 빨강 먼저, 그다음 간격 맞는 것
+    # 뉴스 채널(sag): 흐름이 늘어질 때만 하나씩 — 훅(0번) 끝에서 8초 지나야, 그때 3초 안의 후보 중 가장 센 것
+    cues = [
+        Cue(1, 0, 3, "훅"),
+        Cue(2, 4.8, 6, "한동훈 의원이"),
+        Cue(3, 9, 10, '"맹신자 중에'),
+        Cue(4, 11.5, 12, "한동훈 의원"),
+        Cue(5, 13, 14, "막말 논란"),
+        Cue(6, 18, 19, '"끝까지 오만하다"고'),
+        Cue(7, 22, 23, "배신자 낙인"),
+    ]
+    assert pick_emphasis(cues, {"한동훈"}, start=1, sag=8.0) == {4: EMPH_RED, 6: EMPH_RED}
     art = render_emph("배신자 낙인", tmp_path / "e.png", (1080, 1920), color=EMPH_RED)
     assert art is not None and len(art.intro) == len(EMPH_BLUR) and all(p.exists() for p in art.intro)
     assert Image.open(art.intro[0]).size == Image.open(art.path).size
@@ -465,3 +476,36 @@ def test_refresh_design_recomposes_old_photos_and_headline(tmp_path):
     assert refresh_design(tmp_path, "보수 내부 폭로전") == 1
     assert [p.name for p in (tmp_path / "overlays").glob("*.png")] == ["headline_now.png"]
     assert Image.open(tmp_path / "assets" / "old.jpg").getpixel((540, 10)) != (120, 120, 120)
+
+
+def test_quote_pairs_close_and_reopen_split_quotes():
+    """인용 하나가 두 자막에 걸치면 앞 조각은 닫고 뒤 조각은 다시 연다. 짝이 맞는 자막은 그대로."""
+    from newsclip.shorts_render import pair_quotes
+
+    assert pair_quotes(['"소방이 가장 큰 골치 아픈', '재정 빨대 같다"고 했는데요,', "추 지사 앞으로"]) == [
+        '"소방이 가장 큰 골치 아픈"',
+        '"재정 빨대 같다"고 했는데요,',
+        "추 지사 앞으로",
+    ]
+    assert pair_quotes(["“사과 바라시니까", "사과”라고\n했거든요."]) == [
+        "“사과 바라시니까”",
+        "“사과”라고\n했거든요.",
+    ]
+    assert pair_quotes(['"끝까지 오만하다"고', "‘재정 빨대’라고"]) == [
+        '"끝까지 오만하다"고',
+        "‘재정 빨대’라고",
+    ]
+    assert pair_quotes(['"하나', "둘", '셋"이라고']) == ['"하나"', '"둘"', '"셋"이라고']
+
+
+def test_wide_photo_sits_on_box_top_for_news_styles():
+    """칸보다 납작한 사진: 뉴스 디자인은 칸 위에 붙이고(출처 표시가 사진 위), 널스윤서는 예전처럼 가운데."""
+    from newsclip.vertical import _box, compose_photo, style_of
+
+    wide = Image.new("RGB", (2000, 1000), (200, 50, 50))  # 2:1 파노라마
+    for name, top in (("default", True), ("navy_red", True), ("health", False)):
+        st = style_of(name)
+        x0, y0, x1, y1 = _box((1080, 1920), st)
+        frame = compose_photo(wide, (1080, 1920), name)
+        r, g, b = frame.getpixel((540, y0 + 4))
+        assert (r > 150 and g < 100) is top, name
