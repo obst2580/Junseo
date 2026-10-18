@@ -4,7 +4,7 @@
 싣고 글자는 크게 쓴다. 작업자가 장면 대사를 읽고 queries.json의 "cards"(장면 ID → 카드 내용)에 쓰면, 그 장면의 첫 컷이
 카드가 되고 이어서 그 장면의 사진·영상이 나온다(카드가 장면 전체를 차지하지 않는다).
 - 색: 흰 카드, 검은 글씨, 강조는 하늘색 하나(채널 상단 제목과 같은 색). 주의는 주황, 위험은 빨강(신호등처럼).
-- 사진 칸 아랫부분은 자막 자리라 검정으로 이어진다 — 내용은 위쪽 CONTENT_H 안에만 그린다.
+- 사진 칸 아랫부분은 자막 자리라 검정으로 이어진다 — 내용은 위쪽 content_h 안에만 그린다.
 
 레이아웃(layout):
 - number   kicker, value, unit, label, note, level(ok|warn|bad)   — 기준값·숫자 하나("130/80 mmHg")
@@ -18,12 +18,12 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from newsclip.slides import Painter
 
 W, H = 1080, 810  # 세로 쇼츠 사진 칸(newsclip.vertical.BOX)
-CONTENT_H = 600  # 내용을 그릴 높이(아래는 자막 자리로 검게 이어진다)
+CONTENT_H = 600  # 내용을 그릴 기본 높이(아래는 자막 자리) — 디자인마다 render_cards가 정한다
 PAD = 64
 INK = (17, 17, 17)
 SUB = (110, 116, 128)
@@ -34,6 +34,8 @@ CARD = (255, 255, 255)
 LEVEL = {"ok": SKY, "warn": (245, 140, 20), "bad": (226, 52, 52)}
 LAYOUTS = ("number", "bars", "table", "compare")
 MAX_ITEMS = 4
+CARD_GROW = 1.4  # 내용을 키울 수 있는 최대 배율
+EDGE = 48  # 키운 내용과 카드 가장자리 사이
 
 
 def _num(v: object) -> float | None:
@@ -50,13 +52,35 @@ def _num(v: object) -> float | None:
 class CardPainter(Painter):
     """폰트 묶음(Pretendard)으로 카드 하나를 그린다."""
 
+    def __init__(self, fonts: dict[str, str], h: int = H, content_h: int = CONTENT_H) -> None:
+        super().__init__(fonts)
+        self.h, self.content_h = h, content_h
+        self.focus = (0.5, 0.4)  # 카드에서 다가갈 자리(가로·세로 비율) — 강조한 줄·숫자
+
     def card(self, spec: dict, out: Path) -> Path:
         layout = str(spec.get("layout") or "number")
         if layout not in LAYOUTS:
             layout = "number"
-        img = Image.new("RGB", (W, H), CARD)
-        d = ImageDraw.Draw(img)
-        getattr(self, f"_c_{layout}")(d, spec)
+        self.focus_px: float | None = None
+        work = Image.new("RGB", (W, self.content_h), CARD)
+        getattr(self, f"_c_{layout}")(ImageDraw.Draw(work), spec)
+        # 그린 내용만 잘라 내용 자리(위쪽 content_h)에 꽉 차게 키워(많아야 CARD_GROW배) 가운데에 놓는다 — 사진 칸이
+        # 큰 디자인에서도 숫자가 작아 보이지 않게
+        used = ImageChops.difference(work, Image.new("RGB", work.size, CARD)).getbbox() or (
+            0,
+            0,
+            W,
+            self.content_h,
+        )
+        x0, y0, x1, y1 = used
+        cw, ch = max(1, x1 - x0), max(1, y1 - y0)
+        k = min(CARD_GROW, (W - 2 * EDGE) / cw, (self.content_h - 2 * EDGE) / ch)
+        part = work.crop(used).resize((round(cw * k), round(ch * k)), Image.Resampling.LANCZOS)
+        ox, oy = (W - part.width) // 2, (self.content_h - part.height) // 2
+        img = Image.new("RGB", (W, self.h), CARD)
+        img.paste(part, (ox, oy))
+        fy = (self.focus_px if self.focus_px is not None else (y0 + y1) / 2 - 0) - y0
+        self.focus = (0.5, round(min(0.9, max(0.1, (oy + fy * k) / self.h)), 3))
         out.parent.mkdir(parents=True, exist_ok=True)
         img.save(out, "PNG")
         return out
@@ -90,6 +114,7 @@ class CardPainter(Painter):
         wv, wu = d.textlength(value, font=fv), (d.textlength(" " + unit, font=fu) if unit else 0)
         x = (W - wv - wu) / 2
         base = y + 20 + size
+        self.focus_px = base - size / 2
         d.text((x, base), value, font=fv, fill=color, anchor="ls")
         if unit:
             d.text((x + wv, base), " " + unit, font=fu, fill=SUB, anchor="ls")
@@ -98,7 +123,7 @@ class CardPainter(Painter):
             size2, lines = self.fit(str(s["label"]), "ExtraBold", 66, W - 2 * PAD, 2, 44)
             for ln in lines:
                 y = self._center(d, ln, y, "ExtraBold", size2, INK)
-        if s.get("note") and y < CONTENT_H - 50:
+        if s.get("note") and y < self.content_h - 50:
             self._center(d, s["note"], y + 6, "Bold", 42, SUB)
 
     def _c_bars(self, d: ImageDraw.ImageDraw, s: dict) -> None:
@@ -109,13 +134,15 @@ class CardPainter(Painter):
         hi = s.get("hi")
         nums = [_num(i.get("value")) or 0.0 for i in items]
         top = max(nums) or 1.0
-        row = min(118, (CONTENT_H - y) // len(items))
+        row = min(118, (self.content_h - y) // len(items))
         label_w = 300
         bar_x, bar_w = PAD + label_w, W - 2 * PAD - label_w - 170
         unit = str(s.get("unit", ""))
         for k, (it, v) in enumerate(zip(items, nums, strict=True)):
             on = hi == k
             cy = y + row // 2
+            if on:
+                self.focus_px = cy
             size, lines = self.fit(str(it.get("label", "")), "Bold", 46, label_w - 20, 1, 30)
             d.text(
                 (PAD, cy),
@@ -159,7 +186,7 @@ class CardPainter(Painter):
         )
         hi = s.get("hi")
         head_h = 84 if cols else 0
-        row_h = min(116, (CONTENT_H - y - head_h) // len(rows))
+        row_h = min(116, (self.content_h - y - head_h) // len(rows))
         if cols:
             d.rounded_rectangle((PAD, y, W - PAD, y + head_h), radius=18, fill=INK)
             x = PAD
@@ -176,6 +203,7 @@ class CardPainter(Painter):
         for k, r in enumerate(rows):
             on = hi == k
             if on:
+                self.focus_px = y + row_h / 2
                 d.rounded_rectangle(
                     (PAD, y + 4, W - PAD, y + row_h - 4), radius=18, fill=SKY_BG, outline=SKY, width=4
                 )
@@ -202,7 +230,7 @@ class CardPainter(Painter):
         left, right = s.get("left") or {}, s.get("right") or {}
         gap = 36
         bw = (W - 2 * PAD - gap) // 2
-        bh = min(330, CONTENT_H - y - (70 if s.get("note") else 10))
+        bh = min(330, self.content_h - y - (70 if s.get("note") else 10))
         for k, side in enumerate((left, right)):
             x0 = PAD + k * (bw + gap)
             on = k == 1
@@ -224,19 +252,26 @@ class CardPainter(Painter):
                 anchor="mm",
             )
         d.text((W / 2, y + bh / 2), "→", font=self.font("ExtraBold", 64), fill=SKY, anchor="mm")
+        self.focus_px = y + bh / 2
         if s.get("note"):
             self._center(d, s["note"], y + bh + 20, "Bold", 42, SUB)
 
 
 def render_cards(
     specs: dict, fonts: dict[str, str], out_dir: Path, size: tuple[int, int], style: str
-) -> dict[str, Path]:
-    """{장면 ID: 카드 내용} → {장면 ID: 세로 화면 한 장(JPEG, 사진과 같은 디자인 바탕)}. 바로 앞 장면에 카드가 있으면
-    그 장면은 건너뛴다(카드가 이어지면 지나가는 컷이 아니라 슬라이드쇼가 된다)."""
-    from newsclip.vertical import compose_photo
+) -> dict[str, tuple[Path, tuple[float, float]]]:
+    """{장면 ID: 카드 내용} → {장면 ID: (세로 화면 한 장 JPEG, 다가갈 자리)}. 카드는 디자인의 사진 칸 크기로 그리고
+    사진과 같은 바탕에 얹는다. 내용은 자막 자리 위에만 그린다. 다가갈 자리(사진 칸 안 가로·세로 비율)는 강조한
+    줄·숫자 — 쇼츠 렌더가 카드 컷에서 그쪽으로 다가간다. 바로 앞 장면에 카드가 있으면 그 장면은 건너뛴다(카드가
+    이어지면 지나가는 컷이 아니라 슬라이드쇼가 된다)."""
+    from newsclip.render import SUB_TEXT_Y
+    from newsclip.vertical import box_of, compose_photo, style_of
 
-    painter = CardPainter(fonts)
-    made: dict[str, Path] = {}
+    st = style_of(style)
+    x0, y0, x1, y1 = box_of(st)
+    content_h = min(y1 - y0 - 40, SUB_TEXT_Y + st.sub_shift - y0 - 20)
+    painter = CardPainter(fonts, h=y1 - y0, content_h=content_h)
+    made: dict[str, tuple[Path, tuple[float, float]]] = {}
     prev = None
     for sid in sorted(specs, key=_scene_no):
         spec = specs[sid]
@@ -250,7 +285,7 @@ def render_cards(
             frame = compose_photo(im.convert("RGB"), size, style)
         dest = out_dir / f"{sid}_card.jpg"
         frame.save(dest, "JPEG", quality=92)
-        made[sid] = dest
+        made[sid] = (dest, painter.focus)
         prev = no
     return made
 

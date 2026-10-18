@@ -289,9 +289,9 @@ def add_cards(
 
     made = render_cards(specs, fonts, assets_dir, size, style)
     for sc in scenes:
-        path = made.get(sc.id)
-        if path is None:
+        if sc.id not in made:
             continue
+        path, focus = made[sc.id]
         spec = specs.get(sc.id) or {}
         card = Asset(
             source="card",
@@ -302,6 +302,7 @@ def add_cards(
             height=size[1],
             local_path=str(path),
             media="image",
+            focus=focus,
         )
         sc.candidates = [card, *sc.candidates]
         sc.chosen = card

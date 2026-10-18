@@ -17,6 +17,7 @@ from pathlib import Path
 from PIL import Image
 
 from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases, subtitle_cues
+from newsclip.chart_hook import make_chart_clip, split_lines
 from newsclip.models import Scene
 from newsclip.render import (
     EMPH_GREEN,
@@ -37,7 +38,7 @@ from newsclip.render import (
 )
 from newsclip.sfx import HIT, HIT_EARLY, ensure_sfx, sfx_cues
 from newsclip.srt import parse_srt
-from newsclip.vertical import BOX
+from newsclip.vertical import BOX, box_of, style_of
 
 SIZE = (1080, 1920)
 HOOK_SEC = 3.5  # 훅: 이 시각 전에 시작하는 첫 문장 자막을 짧게 잘라 빠르게 보여 준다
@@ -92,6 +93,20 @@ def _photo_pool(sc: dict, asset_dir: Path) -> list[Path]:
     """장면의 사진 목록: 골라 쓴 사진 먼저, 그다음 같은 장면의 다른 후보 사진."""
     names = [sc["chosen"]] + [n for n in sc.get("files", []) if n != sc["chosen"] and n.startswith("assets/")]
     return [asset_dir / n for n in names if (asset_dir / n).exists()]
+
+
+CHART_MIN = 2.5  # 차트판 훅을 적어도 이만큼(초) 보여 준다
+CARD_ZOOM = (1.0, 1.18)  # 수치 카드 컷: 1~2초 동안 강조한 줄로 성큼 다가간다
+
+
+def is_card(path: Path) -> bool:
+    """장면 자료가 수치 카드인가(newsclip.cards — <장면>_card.jpg)."""
+    return path.stem.endswith("_card")
+
+
+def card_focus(sc: dict) -> tuple[float, float]:
+    f = sc.get("card_focus")
+    return (float(f[0]), float(f[1])) if isinstance(f, list | tuple) and len(f) == 2 else (0.5, 0.4)
 
 
 def is_clip(path: Path) -> bool:
@@ -166,10 +181,12 @@ def shots_for(
             usable = [c for c in cuts if c >= hold_until - 0.05]  # 훅 동안은 사진을 바꾸지 않는다
             for i, (a, b) in enumerate(cut_pieces(start, end, usable, k)):
                 count += 1
-                if is_clip(
-                    pool[i]
-                ):  # 영상 조각(무료 소재 — 받을 때 사진 칸에 맞춰 다듬어 둠): 줌 없이 그대로
+                # 영상 조각(무료 소재 — 받을 때 사진 칸에 맞춰 다듬어 둠): 줌 없이 그대로
+                if is_clip(pool[i]):
                     shots.append(Shot(pool[i], "video", a, b, in_sec=0.0))
+                    continue
+                if is_card(pool[i]):  # 수치 카드: 강조한 줄·숫자 쪽으로 다가간다
+                    shots.append(Shot(pool[i], "image", a, b, zoom=CARD_ZOOM, focus=card_focus(sc)))
                     continue
                 zoom = (1.0, 1.0 + PUSH) if count % 2 else (1.0 + PUSH, 1.0)
                 if a < hold_until:
@@ -196,6 +213,25 @@ def shots_for(
             filled[-1] = replace(filled[-1], end=shot.start)
         filled.append(shot)
     return [s for s in filled if s.end > s.start]
+
+
+def after(shots: list[Shot], at: float) -> list[Shot]:
+    """at 뒤의 컷만(at에 걸친 컷은 at부터 — 영상은 그만큼 뒤에서 시작)."""
+    out = []
+    for s in shots:
+        if s.end <= at + 1e-6:
+            continue
+        if s.start < at:
+            cut = at - s.start
+            s = replace(s, start=at, in_sec=s.in_sec + cut if s.kind == "video" else s.in_sec, xfade=0.0)
+        out.append(s)
+    return out
+
+
+def default_key(sentence: str) -> str | None:
+    """차트판 훅에서 동그라미 칠 말을 정해 주지 않았을 때: 문장 끝 행위(서술어 쪽, 9자 안쪽) 또는 따옴표 안 발언."""
+    key = hook_key(sentence)
+    return key[1] if key and len(key[1].replace(" ", "")) <= 9 else None
 
 
 def wrap_hook(text: str, limit: int = 8) -> str:
@@ -357,8 +393,12 @@ def subtitles_for(
     keywords: set[str],
     srt: Path | None = None,
     words: list | None = None,
-) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo]:
-    """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다."""
+    hook_mode: str = "flash",
+    sub_shift: int = 0,
+) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo, tuple[str, float, float] | None]:
+    """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다.
+    hook_mode "chart"(널스윤서)면 첫 문장 자막을 만들지 않는다 — 그동안 화면은 차트판 훅(chart_hook)이 첫 문장을
+    손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). 마지막 값은 첫 문장 (글, 시작, 끝)."""
     info = analyze(audio)
     if srt is not None:
         # 받은 자막(SRT)을 그대로 쓴다: 제작실에서 본 자막과 같은 시간
@@ -377,7 +417,12 @@ def subtitles_for(
     px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
     arts = []
     emph = pick_emphasis(lines, keywords, start=hook_n)
-    if hook_n:
+    hook = (
+        (" ".join(c.text.strip() for c in lines[:hook_n]), lines[0].start, lines[hook_n - 1].end)
+        if hook_n
+        else None
+    )
+    if hook_n and hook_mode != "chart":
         arts += hook_arts(lines[:hook_n], asset_dir, size, keywords, words)
     for k, cue in enumerate(lines):
         if k < hook_n:
@@ -392,8 +437,8 @@ def subtitles_for(
                 cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px
             )
         if art is not None:
-            arts.append(_timed(art, cue.start, cue.end))
-    return arts, [(cue.start, cue.end) for cue in lines], info
+            arts.append(replace(_timed(art, cue.start, cue.end), top=art.top + sub_shift))
+    return arts, [(cue.start, cue.end) for cue in lines], info, hook
 
 
 def _timed(art: CueArt, start: float, end: float) -> CueArt:
@@ -430,8 +475,17 @@ def build_plan(
     first = min(scenes, key=lambda s: float(s["start"]))
     # 검색어는 사진을 찾는 말이라 다 강조하면 빨강·노랑이 넘친다 — 첫 낱말(보통 인물 이름) 하나만 핵심어로
     query_words = {w for w in str(first.get("query", "")).split()[:1] if len(w) >= 2}
-    cues, _spans, _info = subtitles_for(
-        project["script"], audio, SIZE, asset_dir, set(keywords) | query_words, srt=srt, words=words
+    st = style_of(style)
+    cues, _spans, _info, hook = subtitles_for(
+        project["script"],
+        audio,
+        SIZE,
+        asset_dir,
+        set(keywords) | query_words,
+        srt=srt,
+        words=words,
+        hook_mode=st.hook,
+        sub_shift=st.sub_shift,
     )
     cues = [c for c in cues if c.start < total]
     # 컷 편집: 자막이 바뀌는 때(훅 조각 포함)에 맞춰 사진을 바꾼다. max_shot_sec를 주면 예전 방식(길이로만 나눔)
@@ -457,6 +511,12 @@ def build_plan(
     # 넘기는 효과음(whoosh)이 나는 장면은 화면도 확대 펀치 전환으로 넘긴다
     whoosh = [cue.at for cue in sounds if cue.name == "whoosh"]
     hook_end = max((c.end for c in cues if c.path.name.startswith("hook_")), default=0.0)
+    chart = st.hook == "chart" and hook is not None
+    if chart:  # 첫 문장이 짧으면 차트판을 CHART_MIN초까지(그 무렵 자막이 바뀌는 때에서) 둔다
+        hook_end = hook[2]
+        if hook_end < CHART_MIN:
+            hook_end = next((c.end for c in cues if c.start < CHART_MIN <= c.end + 0.05), CHART_MIN)
+        hook_end = min(hook_end, total)
     shots = shots_for(
         scenes,
         asset_dir,
@@ -467,6 +527,17 @@ def build_plan(
         xfade_at=whoosh,
         hold_until=hook_end,
     )
+    if chart:  # 첫 문장 동안은 차트판 훅 영상 하나 — 그 뒤 컷부터 사진·영상
+        spec = project.get("hook") or {}
+        lines = spec.get("lines") or split_lines(hook[0])
+        key = spec.get("key") or default_key(hook[0])
+        starts = chunk_starts(" ".join(lines).split(), hook[1], hook_end, words)
+        out = asset_dir / "subtitles" / "chart_hook.mp4"
+        clip, circle_at = make_chart_clip(hook[0], key, starts, hook_end, out, SIZE, style, lines=lines)
+        shots = [Shot(clip, "video", 0.0, hook_end, in_sec=0.0), *after(shots, hook_end)]
+        if circle_at is not None and circle_at < hook_end:  # 동그라미 칠 때 짧은 팝
+            sfx.append((max(0.0, circle_at - HIT_EARLY), sfx_dir[HIT]))
+            sfx.sort()
     caps = []
     for k, sc in enumerate(scenes):
         src = asset_dir / caption_name(sc["attribution"]) if sc.get("attribution") else None
@@ -492,7 +563,7 @@ def build_plan(
         cues=cues,
         sfx=sfx,
         bgm=bgm,
-        photo_box=BOX,
+        photo_box=box_of(st),
         photo_fade=_photo_fade(asset_dir, style),
     )
 
@@ -504,7 +575,7 @@ def _photo_fade(asset_dir: Path, style: str = "default") -> Path | None:
     st = style_of(style)
     if not st.photo_fade:
         return None
-    x0, y0, x1, y1 = BOX
+    x0, y0, x1, y1 = box_of(st)
     mask = _fade_mask((x1 - x0, y1 - y0), st.photo_fade)
     img = Image.new("RGBA", mask.size, (0, 0, 0, 0))
     img.putalpha(mask.point(lambda v: 255 - v))
@@ -524,15 +595,16 @@ def refresh_design(asset_dir: Path, headline: str, style: str = "default") -> in
     st = style_of(style)
     bg = plain_background(SIZE, st)
     n = 0
+    box = box_of(st)
     if bg is not None:
-        ref = np.asarray(bg.crop((0, 0, SIZE[0], BOX[1])), dtype=np.int16)
+        ref = np.asarray(bg.crop((0, 0, SIZE[0], box[1])), dtype=np.int16)
         for p in sorted((asset_dir / "assets").glob("*.jpg")):
             im = Image.open(p).convert("RGB")
             if im.size != SIZE:
                 continue
-            top = np.asarray(im.crop((0, 0, SIZE[0], BOX[1])), dtype=np.int16)
+            top = np.asarray(im.crop((0, 0, SIZE[0], box[1])), dtype=np.int16)
             if np.abs(top - ref).mean() > 12:  # 바탕이 지금 디자인과 다르다(예전 디자인으로 모은 자료)
-                compose_photo(im.crop(BOX), style=st.name).save(p, quality=92)
+                compose_photo(im.crop(box), style=st.name).save(p, quality=92)
                 n += 1
     if headline.strip():
         for old in (asset_dir / "overlays").glob("headline_*.png"):

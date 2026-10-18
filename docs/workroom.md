@@ -84,7 +84,8 @@ unset STUDIO_FIXTURES
 최근 48시간(`board.window_hours`) 받습니다. 커뮤니티는 쓰지 않습니다. 3단계 queries.json은 이렇게 씁니다.
 
 ```json
-{"scenes": {"s001": "blood pressure monitor", "s002": "woman sitting relaxing sofa", "s003": "morning wake up bedroom"},
+{"hook": {"key": "아무 때나", "lines": ["혈압, 아무 때나", "재고 계시죠?"]},
+ "scenes": {"s001": "blood pressure monitor", "s002": "woman sitting relaxing sofa", "s003": "morning wake up bedroom"},
  "cards": {
   "s006": {"layout": "table", "title": "고혈압 기준", "cols": ["어디서", "기준"], "rows": [["집에서", "135/85 이상"], ["병원에서", "140/90 이상"]], "hi": 0},
   "s009": {"layout": "number", "kicker": "아침마다", "value": "2번", "label": "재서 평균 적기", "note": "일어나서 1시간 안"}
@@ -101,6 +102,10 @@ unset STUDIO_FIXTURES
   - `table`: title, cols[2~3], rows[2~4줄], hi(강조 줄) — 정상·주의·위험 기준표
   - `compare`: title, left{label, value}, right{label, value}, note — 전후·두 무리 비교
   - 글자는 짧게: 제목 12자, 칸 하나 8자 안쪽. 카드 내용은 사진 칸 위쪽에 그려지고 아랫부분은 자막 자리로 검게 이어집니다.
+- `hook`(차트판 훅): 첫 문장은 화면에 간호 차트판(클립보드)이 올라오고 손글씨(210 여행일기 Bold)로 써집니다.
+  `key`는 빨간 글씨·빨간 동그라미를 칠 말(첫 문장에 그대로 든 2~9자 — 숫자·때·몸 부위처럼 '아, 그거?' 할 말),
+  `lines`는 두 줄 나눔(비우면 길이가 비슷하게 자동). 차트판은 적어도 2.5초, 그동안 첫 문장 자막은 띄우지 않습니다.
+- 사진 칸은 거의 정사각형(1080×1030)이고 자막은 칸 안 아래쪽입니다. 수치 카드 컷은 강조한 줄(`hi`)·숫자 쪽으로 다가갑니다.
 - 화면에 출처를 띄우지 않습니다. 받은 소재의 출처(받은 때·사이트·소재 번호·작가·주소)는 프로젝트의 `credits.txt`·`assets.json`과
   결과의 `credits`(제작실 화면에서 복사)에 남습니다 — 영상 설명란이나 저작권 신고 이의 제기에 씁니다.
 - 상단 제목은 흰 바탕 위 두 줄(첫 줄 검정, 둘째 줄 하늘색 강조), 자막은 다른 채널과 같습니다(`shorts.style: health`).

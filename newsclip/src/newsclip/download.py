@@ -318,7 +318,7 @@ def prepare_clip(
         bg = compose_photo(im.convert("RGB"), size, style)  # 사진과 같은 바탕(사진 칸은 영상이 덮는다)
     bg_path = work / f"{dest.stem}_bg.png"
     bg.save(bg_path)
-    x0, y0, x1, y1 = _box(size)
+    x0, y0, x1, y1 = _box(size, st)
     bw, bh = x1 - x0, y1 - y0
     inputs = ["-loop", "1", "-i", str(bg_path), "-stream_loop", "-1", "-i", str(src)]
     chain = (

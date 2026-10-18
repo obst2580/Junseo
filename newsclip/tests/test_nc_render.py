@@ -221,7 +221,7 @@ def test_subtitles_follow_given_srt(tmp_path):
         "1\n00:00:00,000 --> 00:00:02,000\n이재명이 또 해냈습니다!\n\n2\n00:00:02,000 --> 00:00:03,000\n둘째 줄\n",
         encoding="utf-8",
     )
-    arts, _spans, _info = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
+    arts, _spans, _info, _hook = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
     # 첫 문장(느낌표로 끝)은 훅: '이재명이'를 짧게, 핵심 행위 '또 해냈습니다!'는 크게 강조(글자 수 비율 시각),
     # 그다음은 일반 자막
     assert [(round(a.start, 2), round(a.end, 2)) for a in arts] == [(0.0, 0.73), (0.73, 2.0), (2.0, 3.0)]
@@ -247,7 +247,7 @@ def test_hook_shows_quoted_remark_until_hook_ends(tmp_path):
         "2\n00:00:03,000 --> 00:00:04,000\n둘째 줄\n",
         encoding="utf-8",
     )
-    arts, _s, _i = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
+    arts, _s, _i, _h = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
     hook = [a for a in arts if a.path.name.startswith("hook_")]
     # '윤 전 대통령이' / '한동훈을'은 짧게, 그다음 "발언"은 강조 자막
     assert [bool(a.intro) for a in hook] == [False, False, True]

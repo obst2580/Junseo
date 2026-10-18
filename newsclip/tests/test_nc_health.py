@@ -17,7 +17,7 @@ from newsclip.rank import rank
 from newsclip.shorts_render import shots_for
 from newsclip.sources import pexels, pixabay
 from newsclip.sources.base import SourceUnavailable
-from newsclip.vertical import BOX, SIZE, compose_photo, style_of
+from newsclip.vertical import BOX, SIZE, box_of, compose_photo, style_of
 from studio_core.config import ChannelConfig
 
 from nch import scene
@@ -177,8 +177,11 @@ def test_health_style_white_top_black_title_sky_emphasis():
     assert st.text_colors[0] == (17, 17, 17) and st.text_colors[1][2] > 200  # 검정 + 하늘색
     frame = compose_photo(Image.new("RGB", (900, 1600), (200, 50, 50)), SIZE, "health")
     assert frame.getpixel((540, 100)) == (255, 255, 255)  # 위쪽 흰 바탕
-    assert frame.getpixel((10, BOX[1] + 20))[0] > 150  # 세로 사진도 칸을 꽉 채운다(검은 옆 띠 없음)
-    assert frame.getpixel((540, 1800)) == (0, 0, 0)  # 자막 자리는 검정
+    box = box_of("health")
+    assert box[3] - box[1] > 1000 and box[1] < BOX[1]  # 거의 정사각형으로 큰 사진 칸
+    assert frame.getpixel((540, box[1] - 3))[2] > 200  # 제목 띠와 사진 칸 사이 하늘색 선
+    assert frame.getpixel((10, box[1] + 20))[0] > 150  # 세로 사진도 칸을 꽉 채운다(검은 옆 띠 없음)
+    assert frame.getpixel((540, 1800)) == (0, 0, 0)  # 칸 아래는 검정
 
 
 def test_cards_render_and_skip_back_to_back(tmp_path):
@@ -205,8 +208,14 @@ def test_cards_render_and_skip_back_to_back(tmp_path):
     }
     made = cards.render_cards(specs, fonts, tmp_path, SIZE, "health")
     assert sorted(made) == ["s003", "s006", "s008"]
-    with Image.open(made["s003"]) as im:
-        assert im.size == SIZE and im.getpixel((540, BOX[1] + 100)) != (0, 0, 0)  # 카드는 사진 칸에
+    path, focus = made["s003"]
+    with Image.open(path) as im:
+        assert im.size == SIZE and im.getpixel((540, box_of("health")[1] + 100)) != (
+            0,
+            0,
+            0,
+        )  # 카드는 사진 칸에
+    assert 0.1 <= focus[1] <= 0.9  # 강조한 줄 쪽으로 다가갈 자리
 
 
 def test_shots_use_video_clips_without_zoom(tmp_path):
@@ -288,3 +297,20 @@ def test_prepare_clip_vertical_no_audio_and_length(tmp_path, src_size):
     )
     with Image.open(tmp_path / "f.png") as im:
         assert im.getpixel((540, 100))[0] > 240  # 디자인 바탕(흰 위쪽)
+
+
+def test_chart_hook_lines_key_and_frames():
+    from newsclip.chart_hook import ChartHook, layout, split_lines
+
+    assert split_lines("혈압, 아무 때나 재고 계시죠?") == ["혈압, 아무 때나", "재고 계시죠?"]
+    assert split_lines("혈압 재세요") == ["혈압 재세요"]  # 짧으면 한 줄
+    _font, words = layout(["혈압, 아무 때나", "재고 계시죠?"], "아무 때나")
+    assert [w.text for w in words if w.red] == ["아무", "때나"]
+    hook = ChartHook(["혈압, 아무 때나", "재고 계시죠?"], "아무 때나", [0.1, 0.4, 0.7, 1.2, 1.5], 2.5, SIZE)
+    assert hook.circle_at == pytest.approx(0.7 + 0.18)
+    box = box_of("health")
+    early, late = hook.frame(0.05), hook.frame(1.9)
+    assert early.size == SIZE and early.getpixel((540, 100)) == (255, 255, 255)
+    paper = (box[0] + 200, box[1] + 330, box[0] + 900, box[1] + 520)  # 첫 줄 글씨 자리
+    ink = lambda im: sum(1 for p in im.crop(paper).getdata() if sum(p) < 200)  # noqa: E731
+    assert ink(late) > ink(early) + 500  # 시간이 지나면 글씨가 써진다

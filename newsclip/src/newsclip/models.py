@@ -40,6 +40,7 @@ class Asset(BaseModel):
     sha256: str | None = None
     provider_id: str = ""  # 소재 사이트의 소재 번호(Pexels·Pixabay — 저작권 신고 이의 제기용)
     fetched_at: str | None = None  # 받은 때(KST ISO)
+    focus: tuple[float, float] | None = None  # 수치 카드: 다가갈 자리(사진 칸 안 가로·세로 비율)
     score_notes: list[str] = Field(default_factory=list)
 
 

@@ -30,6 +30,7 @@ STROKE = (12, 12, 12)
 NAVY, RED = (11, 31, 75), (215, 20, 26)
 CHANNEL_BLUE = (62, 136, 200)  # 정치는푸르다 채널 아이콘 하늘색
 SKY = (0, 156, 222)  # 널스윤서 강조 하늘색(흰 바탕에서 또렷하게 읽히는 진한 하늘색)
+HEALTH_BOX = (0, 436, 1080, 1466)  # 널스윤서 사진 칸: 제목 띠(0~430)와 하늘색 선 바로 아래, 거의 정사각형
 FONT_CDN = "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/"
 
 
@@ -56,13 +57,16 @@ class Style:
     edge_top: int = 0  # 위 끝에서 이 높이까지 edge 색 → 검정 그라데이션
     edge_bottom: int = 0  # 아래 끝에서 이 높이까지 검정 → edge 색 그라데이션
     photo_fade: int = 0  # 사진 칸 아랫부분 이 높이만큼을 검정으로 자연스럽게 잇는다
-    top_bg: tuple[int, int, int] | None = (
-        None  # 있으면 바탕을 검정으로 깔고 화면 위부터 top_until까지 이 색으로 칠한다
-    )
+    # 있으면 바탕을 검정으로 깔고 화면 위부터 top_until까지 이 색으로 칠한다
+    top_bg: tuple[int, int, int] | None = None
     top_until: int = 0  # top_bg를 칠할 높이(1080x1920 기준, 보통 사진 칸 윗선)
-    fill_box: bool = (
-        False  # 세로 사진도 칸에 꽉 차게 잘라 넣는다(검은 옆 띠 없이 — 세로 소재를 주로 쓰는 채널)
-    )
+    top_line: tuple[int, int, int] | None = None  # 있으면 top_bg 아래 끝에 이 색 선(제목 띠와 사진 칸 사이)
+    # 세로 사진도 칸에 꽉 차게 잘라 넣는다(검은 옆 띠 없이 — 세로 소재를 주로 쓰는 채널)
+    fill_box: bool = False
+    box: tuple[int, int, int, int] | None = None  # 사진 칸(1080x1920 기준). 비우면 BOX(4:3)
+    sub_shift: int = 0  # 대본 자막을 기본 자리(render.SUB_TEXT_Y)에서 이만큼 아래로(사진 칸이 다른 디자인)
+    # 첫 문장 훅: flash(짧게 잘라 사진 칸 가운데에 크게) | chart(간호 차트판 손글씨, newsclip.chart_hook)
+    hook: str = "flash"
 
     @property
     def font_url(self) -> str:
@@ -95,19 +99,22 @@ STYLES: dict[str, Style] = {
         text_colors=((255, 255, 255), (255, 255, 255)),
         caption_box=(*NAVY, 200),
     ),
-    # 널스윤서(건강): 위쪽은 흰 바탕에 검은 글씨, 둘째 줄은 하늘색 강조 글씨. 사진 칸 아래는 검정으로 이어져 자막은
-    # 다른 채널과 같은 자리·같은 모양으로 앉는다
+    # 널스윤서(건강): 위쪽은 흰 바탕에 검은 글씨, 둘째 줄은 하늘색 강조 글씨, 그 아래 하늘색 선. 사진 칸은 거의
+    # 정사각형으로 크게(세로 소재가 덜 잘린다), 자막은 사진 칸 안 아래쪽. 첫 문장은 간호 차트판에 손글씨로
     "health": Style(
         "health",
         top_bg=(255, 255, 255),
-        top_until=BOX[1],
+        top_until=HEALTH_BOX[1],
+        top_line=SKY,
         text_colors=((17, 17, 17), SKY),
-        head_box=(40, 150, 1040, 540),
+        head_box=(40, 40, 1040, 400),
         head_px=132,
         head_line=1.16,
         stroke=0.0,
         fill_box=True,
-        photo_fade=200,  # 수치 카드 내용(위쪽 600px)이 가리지 않게 다른 채널(260)보다 짧게
+        box=HEALTH_BOX,
+        sub_shift=60,
+        hook="chart",
     ),
 }
 
@@ -144,7 +151,7 @@ def compose_photo(im: Image.Image, size: tuple[int, int] = SIZE, style: str = "d
         )  # 작게 흐려서 키우면 빠르다
         bg = small.filter(ImageFilter.GaussianBlur(10)).resize(size, Image.Resampling.BILINEAR)
         bg = Image.blend(bg, Image.new("RGB", size, st.tint), st.tint_amount)
-    x0, y0, x1, y1 = _box(size)
+    x0, y0, x1, y1 = _box(size, st)
     bw, bh = x1 - x0, y1 - y0
     if 1.0 <= rgb.width / rgb.height <= CROP_MAX:  # 16:9까지는 양옆만 조금 잘라 칸을 채운다
         photo = ImageOps.fit(rgb, (bw, bh), method=Image.Resampling.LANCZOS, centering=(0.5, 0.4))
@@ -163,7 +170,10 @@ def plain_background(size: tuple[int, int], st: Style) -> Image.Image | None:
     """사진과 상관없는 디자인 바탕(위쪽 단색 / 위·아래 끝 색 / 한 가지 색). 흐린 사진 바탕 디자인이면 None."""
     if st.top_bg is not None:
         bg = Image.new("RGB", size, (0, 0, 0))
-        bg.paste(st.top_bg, (0, 0, size[0], round(st.top_until * size[1] / SIZE[1])))
+        until = round(st.top_until * size[1] / SIZE[1])
+        bg.paste(st.top_bg, (0, 0, size[0], until))
+        if st.top_line is not None:
+            bg.paste(st.top_line, (0, max(0, until - round(6 * size[1] / SIZE[1])), size[0], until))
         return bg
     if st.edge is not None:
         return _edge_background(size, st)
@@ -199,9 +209,16 @@ def _fade_mask(size: tuple[int, int], fade: int) -> Image.Image:
     return col.resize(size, Image.Resampling.NEAREST)
 
 
-def _box(size: tuple[int, int]) -> tuple[int, int, int, int]:
+def box_of(style: str | Style | None) -> tuple[int, int, int, int]:
+    """디자인의 사진 칸(1080x1920 기준)."""
+    st = style if isinstance(style, Style) else style_of(style)
+    return st.box or BOX
+
+
+def _box(size: tuple[int, int], st: Style | None = None) -> tuple[int, int, int, int]:
+    b = box_of(st) if st is not None else BOX
     sx, sy = size[0] / SIZE[0], size[1] / SIZE[1]
-    return round(BOX[0] * sx), round(BOX[1] * sy), round(BOX[2] * sx), round(BOX[3] * sy)
+    return round(b[0] * sx), round(b[1] * sy), round(b[2] * sx), round(b[3] * sy)
 
 
 def box_top(size: tuple[int, int]) -> int:

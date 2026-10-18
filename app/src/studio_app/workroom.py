@@ -438,7 +438,7 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
     bgm_path = _fetched(fetched, bgm["asset_id"], "bgm") if bgm and bgm.get("asset_id") else None
     words = audio.get("words") if audio.get("source") == "typecast" else None
     srt = proj / "narration.srt"
-    project = {"script": req["script"], "scenes": req["result"]["scenes"]}
+    project = {"script": req["script"], "scenes": req["result"]["scenes"], "hook": req["result"].get("hook")}
     final = out / "final.mp4"
     render_short(
         project,
@@ -652,6 +652,8 @@ async def sources(
                 "files": names,
                 "videos": video_links(sc.candidates),
                 **({"borrowed": sc.borrowed} if sc.borrowed else {}),
+                # 수치 카드 장면: 카드 컷에서 다가갈 자리(강조한 줄·숫자)
+                **({"card_focus": list(sc.chosen.focus)} if sc.chosen and sc.chosen.focus else {}),
             }
         )
     # timeline.xml이 가리키는 그 밖의 파일(출처 표시 captions/, 상단 제목 overlays/, 자막 subtitles/의 글자 그림)도 같이 올린다
@@ -705,9 +707,25 @@ async def sources(
         "base_token": f"file://localhost/{BASE}",
         # 무료 소재 출처(받은 때·사이트·소재 번호·작가·주소) — 화면에서 설명란용으로 복사, 저작권 신고 이의 제기용
         "credits": _credits(proj),
+        # 차트판 훅(널스윤서): 첫 문장에서 동그라미 칠 핵심 말·줄 나눔(queries.json "hook") — 완성 영상 렌더가 쓴다
+        **({"hook": _hook_spec(queries)} if _hook_spec(queries) else {}),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
+
+
+def _hook_spec(queries: dict | None) -> dict:
+    """queries.json의 "hook" → {key, lines}(빈 값은 뺀다). 없으면 빈 dict."""
+    h = (queries or {}).get("hook")
+    if not isinstance(h, dict):
+        return {}
+    out: dict = {}
+    if str(h.get("key") or "").strip():
+        out["key"] = str(h["key"]).strip()
+    lines = [str(x).strip() for x in h.get("lines") or [] if str(x).strip()][:2]
+    if lines:
+        out["lines"] = lines
+    return out
 
 
 def _credits(proj: Path) -> list[str]:
@@ -795,7 +813,7 @@ def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None
             missing.append(name)
     if missing:
         raise ValueError(f"자산 ID가 없는 파일 {len(missing)}개: {', '.join(missing[:10])}")
-    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr", "size", "credits")
+    keys = ("made_at", "scenes", "report", "base_token", "timing", "asr", "size", "credits", "hook")
     result = {k: manifest[k] for k in keys if k in manifest}
     result.update(
         files=files,
