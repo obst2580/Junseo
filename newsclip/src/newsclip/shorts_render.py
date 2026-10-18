@@ -501,9 +501,15 @@ def subtitles_for(
         for k, cue in enumerate(lines):
             if k < hook_n or k in emph:
                 continue
-            ph = phrase_in(cue.text, emphasis, strong)
             near = [lines[j].start for j in [*emph, *split]]
-            if ph and all(abs(cue.start - t) >= EMPH_GAP for t in near):
+            if any(abs(cue.start - t) < EMPH_GAP for t in near):
+                continue
+            core = re.sub(r"\s+", "", cue.text.strip(".,!?… "))
+            if any(re.sub(r"\s+", "", ph) == core for ph in emphasis):  # 자막 한 줄이 곧 강조 문구 → 줄째로
+                emph[k] = EMPH_RED
+                continue
+            ph = phrase_in(cue.text, emphasis, strong)
+            if ph:
                 split[k] = ph
     hook = (
         (" ".join(c.text.strip() for c in lines[:hook_n]), lines[0].start, lines[hook_n - 1].end)

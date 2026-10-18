@@ -333,3 +333,49 @@ def test_health_emphasis_splits_long_cue():
     assert [p[0] for p in parts] == ["집에서 잰 혈압은", "135에 85를", "넘으면 고혈압으로 본대요."]
     assert [p[3] for p in parts] == [False, True, False]
     assert parts[0][1] == 13.0 and parts[-1][2] == 16.0 and parts[0][2] == parts[1][1]
+
+
+def test_health_emphasis_whole_short_line(tmp_path):
+    """자막 한 줄이 곧 강조 문구면 그 줄 전체를 강조 자막으로(나누지 않는다)."""
+    import shutil as sh
+
+    from newsclip.shorts_render import HEALTH_STRONG, subtitles_for
+
+    if sh.which("ffmpeg") is None:
+        pytest.skip("ffmpeg 필요")
+    srt = tmp_path / "s.srt"
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\n혈압 재세요.\n\n2\n00:00:01,000 --> 00:00:02,000\n그런데 진료지침은\n\n"
+        "3\n00:00:02,000 --> 00:00:03,000\n두 번 재기!\n\n4\n00:00:03,000 --> 00:00:04,000\n평균을 적어요.\n",
+        encoding="utf-8",
+    )
+    audio = tmp_path / "a.wav"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=48000:cl=mono",
+            "-t",
+            "4",
+            str(audio),
+        ],
+        check=True,
+    )
+    arts, _s, _i, _h = subtitles_for(
+        "x",
+        audio,
+        SIZE,
+        tmp_path,
+        set(),
+        srt=srt,
+        hook_mode="chart",
+        emphasis=["두 번 재기"],
+        strong=HEALTH_STRONG,
+    )
+    names = [a.path.name for a in arts]
+    assert "emph_002.png" in names and not any(n.startswith("cue_002") for n in names)
