@@ -379,3 +379,25 @@ def test_health_emphasis_whole_short_line(tmp_path):
     )
     names = [a.path.name for a in arts]
     assert "emph_002.png" in names and not any(n.startswith("cue_002") for n in names)
+
+
+def test_card_cut_is_brief(tmp_path):
+    """수치 카드는 지나가는 컷: 장면이 길어도 1.8초만, 나머지는 장면의 다음 자료."""
+    from newsclip.shorts_render import CARD_MAX
+
+    (tmp_path / "assets").mkdir()
+    for name in ("s003_card.jpg", "s003_1.mp4", "s003_2.jpg"):
+        (tmp_path / "assets" / name).write_bytes(b"x")
+    scenes = [
+        {
+            "id": "s003",
+            "start": 0,
+            "end": 6.0,
+            "topic": "t",
+            "chosen": "assets/s003_card.jpg",
+            "files": ["assets/s003_card.jpg", "assets/s003_1.mp4", "assets/s003_2.jpg"],
+        }
+    ]
+    shots = shots_for(scenes, tmp_path, 6.0, {}, cuts=[3.0])
+    assert shots[0].path.name == "s003_card.jpg" and shots[0].end - shots[0].start == pytest.approx(CARD_MAX)
+    assert shots[1].kind == "video" and shots[-1].end == 6.0

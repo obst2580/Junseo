@@ -104,7 +104,8 @@ def _photo_pool(sc: dict, asset_dir: Path) -> list[Path]:
 
 
 CHART_MIN = 2.5  # 차트판 훅을 적어도 이만큼(초) 보여 준다
-CARD_ZOOM = (1.0, 1.18)  # 수치 카드 컷: 1~2초 동안 강조한 줄로 성큼 다가간다
+CARD_ZOOM = (1.0, 1.18)
+CARD_MAX = 1.8  # 수치 카드 컷 길이 상한(초) — 숫자만 한눈에 보고 지나간다  # 수치 카드 컷: 1~2초 동안 강조한 줄로 성큼 다가간다
 
 
 def is_card(path: Path) -> bool:
@@ -187,7 +188,14 @@ def shots_for(
             k = min(len(pool), max(1, round((end - start) / SHOT_SEC)))
             turn = new_topic or any(abs(start - t) < 0.05 for t in xfade_at)
             usable = [c for c in cuts if c >= hold_until - 0.05]  # 훅 동안은 사진을 바꾸지 않는다
-            for i, (a, b) in enumerate(cut_pieces(start, end, usable, k)):
+            pieces = cut_pieces(start, end, usable, k)
+            if is_card(pool[0]) and len(pool) > 1 and pieces[0][1] - pieces[0][0] > CARD_MAX + 0.8:
+                # 수치 카드는 지나가는 컷: CARD_MAX초만 보여 주고 그 컷의 나머지는 장면의 다음 자료로
+                a0, b0 = pieces[0]
+                pieces = [(a0, a0 + CARD_MAX), (a0 + CARD_MAX, b0), *pieces[1:]][: len(pool)]
+                if pieces[-1][1] < end:  # 자료가 모자라 잘린 끝은 마지막 컷을 늘려 메운다
+                    pieces[-1] = (pieces[-1][0], end)
+            for i, (a, b) in enumerate(pieces):
                 count += 1
                 # 영상 조각(무료 소재 — 받을 때 사진 칸에 맞춰 다듬어 둠): 줌 없이 그대로
                 if is_clip(pool[i]):
