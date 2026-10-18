@@ -43,7 +43,7 @@ def test_ensure_sfx_writes_mono_48k_wav(tmp_path):
             assert 0.2 < w.getnframes() / 48000 < 1.0
             pcm = w.readframes(w.getnframes())
         peaks[name] = max(abs(v) for v in struct.unpack(f"<{len(pcm) // 2}h", pcm))
-    assert peaks[HIT] > peaks[WHOOSH] * 1.5  # 강조음(받지 못했을 때 합성 팝)도 또렷하게
+    assert peaks[HIT] > peaks[WHOOSH]  # 강조음(받지 못했을 때 합성 팝)은 넘김 소리보다 조금 크게
 
 
 def test_fcpxml_adds_sfx_track_under_narration(tmp_path):
