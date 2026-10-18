@@ -689,6 +689,8 @@ def build_plan(
         photo_box=box_of(st),
         photo_fade=_photo_fade(asset_dir, style),
         peak=st.peak,
+        bgm_volume=st.bgm_volume,
+        duck=st.duck,
     )
 
 

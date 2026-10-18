@@ -98,6 +98,16 @@ def test_build_command_wires_video_audio_and_effects(tmp_path):
     assert (
         "fade=" not in joined and "28*max(0,1-(t-0.500)/0.18)" in joined
     )  # 전환: 흐려지지 않고 아래에서 올라옴
+    assert "volume=0.22" in joined and "threshold=0.03:ratio=8.0" in joined  # 기본: 예전 배경음악 크기
+    # 뉴스 디자인: 배경음악이 말할 때도 들리게(크게, 덜 누르기). 널스윤서는 예전 그대로
+    from newsclip.vertical import style_of
+
+    news, health = style_of("default"), style_of("health")
+    loud = " ".join(
+        build_command(replace(plan, bgm_volume=news.bgm_volume, duck=news.duck), tmp_path / "o2.mp4")
+    )
+    assert "volume=0.35" in loud and "threshold=0.1:ratio=2.0" in loud
+    assert style_of("navy_red").duck == news.duck and (health.bgm_volume, health.duck) == (0.22, (0.03, 8.0))
 
 
 def test_render_short_real_file(tmp_path):

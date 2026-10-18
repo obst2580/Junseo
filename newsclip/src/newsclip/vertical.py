@@ -77,6 +77,11 @@ class Style:
     quote_pairs: bool = False  # 인용이 두 자막에 걸치면 조각마다 따옴표 짝을 맞춘다
     wide_top: bool = False  # 칸보다 납작한 사진(파노라마)을 칸 위에 붙인다(출처 표시가 사진 위에 앉게)
     peak: float = 0.95  # 소리 최고점(믹스 끝 리미터, 1.0 = 0 dBFS)
+    bgm_volume: float = 0.22  # 배경음악 크기(내레이션이 없을 때 기준)
+    duck: tuple[float, float] = (
+        0.03,
+        8.0,
+    )  # 말할 때 배경음악 줄이기(사이드체인 문턱, 비율) — 비율이 클수록 많이 줄인다
 
     @property
     def font_url(self) -> str:
@@ -84,8 +89,16 @@ class Style:
 
 
 # 뉴스 채널(정치는푸르다·자유뉴스365) 쇼츠 편집: 강조 자막은 흐름이 8초 늘어질 때만, 인용 따옴표 짝 맞추기,
-# 납작한 사진은 칸 위에, 소리 최고점 -1.4 dBFS(유튜브 재압축 뒤에도 -1 dBTP 안쪽)
-NEWS_EDIT = {"emph_sag": 8.0, "quote_pairs": True, "wide_top": True, "peak": 0.85}
+# 납작한 사진은 칸 위에, 소리 최고점 -1.4 dBFS(유튜브 재압축 뒤에도 -1 dBTP 안쪽), 배경음악은 말할 때도
+# 들리게(목소리 -14 LUFS 아래 약 12 dB — 예전 0.22·(0.03, 8)은 말하는 동안 27 dB 아래로 눌려 거의 안 들렸다)
+NEWS_EDIT = {
+    "emph_sag": 8.0,
+    "quote_pairs": True,
+    "wide_top": True,
+    "peak": 0.85,
+    "bgm_volume": 0.35,
+    "duck": (0.1, 2.0),
+}
 
 STYLES: dict[str, Style] = {
     # 정치는푸르다: 210 매머드빵 큰 글씨(테두리 없이 흐린 그림자), 둘째 줄 진한 노랑. 바탕은 검정, 화면 위·아래 끝은

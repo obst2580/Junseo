@@ -106,6 +106,7 @@ class RenderPlan:
     sfx: list[tuple[float, Path]] = field(default_factory=list)  # (시작 초, 효과음 파일)
     bgm: Path | None = None
     bgm_volume: float = 0.22  # 배경음악 크기(내레이션이 없을 때 기준)
+    duck: tuple[float, float] = (0.03, 8.0)  # 말할 때 배경음악 줄이기(사이드체인 문턱, 비율)
     photo_box: tuple[int, int, int, int] | None = None  # 사진 칸(x0, y0, x1, y1) — 있으면 칸 안만 확대한다
     photo_fade: Path | None = None  # 사진 칸 아래를 검정으로 잇는 그림(photo_box 자리에 얹는다)
     crf: int = 18  # 화질(낮을수록 좋고 파일이 큼). 제작실에 올릴 완성본은 크기 한도 때문에 조금 높인다
@@ -464,7 +465,7 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
         mix.append(
             f"[{idx}:a]aformat=sample_rates=48000:channel_layouts=mono,atrim=0:{plan.total:.4f},"
             f"asetpts=PTS-STARTPTS,volume={plan.bgm_volume}[bg];"
-            f"[bg][nduck]sidechaincompress=threshold=0.03:ratio=8:attack=15:release=350[bgd]"
+            f"[bg][nduck]sidechaincompress=threshold={plan.duck[0]}:ratio={plan.duck[1]}:attack=15:release=350[bgd]"
         )
         mixed.append("[bgd]")
         idx += 1
