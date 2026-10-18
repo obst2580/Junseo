@@ -234,7 +234,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    ```
 
    자막은 자료를 모을 때 만든 자막.srt 시각 그대로, 훅 조각은 낱말 시각(타입캐스트 음성이면 받은 시각, 아니면 음성 인식)에
-   맞춥니다. 강조음은 처음 쓸 때 녹음된 효과음(Mixkit 무료)을 받아 씁니다(못 받으면 합성음). 결과가 14MB를 넘으면 화면만
+   맞춥니다. 자료를 모은 뒤 디자인이 바뀌었으면 사진 바탕·상단 제목을 지금 디자인으로 다시 합성합니다(`redesigned`). 강조음은 처음 쓸 때 녹음된 효과음(Mixkit 무료)을 받아 씁니다(못 받으면 합성음). 결과가 14MB를 넘으면 화면만
    조금 더 압축합니다. 받지 못한 파일이 있으면 이름을 알려 주며 멈춥니다 — 그 자산만 다시 받고 다시 돌립니다.
 4. `/tmp/wr-render/final.mp4`를 `Artifact`(`url`: 제작실, `asset: true`, `file_path`)로 올리고 자산 ID를 받습니다.
 5. 자산 ID를 붙여 프로젝트에 쓸 값을 만들고 `ArtifactData update`로 `projects/<ID>`에 씁니다(1단계 `version`으로 `if_version`).

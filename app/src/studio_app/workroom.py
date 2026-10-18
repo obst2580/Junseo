@@ -410,7 +410,7 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
     out/render.json(projects/<ID>.render에 쓸 값, asset_id 빼고)을 쓰고 그 내용을 돌려준다."""
     import shutil
 
-    from newsclip.shorts_render import probe_duration, render_short
+    from newsclip.shorts_render import probe_duration, refresh_design, render_short
 
     ids = render_ids(req, bgm)
     proj = out / "project"
@@ -421,6 +421,8 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
         dst = proj / use
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(src, dst)
+    # 자료를 모은 뒤 바뀐 디자인(바탕·상단 제목)을 지금 디자인으로 맞춘다
+    refreshed = refresh_design(proj, str(req.get("thumb") or ""), load_channel(load_settings()).shorts.style)
     audio = req["audio"]
     narration = out / "narration.wav"  # 자막 분석·렌더는 wav로
     _ffmpeg(
@@ -468,6 +470,7 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
         "duration": round(probe_duration(final), 2),
         "bgm": (bgm or {}).get("asset_id"),
         "timing": "typecast" if words else "srt+asr",
+        "redesigned": refreshed,  # 지금 디자인으로 다시 합성한 사진 수
         "replaced": (req.get("render") or {}).get("asset_id"),  # 화면이 지울 지난 완성본
         "made_at": _iso(now_kst()),
     }

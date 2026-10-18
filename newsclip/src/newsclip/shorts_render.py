@@ -440,6 +440,39 @@ def _photo_fade(asset_dir: Path) -> Path | None:
     return out
 
 
+def refresh_design(asset_dir: Path, headline: str, style: str = "default") -> int:
+    """자료를 모은 뒤 디자인이 바뀌었으면 지금 디자인으로 다시 맞춘다: 사진 칸 바깥(바탕)이 지금 디자인과 다른 사진은
+    사진 칸만 잘라 다시 합성하고, 상단 제목 그림은 지금 디자인으로 다시 그린다. 다시 합성한 사진 수를 돌려준다."""
+    import numpy as np
+
+    from newsclip.vertical import _edge_background, compose_photo, local_font, render_headline, style_of
+
+    st = style_of(style)
+    bg = None
+    if st.edge is not None:
+        bg = _edge_background(SIZE, st)
+    elif st.solid_bg is not None:
+        bg = Image.new("RGB", SIZE, st.solid_bg)
+    n = 0
+    if bg is not None:
+        ref = np.asarray(bg.crop((0, 0, SIZE[0], BOX[1])), dtype=np.int16)
+        for p in sorted((asset_dir / "assets").glob("*.jpg")):
+            im = Image.open(p).convert("RGB")
+            if im.size != SIZE:
+                continue
+            top = np.asarray(im.crop((0, 0, SIZE[0], BOX[1])), dtype=np.int16)
+            if np.abs(top - ref).mean() > 12:  # 바탕이 지금 디자인과 다르다(예전 디자인으로 모은 자료)
+                compose_photo(im.crop(BOX), style=st.name).save(p, quality=92)
+                n += 1
+    if headline.strip():
+        for old in (asset_dir / "overlays").glob("headline_*.png"):
+            old.unlink()
+        render_headline(
+            headline.strip(), asset_dir / "overlays" / "headline_now.png", SIZE, local_font(st), style=st.name
+        )
+    return n
+
+
 def render_short(
     project: dict,
     asset_dir: Path,

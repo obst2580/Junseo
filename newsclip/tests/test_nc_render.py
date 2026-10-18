@@ -422,3 +422,20 @@ def test_background_holds_still_during_hook(tmp_path):
     shots = shots_for(scenes, tmp_path, 5.0, {}, cuts=[0.6, 1.2, 2.2, 3.5, 4.2], hold_until=3.5)
     assert shots[0].start == 0.0 and shots[0].end >= 3.5 and shots[0].zoom == HOLD_ZOOM
     assert len(shots) == 2 and shots[1].start == 3.5
+
+
+def test_refresh_design_recomposes_old_photos_and_headline(tmp_path):
+    """자료를 모은 뒤 디자인이 바뀌었으면: 바탕이 다른 사진만 지금 디자인으로 다시 합성하고 제목 그림을 새로 그린다."""
+    from newsclip.shorts_render import refresh_design
+    from newsclip.vertical import compose_photo
+
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "overlays").mkdir()
+    Image.new("RGB", (1080, 1920), (120, 120, 120)).save(
+        tmp_path / "assets" / "old.jpg"
+    )  # 예전 디자인(회색 바탕)
+    compose_photo(Image.new("RGB", (800, 600), (200, 50, 50))).save(tmp_path / "assets" / "now.jpg")
+    Image.new("RGBA", (1080, 1920)).save(tmp_path / "overlays" / "headline_old.png")
+    assert refresh_design(tmp_path, "보수 내부 폭로전") == 1
+    assert [p.name for p in (tmp_path / "overlays").glob("*.png")] == ["headline_now.png"]
+    assert Image.open(tmp_path / "assets" / "old.jpg").getpixel((540, 10)) != (120, 120, 120)
