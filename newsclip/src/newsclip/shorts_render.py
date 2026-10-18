@@ -16,6 +16,7 @@ from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases
 from newsclip.models import Scene
 from newsclip.render import RED, YELLOW, CueArt, Overlay, RenderPlan, Shot, fit_sub_px, render, render_cue
 from newsclip.sfx import ensure_sfx, sfx_cues
+from newsclip.srt import parse_srt
 
 SIZE = (1080, 1920)
 HOOK_SEC = 1.5  # 첫 문장을 크게 띄우는 시간(초)
@@ -81,12 +82,21 @@ def wrap_hook(text: str, limit: int = 8) -> str:
 
 
 def subtitles_for(
-    script: str, audio: Path, size: tuple[int, int], asset_dir: Path, keywords: set[str]
+    script: str,
+    audio: Path,
+    size: tuple[int, int],
+    asset_dir: Path,
+    keywords: set[str],
+    srt: Path | None = None,
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo]:
     """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩)."""
     info = analyze(audio)
-    cues, _matched = align(script_phrases(script), info)
-    lines = subtitle_cues(cues, limit=SUB_LINE, info=info)
+    if srt is not None:
+        # 받은 자막(SRT)을 그대로 쓴다: 제작실에서 본 자막과 같은 시간
+        lines = parse_srt(srt.read_text(encoding="utf-8"))
+    else:
+        cues, _matched = align(script_phrases(script), info)
+        lines = subtitle_cues(cues, limit=SUB_LINE, info=info)
     px = fit_sub_px([cue.text for cue in lines], size)
     arts = []
     for k, cue in enumerate(lines):
@@ -125,6 +135,7 @@ def build_plan(
     asset_dir: Path,
     audio: Path,
     *,
+    srt: Path | None = None,
     bgm: Path | None = None,
     videos: dict[str, Path] | None = None,
     keywords: set[str] = frozenset(),
@@ -179,9 +190,10 @@ def render_short(
     audio: Path,
     out: Path,
     *,
+    srt: Path | None = None,
     bgm: Path | None = None,
     videos: dict[str, Path] | None = None,
     keywords: set[str] = frozenset(),
 ) -> Path:
-    plan = build_plan(project, asset_dir, audio, bgm=bgm, videos=videos, keywords=keywords)
+    plan = build_plan(project, asset_dir, audio, srt=srt, bgm=bgm, videos=videos, keywords=keywords)
     return render(plan, out)
