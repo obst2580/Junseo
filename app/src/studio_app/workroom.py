@@ -439,6 +439,11 @@ async def sources(
             rel = f"{folder}/{png.name}"
             if rel in xml and rel not in {f["name"] for f in files}:
                 files.append({"name": rel, "path": str(png), "media": "image", "sha": _sha(png)})
+    # 효과음(화제 전환·질문 자리, A2 트랙)
+    for wav in sorted((proj / "sfx").glob("*.wav")):
+        rel = f"sfx/{wav.name}"
+        if rel in xml and rel not in {f["name"] for f in files}:
+            files.append({"name": rel, "path": str(wav), "media": "audio", "sha": _sha(wav)})
     (out / "timeline.xml.txt").write_text(xml, encoding="utf-8")
     # 프리미어 캡션용 자막(한 줄 20자 안팎 — 세로 쇼츠는 14자, 장면 시각과 같은 시간축 — 음성을 올렸으면 그 음성에 맞춤)
     from newsclip.autosub import subtitle_cues

@@ -6,6 +6,7 @@
 - V2: 각 클립 구간 동안 출처 자막 PNG(하단 좌측).
 - 세로 쇼츠(1080x1920)면 맨 위 트랙에 상단 제목 PNG 하나를 처음부터 끝까지(headline).
 - 자료 없는 장면은 "자료 없음: {keywords}", 건너뛴 장면은 "건너뛰기" 시퀀스 마커.
+- A2: 내레이션이 있으면 화제 전환·질문 자리에 효과음(sfx.py).
 - 생성 후 재파싱해 유효성 검사(validate_xmeml).
 """
 
@@ -22,6 +23,7 @@ from newsclip.caption import render_caption, render_subtitle
 from newsclip.download import in_point
 from newsclip.license_log import attribution_text
 from newsclip.models import Asset, Scene, SceneSet
+from newsclip.sfx import ensure_sfx, sfx_cues
 
 EASE_STEPS = 5
 
@@ -202,9 +204,10 @@ def build_xmeml(
     attribution: bool = True,
     headline: Path | None = None,
     style: str = "default",
+    sfx: bool = True,
 ) -> str:
     """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막,
-    headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내."""
+    headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내. audio가 있고 sfx이면 A2에 효과음."""
     segs, marks = plan_segments(sset, video_max_sec)
     seq_end = max([s.end_sec for s in sset.scenes] + [0.0])
     a_dur = audio_duration(audio) if audio else None
@@ -346,6 +349,30 @@ def build_xmeml(
         stk = ET.SubElement(ac, "sourcetrack")
         _text(stk, "mediatype", "audio")
         _text(stk, "trackindex", 1)
+        # A2 효과음: 화제 전환·질문 자리(sfx.py). 시퀀스 끝을 넘는 소리는 자른다.
+        cues = sfx_cues(sset.scenes) if sfx else []
+        if cues:
+            sfx_files = ensure_sfx(project_dir)
+            a2 = ET.SubElement(aud, "track")
+            for n, cue in enumerate(cues, start=1):
+                path = sfx_files[cue.name]
+                st = _f(cue.at, fps)
+                length = min(_f(audio_duration(path) or 0.0, fps), total - st)
+                if length <= 0:
+                    continue
+                xc = ET.SubElement(a2, "clipitem", {"id": f"clipitem-a2-{n}"})
+                _text(xc, "name", path.name)
+                _text(xc, "enabled", "TRUE")
+                _text(xc, "duration", length)
+                _rate(xc, fps)
+                _text(xc, "start", st)
+                _text(xc, "end", st + length)
+                _text(xc, "in", 0)
+                _text(xc, "out", length)
+                files.add(xc, str(path), fps, length, None, None, audio=True)
+                xtk = ET.SubElement(xc, "sourcetrack")
+                _text(xtk, "mediatype", "audio")
+                _text(xtk, "trackindex", 1)
 
     for m in marks:
         mk = ET.SubElement(seq, "marker")

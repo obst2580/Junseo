@@ -33,8 +33,9 @@ class FormatSpec(BaseModel):
 FORMATS: dict[str, FormatSpec] = {
     "long": FormatSpec(name="10분 묶음", minutes=10, min_topics=2, max_topics=3),
     "short": FormatSpec(name="3분 단독", minutes=3, min_topics=1, max_topics=1),
-    # 쇼츠는 1분 안쪽 — 대본 목표를 1분 분량보다 60자쯤 줄였다(분당 600자 기준 490~590자)
-    "shorts": FormatSpec(name="세로 쇼츠", minutes=0.9, min_topics=1, max_topics=1, vertical=True),
+    # 쇼츠는 1분을 넘기지 않게 0.8분 분량으로 잡는다(분당 600자 기준 430~530자). 음성은 분당 580자 안팎이라
+    # 530자가 약 55초 — 장면 사이 쉼(3~5초)을 더해도 1분 안쪽이다.
+    "shorts": FormatSpec(name="세로 쇼츠", minutes=0.8, min_topics=1, max_topics=1, vertical=True),
 }
 
 
