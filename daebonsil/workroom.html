@@ -162,6 +162,11 @@ pre.tts { white-space: pre-wrap; background: var(--paper-2); border: 1px solid v
 .scene .vids { margin: 0; padding-left: 16px; overflow-wrap: anywhere; }
 .scene .vids a { color: var(--accent, inherit); }
 .reqbox { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tcbox { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 4px 0 14px; display: grid; gap: 10px; }
+.tcbox .fields { display: flex; gap: 12px; flex-wrap: wrap; }
+.tcbox label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.tcbox input[type=text] { width: 180px; }
+.tcbox input[type=number], .tcbox select { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 7px 8px; width: 120px; }
 .fallback { display: grid; gap: 6px; }
 .fallback textarea { font: 13px/1.5 var(--mono); min-height: 84px; }
 
@@ -256,6 +261,17 @@ footer { font-size: 13px; color: var(--muted); }
   <!-- 3. 음성 -->
   <section class="card" id="p-voice" data-panel="voice" hidden>
     <div class="sec-h"><h2>음성</h2></div>
+    <div class="tcbox">
+      <div><b>타입캐스트로 바로 만들기</b> <span class="small muted">작업자가 타입캐스트 API로 대본을 읽어 음성을 올립니다. 낱말마다 읽은 시각도 함께 받아 자막·장면을 그 시각에 맞춥니다.</span></div>
+      <div class="fields">
+        <label>목소리<input type="text" id="tc-voice" placeholder="채널 기본 목소리"></label>
+        <label>읽는 속도<input type="number" id="tc-tempo" min="0.5" max="2" step="0.05" value="1"></label>
+        <label>문장 사이 쉼<select id="tc-silence"><option value="">그대로</option><option value="300">짧게</option><option value="150">아주 짧게</option></select></label>
+      </div>
+      <div class="reqbox"><button class="btn primary" id="tc-go" type="button">타입캐스트로 음성 만들기</button><span id="tc-state" class="small"></span></div>
+      <div class="fallback" id="tc-fallback" hidden></div>
+    </div>
+    <div class="small muted">직접 만들 때</div>
     <ol class="small" style="margin:0;padding-left:20px;color:var(--ink-2)">
       <li><b>[타입캐스트용 복사]</b>를 눌러 타입캐스트에 붙여 넣고 음성(mp3·wav)을 받습니다. 헤더는 빠집니다.</li>
       <li>받은 파일을 아래에 올리면 작게 압축해(10분에 2MB쯤) 제작실에 올리고, 자료를 모을 때 작업자가 음성을 듣고 자막·장면 시각을 실제로 들린 말에 맞춥니다. 안 올려도 자료는 받을 수 있고, 그때 시각은 대본 길이로 어림합니다.</li>
@@ -1099,6 +1115,8 @@ function renderVoice() {
   $('#tts').textContent = tts || '대본이 아직 없습니다.';
   $('#tts-n').textContent = tts ? `${tts.replace(/\s/g, '').length.toLocaleString()}자(공백 빼고)` : '';
   $('#copy-tts').disabled = !tts;
+  fillTc(); $('#tc-go').disabled = !tts;
+  watchRequest('voice', p.voice_request_id || null);
   const a = p.audio;
   if (!a) { $('#audio-facts').innerHTML = ''; return; }
   const target = S.meta ? S.meta.formats[p.format].minutes * 60 : 0;
@@ -1107,27 +1125,53 @@ function renderVoice() {
     <div class="fact"><div class="k">목표 길이</div><div class="v">${fmtSec(target)}</div></div>
     <div class="fact"><div class="k">실제 분당 글자</div><div class="v">${a.cpm}자</div></div>
     <div class="fact"><div class="k">문장 사이 쉼</div><div class="v">${a.silences.length}곳</div></div>
-    <div class="fact"><div class="k">음성 인식</div><div class="v" style="font-size:14px">${a.asset_id ? '올림 — 들린 말에 맞춤' : '안 올림 — 쉼만으로 맞춤'}</div></div>`;
-  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = a.asset_id ? '<div class="small muted">분석값과 음성 인식용 파일이 저장돼 있습니다.</div>' : '<div class="small muted">분석값은 저장돼 있지만 음성 인식용 파일은 없습니다. 자막을 들린 말에 맞추려면 음성 파일을 다시 올려 주세요.</div>';
+    <div class="fact"><div class="k">음성 인식</div><div class="v" style="font-size:14px">${a.source === 'typecast' ? `타입캐스트 ${esc(a.voice || '')} · 속도 ${esc(String(a.tempo || 1))} — 받은 낱말 시각으로 맞춤` : a.asset_id ? '올림 — 들린 말에 맞춤' : '안 올림 — 쉼만으로 맞춤'}</div></div>`;
+  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = a.source === 'typecast' ? '<div class="small muted">타입캐스트로 만든 음성입니다. 자료를 모을 때 받은 낱말 시각으로 자막·장면을 맞춥니다.</div>' : a.asset_id ? '<div class="small muted">분석값과 음성 인식용 파일이 저장돼 있습니다.</div>' : '<div class="small muted">분석값은 저장돼 있지만 음성 인식용 파일은 없습니다. 자막을 들린 말에 맞추려면 음성 파일을 다시 올려 주세요.</div>';
 }
 $('#to-sources').onclick = () => setTab('sources');
 
+/* 타입캐스트로 음성 만들기: 작업자가 API로 읽어 음성(과 낱말 시각)을 올리고 projects/<ID>.audio에 쓴다 */
+function tcSettings() { const v = ls.get(lsk('tc_voice'), {}); return v && typeof v === 'object' ? v : {}; }
+function fillTc() {
+  const v = tcSettings();
+  if (!$('#tc-voice').value && v.name) $('#tc-voice').value = v.name;
+  if (v.tempo) $('#tc-tempo').value = v.tempo;
+  if (v.remove_silence_ms !== undefined) $('#tc-silence').value = v.remove_silence_ms === null ? '' : String(v.remove_silence_ms);
+}
+$('#tc-go').onclick = async () => {
+  const p = S.project;
+  if (!p || !narrationText(p.script)) { toast('대본이 아직 없습니다.', true); return; }
+  const tempo = Math.min(2, Math.max(0.5, parseFloat($('#tc-tempo').value) || 1));
+  const sil = $('#tc-silence').value;
+  const voice = { name: $('#tc-voice').value.trim(), tempo, remove_silence_ms: sil === '' ? null : Number(sil) };
+  ls.set(lsk('tc_voice'), voice);
+  $('#tc-go').disabled = true;
+  const r = await requestWork('voice', $('#tc-go'), { voice });
+  $('#tc-go').disabled = false;
+  if (!r) return;
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ voice_request_id: r.rid }); } catch (e) { /* 무시 */ }
+  watchRequest('voice', r.rid);
+  if (!r.sent) fallbackBox($('#tc-fallback'), r); else { $('#tc-fallback').hidden = true; toast('작업자에게 음성 만들기를 맡겼습니다'); }
+};
+function renderVoiceReq() { $('#tc-state').innerHTML = reqLabel(reqWatch.voice.doc); }
+
 /* ---------- 4. 자료·XML(클라우드 작업자) ---------- */
-const reqWatch = { collect: { id: null, un: null, doc: null }, sources: { id: null, un: null, doc: null } };
+const reqWatch = { collect: { id: null, un: null, doc: null }, sources: { id: null, un: null, doc: null }, voice: { id: null, un: null, doc: null } };
+const renderSlot = slot => (slot === 'collect' ? renderCollect : slot === 'voice' ? renderVoiceReq : renderReq)();
 function watchRequest(slot, rid) {
   const w = reqWatch[slot];
   if (w.id === rid) return;
   if (w.un) { w.un(); w.un = null; }
   w.id = rid; w.doc = null;
-  if (!rid || !db) { slot === 'collect' ? renderCollect() : renderReq(); return; }
-  w.un = db.doc(`requests/${rid}`).onSnapshot(s => { w.doc = s.exists ? { id: rid, ...s.data() } : null; slot === 'collect' ? renderCollect() : renderReq(); }, () => {});
+  if (!rid || !db) { renderSlot(slot); return; }
+  w.un = db.doc(`requests/${rid}`).onSnapshot(s => { w.doc = s.exists ? { id: rid, ...s.data() } : null; renderSlot(slot); }, () => {});
 }
 function workerMessage(rid, kind) {
   const w = S.worker || {};
-  return [`[studio 제작실 요청] ${rid} · ${kind === 'collect' ? '수집' : '자료·timeline.xml'}`,
+  return [`[studio 제작실 요청] ${rid} · ${({ collect: '수집', voice: '음성(타입캐스트)' })[kind] || '자료·timeline.xml'}`,
     `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, CH !== 'politics' ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
     S.project && kind !== 'collect' ? `프로젝트: ${COL('projects')}/${S.project.id}` : '',
-    S.project && kind !== 'collect' && isShorts(S.project) ? '형식: 세로 쇼츠(1080×1920 — sources가 format을 보고 세로로 만듦)' : '',
+    S.project && kind === 'sources' && isShorts(S.project) ? '형식: 세로 쇼츠(1080×1920 — sources가 format을 보고 세로로 만듦)' : '',
     '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
 }
 // 작업자 깨우기: 이 아티팩트 댓글을 "Claude에게 보내기"로 남기면, 제작실을 지켜보는 작업자 대화가 깨어난다.
@@ -1146,10 +1190,10 @@ async function refreshSend() {
   if (comments && typeof comments.canSendToClaude === 'function') { try { v = await comments.canSendToClaude(); } catch (e) { v = (e && e.code) || 'claude_unavailable'; } }
   S.canSend = v; renderStatus();
 }
-async function requestWork(kind, el) {
+async function requestWork(kind, el, extra = {}) {
   if (!db) { toast('저장소를 쓸 수 없는 화면입니다.', true); return null; }
   const k = kst(), rid = `${k.y}${k.mo}${k.d}-${k.h}${k.mi}-${kind}-${Math.random().toString(36).slice(2, 6)}`;
-  const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '', channel: CH };
+  const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '', channel: CH, ...extra };
   const msg = workerMessage(rid, kind);
   // 누른 직후에만 보낼 수 있어서, 요청 문서 저장과 보내기를 함께 시작한다(작업자는 깨어난 뒤 문서를 읽는다).
   let why = 'no_comments', send = null;

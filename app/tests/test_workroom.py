@@ -346,3 +346,90 @@ def test_opinion_body_prefers_body_box_then_og_description():
     assert wr.opinion_body(boxed).startswith("예산 심사가") and "추천 검색어" not in wr.opinion_body(boxed)
     og = '<html><head><meta property="og:description" content="경복궁이 야외 결혼식 장소로 개방되며 고궁을 일상 공간으로 활용하는 새로운 시도"></head><body><script>x</script></body></html>'
     assert wr.opinion_body(og).startswith("경복궁이 야외 결혼식")
+
+
+def _typecast_client(seen: list):
+    import base64
+    import io
+    import wave
+
+    import httpx
+
+    def wav_b64(seconds: float) -> str:
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(44100)
+            w.writeframes(b"\x00\x00" * int(44100 * seconds))
+        return base64.b64encode(buf.getvalue()).decode()
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/v3/voices":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "voice_id": "tc_gyeom",
+                        "voice_name": {"kor": "이겸"},
+                        "voice_type": "premade",
+                        "models": [],
+                    }
+                ],
+            )
+        body = json.loads(req.content)
+        seen.append(body)
+        words = body["text"].split()
+        return httpx.Response(
+            200,
+            json={
+                "audio": wav_b64(3.0),
+                "audio_format": "wav",
+                "audio_duration": 3.0,
+                "words": [{"text": w, "start": 0.2 * i, "end": 0.2 * i + 0.18} for i, w in enumerate(words)],
+                "characters": [],
+            },
+        )
+
+    return httpx.Client(base_url="https://api.typecast.ai", transport=httpx.MockTransport(handler))
+
+
+def test_make_voice_with_typecast_then_update_doc(root, tmp_path, monkeypatch):
+    """[타입캐스트로 음성 만들기]: 화면이 고른 목소리·속도·쉼으로 읽고, 올린 자산 ID를 붙여 projects/<ID>에 쓸 값을 만든다."""
+    monkeypatch.setenv("TYPECAST_API_KEY", "test-key")
+    seen: list = []
+    req = {"id": "p1", "script": "## 주제\n이재명이 또 해냈습니다. 정말 놀라운 소식입니다.\n"}
+    audio = wr.make_voice(
+        req,
+        tmp_path / "v",
+        {"name": "이겸", "tempo": 1.1, "remove_silence_ms": 200},
+        client=_typecast_client(seen),
+    )
+    assert audio["source"] == "typecast" and audio["voice_id"] == "tc_gyeom" and audio["tempo"] == 1.1
+    assert seen[0]["output"]["audio_tempo"] == 1.1 and seen[0]["output"]["remove_silence_ms"] == 200
+    assert "##" not in seen[0]["text"] and audio["duration"] == 3.0 and audio["words"][0][0] == "이재명이"
+    assert (tmp_path / "v" / "narration.wav").exists()
+    doc = wr.voice_doc(tmp_path / "v" / "voice.json", "a" * 32)
+    assert doc["status"] == "voice" and doc["audio"]["asset_id"] == "a" * 32
+    assert json.loads((tmp_path / "v" / "update.json").read_text(encoding="utf-8")) == doc
+
+
+def test_sources_use_typecast_word_times(root, tmp_path):
+    """음성이 타입캐스트로 만든 것이면 다시 듣지 않고, 받은 낱말 시각으로 자막·장면을 맞춘다."""
+    script = "## 주제\n이재명이 또 해냈습니다. 정말 놀라운 소식입니다.\n"
+    words = [
+        ["이재명이", 0.0, 0.5],
+        ["또", 0.55, 0.7],
+        ["해냈습니다.", 0.75, 1.4],
+        ["정말", 1.9, 2.2],
+        ["놀라운", 2.25, 2.6],
+        ["소식입니다.", 2.65, 3.2],
+    ]
+    req = {
+        "id": "p2",
+        "script": script,
+        "audio": {"source": "typecast", "duration": 3.3, "silences": [[1.4, 1.9]], "words": words},
+    }
+    out = wr._prepare(req)
+    asr = out[7]
+    assert asr["source"] == "typecast" and asr["words"] == 6

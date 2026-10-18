@@ -161,6 +161,7 @@ uv run pytest --cov        # 테스트(시연 fixture 포함, 네트워크 불�
 | `STUDIO_MODEL_ANALYSIS` / `STUDIO_MODEL_SCRIPT` | 역할별 모델(기본 `claude-opus-5-5`) | 비용을 줄이려면 분석만 `claude-sonnet-5-5` |
 | `NAVER_CLIENT_ID` / `NAVER_CLIENT_SECRET` | 뉴스 검색, 이미지 검색(1순위), 데이터랩(2차) | **네이버 클라우드 콘솔 → Services → Application Service → NAVER API HUB → 이용 신청 → 애플리케이션 등록(검색 API 선택)**. 개발자센터(developers.naver.com) 신규 발급은 2026-07-31 종료, 기존 키는 2027-06-30까지. 어느 키든 그대로 넣으면 된다(`NAVER_API=auto`가 HUB → 예전 주소 순으로 알아서 고름) |
 | `YOUTUBE_API_KEY` | 내 채널 통계(성과), 영상 검색, 경쟁 채널 영상 | Google Cloud Console → YouTube Data API v3 사용 설정 → 사용자 인증 정보 → API 키 |
+| `TYPECAST_API_KEY` | 제작실 [타입캐스트로 음성 만들기] — 대본을 읽어 음성과 낱말별 시각을 받음(자막·장면을 그 시각에 맞춤) | 타입캐스트 API 콘솔(studio.typecast.ai/developers/api)에서 발급. 웹 요금제와 따로이고, 상업적 이용은 라이트 이상 |
 | `GOOGLE_API_KEY` / `GOOGLE_CSE_ID` | Google 이미지 검색(키가 있을 때만 1순위) | 아래 "Google Custom Search" 참고 |
 | `DATA_GO_KR_KEY` | 공공데이터포털(2차: 국회 일정, 정책방송원) | data.go.kr 회원가입 → 활용신청 → 일반 인증키 |
 | `ASSEMBLY_API_KEY` | 열린국회정보(2차) | open.assembly.go.kr → 인증키 신청 |

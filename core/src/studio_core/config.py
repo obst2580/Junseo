@@ -170,6 +170,16 @@ class ShortsSection(BaseModel):
     style: str = "default"  # default(흰·노랑 글씨 + 검은 테두리) | navy_red(남색·빨강 띠 + 블랙한산스 + 검은 바탕) — newsclip.vertical.STYLES
 
 
+class VoiceSection(BaseModel):
+    """AI 음성(타입캐스트 API). 키는 환경 변수 TYPECAST_API_KEY(설정 파일에 적지 않는다)."""
+
+    name: str = ""  # 목소리 이름(예: 이겸). 비우면 제작실의 [타입캐스트로 음성 만들기]를 쓰지 않는다
+    voice_id: str = ""  # 알면 적는다(tc_…). 비우면 이름으로 찾는다
+    model: str = "ssfm-v30"
+    tempo: float = 1.0  # 읽는 속도(0.5~2.0). 제작실에서 영상마다 바꿀 수 있다
+    remove_silence_ms: int | None = None  # 문장 사이 쉼을 이만큼(ms)만 남긴다. 비우면 그대로
+
+
 class ClusteringSection(BaseModel):
     """군집 보조 설정."""
 
@@ -196,6 +206,7 @@ class ChannelConfig(BaseModel):
     script: ScriptSection = Field(default_factory=ScriptSection)
     timeline: TimelineSection = Field(default_factory=TimelineSection)
     shorts: ShortsSection = Field(default_factory=ShortsSection)
+    voice: VoiceSection = Field(default_factory=VoiceSection)
     communities: list[CommunitySpec] = Field(default_factory=list)
     board: BoardSection = Field(default_factory=BoardSection)
 

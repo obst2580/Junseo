@@ -285,6 +285,68 @@ async def collect(out: Path, hours: int = 24) -> dict:
 # ---- sources ---------------------------------------------------------------------------------
 
 
+def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> dict:  # noqa: ANN001
+    """대본을 타입캐스트 API로 읽어 out/narration.wav와 out/voice.json(projects/<ID>.audio에 쓸 값, asset_id 빼고)을
+    만든다. voice는 화면이 요청에 담은 {name, tempo, remove_silence_ms} — 비운 칸은 채널 설정(voice:)을 쓴다.
+    낱말 시각(words)도 함께 저장해, 자료를 모을 때 음성을 다시 듣지 않고 그 시각에 자막·장면을 맞춘다."""
+    from newsclip.autosub import analyze, narration_text
+    from newsclip.typecast_tts import TypecastError, find_voice, synthesize
+
+    cfg = load_channel(load_settings()).voice
+    v = voice or {}
+    name = str(v.get("name") or cfg.name).strip()
+    tempo = float(v.get("tempo") or cfg.tempo)
+    silence = v["remove_silence_ms"] if "remove_silence_ms" in v else cfg.remove_silence_ms
+    voice_id = cfg.voice_id if cfg.voice_id and name == cfg.name else ""
+    if not voice_id:
+        if not name:
+            raise TypecastError("목소리 이름이 없습니다(channel.yaml의 voice.name이나 화면에서 정해 주세요).")
+        hit = find_voice(name, model=cfg.model, client=client)
+        if hit is None:
+            raise TypecastError(f"타입캐스트 목소리 '{name}'을(를) 찾지 못했습니다.")
+        voice_id = hit["voice_id"]
+    text = narration_text(req["script"])
+    out.mkdir(parents=True, exist_ok=True)
+    speech = synthesize(
+        text,
+        voice_id,
+        out / "narration.wav",
+        model=cfg.model,
+        tempo=tempo,
+        remove_silence_ms=silence,
+        client=client,
+    )
+    info = analyze(speech.path, min_silence=0.15)
+    chars = len(text.replace("\n", ""))
+    audio = {
+        "source": "typecast",
+        "voice": name,
+        "voice_id": voice_id,
+        "tempo": tempo,
+        "remove_silence_ms": silence,
+        "name": "narration.wav",
+        "ext": ".wav",
+        "size": speech.path.stat().st_size,
+        "duration": speech.duration,
+        "silences": [[round(a, 2), round(b, 2)] for a, b in info.silences],
+        "chars": chars,
+        "cpm": round(chars / (speech.duration / 60)) if speech.duration else 0,
+        "credits": len(text),
+        "words": [[w, s, e] for w, s, e in speech.words],
+        "analyzed_at": _iso(now_kst()),
+    }
+    (out / "voice.json").write_text(json.dumps(audio, ensure_ascii=False), encoding="utf-8")
+    return audio
+
+
+def voice_doc(voice_json: Path, asset_id: str) -> dict:
+    """올린 음성의 자산 ID를 붙여 projects/<ID>에 쓸 값({audio, status})을 같은 폴더 update.json에 쓴다."""
+    audio = json.loads(voice_json.read_text(encoding="utf-8"))
+    doc = {"audio": {**audio, "asset_id": asset_id}, "status": "voice"}
+    (voice_json.parent / "update.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return doc
+
+
 def rebase_xml(xml: str, project: Path) -> str:
     """timeline.xml 안의 이 서버 경로 → file://localhost/__STUDIO_BASE__ (화면이 사용자 폴더로 바꾼다)."""
     from newsclip.fcpxml import path_url
@@ -327,7 +389,19 @@ def _prepare(req: dict, voice: Path | None = None) -> tuple:
         info = AudioInfo(round(len(narration_text(script).replace("\n", "")) / cpm * 60, 2), [])
     phrases = script_phrases(script)
     words, asr = None, {}
-    if voice:
+    tc_words = audio.get("words") if audio.get("source") == "typecast" else None
+    if tc_words:
+        # 타입캐스트가 음성을 만들며 준 낱말 시각 — 다시 들을 필요가 없다
+        words = [(str(w[0]), float(w[1]), float(w[2])) for w in tc_words]
+        texts = [t for sent in phrases for ph in sent for t, _k in units_of(ph)]
+        heard = asr_boundaries(texts, words)[1:-1]
+        asr = {
+            "source": "typecast",
+            "words": len(words),
+            "heard": sum(h is not None for h in heard),
+            "bounds": len(heard),
+        }
+    elif voice:
         from newsclip.asr import transcribe
 
         try:
@@ -474,7 +548,13 @@ async def sources(
         },
         "audio_name": "narration" + ((req.get("audio") or {}).get("ext") or ".wav"),
         "size": list(size),
-        "timing": "voice+asr" if asr.get("words") else "voice" if info.silences else "estimated",
+        "timing": (
+            ("voice+typecast" if asr.get("source") == "typecast" else "voice+asr")
+            if asr.get("words")
+            else "voice"
+            if info.silences
+            else "estimated"
+        ),
         "asr": asr,
         "base_token": f"file://localhost/{BASE}",
     }
@@ -646,6 +726,13 @@ def main() -> None:
     s.add_argument(
         "--slides", type=Path, help="증시 채널: 장면별 슬라이드 내용 JSON(사진 대신 슬라이드를 그린다)"
     )
+    vo = sub.add_parser("voice", help="타입캐스트로 대본 읽기 → narration.wav + voice.json")
+    vo.add_argument("--project", type=Path, required=True)
+    vo.add_argument("--out", type=Path, required=True)
+    vo.add_argument("--request", type=Path, help="requests/<ID> 문서(화면이 고른 목소리·속도·쉼)")
+    vd = sub.add_parser("voice-doc", help="올린 음성 자산 ID를 붙여 projects/<ID>에 쓸 update.json 만들기")
+    vd.add_argument("--voice", type=Path, required=True)
+    vd.add_argument("--asset-id", required=True)
     a = ap.parse_args()
     if a.channel:
         os.environ["STUDIO_CHANNEL"] = a.channel
@@ -681,7 +768,21 @@ def main() -> None:
             )
         )
         return
+    if a.cmd == "voice-doc":
+        voice_doc(a.voice, a.asset_id)
+        print(json.dumps({"file": str(a.voice.parent / "update.json")}, ensure_ascii=False))
+        return
     req = _load_project(a.project)
+    if a.cmd == "voice":
+        rq = _load_project(a.request) if a.request else {}
+        audio = make_voice(req, a.out, rq.get("voice"))
+        keys = ("voice", "voice_id", "tempo", "duration", "chars", "credits")
+        print(
+            json.dumps(
+                {**{k: audio[k] for k in keys}, "file": str(a.out / "narration.wav")}, ensure_ascii=False
+            )
+        )
+        return
     if a.cmd == "scenes":
         plan = plan_scenes(req, a.out, a.audio)
         print(json.dumps({"scenes": len(plan), "file": str(a.out / "scenes-plan.json")}, ensure_ascii=False))
