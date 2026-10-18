@@ -1,7 +1,8 @@
 """세로 쇼츠 완성본(mp4) 만들기 — ffmpeg로 화면·자막·효과음·배경음악을 한 번에 합친다.
 
-timeline.xml(프리미어용)과 같은 자리를 쓴다. 장면마다 사진(천천히 확대·축소)이나 영상(블러 배경 위에 맞춤),
-자막 줄마다 검은 상자 + 핵심어 노란색 + 등장 효과(살짝 커졌다 줄어듦), 맨 위 상단 제목, 출처 표시,
+timeline.xml(프리미어용)과 같은 자리를 쓴다. 컷마다 사진(사진 칸 안만 천천히 다가가기, 가깝게 끊어 쓰면 크게
+확대)이나 영상(블러 배경 위에 맞춤), 컷 사이 바로 컷 또는 빠른 확대 전환, 자막(검은 테두리 + 그림자, 핵심어 노랑,
+살짝 커지며 올라오는 등장), 짧은 핵심 자막은 색 글자로 흐린 데서 또렷하게, 맨 위 상단 제목, 출처 표시,
 화제 전환·질문 효과음, 배경음악(내레이션이 나올 때 자동으로 낮춤)을 넣는다.
 """
 
@@ -36,6 +37,17 @@ POP_SEC = 0.15  # 자막 등장 효과 길이
 POP_GROW = 0.08  # 등장할 때 처음 커지는 비율(8%)
 SLIDE_PX = 28  # 자막 전환: 이만큼 아래에서 제자리로 올라오며 나타난다
 SLIDE_SEC = 0.18
+SUB_STROKE = 0.06  # 자막 글자 검은 테두리 두께(글자 크기 대비, 0이면 없음)
+
+# 강조 자막: 짧은 핵심 자막 한 줄을 통째로 색 글자(위 밝고 아래 진한 그러데이션 + 흰 안쪽 테두리 + 진한 바깥 테두리
+# + 같은 색 번짐)로 크게 띄운다. 흐린 그림에서 또렷해지며 나타난다.
+EMPH_FONT = Path(__file__).parent / "fonts" / "210MammothPpang-R.TTF"
+EMPH_PX = 128
+EMPH_GREEN = (64, 200, 72)
+EMPH_RED = (228, 36, 36)
+EMPH_YELLOW = (255, 196, 30)
+EMPH_BLUR = (18, 9, 4)  # 등장할 때 거치는 흐림 단계(픽셀 반경) — 한 단계에 EMPH_STEP초
+EMPH_STEP = 2 / 30
 
 
 @dataclass(frozen=True)
@@ -48,6 +60,8 @@ class Shot:
     end: float
     zoom: tuple[float, float] = (1.0, 1.04)  # 사진: 확대 비율 시작·끝
     in_sec: float = 0.0  # 영상: 원본에서 시작하는 초
+    focus: tuple[float, float] = (0.5, 0.5)  # 사진: 확대할 때 붙잡는 자리(사진 칸 안 가로·세로 비율)
+    xfade: float = 0.0  # 앞 조각에서 이 조각으로 넘어올 때 빠른 확대 전환 길이(초, 0이면 바로 컷)
 
 
 @dataclass(frozen=True)
@@ -60,6 +74,9 @@ class CueArt:
     width: int
     height: int
     top: int  # 상자 윗선(화면 기준)
+    intro: tuple[
+        Path, ...
+    ] = ()  # 강조 자막: 먼저 차례로 보여 줄 흐린 그림들(있으면 커졌다 줄기·올라오기 대신)
 
 
 @dataclass
@@ -85,6 +102,8 @@ class RenderPlan:
     sfx: list[tuple[float, Path]] = field(default_factory=list)  # (시작 초, 효과음 파일)
     bgm: Path | None = None
     bgm_volume: float = 0.22  # 배경음악 크기(내레이션이 없을 때 기준)
+    photo_box: tuple[int, int, int, int] | None = None  # 사진 칸(x0, y0, x1, y1) — 있으면 칸 안만 확대한다
+    photo_fade: Path | None = None  # 사진 칸 아래를 검정으로 잇는 그림(photo_box 자리에 얹는다)
 
 
 # ---------- 자막 그림 ----------
@@ -146,6 +165,7 @@ def render_cue(
     box: bool | None = None,
     shadow: float | None = None,
     max_hot: int = 1,
+    stroke: float = SUB_STROKE,
 ) -> CueArt | None:
     """자막 한 블록(줄바꿈은 \\n)을 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다.
     box면 뒤에 검은 상자, 아니면 shadow 세기만큼 글자 뒤에 흐린 검은 그림자를 깐다(비우면 SUB_BOX·SUB_SHADOW)."""
@@ -208,8 +228,9 @@ def render_cue(
         img.alpha_composite(blur)
         if strength > 0.5:
             img.alpha_composite(blur)  # 진하게 한 번 더
+    edge = round(font_size * stroke) if stroke and not use_box else 0
     for x, y, word, color in spots:
-        draw.text((x, y), word, font=font, fill=color)
+        draw.text((x, y), word, font=font, fill=color, stroke_width=edge, stroke_fill=(0, 0, 0, 255))
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
     if center_y is not None:
@@ -219,33 +240,120 @@ def render_cue(
     return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top)
 
 
+def _emph_font(px: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    return ImageFont.truetype(str(EMPH_FONT), px) if EMPH_FONT.exists() else _sub_font(px)
+
+
+def _mix(c: tuple[int, int, int], other: tuple[int, int, int], k: float) -> tuple[int, int, int]:
+    return tuple(round(a + (b - a) * k) for a, b in zip(c, other, strict=True))  # type: ignore[return-value]
+
+
+def render_emph(
+    text: str,
+    out: Path,
+    size: tuple[int, int],
+    color: tuple[int, int, int] = EMPH_GREEN,
+    px: int = EMPH_PX,
+) -> CueArt | None:
+    """강조 자막(색 글자) PNG와 등장용 흐린 그림들(out_b0.png…)을 만든다. 자리는 보통 자막 첫 줄과 가운데를 맞춘다."""
+    lines = sub_lines(text)
+    if not lines:
+        return None
+    probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    fs = px
+    while fs > 48:
+        font = _emph_font(fs)
+        widest = max(probe.textlength(ln, font=font) for ln in lines) + 2 * round(fs * 0.14)
+        if widest <= SUB_MAX_W:
+            break
+        fs -= 2
+    font = _emph_font(fs)
+    outer, inner, glow = round(fs * 0.14), round(fs * 0.06), round(fs * 0.16)
+    pad = outer + 2 * glow
+    line_h = round(fs * 1.18)
+    widths = [probe.textlength(ln, font=font) for ln in lines]
+    bw = round(max(widths)) + 2 * pad
+    bh = line_h * len(lines) + 2 * pad
+
+    def mask(width: int) -> Image.Image:
+        m = Image.new("L", (bw, bh), 0)
+        d = ImageDraw.Draw(m)
+        for row, ln in enumerate(lines):
+            x = (bw - widths[row]) / 2
+            d.text((x, pad + row * line_h), ln, font=font, fill=255, stroke_width=width, stroke_fill=255)
+        return m
+
+    fill_m, inner_m, outer_m = mask(0), mask(inner), mask(outer)
+    dark = _mix(color, (0, 0, 0), 0.72)
+    img = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    halo = Image.new("RGBA", (bw, bh), (*color, 0))
+    halo.putalpha(outer_m.filter(ImageFilter.GaussianBlur(glow)).point(lambda v: round(v * 0.9)))
+    img.alpha_composite(halo)
+    for m, rgb in ((outer_m, dark), (inner_m, (255, 255, 255))):
+        layer = Image.new("RGBA", (bw, bh), (*rgb, 0))
+        layer.putalpha(m)
+        img.alpha_composite(layer)
+    # 글자 속: 줄마다 위는 밝게(흰빛), 아래는 진하게
+    grad = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(grad)
+    top_c, bot_c = _mix(color, (255, 255, 255), 0.45), _mix(color, (0, 0, 0), 0.28)
+    for row in range(len(lines)):
+        y0 = pad + row * line_h
+        for y in range(y0, y0 + line_h):
+            k = min(1.0, max(0.0, (y - y0) / (fs * 1.05)))
+            gd.line([(0, y), (bw, y)], fill=(*_mix(top_c, bot_c, k), 255))
+    grad.putalpha(fill_m)
+    img.alpha_composite(grad)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out, "PNG")
+    intro = []
+    for i, r in enumerate(EMPH_BLUR):
+        b = out.with_name(f"{out.stem}_b{i}.png")
+        img.convert("RGBa").filter(ImageFilter.GaussianBlur(r)).convert("RGBA").save(b, "PNG")
+        intro.append(b)
+    first_mid = SUB_TEXT_Y + round(SUB_PX * 0.6)  # 보통 자막 첫 줄 가운데
+    top = first_mid - pad - round(fs * 0.6)
+    return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=top, intro=tuple(intro))
+
+
 # ---------- ffmpeg 그래프 ----------
 
 
-def _shot_chain(i: int, shot: Shot, size: tuple[int, int]) -> str:
+def _shot_chain(
+    i: int, shot: Shot, size: tuple[int, int], box: tuple[int, int, int, int] | None = None
+) -> str:
     W, H = size
     dur = shot.end - shot.start
+    tail = f"fps={FPS},format=yuv420p,setsar=1,settb=AVTB,setpts=PTS-STARTPTS[s{i}]"
     if shot.kind == "image":
         z0, z1 = shot.zoom
         grow = f"({z0}+({z1}-{z0})*min(t/{dur:.4f},1))"
-        return (
-            f"[{i}:v]format=rgba,scale=w='iw*{grow}':h='ih*{grow}':eval=frame,"
-            f"crop={W}:{H},setsar=1,setpts=PTS-STARTPTS[s{i}]"
-        )
+        fx, fy = shot.focus
+        if box is not None:
+            # 사진 칸만 잘라 확대(붙잡는 자리 기준)한 뒤 제자리에 — 바탕(하늘색 테두리)은 그대로
+            x0, y0, x1, y1 = box
+            bw, bh = x1 - x0, y1 - y0
+            return (
+                f"[{i}:v]format=rgba,split=2[bg{i}][ph{i}];"
+                f"[ph{i}]crop={bw}:{bh}:{x0}:{y0},scale=w='{bw}*{grow}':h='{bh}*{grow}':eval=frame,"
+                f"crop={bw}:{bh}:x='(iw-{bw})*{fx}':y='(ih-{bh})*{fy}'[z{i}];"
+                f"[bg{i}][z{i}]overlay={x0}:{y0},{tail}"
+            )
+        return f"[{i}:v]format=rgba,scale=w='iw*{grow}':h='ih*{grow}':eval=frame,crop={W}:{H},{tail}"
     # 영상: 같은 화면을 흐리게 깔고 가운데에 가로 맞춤으로 올린다(세로 영상이면 꽉 찬다)
     return (
         f"[{i}:v]split=2[a{i}][b{i}];"
         f"[a{i}]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=20:5[bg{i}];"
         f"[b{i}]scale={W}:-2[fg{i}];"
-        f"[bg{i}][fg{i}]overlay=(W-w)/2:(H-h)/2,fps={FPS},format=rgba,setsar=1,setpts=PTS-STARTPTS[s{i}]"
+        f"[bg{i}][fg{i}]overlay=(W-w)/2:(H-h)/2,{tail}"
     )
 
 
-def _cue_chain(i: int, cue: CueArt) -> str:
+def _cue_chain(cue: CueArt) -> str:
     """자막 전환: 흐려지지 않고 바로 또렷하게 — 살짝 커졌다 제자리(POP). 아래에서 올라오는 움직임은
     overlay 위치(_cue_y)에서 준다."""
     k = f"(1+{POP_GROW}*max(0,1-(t-{cue.start:.3f})/{POP_SEC}))"
-    return f"[{i}:v]format=rgba,scale=w='{cue.width}*{k}':h='{cue.height}*{k}':eval=frame[c{i}]"
+    return f",scale=w='{cue.width}*{k}':h='{cue.height}*{k}':eval=frame"
 
 
 def _cue_y(cue: CueArt) -> str:
@@ -259,47 +367,67 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
     args: list[str] = ["ffmpeg", "-hide_banner", "-y", "-loglevel", "error"]
     chains: list[str] = []
     idx = 0
-    for shot in plan.shots:
+    for k, shot in enumerate(plan.shots):
         dur = shot.end - shot.start
+        if k + 1 < len(plan.shots):
+            dur += plan.shots[k + 1].xfade  # 다음 조각으로 넘어가는 동안 겹쳐 보일 만큼 더
         if shot.kind == "image":
             args += ["-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.4f}", "-i", str(shot.path)]
         else:
             args += ["-ss", f"{shot.in_sec:.4f}", "-t", f"{dur:.4f}", "-i", str(shot.path)]
-        chains.append(_shot_chain(idx, shot, plan.size))
+        chains.append(_shot_chain(idx, shot, plan.size, plan.photo_box))
         idx += 1
     n = len(plan.shots)
-    concat_in = "".join(f"[s{i}]" for i in range(n))
-    chains.append(f"{concat_in}concat=n={n}:v=1:a=0[base]")
+    if not any(s.xfade for s in plan.shots[1:]):
+        concat_in = "".join(f"[s{i}]" for i in range(n))
+        chains.append(f"{concat_in}concat=n={n}:v=1:a=0[base]")
+    else:
+        # 조각을 차례로 잇는다: 전환이 있으면 빠른 확대 전환(xfade zoomin), 없으면 바로 컷
+        prev = "[s0]"
+        for k in range(1, n):
+            shot = plan.shots[k]
+            nxt = f"[j{k}]"
+            if shot.xfade:
+                chains.append(
+                    f"{prev}[s{k}]xfade=transition=zoomin:duration={shot.xfade:.3f}:offset={shot.start:.4f}{nxt}"
+                )
+            else:
+                chains.append(f"{prev}[s{k}]concat=n=2:v=1:a=0{nxt}")
+            prev = nxt
+        chains.append(f"{prev}null[base]")
     cur = "[base]"
 
     def add_overlay(
-        path: Path, enable: str | None, x: str = "0", y: str = "0", src: str | None = None
+        path: Path, start: float, end: float, x: str = "0", y: str = "0", chain: str = ""
     ) -> None:
+        """그림 한 장을 start~end에만 얹는다. 그 구간 길이만큼만 읽어 시각을 옮겨 붙인다(60초 내내 읽지 않아
+        메모리·시간을 아낀다). chain은 그림에 더 걸 필터(등장 효과 등, 시각 t는 화면 기준)."""
         nonlocal idx, cur
-        args.extend(["-loop", "1", "-t", f"{plan.total:.4f}", "-i", str(path)])
-        label = f"[{idx}:v]" if src is None else src
-        if src is None:
-            chains.append(f"{label}format=rgba[o{idx}]")
-            label = f"[o{idx}]"
-        opts = f"x={x}:y={y}" + (f":enable='{enable}'" if enable else "")
-        chains.append(f"{cur}{label}overlay={opts}[v{idx}]")
+        span = max(end - start, 1 / FPS)
+        args.extend(["-loop", "1", "-framerate", str(FPS), "-t", f"{span:.4f}", "-i", str(path)])
+        chains.append(f"[{idx}:v]format=rgba,setpts=PTS-STARTPTS+{start:.4f}/TB{chain}[o{idx}]")
+        opts = f"x='{x}':y='{y}':eof_action=pass:enable='between(t,{start:.3f},{end:.3f})'"
+        chains.append(f"{cur}[o{idx}]overlay={opts}[v{idx}]")
         cur = f"[v{idx}]"
         idx += 1
 
+    if plan.photo_fade is not None and plan.photo_box is not None:
+        add_overlay(plan.photo_fade, 0.0, plan.total, x=str(plan.photo_box[0]), y=str(plan.photo_box[1]))
     if plan.headline is not None:
-        add_overlay(plan.headline, None)
+        add_overlay(plan.headline, 0.0, plan.total)
     for cap in plan.captions:
-        add_overlay(cap.path, f"between(t,{cap.start:.3f},{cap.end:.3f})", x=str(cap.x), y=str(cap.y))
+        add_overlay(cap.path, cap.start, cap.end, x=str(cap.x), y=str(cap.y))
     for cue in plan.cues:
-        args.extend(["-loop", "1", "-t", f"{plan.total:.4f}", "-i", str(cue.path)])
-        chains.append(_cue_chain(idx, cue))
-        x = "(W-w)/2"
-        y = _cue_y(cue)
-        chains.append(
-            f"{cur}[c{idx}]overlay=x='{x}':y='{y}':enable='between(t,{cue.start:.3f},{cue.end:.3f})'[v{idx}]"
-        )
-        cur = f"[v{idx}]"
-        idx += 1
+        if cue.intro:
+            # 강조 자막: 흐린 그림들을 차례로(EMPH_STEP초씩) 보여 준 뒤 또렷한 그림 — 제자리에 그대로
+            at = cue.start
+            for b in cue.intro:
+                nxt = min(at + EMPH_STEP, cue.end)
+                add_overlay(b, at, nxt, x="(W-w)/2", y=str(cue.top))
+                at = nxt
+            add_overlay(cue.path, at, cue.end, x="(W-w)/2", y=str(cue.top))
+            continue
+        add_overlay(cue.path, cue.start, cue.end, x="(W-w)/2", y=_cue_y(cue), chain=_cue_chain(cue))
     chains.append(f"{cur}format=yuv420p[vout]")
 
     # 음성·배경음악·효과음

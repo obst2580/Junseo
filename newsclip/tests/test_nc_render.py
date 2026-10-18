@@ -268,3 +268,85 @@ def test_only_one_keyword_highlighted_per_subtitle(tmp_path):
     ]
     # 빨강은 첫 핵심어(홍준표) 자리에만 — 오른쪽 절반에는 없다
     assert reds and max(reds) < img.width * 0.6
+
+
+def test_cut_editing_punches_in_and_zooms_on_turns(tmp_path):
+    """자막 경계에 맞춘 컷 편집: 2초 안팎으로 끊고, 같은 사진은 넓게 → 가깝게, 넘기는 장면은 빠른 확대 전환."""
+    from newsclip.shorts_render import PUNCH, XFADE_SEC, cut_pieces, shots_for
+
+    assert cut_pieces(0, 6, [0.8, 1.6, 2.1, 3.0, 4.4, 5.5]) == [(0, 2.1), (2.1, 4.4), (4.4, 6)]
+    no_bounds = cut_pieces(0, 7, [])  # 경계가 없어도 3.2초보다 길면 고르게 나눈다
+    assert len(no_bounds) == 3 and no_bounds[-1][1] == 7
+    for name in ("assets/a1.jpg", "assets/a2.jpg", "assets/b1.jpg"):
+        (tmp_path / name).parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (1080, 1920), (90, 90, 90)).save(tmp_path / name)
+    scenes = [
+        {
+            "id": "s001",
+            "start": 0,
+            "end": 6,
+            "chosen": "assets/a1.jpg",
+            "files": ["assets/a1.jpg", "assets/a2.jpg"],
+        },
+        {"id": "s002", "start": 6, "end": 8, "chosen": "assets/b1.jpg", "files": ["assets/b1.jpg"]},
+    ]
+    shots = shots_for(scenes, tmp_path, 8.0, {}, cuts=[1.6, 3.0, 4.4, 6.0, 7.0], xfade_at=[6.0])
+    assert [(s.path.name, s.zoom[0]) for s in shots[:4]] == [
+        ("a1.jpg", 1.0),
+        ("a1.jpg", PUNCH),
+        ("a2.jpg", 1.0),
+        ("a2.jpg", PUNCH),
+    ]
+    assert [s.xfade for s in shots] == [0.0, 0.0, 0.0, 0.0, XFADE_SEC]
+    assert shots[-1].end == 8.0
+
+
+def test_build_command_zooms_inside_photo_box_and_crossfades(tmp_path):
+    photo = tmp_path / "p.jpg"
+    Image.new("RGB", (1080, 1920), (90, 90, 90)).save(photo)
+    narration = tmp_path / "n.wav"
+    _wav(narration, 2)
+    plan = RenderPlan(
+        shots=[
+            Shot(photo, "image", 0, 1.0),
+            Shot(photo, "image", 1.0, 2.0, zoom=(1.32, 1.38), focus=(0.5, 0.33), xfade=0.16),
+        ],
+        total=2.0,
+        narration=narration,
+        photo_box=(0, 560, 1080, 1370),
+    )
+    filt = build_command(plan, tmp_path / "o.mp4")
+    filt = filt[filt.index("-filter_complex") + 1]
+    assert "crop=1080:810:0:560" in filt and "overlay=0:560" in filt  # 사진 칸만 확대해 제자리에
+    assert "xfade=transition=zoomin:duration=0.160:offset=1.0000" in filt
+    out = render(plan, tmp_path / "o.mp4")
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(out)],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert abs(float(json.loads(probe.stdout)["format"]["duration"]) - 2.0) < 0.1
+
+
+def test_emphasis_cues_colored_and_spaced(tmp_path):
+    """짧은 핵심 자막은 색 글자로: 센 말 빨강, 직접 인용 노랑, 핵심 인물 초록 — 4초 안에 둘은 안 나온다."""
+    from newsclip.render import EMPH_BLUR, EMPH_GREEN, EMPH_RED, EMPH_YELLOW, render_emph
+    from newsclip.shorts_render import emph_color, pick_emphasis
+    from newsclip.srt import Cue
+
+    assert emph_color('"패 죽이고 싶었다"고', {"홍준표"}) == EMPH_RED
+    assert emph_color('"맹신자 중에 끌어모은', set()) == EMPH_YELLOW
+    assert emph_color("한동훈 의원이 하도", {"한동훈"}) == EMPH_GREEN
+    assert emph_color("그 시절 분위기가 어땠을지", set()) is None  # '분위기'는 '위기'가 아니다
+    assert emph_color("사람들이 이제 서로를 배신자로 몰면서", set()) is None  # 길면 보통 자막
+    cues = [
+        Cue(1, 0, 1, "한동훈 의원이"),
+        Cue(2, 2, 3, "배신자 낙인"),
+        Cue(3, 5, 6, "막말 논란"),
+        Cue(4, 9, 10, "한동훈 의원"),
+    ]
+    assert pick_emphasis(cues, {"한동훈"}) == {1: EMPH_RED, 3: EMPH_GREEN}  # 빨강 먼저, 그다음 간격 맞는 것
+    art = render_emph("배신자 낙인", tmp_path / "e.png", (1080, 1920), color=EMPH_RED)
+    assert art is not None and len(art.intro) == len(EMPH_BLUR) and all(p.exists() for p in art.intro)
+    assert Image.open(art.intro[0]).size == Image.open(art.path).size
