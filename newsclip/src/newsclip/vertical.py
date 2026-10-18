@@ -100,7 +100,8 @@ STYLES: dict[str, Style] = {
         caption_box=(*NAVY, 200),
     ),
     # 널스윤서(건강): 위쪽은 흰 바탕에 검은 글씨, 둘째 줄은 하늘색 강조 글씨, 그 아래 하늘색 선. 사진 칸은 거의
-    # 정사각형으로 크게(세로 소재가 덜 잘린다), 자막은 사진 칸 안 아래쪽. 첫 문장은 간호 차트판에 손글씨로
+    # 정사각형으로 크게(세로 소재가 덜 잘린다). 사진 아랫부분 그라데이션과 자막 자리는 정치는푸르다와 같은 구성.
+    # 첫 문장은 간호 차트판에 손글씨로
     "health": Style(
         "health",
         top_bg=(255, 255, 255),
@@ -113,7 +114,8 @@ STYLES: dict[str, Style] = {
         stroke=0.0,
         fill_box=True,
         box=HEALTH_BOX,
-        sub_shift=60,
+        photo_fade=260,  # 정치는푸르다처럼 사진 아랫부분을 검정으로 자연스럽게 잇고 그 위에 자막
+        sub_shift=HEALTH_BOX[3] - BOX[3],  # 자막도 정치는푸르다처럼 사진 칸 아래 끝에서 같은 높이
         hook="chart",
     ),
 }

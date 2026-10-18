@@ -269,7 +269,8 @@ def render_cards(
 
     st = style_of(style)
     x0, y0, x1, y1 = box_of(st)
-    content_h = min(y1 - y0 - 40, SUB_TEXT_Y + st.sub_shift - y0 - 20)
+    # 내용은 자막 자리와 사진 칸 아랫부분 그라데이션(photo_fade) 위에만
+    content_h = min(y1 - y0 - 40, SUB_TEXT_Y + st.sub_shift - y0 - 20, y1 - y0 - st.photo_fade - 10)
     painter = CardPainter(fonts, h=y1 - y0, content_h=content_h)
     made: dict[str, tuple[Path, tuple[float, float]]] = {}
     prev = None
