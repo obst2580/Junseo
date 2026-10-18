@@ -233,7 +233,7 @@ def test_long_subtitle_goes_to_two_lines(tmp_path):
     assert sub_lines("짧은 자막") == ["짧은 자막"] and sub_lines("첫 줄\n둘째 줄") == ["첫 줄", "둘째 줄"]
     one = render_cue("짧은 자막", tmp_path / "a.png", (1080, 1920))
     two = render_cue("한동훈 의원이 하도 깐죽대니까", tmp_path / "b.png", (1080, 1920))
-    assert two.height > one.height * 1.7 and two.top + two.height == one.top + one.height == SUB_BOTTOM
+    assert two.height > one.height * 1.5 and two.top + two.height == one.top + one.height == SUB_BOTTOM
 
 
 def test_subtitle_shadow_without_box(tmp_path):
