@@ -32,8 +32,6 @@ SUB_BOX = False  # 자막 뒤 검은 상자. False면 상자 없이 그림자만
 SUB_SHADOW = 1.0  # 상자 없을 때 글자 뒤 흐린 검은 그림자 세기(0~1)
 POP_SEC = 0.15  # 자막 등장 효과 길이
 POP_GROW = 0.08  # 등장할 때 처음 커지는 비율(8%)
-FADE_IN = 0.15  # 자막 전환: 서서히 나타나는 시간(초)
-FADE_OUT = 0.12  # 자막 전환: 서서히 사라지는 시간(초)
 SLIDE_PX = 28  # 자막 전환: 이만큼 아래에서 제자리로 올라오며 나타난다
 SLIDE_SEC = 0.18
 
@@ -237,16 +235,10 @@ def _shot_chain(i: int, shot: Shot, size: tuple[int, int]) -> str:
 
 
 def _cue_chain(i: int, cue: CueArt) -> str:
-    """자막 전환: 서서히 나타나며(FADE_IN) 살짝 커졌다 제자리(POP), 끝날 때 서서히 사라진다(FADE_OUT).
-    아래에서 올라오는 움직임은 overlay 위치(_cue_y)에서 준다."""
-    s, e = cue.start, cue.end
-    fin, fout = min(FADE_IN, (e - s) / 2), min(FADE_OUT, (e - s) / 3)
-    k = f"(1+{POP_GROW}*max(0,1-(t-{s:.3f})/{POP_SEC}))"
-    return (
-        f"[{i}:v]format=rgba,fade=t=in:st={s:.3f}:d={fin:.3f}:alpha=1,"
-        f"fade=t=out:st={e - fout:.3f}:d={fout:.3f}:alpha=1,"
-        f"scale=w='{cue.width}*{k}':h='{cue.height}*{k}':eval=frame[c{i}]"
-    )
+    """자막 전환: 흐려지지 않고 바로 또렷하게 — 살짝 커졌다 제자리(POP). 아래에서 올라오는 움직임은
+    overlay 위치(_cue_y)에서 준다."""
+    k = f"(1+{POP_GROW}*max(0,1-(t-{cue.start:.3f})/{POP_SEC}))"
+    return f"[{i}:v]format=rgba,scale=w='{cue.width}*{k}':h='{cue.height}*{k}':eval=frame[c{i}]"
 
 
 def _cue_y(cue: CueArt) -> str:
