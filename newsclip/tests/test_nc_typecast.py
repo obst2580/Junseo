@@ -10,11 +10,9 @@ import pytest
 
 from newsclip.typecast_tts import (
     MAX_CHARS,
-    Speech,
     TypecastError,
     api_key,
     find_voice,
-    fit_length,
     retime_scenes,
     split_text,
     synthesize,
@@ -132,16 +130,3 @@ def test_retime_scenes_follows_character_times():
     out = retime_scenes(scenes, chars, duration=7.0)
     assert [(s["start"], s["end"]) for s in out] == [(0.0, 2.5), (2.5, 5.0), (5.0, 7.0)]
     assert out[1]["id"] == "s2"  # 다른 칸은 그대로
-
-
-def test_fit_length_speeds_up_only_when_over(tmp_path):
-    def speech(sec: float) -> Speech:
-        p = tmp_path / f"{sec}.wav"
-        p.write_bytes(base64.b64decode(_wav_b64(sec)))
-        return Speech(p, sec, words=[("a", 10.0, 12.0)], chars=[("a", 10.0, 10.5)])
-
-    ok = speech(50.0)
-    assert fit_length(ok, 60.0) == 1.0 and ok.duration == 50.0 and ok.words[0][1] == 10.0
-    over = speech(80.0)  # 1.33배가 필요하지만 1.15배까지만
-    assert fit_length(over, 60.0) == 1.15
-    assert over.duration == pytest.approx(80.0 / 1.15, abs=0.05) and over.words[0][1] == round(10.0 / 1.15, 3)

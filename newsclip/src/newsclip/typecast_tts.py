@@ -5,17 +5,14 @@
   문장 사이 쉼 remove_silence_ms, 음량 target_lufs.
 - 한 번에 2,000자까지라서 긴 대본은 문단·문장 단위로 나눠 읽고 이어 붙인다. 뒤 조각의 시각은 앞 조각 길이만큼 민다.
 - 받은 시각은 그 음성에 맞춘 값이라 자막·장면 시간을 따로 짐작하지 않아도 된다.
-- 쇼츠처럼 길이 상한이 있으면 fit_length로 조금 빠르게 해 맞춘다(다시 읽지 않으니 크레딧이 더 들지 않는다).
 """
 
 from __future__ import annotations
 
 import base64
 import io
-import math
 import os
 import re
-import subprocess
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -194,36 +191,6 @@ def synthesize(
         for fr in frames:
             w.writeframes(fr)
     return Speech(path=out, duration=round(offset, 3), words=words, chars=chars)
-
-
-def fit_length(speech: Speech, max_sec: float, max_factor: float = 1.15) -> float:
-    """음성이 max_sec보다 길면 ffmpeg atempo로 빠르게 해 맞춘다(높낮이는 그대로, 크레딧 추가 없음).
-    낱말·글자 시각도 같은 배율로 당긴다. 반환: 쓴 배율(1.0이면 그대로). max_factor보다 더 빨라야 하면
-    max_factor까지만 빠르게 하고(그래도 길다) 나머지는 대본을 줄여야 한다."""
-    if speech.duration <= max_sec:
-        return 1.0
-    factor = min(math.ceil(speech.duration / max_sec * 1000) / 1000, max_factor)  # 올림 — 넘지 않게
-    tmp = speech.path.with_suffix(".fit.wav")
-    subprocess.run(
-        [
-            "ffmpeg",
-            "-loglevel",
-            "error",
-            "-y",
-            "-i",
-            str(speech.path),
-            "-filter:a",
-            f"atempo={factor}",
-            str(tmp),
-        ],
-        check=True,
-    )
-    tmp.replace(speech.path)
-    with wave.open(str(speech.path), "rb") as w:
-        speech.duration = round(w.getnframes() / float(w.getframerate()), 3)
-    speech.words = [(t, round(s / factor, 3), round(e / factor, 3)) for t, s, e in speech.words]
-    speech.chars = [(t, round(s / factor, 3), round(e / factor, 3)) for t, s, e in speech.chars]
-    return factor
 
 
 def retime_scenes(scenes: list[dict], chars: list[Word], duration: float) -> list[dict]:

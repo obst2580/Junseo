@@ -46,7 +46,6 @@ BODY_ARTICLES = 60  # 본문까지 받을 관련 기사 수
 VIDEO_LINKS = 3  # 장면마다 남길 유튜브 영상 후보 수
 RENDER_CRF = 20  # 완성본 화질 — 1분 1080×1920이 10MB 안팎
 RENDER_MAX_BYTES = 14 * 1024 * 1024  # 제작실 자산으로 올릴 수 있게(한 파일 15MB 안쪽)
-SHORTS_MAX_SEC = 60.0  # 쇼츠 음성 길이 상한 — 넘으면 조금 빠르게 해 맞춘다(최대 1.15배)
 
 
 # ---- collect ---------------------------------------------------------------------------------
@@ -296,7 +295,7 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
     만든다. voice는 화면이 요청에 담은 {name, tempo, remove_silence_ms} — 비운 칸은 채널 설정(voice:)을 쓴다.
     낱말 시각(words)도 함께 저장해, 자료를 모을 때 음성을 다시 듣지 않고 그 시각에 자막·장면을 맞춘다."""
     from newsclip.autosub import analyze, narration_text
-    from newsclip.typecast_tts import TypecastError, find_voice, fit_length, synthesize
+    from newsclip.typecast_tts import TypecastError, find_voice, synthesize
 
     cfg = load_channel(load_settings()).voice
     v = voice or {}
@@ -322,8 +321,6 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
         remove_silence_ms=silence,
         client=client,
     )
-    read_sec = speech.duration
-    fit = fit_length(speech, SHORTS_MAX_SEC) if req.get("format") == "shorts" else 1.0
     info = analyze(speech.path, min_silence=0.15)
     chars = len(text.replace("\n", ""))
     # 제작실 자산은 wav를 받지 않아서 올릴 파일은 오디오만 든 mp4(AAC 192kbps)로 — 완성본 렌더도 이 파일을 받아 쓴다
@@ -345,8 +342,6 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
         "chars": chars,
         "cpm": round(chars / (speech.duration / 60)) if speech.duration else 0,
         "credits": len(text),
-        "read_duration": read_sec,  # 타입캐스트가 읽은 그대로의 길이
-        "fit": fit,  # 쇼츠 1분 맞춤 배율(1.0이면 그대로)
         "words": [[w, s, e] for w, s, e in speech.words],
         "analyzed_at": _iso(now_kst()),
     }
@@ -945,7 +940,7 @@ def main() -> None:
     if a.cmd == "voice":
         rq = _load_project(a.request) if a.request else {}
         audio = make_voice(req, a.out, rq.get("voice"))
-        keys = ("voice", "voice_id", "tempo", "read_duration", "fit", "duration", "chars", "credits")
+        keys = ("voice", "voice_id", "tempo", "duration", "chars", "credits")
         print(
             json.dumps(
                 {**{k: audio[k] for k in keys}, "file": str(a.out / "narration.mp4")}, ensure_ascii=False
