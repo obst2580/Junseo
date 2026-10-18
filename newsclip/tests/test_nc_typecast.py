@@ -130,3 +130,15 @@ def test_retime_scenes_follows_character_times():
     out = retime_scenes(scenes, chars, duration=7.0)
     assert [(s["start"], s["end"]) for s in out] == [(0.0, 2.5), (2.5, 5.0), (5.0, 7.0)]
     assert out[1]["id"] == "s2"  # 다른 칸은 그대로
+
+
+def test_unusual_activity_block_gets_plain_reason(monkeypatch, tmp_path):
+    """무료 계정이 비정상 사용으로 막히면(403 UNUSUAL_ACTIVITY_DETECTED) 다시 시도하지 말라는 쉬운 이유를 낸다."""
+    monkeypatch.setenv("TYPECAST_API_KEY", "test-key")
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"detail": {"code": "UNUSUAL_ACTIVITY_DETECTED", "message": "..."}})
+
+    client = httpx.Client(base_url="https://api.typecast.ai", transport=httpx.MockTransport(handler))
+    with pytest.raises(TypecastError, match="유료 API 플랜"):
+        synthesize("글", "tc_x", tmp_path / "x.wav", client=client)

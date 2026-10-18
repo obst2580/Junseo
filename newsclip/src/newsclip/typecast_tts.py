@@ -70,6 +70,12 @@ def _check(resp: httpx.Response) -> None:
         429: "요청이 너무 많습니다(동시 요청 한도)",
     }
     detail = resp.text[:300]
+    if "UNUSUAL_ACTIVITY" in detail:
+        # 무료 계정을 클라우드 서버에서 부르면 타입캐스트가 비정상 사용으로 막는다 — 다시 시도하면 계정이 정지될 수 있다
+        raise TypecastError(
+            "타입캐스트가 무료 계정의 비정상 사용으로 막았습니다(클라우드 서버에서 부른 요청). 다시 시도하지 말고, "
+            "유료 API 플랜(Lite 이상)으로 바꾸거나 타입캐스트 웹에서 받은 음성 파일을 올려 주세요."
+        )
     raise TypecastError(
         f"타입캐스트 {resp.status_code}: {reasons.get(resp.status_code, '서버 오류')} — {detail}"
     )
