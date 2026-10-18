@@ -40,10 +40,15 @@ class Style:
     tint_amount: float = 0.5
     solid_bg: tuple[int, int, int] | None = None  # 있으면 흐린 사진 대신 이 색 한 가지로 바탕을 칠한다
     font_file: str = ""  # 상단 제목 폰트(비우면 Pretendard ExtraBold) — FONT_CDN에서 한 번 받아 둔다
+    font_local: str = ""  # 패키지에 같이 둔 상단 제목 폰트(newsclip/fonts). 있으면 이것을 먼저 쓴다
     font_path: str = ""  # FONT_CDN 안의 경로
     bands: tuple[tuple[int, int, int], ...] = ()  # 줄마다 띠 색(비우면 띠 없이 검은 테두리 글씨)
     text_colors: tuple[tuple[int, int, int], ...] = HEAD_LINE_COLORS
     caption_box: tuple[int, int, int, int] = (0, 0, 0, 150)  # 출처 표시 상자 색
+    head_box: tuple[int, int, int, int] = HEAD  # 상단 제목 자리(1080x1920 기준)
+    head_px: int = 124  # 상단 제목 시작 글자 크기(자리에 안 들어가면 줄인다)
+    head_line: float = 1.22  # 줄 간격(글자 크기 배수)
+    stroke: float = 0.08  # 검은 테두리 두께(글자 크기 배수)
 
     @property
     def font_url(self) -> str:
@@ -51,7 +56,16 @@ class Style:
 
 
 STYLES: dict[str, Style] = {
-    "default": Style("default"),
+    # 정치는푸르다: 210 매머드빵, 화면 폭을 거의 채우는 큰 글씨 + 두꺼운 검은 테두리, 둘째 줄 진한 노랑
+    "default": Style(
+        "default",
+        font_local="210MammothPpang-R.TTF",
+        text_colors=((255, 255, 255), (255, 236, 0)),
+        head_box=(24, 190, 1056, 540),
+        head_px=150,
+        head_line=1.12,
+        stroke=0.13,
+    ),
     "navy_red": Style(
         "navy_red",
         solid_bg=(0, 0, 0),  # 사진 칸 위아래는 검은색
@@ -62,6 +76,15 @@ STYLES: dict[str, Style] = {
         caption_box=(*NAVY, 200),
     ),
 }
+
+
+FONT_DIR = Path(__file__).parent / "fonts"
+
+
+def local_font(st: Style) -> str | None:
+    """디자인의 패키지 폰트 경로(없으면 None)."""
+    p = FONT_DIR / st.font_local if st.font_local else None
+    return str(p) if p and p.exists() else None
 
 
 def style_of(name: str | None) -> Style:
@@ -167,18 +190,18 @@ def render_headline(
     img = Image.new("RGBA", size, (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     lines = split_head(text)
-    x0, y0, x1, y1 = (round(v * s) for v in HEAD)
+    x0, y0, x1, y1 = (round(v * s) for v in st.head_box)
     path = font_path or korean_font_path()
     spare = korean_font_path()
     pad = round(34 * s) if st.bands else 0  # 띠 안쪽 여백(좌우)
     gap = round(14 * s) if st.bands else 0  # 띠 사이
-    fsize = round(124 * s)
+    fsize = round(st.head_px * s)
     while True:
         font = _load(path, fsize)
         fallback = _load(spare, fsize) if spare and spare != path else None
         runs = [_runs(ln, font, fallback) for ln in lines]
         widths = [sum(d.textlength(t, font=f) for t, f in r) for r in runs]
-        lh = round(fsize * (1.32 if st.bands else 1.22))
+        lh = round(fsize * (1.32 if st.bands else st.head_line))
         total = lh * len(lines) + gap * max(0, len(lines) - 1)
         if (max(widths, default=0) + 2 * pad <= x1 - x0 and total <= y1 - y0) or fsize <= round(60 * s):
             break
@@ -201,7 +224,7 @@ def render_headline(
                 font=f,
                 fill=color,
                 anchor="lm",
-                stroke_width=0 if st.bands else max(4, round(fsize * 0.08)),
+                stroke_width=0 if st.bands else max(4, round(fsize * st.stroke)),
                 stroke_fill=STROKE,
             )
             if f is not font:  # 대신 쓴 폰트는 보통 굵기라 같은 색 테두리로 한 번 더 그려 굵게 맞춘다

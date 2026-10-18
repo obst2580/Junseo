@@ -25,7 +25,7 @@ from newsclip.sources.naver_image import NaverImageSource
 from newsclip.sources.wikimedia import WikimediaSource
 from newsclip.sources.youtube_video import YouTubeVideoSource, is_blocked, thumb_video_id, video_channels
 from newsclip.srt import parse_srt
-from newsclip.vertical import is_vertical, render_headline, style_of
+from newsclip.vertical import is_vertical, local_font, render_headline, style_of
 from studio_core.config import ChannelConfig, Settings, TimelineSection, find_root, load_channel
 from studio_core.http import make_client
 from studio_core.keys import Unavailable
@@ -313,8 +313,10 @@ async def run_project(
             fonts = await ensure_fonts(client, settings.data_dir / "fonts")
     if headline.strip() and is_vertical(size):
         st = style_of(style)
-        head_font = fonts.get("ExtraBold")
-        if st.font_url:  # 채널 디자인 폰트(자유뉴스365: 블랙한산스) — 못 받으면 Pretendard
+        head_font = local_font(st) or fonts.get("ExtraBold")  # 정치는푸르다: 210 매머드빵(패키지에 둠)
+        if st.font_url and not local_font(
+            st
+        ):  # 채널 디자인 폰트(자유뉴스365: 블랙한산스) — 못 받으면 Pretendard
             async with make_client() as client:
                 head_font = (
                     await fetch_font(client, settings.data_dir / "fonts", st.font_file, st.font_url)
