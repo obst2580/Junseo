@@ -134,6 +134,7 @@ STYLES: dict[str, Style] = {
         photo_fade=260,  # 정치는푸르다처럼 사진 아랫부분을 바탕(흰색)으로 자연스럽게 잇고 그 위에 자막
         sub_shift=HEALTH_BOX[3] - BOX[3],  # 자막도 정치는푸르다처럼 사진 칸 아래 끝에서 같은 높이
         hook="chart",
+        peak=0.85,  # 소리 최고점: AAC로 줄인 뒤에도 깨지지 않게(뉴스 채널과 같은 값)
     ),
 }
 

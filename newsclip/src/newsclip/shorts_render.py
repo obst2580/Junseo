@@ -17,7 +17,7 @@ from pathlib import Path
 from PIL import Image
 
 from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases, subtitle_cues
-from newsclip.chart_hook import make_chart_clip, split_lines
+from newsclip.chart_hook import CIRCLE_HOLD, CIRCLE_SEC, circle_time, fit_lines, make_chart_clip, split_lines
 from newsclip.models import Scene
 from newsclip.render import (
     EMPH_GREEN,
@@ -75,6 +75,7 @@ STRONG = re.compile(
     "|배신|자멸|민낯|죽이|막장|몰락|폭망|박살"
 )
 QUOTE = re.compile("[\"“”‘’']")
+NEVER = re.compile("(?!)")  # 아무것도 맞지 않는 말(자동 강조 끄기)
 # 건강(널스윤서) 강조어: 정치 채널의 센 말 대신 — 작업자가 고른 강조 문구(emphasis)가 없을 때 이 말이 든 낱말을 빨간 강조로
 HEALTH_STRONG = re.compile(
     "위험|주의|경고|조심|꼭|반드시|절대|두 배|2배|세 배|3배|급증|사망|치매|뇌졸중|심근경색|돌연사|최악|놓치면|몰랐던|비상"
@@ -493,6 +494,10 @@ def subtitles_for(
             break
     px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
     arts = []
+    # 작업자가 강조 문구를 골랐으면 그 문구만 강조한다(센 말 자동 강조는 고른 문구가 없을 때만)
+    chosen = [e for e in emphasis or [] if e.strip()]
+    if chosen:
+        strong = NEVER
     emph = pick_emphasis(lines, keywords, start=hook_n, sag=emph_sag, strong=strong)
     # 훅 자막은 첫 문장을 이어 붙여 핵심(따옴표 안 발언)을 찾으므로 그대로 두고, 그 뒤 자막만 짝을 맞춘다
     texts = pair_quotes([c.text for c in lines]) if quote_pairs else [c.text for c in lines]
@@ -508,7 +513,7 @@ def subtitles_for(
             if any(re.sub(r"\s+", "", ph) == core for ph in emphasis):  # 자막 한 줄이 곧 강조 문구 → 줄째로
                 emph[k] = EMPH_RED
                 continue
-            ph = phrase_in(cue.text, emphasis, strong)
+            ph = phrase_in(cue.text, emphasis, None if chosen else strong)
             if ph:
                 split[k] = ph
     hook = (
@@ -621,11 +626,16 @@ def build_plan(
     whoosh = [cue.at for cue in sounds if cue.name == "whoosh"]
     hook_end = max((c.end for c in cues if c.path.name.startswith("hook_")), default=0.0)
     chart = st.hook == "chart" and hook is not None
-    if chart:  # 첫 문장이 짧으면 차트판을 CHART_MIN초까지(그 무렵 자막이 바뀌는 때에서) 둔다
-        hook_end = hook[2]
-        if hook_end < CHART_MIN:
-            hook_end = next((c.end for c in cues if c.start < CHART_MIN <= c.end + 0.05), CHART_MIN)
-        hook_end = min(hook_end, total)
+    if chart:
+        # 차트판은 첫 문장 끝까지, 짧으면 CHART_MIN초까지, 그리고 동그라미를 다 그린 뒤 CIRCLE_HOLD초까지는 둔다
+        spec = project.get("hook") or {}
+        key = spec.get("key") or default_key(hook[0])
+        lines = fit_lines(spec.get("lines") or split_lines(hook[0]), key)
+        starts = chunk_starts(" ".join(lines).split(), hook[1], hook[2], words)
+        circle = circle_time(lines, key, starts)
+        need = max(CHART_MIN, circle + CIRCLE_SEC + CIRCLE_HOLD if circle is not None else 0.0)
+        # 자막 경계까지 늘리지 않는다(다음 문장 자막이 통째로 가려진다) — 걸친 자막은 차트판이 끝나면 바로 뜬다
+        hook_end = min(max(hook[2], need), total)
         # 차트판이 떠 있는 동안은 자막을 띄우지 않는다(손글씨를 가린다) — 걸친 자막은 차트판이 끝나면 뜬다
         cues = [replace(c, start=max(c.start, hook_end)) for c in cues if c.end > hook_end + 0.2]
     shots = shots_for(
@@ -639,10 +649,6 @@ def build_plan(
         hold_until=hook_end,
     )
     if chart:  # 첫 문장 동안은 차트판 훅 영상 하나 — 그 뒤 컷부터 사진·영상
-        spec = project.get("hook") or {}
-        lines = spec.get("lines") or split_lines(hook[0])
-        key = spec.get("key") or default_key(hook[0])
-        starts = chunk_starts(" ".join(lines).split(), hook[1], hook_end, words)
         out = asset_dir / "subtitles" / "chart_hook.mp4"
         clip, punch_at, circle_at = make_chart_clip(
             hook[0], key, starts, hook_end, out, SIZE, style, lines=lines

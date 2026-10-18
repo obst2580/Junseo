@@ -137,6 +137,11 @@ def score_asset(
             if qh:
                 s += min(30, 10 * qh)
                 notes.append(f"검색어 {qh}개 제목 일치 +{min(30, 10 * qh)}")
+                if not news and qh * 2 < len(
+                    words
+                ):  # 소재 사이트: 검색어 낱말이 절반도 안 맞으면 엉뚱한 장면
+                    s -= 15
+                    notes.append("검색어 절반도 안 맞음 −15")
             elif words:
                 s -= 20
                 notes.append("제목에 검색어 없음 −20")

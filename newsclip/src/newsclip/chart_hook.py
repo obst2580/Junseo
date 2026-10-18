@@ -29,8 +29,11 @@ CLIP, CLIP_IN, CLIP_HOLE = (178, 182, 188), (150, 154, 160), (120, 124, 130)
 CB_W, CB_H = 940, 1180  # 클립보드 그림 크기(사진 칸 폭 1080 기준)
 PAPER_BOX = (40, 110, 900, 1150)
 TEXT_X, TEXT_W = 96, 724  # 글씨 왼쪽 끝·최대 폭(클립보드 그림 안)
-LINE_Y = (420, 660)  # 두 줄의 글자 바닥선(클립보드 그림 안)
+# 줄 수별 글자 바닥선(클립보드 그림 안) — 아랫부분은 사진 칸 그라데이션에 먹히니 그 위로
+LINE_YS = {1: (540,), 2: (420, 660), 3: (350, 530, 710)}
 HAND_PX = 160  # 손글씨 시작 크기(폭이 넘으면 줄인다)
+MIN_HAND_PX = 128  # 이보다 작아지면 긴 줄을 한 번 더 나눈다(많아야 3줄) — 손글씨가 작으면 안 읽힌다
+CIRCLE_HOLD = 0.6  # 동그라미를 다 그린 뒤 다음 컷까지 보여 주는 시간
 TILT = -1.5  # 차트판 기울기(도)
 WRITE_SEC = 0.18  # 낱말 하나가 써지는 시간
 CIRCLE_SEC = 0.3  # 동그라미가 그려지는 시간
@@ -64,6 +67,51 @@ def split_lines(text: str, n: int = 2) -> list[str]:
     return [" ".join(words[:best]), " ".join(words[best:])]
 
 
+def _fit_px(lines: list[str], key: str | None, font_path: str) -> int:
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    px = HAND_PX
+    while px > 60:
+        font = ImageFont.truetype(font_path, px)
+        widest = max((probe.textlength(ln, font=font) for ln in lines), default=0)
+        if widest + (40 if key else 0) <= TEXT_W:
+            break
+        px -= 4
+    return px
+
+
+def fit_lines(lines: list[str], key: str | None, font_path: str = str(QUOTE_FONT)) -> list[str]:
+    """손글씨가 MIN_HAND_PX보다 작아질 만큼 긴 줄이 있으면 그 줄을 띄어쓰기에서 둘로 나눈다(많아야 3줄).
+    핵심 말(key)은 가르지 않는다."""
+    lines = [ln for ln in lines if ln.strip()]
+    while len(lines) < 3 and _fit_px(lines, key, font_path) < MIN_HAND_PX:
+        i = max(range(len(lines)), key=lambda j: len(lines[j]))
+        words = lines[i].split(" ")
+        whole = not key or key not in lines[i]
+        cuts = [
+            k
+            for k in range(1, len(words))
+            if whole or key in " ".join(words[:k]) or key in " ".join(words[k:])  # 핵심 말은 가르지 않는다
+        ]
+        if not cuts:
+            break
+        best = min(cuts, key=lambda k: abs(len("".join(words[:k])) - len("".join(words[k:]))))
+        lines = [*lines[:i], " ".join(words[:best]), " ".join(words[best:]), *lines[i + 1 :]]
+    return lines
+
+
+def circle_time(lines: list[str], key: str | None, starts: list[float]) -> float | None:
+    """핵심 말 동그라미가 그려지기 시작하는 때(마지막 빨간 낱말이 다 써진 때). 핵심 말이 없으면 None."""
+    span = _key_span(" ".join(lines), key)
+    if span is None:
+        return None
+    pos, last = 0, None
+    for i, w in enumerate(" ".join(lines).split(" ")):
+        if pos < span[1] and pos + len(w) > span[0]:
+            last = i
+        pos += len(w) + 1
+    return starts[last] + WRITE_SEC if last is not None and last < len(starts) else None
+
+
 @dataclass(frozen=True)
 class Word:
     text: str
@@ -78,13 +126,7 @@ def layout(
 ) -> tuple[ImageFont.FreeTypeFont, list[Word]]:
     """줄들 → 글꼴 크기(폭에 맞춤)와 낱말 자리. key에 든 낱말은 빨강."""
     probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
-    px = HAND_PX
-    while True:
-        font = ImageFont.truetype(font_path, px)
-        widest = max((probe.textlength(ln, font=font) for ln in lines), default=0)
-        if widest + (40 if key else 0) <= TEXT_W or px <= 60:
-            break
-        px -= 4
+    font = ImageFont.truetype(font_path, _fit_px(lines, key, font_path))
     space = probe.textlength(" ", font=font)
     key_span = _key_span(" ".join(lines), key)
     out: list[Word] = []
@@ -136,6 +178,13 @@ class ChartHook:
         reds = [i for i, w in enumerate(self.words) if w.red]
         self.circle_at = (self.starts[reds[-1]] + WRITE_SEC) if reds else None
         self.punch_at = self.starts[reds[0]] if reds and reds[0] > 0 else None  # 핵심 말 앞까지 쓰고 줌 컷
+        # 당기는 배율: 핵심 말과 동그라미가 화면 폭 안에 들게(긴 말이면 덜 당긴다)
+        key_w = (
+            max(w.x + w.width for w in self.words if w.red) - min(w.x for w in self.words if w.red) + 60
+            if reds
+            else 1
+        )
+        self.punch_zoom = max(1.15, min(PUNCH_ZOOM, (self.box[2] - self.box[0]) * 0.9 / key_w))
         self.board = self._board()
         self.ink = self._ink()
         self.desk = self._desk()
@@ -159,10 +208,8 @@ class ChartHook:
         c.rounded_rectangle((320, 0, 620, 120), radius=24, fill=CLIP)
         c.rounded_rectangle((350, 20, 590, 100), radius=18, fill=CLIP_IN)
         c.ellipse((445, 30, 495, 80), fill=CLIP_HOLE)
-        lines = {w.line for w in self.words}
-        for li in sorted(lines):
-            ly = LINE_Y[min(li, len(LINE_Y) - 1)] + 30
-            c.line((80, ly, 860, ly), fill=RULE, width=2)
+        for li in sorted({w.line for w in self.words}):
+            c.line((80, self._line_y(li) + 30, 860, self._line_y(li) + 30), fill=RULE, width=2)
         return cb
 
     def _ink(self) -> Image.Image:
@@ -179,10 +226,12 @@ class ChartHook:
         sh.paste((0, 0, 0, 110), mask=rot.getchannel("A"))
         return sh.filter(ImageFilter.GaussianBlur(18))
 
+    def _line_y(self, li: int) -> int:
+        ys = LINE_YS[min(3, max(1, len({x.line for x in self.words})))]
+        return ys[min(li, len(ys) - 1)]
+
     def _base(self, w: Word) -> float:
-        return (
-            LINE_Y[min(w.line, len(LINE_Y) - 1)] if len({x.line for x in self.words}) > 1 else sum(LINE_Y) / 2
-        )
+        return self._line_y(w.line)
 
     # ---- 프레임 ----
     def frame(self, t: float) -> Image.Image:
@@ -216,7 +265,7 @@ class ChartHook:
             # 핵심 말이 들리는 순간 그 말 쪽으로 빠르게 당긴다(살짝 지나쳤다 제자리 — 펀치인), 그 뒤로도 아주 살짝 다가간다
             p = min(1.0, (t - self.punch_at) / PUNCH_SEC)
             span = max(self.duration - self.punch_at, 0.01)
-            k1 = PUNCH_ZOOM + PUSH * min(1.0, (t - self.punch_at) / span)
+            k1 = self.punch_zoom + PUSH * min(1.0, (t - self.punch_at) / span)
             k = k + (k1 - k) * _ease_out_back(p)
             kx, ky = self._key_center(ox, oy)
             e = 1 - (1 - p) ** 3
