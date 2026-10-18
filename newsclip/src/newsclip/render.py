@@ -12,7 +12,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from studio_core.fonts import korean_font_path, load_font
 
@@ -28,6 +28,8 @@ SUB_PX = 112  # 음성 자막 글자 크기(픽셀). 줄이 너무 넓으면 fit
 SUB_MAX_W = 960  # 자막 한 줄의 최대 글자 폭(화면 1080 기준 좌우 여백 60)
 SUB_BOTTOM = 1500  # 세로 쇼츠: 자막 상자 아랫선(사진 아랫부분이 검게 이어지는 자리)
 SUB_WRAP = 8  # 자막 한 줄 글자 수(공백 빼고). 넘으면 두 줄로 나눈다
+SUB_BOX = True  # 자막 뒤 검은 상자. False면 상자 없이 그림자만
+SUB_SHADOW = 0.0  # 상자 없을 때 글자 뒤 흐린 검은 그림자 세기(0~1)
 POP_SEC = 0.15  # 자막 등장 효과 길이
 POP_GROW = 0.12  # 등장할 때 처음 커지는 비율(12%)
 
@@ -137,8 +139,11 @@ def render_cue(
     center_y: int | None = None,
     text_color: tuple[int, int, int, int] = WHITE,
     hot_color: tuple[int, int, int, int] = YELLOW,
+    box: bool | None = None,
+    shadow: float | None = None,
 ) -> CueArt | None:
-    """자막 한 블록(줄바꿈은 \\n)을 검은 상자 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다."""
+    """자막 한 블록(줄바꿈은 \\n)을 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다.
+    box면 뒤에 검은 상자, 아니면 shadow 세기만큼 글자 뒤에 흐린 검은 그림자를 깐다(비우면 SUB_BOX·SUB_SHADOW)."""
     lines = sub_lines(text)
     if not lines:
         return None
@@ -147,7 +152,12 @@ def render_cue(
     w, h = size
     font_size = fit_sub_px([text], size, px)  # 한 줄이 화면 폭을 넘지 않게 줄인다
     font = _sub_font(font_size)
-    pad_x, pad_y = round(28 * min(w, h) / 1080), round(14 * min(w, h) / 1080)
+    use_box = SUB_BOX if box is None else box
+    strength = SUB_SHADOW if shadow is None else shadow
+    if use_box:
+        pad_x, pad_y = round(28 * min(w, h) / 1080), round(14 * min(w, h) / 1080)
+    else:
+        pad_x = pad_y = round(font_size * 0.35)  # 그림자가 번질 자리
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     line_h = round(font_size * 1.3)
     line_w = [sum(probe.textlength(word, font=font) for word in ln.split(" ")) for ln in lines]
@@ -160,15 +170,37 @@ def render_cue(
     bh = line_h * len(lines) + 2 * pad_y
     img = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.rounded_rectangle((0, 0, bw - 1, bh - 1), radius=round(12 * min(w, h) / 1080), fill=BOX)
+    spots: list[tuple[float, float, str, tuple]] = []  # 낱말마다 (x, y, 낱말, 색)
     for row, ln in enumerate(lines):
         x = (bw - line_w[row] - gap * (len(ln.split(" ")) - 1)) / 2
         y = pad_y + row * line_h
         for k, word in enumerate(ln.split(" ")):
             if k:
                 x += gap
-            draw.text((x, y), word, font=font, fill=hot_color if is_hot(word, keywords) else text_color)
+            spots.append((x, y, word, hot_color if is_hot(word, keywords) else text_color))
             x += draw.textlength(word, font=font)
+    if use_box:
+        draw.rounded_rectangle((0, 0, bw - 1, bh - 1), radius=round(12 * min(w, h) / 1080), fill=BOX)
+    elif strength:
+        # 상자 대신 글자 모양 그대로 번진 진한 그림자 — 밝은 사진 위에서도 글자가 읽힌다
+        a = round(255 * min(1.0, strength))
+        sh = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(sh)
+        for x, y, word, _c in spots:
+            sd.text(
+                (x, y + round(font_size * 0.05)),
+                word,
+                font=font,
+                fill=(0, 0, 0, a),
+                stroke_width=max(2, round(font_size * 0.08)),
+                stroke_fill=(0, 0, 0, a),
+            )
+        blur = sh.filter(ImageFilter.GaussianBlur(font_size * 0.12))
+        img.alpha_composite(blur)
+        if strength > 0.5:
+            img.alpha_composite(blur)  # 진하게 한 번 더
+    for x, y, word, color in spots:
+        draw.text((x, y), word, font=font, fill=color)
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
     if center_y is not None:

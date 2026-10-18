@@ -234,3 +234,12 @@ def test_long_subtitle_goes_to_two_lines(tmp_path):
     one = render_cue("짧은 자막", tmp_path / "a.png", (1080, 1920))
     two = render_cue("한동훈 의원이 하도 깐죽대니까", tmp_path / "b.png", (1080, 1920))
     assert two.height > one.height * 1.7 and two.top + two.height == one.top + one.height == SUB_BOTTOM
+
+
+def test_subtitle_shadow_without_box(tmp_path):
+    boxed = Image.open(render_cue("짧은 자막", tmp_path / "a.png", (1080, 1920), box=True).path)
+    shadow = Image.open(render_cue("짧은 자막", tmp_path / "b.png", (1080, 1920), box=False, shadow=1.0).path)
+    assert boxed.getpixel((boxed.width // 2, 2))[3] == 255  # 상자는 위 가장자리까지 불투명
+    assert shadow.getpixel((2, 2))[3] == 0  # 그림자만: 모서리는 투명
+    dark = sum(1 for r, g, b, a in shadow.getdata() if a > 120 and r < 40 and g < 40 and b < 40)
+    assert dark > 1000  # 글자 뒤 진한 그림자
