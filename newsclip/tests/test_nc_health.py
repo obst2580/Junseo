@@ -306,11 +306,16 @@ def test_chart_hook_lines_key_and_frames():
     assert split_lines("혈압 재세요") == ["혈압 재세요"]  # 짧으면 한 줄
     _font, words = layout(["혈압, 아무 때나", "재고 계시죠?"], "아무 때나")
     assert [w.text for w in words if w.red] == ["아무", "때나"]
-    hook = ChartHook(["혈압, 아무 때나", "재고 계시죠?"], "아무 때나", [0.1, 0.4, 0.7, 1.2, 1.5], 2.5, SIZE)
-    assert hook.circle_at == pytest.approx(0.7 + 0.18)
+    hook = ChartHook(["혈압, 아무 때나", "재고 계시죠?"], "아무 때나", [0.1, 0.8, 1.0, 1.4, 1.7], 2.5, SIZE)
+    assert hook.punch_at == 0.8 and hook.circle_at == pytest.approx(1.0 + 0.18)
     box = box_of("health")
-    early, late = hook.frame(0.05), hook.frame(1.9)
+    early, written = hook.frame(0.05), hook.frame(0.6)
     assert early.size == SIZE and early.getpixel((540, 100)) == (255, 255, 255)
-    paper = (box[0] + 200, box[1] + 330, box[0] + 900, box[1] + 520)  # 첫 줄 글씨 자리
-    ink = lambda im: sum(1 for p in im.crop(paper).getdata() if sum(p) < 200)  # noqa: E731
-    assert ink(late) > ink(early) + 500  # 시간이 지나면 글씨가 써진다
+    first = (box[0] + 100, box[1] + 330, box[0] + 400, box[1] + 520)  # '혈압,' 자리(줌 컷 전)
+
+    def ink(im):
+        return sum(1 for p in im.crop(first).getdata() if sum(p) < 200)
+
+    assert ink(written) > ink(early) + 300  # 시간이 지나면 글씨가 써진다
+    red = lambda im: sum(1 for p in im.getdata() if p[0] > 180 and p[1] < 80 and p[2] < 80)  # noqa: E731
+    assert red(hook.frame(1.6)) > 3 * red(hook.frame(0.79)) + 1000  # 핵심 말에서 줌 컷 → 빨간 글씨가 크게
