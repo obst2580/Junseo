@@ -108,6 +108,7 @@ class RenderPlan:
     bgm_volume: float = 0.22  # 배경음악 크기(내레이션이 없을 때 기준)
     photo_box: tuple[int, int, int, int] | None = None  # 사진 칸(x0, y0, x1, y1) — 있으면 칸 안만 확대한다
     photo_fade: Path | None = None  # 사진 칸 아래를 검정으로 잇는 그림(photo_box 자리에 얹는다)
+    crf: int = 18  # 화질(낮을수록 좋고 파일이 큼). 제작실에 올릴 완성본은 크기 한도 때문에 조금 높인다
 
 
 # ---------- 자막 그림 ----------
@@ -476,7 +477,18 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
 
     filt = ";".join(chains + mix)
     args += ["-filter_complex", filt, "-map", "[vout]", "-map", "[aout]", "-t", f"{plan.total:.4f}"]
-    args += ["-r", str(FPS), "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p"]
+    args += [
+        "-r",
+        str(FPS),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        str(plan.crf),
+        "-pix_fmt",
+        "yuv420p",
+    ]
     args += ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(out)]
     return args
 

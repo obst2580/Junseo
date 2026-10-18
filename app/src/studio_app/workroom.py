@@ -10,6 +10,9 @@
   timeline.xml의 파일 경로는 `file://localhost/__STUDIO_BASE__/…`로 두고, 화면이 내려받을 때 사용자가 고른
   폴더 경로로 바꾼다(프리미어에서 다시 연결할 필요 없게).
 
+- render: 쇼츠 자료(result) + 음성 + 공통 배경음악 → 완성 mp4(자막 효과·강조 자막·효과음·컷 편집). 작업자가
+  자산을 받아 프로젝트 폴더를 다시 꾸미고(render-ids로 받을 목록), 렌더한 mp4를 제작실에 올린다.
+
 실행: uv run python -m studio_app.workroom collect --out DIR
       uv run python -m studio_app.workroom sources --project 요청.json --out DIR
 """
@@ -41,6 +44,8 @@ ARTICLE_SUMMARY = 220
 ARTICLE_BODY = 1500
 BODY_ARTICLES = 60  # 본문까지 받을 관련 기사 수
 VIDEO_LINKS = 3  # 장면마다 남길 유튜브 영상 후보 수
+RENDER_CRF = 20  # 완성본 화질 — 1분 1080×1920이 10MB 안팎
+RENDER_MAX_BYTES = 14 * 1024 * 1024  # 제작실 자산으로 올릴 수 있게(한 파일 15MB 안쪽)
 SHORTS_MAX_SEC = 60.0  # 쇼츠 음성 길이 상한 — 넘으면 조금 빠르게 해 맞춘다(최대 1.15배)
 
 
@@ -321,15 +326,20 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
     fit = fit_length(speech, SHORTS_MAX_SEC) if req.get("format") == "shorts" else 1.0
     info = analyze(speech.path, min_silence=0.15)
     chars = len(text.replace("\n", ""))
+    # 제작실 자산은 wav를 받지 않아서 올릴 파일은 오디오만 든 mp4(AAC 192kbps)로 — 완성본 렌더도 이 파일을 받아 쓴다
+    upload = out / "narration.mp4"
+    _ffmpeg(
+        ["-i", str(speech.path), "-vn", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(upload)]
+    )
     audio = {
         "source": "typecast",
         "voice": name,
         "voice_id": voice_id,
         "tempo": tempo,
         "remove_silence_ms": silence,
-        "name": "narration.wav",
-        "ext": ".wav",
-        "size": speech.path.stat().st_size,
+        "name": "narration.mp4",
+        "ext": ".mp4",
+        "size": upload.stat().st_size,
         "duration": speech.duration,
         "silences": [[round(a, 2), round(b, 2)] for a, b in info.silences],
         "chars": chars,
@@ -349,6 +359,127 @@ def voice_doc(voice_json: Path, asset_id: str) -> dict:
     audio = json.loads(voice_json.read_text(encoding="utf-8"))
     doc = {"audio": {**audio, "asset_id": asset_id}, "status": "voice"}
     (voice_json.parent / "update.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return doc
+
+
+def _ffmpeg(args: list[str]) -> None:
+    import subprocess
+
+    proc = subprocess.run(["ffmpeg", "-loglevel", "error", "-y", *args], capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg 실패: {proc.stderr[-600:]}")
+
+
+# ---- render(완성 mp4) ------------------------------------------------------------------------
+
+
+def render_ids(req: dict, bgm: dict | None = None) -> dict[str, str]:
+    """완성 영상에 필요한 자산 → {자산 ID: 쓰임}. 작업자가 하나씩 Artifact read(path=ID)로 받는다.
+    쓰임은 프로젝트 폴더 안 이름(assets/…, captions/…, overlays/…, narration.srt) 또는 narration·bgm."""
+    res = req.get("result") or {}
+    if not res.get("files") or not res.get("scenes"):
+        raise ValueError("자료(result)가 없습니다 — 먼저 [자료 모으기]를 끝내 주세요.")
+    audio = req.get("audio") or {}
+    if not audio.get("asset_id"):
+        raise ValueError("올린 음성이 없습니다 — 음성 칸에서 음성을 올리거나 타입캐스트로 만들어 주세요.")
+    ids = {
+        f["id"]: f["name"]
+        for f in res["files"]
+        if f["name"].startswith(("assets/", "captions/", "overlays/"))
+    }
+    if res.get("srt_id"):
+        ids[res["srt_id"]] = "narration.srt"
+    ids[audio["asset_id"]] = "narration"
+    if bgm and bgm.get("asset_id"):
+        ids[bgm["asset_id"]] = "bgm"
+    return ids
+
+
+def _fetched(fetched: Path, asset_id: str, use: str) -> Path:
+    hits = sorted(fetched.glob(f"{asset_id}.*")) or (
+        [fetched / asset_id] if (fetched / asset_id).exists() else []
+    )
+    if not hits:
+        raise FileNotFoundError(f"받은 파일이 없습니다: {asset_id} ({use}) — Artifact read로 받아 주세요")
+    return hits[0]
+
+
+def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, crf: int = RENDER_CRF) -> dict:
+    """받은 자산(fetched/<ID>.<확장자>)으로 프로젝트 폴더를 다시 꾸미고 완성 mp4(out/final.mp4)를 만든다.
+    자막은 자료를 모을 때 만든 SRT 시각 그대로, 훅 조각은 낱말 시각(타입캐스트, 아니면 음성 인식)에 맞춘다.
+    out/render.json(projects/<ID>.render에 쓸 값, asset_id 빼고)을 쓰고 그 내용을 돌려준다."""
+    import shutil
+
+    from newsclip.shorts_render import probe_duration, render_short
+
+    ids = render_ids(req, bgm)
+    proj = out / "project"
+    for aid, use in ids.items():
+        src = _fetched(fetched, aid, use)
+        if use in ("narration", "bgm"):
+            continue
+        dst = proj / use
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    audio = req["audio"]
+    narration = out / "narration.wav"  # 자막 분석·렌더는 wav로
+    _ffmpeg(
+        [
+            "-i",
+            str(_fetched(fetched, audio["asset_id"], "narration")),
+            "-ac",
+            "1",
+            "-ar",
+            "48000",
+            str(narration),
+        ]
+    )
+    bgm_path = _fetched(fetched, bgm["asset_id"], "bgm") if bgm and bgm.get("asset_id") else None
+    words = audio.get("words") if audio.get("source") == "typecast" else None
+    srt = proj / "narration.srt"
+    project = {"script": req["script"], "scenes": req["result"]["scenes"]}
+    final = out / "final.mp4"
+    render_short(
+        project, proj, narration, final, srt=srt if srt.exists() else None, bgm=bgm_path, words=words, crf=crf
+    )
+    if final.stat().st_size > RENDER_MAX_BYTES:  # 한도를 넘으면 화면만 조금 더 압축
+        smaller = out / "final-small.mp4"
+        _ffmpeg(
+            [
+                "-i",
+                str(final),
+                "-c:v",
+                "libx264",
+                "-crf",
+                str(crf + 4),
+                "-preset",
+                "medium",
+                "-c:a",
+                "copy",
+                "-movflags",
+                "+faststart",
+                str(smaller),
+            ]
+        )
+        smaller.replace(final)
+    doc = {
+        "file": final.name,
+        "size": final.stat().st_size,
+        "duration": round(probe_duration(final), 2),
+        "bgm": (bgm or {}).get("asset_id"),
+        "timing": "typecast" if words else "srt+asr",
+        "replaced": (req.get("render") or {}).get("asset_id"),  # 화면이 지울 지난 완성본
+        "made_at": _iso(now_kst()),
+    }
+    (out / "render.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    return doc
+
+
+def render_doc(render_json: Path, asset_id: str) -> dict:
+    """올린 완성본 자산 ID를 붙여 projects/<ID>에 쓸 값({render})을 같은 폴더 update.json에 쓴다."""
+    r = json.loads(render_json.read_text(encoding="utf-8"))
+    doc = {"render": {**r, "asset_id": asset_id}}
+    (render_json.parent / "update.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     return doc
 
 
@@ -697,6 +828,12 @@ def _load_project(path: Path) -> dict:
     return req
 
 
+def _load_doc(path: Path) -> dict:
+    """ArtifactData out_dir 파일({id, data, version})이든 문서 내용이든 문서 dict로."""
+    doc = json.loads(path.read_text(encoding="utf-8"))
+    return doc["data"] if isinstance(doc.get("data"), dict) and "version" in doc else doc
+
+
 def main() -> None:
     """CLI."""
     ap = argparse.ArgumentParser(prog="studio_app.workroom")
@@ -738,6 +875,18 @@ def main() -> None:
     vd = sub.add_parser("voice-doc", help="올린 음성 자산 ID를 붙여 projects/<ID>에 쓸 update.json 만들기")
     vd.add_argument("--voice", type=Path, required=True)
     vd.add_argument("--asset-id", required=True)
+    ri = sub.add_parser("render-ids", help="완성 영상에 필요한 자산 ID 목록(작업자가 하나씩 받는다)")
+    rn = sub.add_parser("render", help="받은 자산으로 완성 mp4 만들기 → final.mp4 + render.json")
+    for x in (ri, rn):
+        x.add_argument("--project", type=Path, required=True)
+        x.add_argument("--bgm", type=Path, help="config/bgm 문서(ArtifactData out_dir 파일) — 공통 배경음악")
+    rn.add_argument(
+        "--fetched", type=Path, required=True, help="Artifact read로 받은 자산 폴더(<ID>.<확장자>)"
+    )
+    rn.add_argument("--out", type=Path, required=True)
+    rd = sub.add_parser("render-doc", help="올린 완성본 자산 ID를 붙여 projects/<ID>에 쓸 update.json 만들기")
+    rd.add_argument("--render", type=Path, required=True)
+    rd.add_argument("--asset-id", required=True)
     a = ap.parse_args()
     if a.channel:
         os.environ["STUDIO_CHANNEL"] = a.channel
@@ -777,14 +926,26 @@ def main() -> None:
         voice_doc(a.voice, a.asset_id)
         print(json.dumps({"file": str(a.voice.parent / "update.json")}, ensure_ascii=False))
         return
+    if a.cmd == "render-doc":
+        render_doc(a.render, a.asset_id)
+        print(json.dumps({"file": str(a.render.parent / "update.json")}, ensure_ascii=False))
+        return
     req = _load_project(a.project)
+    if a.cmd in ("render-ids", "render"):
+        bgm = _load_doc(a.bgm) if a.bgm else None
+        if a.cmd == "render-ids":
+            print(json.dumps(render_ids(req, bgm), ensure_ascii=False))
+            return
+        doc = make_render(req, a.fetched, a.out, bgm)
+        print(json.dumps({**doc, "file": str(a.out / "final.mp4")}, ensure_ascii=False))
+        return
     if a.cmd == "voice":
         rq = _load_project(a.request) if a.request else {}
         audio = make_voice(req, a.out, rq.get("voice"))
         keys = ("voice", "voice_id", "tempo", "read_duration", "fit", "duration", "chars", "credits")
         print(
             json.dumps(
-                {**{k: audio[k] for k in keys}, "file": str(a.out / "narration.wav")}, ensure_ascii=False
+                {**{k: audio[k] for k in keys}, "file": str(a.out / "narration.mp4")}, ensure_ascii=False
             )
         )
         return

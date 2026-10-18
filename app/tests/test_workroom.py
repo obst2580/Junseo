@@ -446,3 +446,108 @@ def test_sources_use_typecast_word_times(root, tmp_path):
     out = wr._prepare(req)
     asr = out[7]
     assert asr["source"] == "typecast" and asr["words"] == 6
+
+
+def test_render_final_mp4_from_fetched_assets(root, tmp_path, monkeypatch):
+    """[완성 영상 만들기]: 받은 자산(사진·자막·음성·배경음악)으로 프로젝트 폴더를 다시 꾸며 완성 mp4를 만들고,
+    올린 자산 ID를 붙여 projects/<ID>.render에 쓸 값을 만든다."""
+    import subprocess
+    import wave
+
+    from PIL import Image
+
+    import newsclip.asr
+
+    def no_asr(*a, **k):
+        raise newsclip.asr.AsrUnavailable("시험에서는 듣지 않는다")
+
+    monkeypatch.setattr(newsclip.asr, "transcribe", no_asr)
+    fetched = tmp_path / "dl"
+    fetched.mkdir()
+    for aid, color in (("a" * 32, (200, 40, 40)), ("b" * 32, (40, 40, 200))):
+        Image.new("RGB", (1080, 1920), color).save(fetched / f"{aid}.jpg")
+    (fetched / f"{'c' * 32}.txt").write_text(
+        "1\n00:00:00,000 --> 00:00:01,500\n첫 문장입니다.\n\n2\n00:00:01,500 --> 00:00:03,000\n둘째 줄\n",
+        encoding="utf-8",
+    )
+    with wave.open(str(tmp_path / "n.wav"), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(48000)
+        w.writeframes(b"\x00\x00" * 48000 * 3)
+    subprocess.run(
+        ["ffmpeg", "-loglevel", "error", "-i", str(tmp_path / "n.wav"), str(fetched / f"{'d' * 32}.webm")],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=f=220:d=2",
+            str(fetched / f"{'e' * 32}.mp4"),
+        ],
+        check=True,
+    )
+    req = {
+        "id": "p9",
+        "format": "shorts",
+        "script": "첫 문장입니다. 둘째 줄",
+        "audio": {"asset_id": "d" * 32, "duration": 3.0},
+        "render": {"asset_id": "f" * 32},
+        "result": {
+            "files": [
+                {"id": "a" * 32, "name": "assets/s001_1.jpg"},
+                {"id": "b" * 32, "name": "assets/s002_1.jpg"},
+            ],
+            "srt_id": "c" * 32,
+            "scenes": [
+                {
+                    "id": "s001",
+                    "start": 0,
+                    "end": 1.5,
+                    "text": "첫 문장입니다.",
+                    "topic": "도입",
+                    "chosen": "assets/s001_1.jpg",
+                    "files": ["assets/s001_1.jpg"],
+                },
+                {
+                    "id": "s002",
+                    "start": 1.5,
+                    "end": 3.0,
+                    "text": "둘째 줄",
+                    "topic": "도입",
+                    "chosen": "assets/s002_1.jpg",
+                    "files": ["assets/s002_1.jpg"],
+                },
+            ],
+        },
+    }
+    bgm = {"asset_id": "e" * 32}
+    ids = wr.render_ids(req, bgm)
+    assert ids == {
+        "a" * 32: "assets/s001_1.jpg",
+        "b" * 32: "assets/s002_1.jpg",
+        "c" * 32: "narration.srt",
+        "d" * 32: "narration",
+        "e" * 32: "bgm",
+    }
+    doc = wr.make_render(req, fetched, tmp_path / "out", bgm)
+    assert (tmp_path / "out" / "final.mp4").exists() and abs(doc["duration"] - 3.0) < 0.1
+    assert doc["bgm"] == "e" * 32 and doc["replaced"] == "f" * 32 and doc["size"] < wr.RENDER_MAX_BYTES
+    up = wr.render_doc(tmp_path / "out" / "render.json", "9" * 32)
+    assert up["render"]["asset_id"] == "9" * 32 and up["render"]["file"] == "final.mp4"
+
+
+def test_render_needs_sources_and_voice(root):
+    import pytest
+
+    with pytest.raises(ValueError, match="자료"):
+        wr.render_ids({"audio": {"asset_id": "x"}})
+    with pytest.raises(ValueError, match="음성"):
+        wr.render_ids(
+            {"result": {"files": [{"id": "a", "name": "assets/a.jpg"}], "scenes": [{}]}, "audio": {}}
+        )

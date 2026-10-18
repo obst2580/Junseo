@@ -452,6 +452,7 @@ def render_short(
     keywords: set[str] = frozenset(),
     max_shot_sec: float | None = None,
     words: list | None = None,
+    crf: int = 18,
 ) -> Path:
     plan = build_plan(
         project,
@@ -464,7 +465,7 @@ def render_short(
         max_shot_sec=max_shot_sec,
         words=words,
     )
-    return render(plan, out)
+    return render(replace(plan, crf=crf), out)
 
 
 def voice_and_render(
