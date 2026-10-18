@@ -14,7 +14,7 @@ from pathlib import Path
 
 from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases, subtitle_cues
 from newsclip.models import Scene
-from newsclip.render import CueArt, Overlay, RenderPlan, Shot, fit_sub_px, render, render_cue
+from newsclip.render import RED, YELLOW, CueArt, Overlay, RenderPlan, Shot, fit_sub_px, render, render_cue
 from newsclip.sfx import ensure_sfx, sfx_cues
 
 SIZE = (1080, 1920)
@@ -105,6 +105,8 @@ def subtitles_for(
                 keywords=keywords,
                 px=HOOK_PX,
                 center_y=HOOK_CENTER_Y,
+                text_color=YELLOW,
+                hot_color=RED,
             )
             arts.append(_timed(hook, cue.start, hook_end))
             if cue.end > hook_end:
@@ -133,7 +135,12 @@ def build_plan(
     total = wav_duration(audio)
     scenes = project["scenes"]
     shots = shots_for(scenes, asset_dir, total, videos or {})
-    cues, _spans, _info = subtitles_for(project["script"], audio, SIZE, asset_dir, set(keywords))
+    # 핵심어: 호출자가 준 말 + 첫 장면 검색어의 말(훅에서 빨간색으로 강조)
+    first = min(scenes, key=lambda s: float(s["start"]))
+    query_words = {w for w in str(first.get("query", "")).split() if len(w) >= 2}
+    cues, _spans, _info = subtitles_for(
+        project["script"], audio, SIZE, asset_dir, set(keywords) | query_words
+    )
     cues = [c for c in cues if c.start < total]
     caps = [
         Overlay(asset_dir / caption_name(sc["attribution"]), float(sc["start"]), float(sc["end"]))

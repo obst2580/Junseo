@@ -160,3 +160,22 @@ def test_hook_cue_centered_and_big(tmp_path):
     )
     assert hook.height > normal.height * 1.5 and hook.width <= 1080
     assert abs((hook.top + hook.height / 2) - 965) <= 1
+
+
+def test_hook_colors_yellow_text_red_keywords(tmp_path):
+    from newsclip.render import RED, YELLOW
+
+    art = render_cue(
+        "이재명이 또 해냈습니다",
+        tmp_path / "k.png",
+        (1080, 1920),
+        keywords={"이재명"},
+        px=124,
+        center_y=965,
+        text_color=YELLOW,
+        hot_color=RED,
+    )
+    pixels = list(Image.open(art.path).convert("RGB").getdata())
+    reds = sum(1 for r, g, b in pixels if r > 200 and g < 120 and b < 120)
+    yellows = sum(1 for r, g, b in pixels if r > 230 and g > 200 and b < 120)
+    assert reds > 500 and yellows > 500

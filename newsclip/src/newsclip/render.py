@@ -22,6 +22,7 @@ SUB_FONT = Path(__file__).parent / "fonts" / "210Moranbong-Light.TTF"
 FPS = 30
 WHITE = (255, 255, 255, 255)
 YELLOW = (255, 222, 64, 255)
+RED = (255, 70, 70, 255)
 BOX = (0, 0, 0, 255)  # 자막 뒤 상자: 불투명한 검은색
 SUB_PX = 84  # 음성 자막 글자 크기(픽셀). 줄이 너무 넓으면 fit_sub_px가 줄인다
 SUB_MAX_W = 960  # 자막 한 줄의 최대 글자 폭(화면 1080 기준 좌우 여백 60)
@@ -119,6 +120,8 @@ def render_cue(
     keywords: set[str] = frozenset(),
     px: int = SUB_PX,
     center_y: int | None = None,
+    text_color: tuple[int, int, int, int] = WHITE,
+    hot_color: tuple[int, int, int, int] = YELLOW,
 ) -> CueArt | None:
     """자막 한 블록(줄바꿈은 \\n)을 검은 상자 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다."""
     lines = [ln for ln in text.split("\n") if ln.strip()]
@@ -149,7 +152,7 @@ def render_cue(
         for k, word in enumerate(ln.split(" ")):
             if k:
                 x += gap
-            draw.text((x, y), word, font=font, fill=YELLOW if is_hot(word, keywords) else WHITE)
+            draw.text((x, y), word, font=font, fill=hot_color if is_hot(word, keywords) else text_color)
             x += draw.textlength(word, font=font)
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
