@@ -211,22 +211,21 @@ def test_shots_split_long_scenes_and_alternate_photos(tmp_path):
 
 
 def test_subtitles_follow_given_srt(tmp_path):
-    from newsclip.shorts_render import subtitles_for
+    from newsclip.shorts_render import HOOK_CENTER_Y, hook_chunks, subtitles_for
 
+    assert hook_chunks("홍준표 전 대구시장이 방송") == ["홍준표 전", "대구시장이", "방송"]
     audio = tmp_path / "n.wav"
     _wav(audio, 3)
     srt = tmp_path / "s.srt"
     srt.write_text(
-        "1\n00:00:00,000 --> 00:00:02,000\n이재명이 또 해냈습니다\n\n2\n00:00:02,000 --> 00:00:03,000\n둘째 줄\n",
+        "1\n00:00:00,000 --> 00:00:02,000\n이재명이 또 해냈습니다!\n\n2\n00:00:02,000 --> 00:00:03,000\n둘째 줄\n",
         encoding="utf-8",
     )
     arts, _spans, _info = subtitles_for("대본", audio, (1080, 1920), tmp_path, set(), srt=srt)
-    assert [(a.start, a.end) for a in arts] == [
-        (0.0, 1.5),
-        (1.5, 2.0),
-        (2.0, 3.0),
-    ]  # 훅 → 같은 줄 아래 자막 → 둘째 줄
-    assert arts[0].height > arts[1].height
+    # 첫 문장(느낌표로 끝)은 훅: '이재명이 또' / '해냈습니다!'를 글자 수 비율로 빠르게, 그다음은 일반 자막
+    assert [(round(a.start, 2), round(a.end, 2)) for a in arts] == [(0.0, 0.91), (0.91, 2.0), (2.0, 3.0)]
+    hook_mid = arts[0].top + arts[0].height / 2
+    assert abs(hook_mid - HOOK_CENTER_Y) <= 1 and arts[0].height > arts[2].height
 
 
 def test_long_subtitle_goes_to_two_lines(tmp_path):

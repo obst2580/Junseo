@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import subprocess
 from dataclasses import replace
 from pathlib import Path
@@ -20,11 +21,13 @@ from newsclip.models import Scene
 from newsclip.render import RED, YELLOW, CueArt, Overlay, RenderPlan, Shot, fit_sub_px, render, render_cue
 from newsclip.sfx import ensure_sfx, sfx_cues
 from newsclip.srt import parse_srt
+from newsclip.vertical import BOX
 
 SIZE = (1080, 1920)
-HOOK_SEC = 1.5  # 첫 문장을 크게 띄우는 시간(초)
-HOOK_PX = 124  # 훅 자막 글자 크기(px, 폭이 넘으면 자동으로 줄어든다)
-HOOK_CENTER_Y = 965  # 훅 자막 가운데 위치(사진 칸 560~1370의 가운데)
+HOOK_SEC = 3.5  # 훅: 이 시각 전에 시작하는 첫 문장 자막을 짧게 잘라 빠르게 보여 준다
+HOOK_CHUNK = 6  # 훅 한 번에 보이는 글자 수(공백 빼고)
+HOOK_PX = 140  # 훅 자막 글자 크기(px, 폭이 넘으면 자동으로 줄어든다)
+HOOK_CENTER_Y = (BOX[1] + BOX[3]) // 2  # 훅 자막은 사진 칸 한가운데에 띄운다
 
 
 def probe_duration(path: Path) -> float:
@@ -114,6 +117,25 @@ def wrap_hook(text: str, limit: int = 8) -> str:
     return "\n".join(lines)
 
 
+def hook_chunks(text: str, limit: int = HOOK_CHUNK) -> list[str]:
+    """훅 자막 한 줄 → 짧은 조각들(낱말을 이어 붙이되 공백 빼고 limit자 안쪽). 긴 낱말은 혼자 한 조각."""
+    out: list[str] = []
+    cur = ""
+    for word in text.replace("\n", " ").split():
+        cand = f"{cur} {word}".strip()
+        if cur and len(cand.replace(" ", "")) > limit:
+            out.append(cur)
+            cur = word
+        else:
+            cur = cand
+    if cur:
+        out.append(cur)
+    return out
+
+
+_SENT_END = re.compile(r"[.!?…][\"'”’」』)]*$")
+
+
 def subtitles_for(
     script: str,
     audio: Path,
@@ -131,32 +153,42 @@ def subtitles_for(
     else:
         cues, _matched = align(script_phrases(script), info, words=words)
         lines = subtitle_cues(cues, limit=SUB_LINE, info=info, words=words)
-    px = fit_sub_px([cue.text for cue in lines], size)
+    # 훅: 첫 문장(HOOK_SEC 전에 시작하는 자막, 문장이 끝나는 자막까지)은 짧게 잘라 빠르게 이어 보여 준다
+    hook_n = 0
+    for cue in lines:
+        if cue.start >= HOOK_SEC:
+            break
+        hook_n += 1
+        if _SENT_END.search(cue.text.strip()):
+            break
+    px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
     arts = []
     for k, cue in enumerate(lines):
+        if k < hook_n:
+            pieces = hook_chunks(cue.text)
+            weights = [max(1, len(p.replace(" ", ""))) for p in pieces]
+            at = cue.start
+            for j, (piece, wt) in enumerate(zip(pieces, weights, strict=True)):
+                span = (cue.end - cue.start) * wt / sum(weights)
+                hook = render_cue(
+                    piece,
+                    asset_dir / "subtitles" / f"hook_{k:02d}_{j:02d}.png",
+                    size,
+                    keywords=keywords,
+                    px=HOOK_PX,
+                    center_y=HOOK_CENTER_Y,
+                    text_color=YELLOW,
+                    hot_color=RED,
+                )
+                if hook is not None:
+                    arts.append(_timed(hook, at, at + span))
+                at += span
+            continue
         art = render_cue(
             cue.text, asset_dir / "subtitles" / f"cue_{k:03d}.png", size, keywords=keywords, px=px
         )
-        if art is None:
-            continue
-        if k == 0 and cue.start < HOOK_SEC:
-            # 첫 문장은 첫 1.5초 동안 화면 가운데에 크게 띄운 뒤, 아래 자막으로 이어 간다
-            hook_end = min(HOOK_SEC, cue.end)
-            hook = render_cue(
-                wrap_hook(cue.text),
-                asset_dir / "subtitles" / "hook.png",
-                size,
-                keywords=keywords,
-                px=HOOK_PX,
-                center_y=HOOK_CENTER_Y,
-                text_color=YELLOW,
-                hot_color=RED,
-            )
-            arts.append(_timed(hook, cue.start, hook_end))
-            if cue.end > hook_end:
-                arts.append(_timed(art, hook_end, cue.end))
-            continue
-        arts.append(_timed(art, cue.start, cue.end))
+        if art is not None:
+            arts.append(_timed(art, cue.start, cue.end))
     return arts, [(cue.start, cue.end) for cue in lines], info
 
 
