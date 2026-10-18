@@ -24,9 +24,10 @@ WHITE = (255, 255, 255, 255)
 YELLOW = (255, 222, 64, 255)
 RED = (255, 70, 70, 255)
 BOX = (0, 0, 0, 255)  # 자막 뒤 상자: 불투명한 검은색
-SUB_PX = 84  # 음성 자막 글자 크기(픽셀). 줄이 너무 넓으면 fit_sub_px가 줄인다
+SUB_PX = 112  # 음성 자막 글자 크기(픽셀). 줄이 너무 넓으면 fit_sub_px가 줄인다
 SUB_MAX_W = 960  # 자막 한 줄의 최대 글자 폭(화면 1080 기준 좌우 여백 60)
-SUB_BOTTOM = 1450  # 세로 쇼츠: 자막 상자 아랫선(사진 아랫부분이 검게 이어지는 자리)
+SUB_BOTTOM = 1500  # 세로 쇼츠: 자막 상자 아랫선(사진 아랫부분이 검게 이어지는 자리)
+SUB_WRAP = 8  # 자막 한 줄 글자 수(공백 빼고). 넘으면 두 줄로 나눈다
 POP_SEC = 0.15  # 자막 등장 효과 길이
 POP_GROW = 0.12  # 등장할 때 처음 커지는 비율(12%)
 
@@ -95,6 +96,18 @@ def _sub_font(px: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
     return ImageFont.truetype(str(SUB_FONT), px) if SUB_FONT.exists() else load_font(px)
 
 
+def sub_lines(text: str, limit: int = SUB_WRAP) -> list[str]:
+    """자막 한 블록의 줄들. 이미 줄을 나눴으면 그대로, 한 줄이 limit자(공백 빼고)를 넘으면 가운데쯤에서 두 줄로."""
+    if "\n" in text:
+        return [ln.strip() for ln in text.split("\n") if ln.strip()]
+    text = text.strip()
+    if len(text.replace(" ", "")) <= limit:
+        return [text] if text else []
+    from newsclip.vertical import split_head
+
+    return split_head(text)
+
+
 def fit_sub_px(texts: list[str], size: tuple[int, int], px: int = SUB_PX) -> int:
     """자막들이 모두 SUB_MAX_W 안에 드는 가장 큰 글자 크기(px, 최소 40)."""
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
@@ -103,7 +116,7 @@ def fit_sub_px(texts: list[str], size: tuple[int, int], px: int = SUB_PX) -> int
         gap = probe.textlength(" ", font=font)
         widest = 0.0
         for text in texts:
-            for ln in text.split("\n"):
+            for ln in sub_lines(text):
                 words = ln.split(" ")
                 if ln.strip():
                     widest = max(
@@ -126,7 +139,7 @@ def render_cue(
     hot_color: tuple[int, int, int, int] = YELLOW,
 ) -> CueArt | None:
     """자막 한 블록(줄바꿈은 \\n)을 검은 상자 PNG로 그린다. 핵심어는 노란색. 세로 쇼츠는 사진 칸 아랫부분에 놓는다."""
-    lines = [ln for ln in text.split("\n") if ln.strip()]
+    lines = sub_lines(text)
     if not lines:
         return None
     if not SUB_FONT.exists() and korean_font_path() is None:

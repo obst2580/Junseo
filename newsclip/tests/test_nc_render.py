@@ -39,7 +39,7 @@ def test_render_cue_box_and_highlight(tmp_path):
     art = render_cue("경기도 총 국회의원 60명", tmp_path / "c.png", (1080, 1920), keywords={"국회"})
     assert art is not None and art.width > 0 and art.height > 0
     assert Image.open(art.path).mode == "RGBA" and art.top + art.height == SUB_BOTTOM
-    assert 1200 < art.top  # 사진 아랫부분이 검게 이어지는 자리(사진 칸 560~1370의 끝자락 아래)
+    assert 1100 < art.top  # 사진 아랫부분이 검게 이어지는 자리
     assert render_cue("\n", tmp_path / "e.png", (1080, 1920)) is None
 
 
@@ -154,7 +154,7 @@ def test_hook_cue_centered_and_big(tmp_path):
     from newsclip.shorts_render import wrap_hook
 
     assert wrap_hook("이재명이 또 해냈습니다") == "이재명이 또\n해냈습니다"
-    normal = render_cue("이재명이 또 해냈습니다", tmp_path / "n.png", (1080, 1920), px=84)
+    normal = render_cue("이재명이 또", tmp_path / "n.png", (1080, 1920), px=84)
     hook = render_cue(
         wrap_hook("이재명이 또 해냈습니다"), tmp_path / "h.png", (1080, 1920), px=124, center_y=965
     )
@@ -224,3 +224,13 @@ def test_subtitles_follow_given_srt(tmp_path):
         (2.0, 3.0),
     ]  # 훅 → 같은 줄 아래 자막 → 둘째 줄
     assert arts[0].height > arts[1].height
+
+
+def test_long_subtitle_goes_to_two_lines(tmp_path):
+    from newsclip.render import sub_lines
+
+    assert sub_lines("한동훈 의원이 하도 깐죽대니까") == ["한동훈 의원이", "하도 깐죽대니까"]
+    assert sub_lines("짧은 자막") == ["짧은 자막"] and sub_lines("첫 줄\n둘째 줄") == ["첫 줄", "둘째 줄"]
+    one = render_cue("짧은 자막", tmp_path / "a.png", (1080, 1920))
+    two = render_cue("한동훈 의원이 하도 깐죽대니까", tmp_path / "b.png", (1080, 1920))
+    assert two.height > one.height * 1.7 and two.top + two.height == one.top + one.height == SUB_BOTTOM
