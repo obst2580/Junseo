@@ -95,6 +95,7 @@ def test_build_command_wires_video_audio_and_effects(tmp_path):
     joined = " ".join(cmd)
     assert "concat=n=2" in joined and "sidechaincompress" in joined and "adelay=2000" in joined
     assert "between(t,0.500,2.000)" in joined and "[vout]" in joined and "[aout]" in joined
+    assert "fade=t=in:st=0.500" in joined and "fade=t=out:st=1.880" in joined  # 자막 전환(나타남·사라짐)
 
 
 def test_render_short_real_file(tmp_path):
