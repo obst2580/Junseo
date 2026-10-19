@@ -1627,7 +1627,7 @@ function renderProjects() {
 /* ---------- 시작 ---------- */
 renderStatus(); renderTopics(); renderTabs();
 if (RIGHT) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>이나 <b>세로 쇼츠</b>(1분), 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 여러 매체가 함께 다룬 순이고, 국민의힘 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.';
-if (HEALTH) $('#pickhint').innerHTML = '주제 하나를 고르면 <b>세로 쇼츠</b>(1분)를 만듭니다. <b>보도자료</b> 표시가 있거나 근거(공공기관·진료지침)가 탄탄한 주제가 좋습니다.';
+if (HEALTH) $('#pickhint').innerHTML = '주제 하나를 고르면 <b>세로 쇼츠</b>(30초)를 만듭니다. <b>보도자료</b> 표시가 있거나 근거(공공기관·진료지침)가 탄탄한 주제가 좋습니다.';
 if (STOCK) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>, 2~3개를 고르면 <b>10분 시황 브리핑</b>입니다. 고른 순서가 영상 순서입니다. 10분은 <b>시황</b> 이슈를 먼저 고르면 브리핑 흐름이 자연스럽습니다.';
 if (LOCKED) $('.chsel').hidden = true;  // 채널 하나만 쓰는 제작실
 $('#channel').value = CH; $('#by').textContent = CHANNELS[CH].by; $('#lede').innerHTML = CHANNELS[CH].lede;
