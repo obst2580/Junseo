@@ -17,6 +17,7 @@ from pathlib import Path
 from PIL import Image
 
 from newsclip.autosub import SUB_LINE, AudioInfo, align, analyze, script_phrases, subtitle_cues
+from newsclip.cards import ZOOM as CARD_ZOOM_MAX
 from newsclip.chart_hook import CIRCLE_HOLD, CIRCLE_SEC, circle_time, fit_lines, make_chart_clip, split_lines
 from newsclip.models import Scene
 from newsclip.render import (
@@ -104,7 +105,7 @@ def _photo_pool(sc: dict, asset_dir: Path) -> list[Path]:
 
 
 CHART_MIN = 2.5  # 차트판 훅을 적어도 이만큼(초) 보여 준다
-CARD_ZOOM = (1.0, 1.18)
+CARD_ZOOM = (1.0, CARD_ZOOM_MAX)
 CARD_MAX = 1.8  # 수치 카드 컷 길이 상한(초) — 숫자만 한눈에 보고 지나간다  # 수치 카드 컷: 1~2초 동안 강조한 줄로 성큼 다가간다
 
 

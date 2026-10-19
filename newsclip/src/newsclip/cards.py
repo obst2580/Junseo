@@ -36,6 +36,7 @@ LAYOUTS = ("number", "bars", "table", "compare")
 MAX_ITEMS = 4
 CARD_GROW = 1.4  # 내용을 키울 수 있는 최대 배율
 EDGE = 48  # 키운 내용과 카드 가장자리 사이
+ZOOM = 1.18  # 영상에서 카드로 다가가는 배율 — 내용 폭을 W/ZOOM 안에 두어 다가가도 좌우가 잘리지 않게
 
 
 def _num(v: object) -> float | None:
@@ -74,7 +75,7 @@ class CardPainter(Painter):
         )
         x0, y0, x1, y1 = used
         cw, ch = max(1, x1 - x0), max(1, y1 - y0)
-        k = min(CARD_GROW, (W - 2 * EDGE) / cw, (self.content_h - 2 * EDGE) / ch)
+        k = min(CARD_GROW, (W / ZOOM - 2 * EDGE) / cw, (self.content_h - 2 * EDGE) / ch)
         part = work.crop(used).resize((round(cw * k), round(ch * k)), Image.Resampling.LANCZOS)
         ox, oy = (W - part.width) // 2, (self.content_h - part.height) // 2
         img = Image.new("RGB", (W, self.h), CARD)
