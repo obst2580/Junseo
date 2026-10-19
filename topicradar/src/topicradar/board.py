@@ -35,6 +35,13 @@ from topicradar.planner import fill_plan_text, link_sentence
 from topicradar.risk import plan_risks
 from topicradar.score import heat_stats, score_topics
 
+
+def shorts_target(cfg: ChannelConfig, fmt: str) -> tuple[int, int]:
+    """채널 설정대로 대본 글자 수 목표 — script.shorts_seconds가 있으면 쇼츠는 그 길이(끝 인사 몫 빼고)."""
+    sc = cfg.script
+    return target_chars(fmt, sc.chars_per_minute, sc.shorts_seconds, sc.shorts_outro or sc.outro)
+
+
 log = logging.getLogger("topicradar.board")
 
 SOLO_SCORE = 50.0  # 글이 하나뿐이어도 반응도가 이만큼이면 판에 올린다
@@ -269,7 +276,7 @@ def make_plan(
         link=link,
         titles=[t for t in (titles or []) if t][:3],
         thumbnail_text=thumbnail_text,
-        target_chars=target_chars(fmt, ctx.cfg.script.chars_per_minute),
+        target_chars=shorts_target(ctx.cfg, fmt),
         window_start=board.window_start,
         window_end=board.window_end,
     )

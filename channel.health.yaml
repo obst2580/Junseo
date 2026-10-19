@@ -74,6 +74,7 @@ clustering:
 script:
   tone: 간호사 친구형           # 또래 친구가 설명하듯 친근하고 활기차게(topicradar/prompts.py TONES)
   chars_per_minute: 600        # 다른 채널과 같은 읽는 속도
+  shorts_seconds: 30           # 쇼츠는 30초 — 끝 인사 몫을 뺀 대본 230~280자(1분 기본보다 훨씬 짧게)
   fixed_hashtags: [건강, 건강정보]
   outro: ""                    # 가로 영상은 아직 만들지 않는다
   shorts_outro: 지금까지 널스윤서였습니다! 더 건강한 삶을 위해서 영상 오른쪽 하트와 구독 버튼을 눌러주세요!

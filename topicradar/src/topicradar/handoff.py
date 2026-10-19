@@ -16,9 +16,9 @@ from pydantic import BaseModel, Field, ValidationError
 from studio_core.config import ChannelConfig, now_kst
 from studio_core.text import short_name
 from topicradar import prompts
-from topicradar.board import LEAD_WEIGHT
+from topicradar.board import LEAD_WEIGHT, shorts_target
 from topicradar.db import Store
-from topicradar.models import FORMATS, Board, Opinion, VideoFormat, target_chars
+from topicradar.models import FORMATS, Board, Opinion, VideoFormat
 from topicradar.opinion import opinion_rows
 from topicradar.planner import THUMB_MAX
 from topicradar.risk import LEGAL_WORDS, POLL_WORDS, topic_risks
@@ -163,7 +163,7 @@ def channel_rules(cfg: ChannelConfig) -> dict:
                 "minutes": f.minutes,
                 "min_topics": f.min_topics,
                 "max_topics": f.max_topics,
-                "target_chars": list(target_chars(k, cpm)),
+                "target_chars": list(shorts_target(cfg, k)),
                 "lead_weight": LEAD_WEIGHT,
                 "vertical": f.vertical,
             }

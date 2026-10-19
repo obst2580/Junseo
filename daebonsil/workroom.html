@@ -952,9 +952,8 @@ function checkScript() {
       out.push({ bad: true, text: "첫 문장이 질문입니다 — 후킹 멘트로 단정해 경고하기(예: '가을 아침, 잘못하면 혈압 올라요!')" });
     if ([...first].length > SHORTS_HOOK_MAX)
       out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 가장 강력한 소식 하나를 25자 안쪽으로` });
-    if (!endQuestion(p))
-      out.push({ bad: true, text: HEALTH ? "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 댓글로 답하기 쉬운 질문 하나('여러분은 [습관] 몇 번 하세요?')"
-        : "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
+    if (!HEALTH && !endQuestion(p))  // 널스윤서 30초 쇼츠는 끝 질문 없이(댓글 질문은 고정 댓글로)
+      out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
     if (!HEALTH && aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
       out.push({ bad: true, text: "이재명 대통령 사안인데 첫 마디가 '이재명'이 아닙니다 — 첫 문장을 '이재명 대통령이 …'으로" });
   }

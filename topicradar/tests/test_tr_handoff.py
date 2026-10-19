@@ -304,3 +304,11 @@ def test_health_profile_rules(monkeypatch):
     assert "독감 예방접종" not in cfg.sources.queries_now(6)
     base = channel_rules(ChannelConfig())["rules"]
     assert base["notice"] == "" and base["season"] == []
+    # 쇼츠 30초: 끝 인사 몫을 뺀 글자 수 — 다른 채널(설정 없음)은 1분 기본 그대로
+    lo, hi = r["formats"]["shorts"]["target_chars"]
+    assert 200 <= lo < hi <= 290 and "30초" in rules["format_rules"]["shorts"]
+    from topicradar.models import target_chars
+
+    assert channel_rules(ChannelConfig())["formats"]["shorts"]["target_chars"] == list(
+        target_chars("shorts", 300)
+    )

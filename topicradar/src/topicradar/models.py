@@ -39,9 +39,16 @@ FORMATS: dict[str, FormatSpec] = {
 }
 
 
-def target_chars(fmt: str, chars_per_minute: int) -> tuple[int, int]:
-    """형식별 대본 글자 수 목표(읽는 부분, ±10%)."""
-    n = FORMATS[fmt].minutes * chars_per_minute
+def target_chars(
+    fmt: str, chars_per_minute: int, shorts_seconds: int = 0, outro: str = ""
+) -> tuple[int, int]:
+    """형식별 대본 글자 수 목표(읽는 부분, ±10%).
+
+    shorts_seconds를 주면 쇼츠는 그 길이에 맞춘다 — 프로그램이 붙이는 마무리 인사(outro) 몫은 뺀다."""
+    if fmt == "shorts" and shorts_seconds:
+        n = max(60, shorts_seconds / 60 * chars_per_minute - len(outro))
+    else:
+        n = FORMATS[fmt].minutes * chars_per_minute
     return int(round(n * 0.9, -1)), int(round(n * 1.1, -1))
 
 

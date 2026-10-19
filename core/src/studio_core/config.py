@@ -166,6 +166,9 @@ class ScriptSection(BaseModel):
     fixed_hashtags: list[str] = Field(default_factory=list)  # 제목·해시태그 만들 때 늘 맨 앞에 붙는 태그
     outro: str = ""  # 대본 끝에 언제나 붙이는 채널 마무리 인사(Claude가 쓰지 않고 프로그램이 붙인다)
     shorts_outro: str = ""  # 세로 쇼츠 끝 인사(1분 영상이라 짧게). 비우면 outro
+    shorts_seconds: int = (
+        0  # 세로 쇼츠 목표 길이(초). 0이면 형식 기본(약 1분) — 주면 끝 인사 몫을 뺀 대본 글자 수로 맞춘다
+    )
     like_ask: str = ""  # 10분·3분 대본 중간에 프로그램이 넣는 좋아요 부탁(쇼츠에는 넣지 않는다). 비우면 없음
     notice: str = ""  # 영상 설명란에 붙이는 고지(건강 채널: 진단·치료를 대신하지 않는다). 비우면 없음
 
