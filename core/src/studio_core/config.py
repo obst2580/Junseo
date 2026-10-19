@@ -199,6 +199,8 @@ class VoiceSection(BaseModel):
     # 문장마다 따로 읽고, 같은 말을 한 번 더 읽은 문장(낱말 시각에 없는 말이 들림)은 다시 읽는다(널스윤서 — 긴 대본을
     # 한 번에 읽히면 문장을 되풀이하는 일이 있었다). 크레딧은 같고(글자 수), 다시 읽은 문장만큼 더 든다
     per_sentence: bool = False
+    # 읽는 법(대본 표기 → 타입캐스트에 보내는 말). 자막·대본은 그대로 두고 소리만 바꾼다(예: 119 → 일일구)
+    read_as: dict[str, str] = Field(default_factory=dict)
 
 
 class ClusteringSection(BaseModel):

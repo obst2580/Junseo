@@ -77,6 +77,31 @@ def unlisted_speech(
     return out
 
 
+def read_as(text: str, table: dict[str, str] | None) -> str:
+    """읽는 법을 바꿔 보낸다(예: 119 → 일일구). 더 긴 숫자의 일부(1190 등)는 건드리지 않는다."""
+    for src, say in (table or {}).items():
+        text = re.sub(rf"(?<![0-9]){re.escape(src)}(?![0-9])", say, text)
+    return text
+
+
+def _back(items: list[Word], table: dict[str, str] | None) -> list[Word]:
+    """타입캐스트가 돌려준 낱말·글자 시각을 대본 표기로 되돌린다(자막·장면 맞추기는 대본 글자로 하므로).
+    낱말은 안의 읽는 말을 원래 표기로, 한 글자씩인 시각은 읽는 말과 원래 표기의 글자 수가 같을 때 한 글자씩 바꾼다."""
+    out = list(items)
+    for src, say in (table or {}).items():
+        out = [(t.replace(say, src), a, b) for t, a, b in out]
+        if len(say) != len(src) or not all(len(t) == 1 for t, _, _ in out):
+            continue
+        texts = "".join(t for t, _, _ in out)
+        i = texts.find(say)
+        while i >= 0:
+            out[i : i + len(say)] = [
+                (ch, a, b) for ch, (_, a, b) in zip(src, out[i : i + len(say)], strict=True)
+            ]
+            i = texts.find(say, i + len(say))
+    return out
+
+
 def sentences(text: str) -> list[str]:
     """읽는 글 → 문장들(줄 끝·문장 부호 뒤에서 자른다)."""
     out: list[str] = []
@@ -188,6 +213,7 @@ def synthesize(
     smart: bool = True,
     client: httpx.Client | None = None,
     per_sentence: bool = False,
+    reading: dict[str, str] | None = None,
 ) -> Speech:
     """대본(읽는 글) → WAV + 낱말·글자 시각. 조각이 여러 개면 이어 붙이고 시각을 민다.
     per_sentence면 문장마다 따로 읽고(앞뒤 문장은 문맥으로 넘김), 낱말 시각에 없는 말이 들리면(같은 말을 한 번 더
@@ -209,16 +235,16 @@ def synthesize(
         body: dict = {
             "model": model,
             "voice_id": voice_id,
-            "text": chunk,
+            "text": read_as(chunk, reading),
             "language": "kor",
             "output": output,
         }
         if smart:
             prompt: dict = {"emotion_type": "smart"}
             if i > 0:
-                prompt["previous_text"] = _edge(chunks[i - 1], last=True)
+                prompt["previous_text"] = read_as(_edge(chunks[i - 1], last=True), reading)
             if i + 1 < len(chunks):
-                prompt["next_text"] = _edge(chunks[i + 1], last=False)
+                prompt["next_text"] = read_as(_edge(chunks[i + 1], last=False), reading)
             body["prompt"] = prompt
         best = None
         for _attempt in range(1 + (RETRIES if per_sentence else 0)):
@@ -245,14 +271,20 @@ def synthesize(
         if params is None:
             params = wparams
         frames.append(pcm)
-        words += [
-            (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
-            for s in data.get("words") or []
-        ]
-        chars += [
-            (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
-            for s in data.get("characters") or []
-        ]
+        words += _back(
+            [
+                (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
+                for s in data.get("words") or []
+            ],
+            reading,
+        )
+        chars += _back(
+            [
+                (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
+                for s in data.get("characters") or []
+            ],
+            reading,
+        )
         offset += dur
     out.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(out), "wb") as w:

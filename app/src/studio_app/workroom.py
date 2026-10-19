@@ -327,6 +327,7 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
         remove_silence_ms=silence,
         client=client,
         per_sentence=cfg.per_sentence,
+        reading=cfg.read_as,
     )
     info = analyze(speech.path, min_silence=0.15)
     chars = len(text.replace("\n", ""))

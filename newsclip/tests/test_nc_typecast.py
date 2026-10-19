@@ -204,3 +204,18 @@ def test_per_sentence_rereads_repeated_sentence(monkeypatch, tmp_path):
     assert calls == ["가을 아침이에요.", "바로 잠에서 깬 직후래요.", "바로 잠에서 깬 직후래요."]
     assert speech.retried == 1 and speech.warnings == []
     assert speech.duration == pytest.approx(6.0)  # 깨끗한 두 번째 시도(3초)를 썼다
+
+
+def test_read_as_changes_sound_only():
+    """읽는 법: 보내는 말만 바꾸고(119 → 일일구), 돌려받은 시각은 대본 표기로 되돌린다. 더 긴 숫자는 그대로."""
+    from newsclip.typecast_tts import _back, read_as
+
+    table = {"119": "일일구"}
+    assert read_as("바로 119, 응급실! 1190원", table) == "바로 일일구, 응급실! 1190원"
+    assert read_as("그대로", None) == "그대로"
+    assert _back([("바로", 0.0, 0.3), ("일일구,", 0.3, 0.9)], table) == [
+        ("바로", 0.0, 0.3),
+        ("119,", 0.3, 0.9),
+    ]
+    chars = [(c, float(i), float(i + 1)) for i, c in enumerate("로일일구")]
+    assert [c for c, _, _ in _back(chars, table)] == ["로", "1", "1", "9"]
