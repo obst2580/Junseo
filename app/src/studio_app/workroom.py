@@ -44,6 +44,8 @@ ARTICLE_SUMMARY = 220
 ARTICLE_BODY = 1500
 BODY_ARTICLES = 60  # 본문까지 받을 관련 기사 수
 VIDEO_LINKS = 3  # 장면마다 남길 유튜브 영상 후보 수
+# timeline.long_edit이면 완성 편집(카드·자막·효과음·배경음악)을 까는 형식: 10분 묶음·3분 단독
+EDIT_FORMATS = ("long", "short")
 LONG_VOICE_SEC = 420  # 이보다 긴 음성은 올릴 때 128kbps
 RENDER_CRF = 20  # 완성본 화질 — 1분 1080×1920이 10MB 안팎
 RENDER_MAX_BYTES = 14 * 1024 * 1024  # 제작실 자산으로 올릴 수 있게(한 파일 15MB 안쪽)
@@ -610,7 +612,7 @@ async def sources(
     bgm_id: str = "",
 ) -> dict:
     """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약).
-    채널 설정 timeline.long_edit이면 10분 묶음은 완성 편집(newsclip.long_edit): 음성(voice)·배경음악(bgm, 자산 bgm_id)·
+    채널 설정 timeline.long_edit이면 10분 묶음·3분 단독은 완성 편집(newsclip.long_edit): 음성(voice)·배경음악(bgm, 자산 bgm_id)·
     자막·카드·효과음까지 timeline.xml에 깔고, 음성·배경음악은 이미 있는 자산 ID로 압축 파일에 넣는다(다시 안 올림).
     queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식).
     세로 쇼츠(format "shorts")면 1080x1920 — 사진은 세로 화면에 맞추고, 썸네일 문구(thumb)를 상단 제목으로 깔고,
@@ -639,7 +641,7 @@ async def sources(
         style=cfg.shorts.style if tall else "default",
     )
     long = None
-    if cfg.timeline.long_edit and req.get("format") == "long" and not tall:
+    if cfg.timeline.long_edit and req.get("format") in EDIT_FORMATS and not tall:
         long = _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm)
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
@@ -754,7 +756,7 @@ async def sources(
 
 
 def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> dict:  # noqa: ANN001
-    """10분 묶음 완성 편집: 음성·배경음악을 프로젝트 폴더에 두고, 자막 줄·장면으로 long_edit 트랙을 만들어
+    """10분 묶음·3분 단독 완성 편집: 음성·배경음악을 프로젝트 폴더에 두고, 자막 줄·장면으로 long_edit 트랙을 만들어
     timeline.xml을 다시 쓴다. 반환: {edit, narration(압축 파일 안 이름), bgm, summary}."""
     import shutil
 

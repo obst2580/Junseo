@@ -161,12 +161,10 @@ def test_validate_catches_violations():
     assert not any(
         "금지 표현" in w for w in validate_script("## 국방위 국감 질타\n충격적인 소식입니다.\n", shorts)
     )
-    # 3분 단독에는 '정리' 단락도 없어야 한다
+    # 3분 단독도 마무리 '정리' 단락은 되고, 계획에 없는 다른 단락은 안 된다
     short = _plan("short")
-    assert any(
-        "계획에 없는 단락: '정리'" in w
-        for w in validate_script("## 국방위 국감 질타\n가.\n## 정리\n나.\n", short)
-    )
+    warns = " ".join(validate_script("## 국방위 국감 질타\n가.\n## 정리\n나.\n## 딴 이야기\n다.\n", short))
+    assert "계획에 없는 단락: '딴 이야기'" in warns and "'정리'" not in warns
 
 
 def test_llm_script_gets_opinion_format_and_falls_back():
@@ -198,7 +196,10 @@ def test_llm_script_gets_opinion_format_and_falls_back():
     )
     assert '"link": "국감과 본회의' in seen["prompt"] and "https://n.example/p1" in seen["prompt"]
     llm_script(LLM(), _plan("short"))
-    assert "3분 단독 규칙" in seen["system"]
+    assert "3분 단독 규칙" in seen["system"] and "콜드 오픈(첫 15초" in seen["system"]  # 3분도 초반 훅
+    from topicradar import prompts
+
+    assert "콜드 오픈" not in prompts.R_FORMAT_RULES["short"]  # 자유뉴스365 3분은 예전 규칙 그대로
 
     class Broken:
         def text(self, *a, **k):

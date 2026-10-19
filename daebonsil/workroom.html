@@ -924,8 +924,10 @@ function checkScript() {
     const want = t.heading, hit = heads.findIndex((h, i) => !claimed.has(i) && (h === want || h.startsWith(want.slice(0, 8)) || want.startsWith(h.slice(0, 8))));
     if (hit < 0) out.push({ bad: true, text: `헤더 없음: '## ${want}' (장면을 나누는 기준)` }); else claimed.add(hit);
   }
-  heads.forEach((h, i) => { if (!claimed.has(i) && !(p.format === 'long' && h.startsWith('정리'))) out.push({ bad: true, text: `계획에 없는 단락: '## ${h}'` }); });
-  if (p.format === 'long' && !heads.some(h => h.startsWith('정리'))) out.push({ bad: true, text: "마무리 '## 정리' 단락 없음" });
+  // 마무리 '## 정리'는 형식 규칙이 부를 때(10분 묶음, 정치는푸르다 3분 단독)
+  const wrap = /## 정리/.test(((r.format_rules || {})[p.format]) || '');
+  heads.forEach((h, i) => { if (!claimed.has(i) && !(wrap && h.startsWith('정리'))) out.push({ bad: true, text: `계획에 없는 단락: '## ${h}'` }); });
+  if (wrap && !heads.some(h => h.startsWith('정리'))) out.push({ bad: true, text: "마무리 '## 정리' 단락 없음" });
   const notes = lines.filter(l => l.startsWith('#') && !l.startsWith('## '));
   if (notes.length) out.push({ bad: true, text: `출처·주석 줄 ${notes.length}개 — 대본에서 빼기` });
   const facts = p.topics.flatMap(t => t.articles.map(a => a.title + ' ' + a.text)).join(' ');

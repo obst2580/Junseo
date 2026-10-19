@@ -209,7 +209,7 @@ def _cited(text: str, item: VideoItem, prefix: str = "") -> list[str]:
     return lines
 
 
-ALLOWED_EXTRA_HEADINGS = ("정리",)  # 10분 묶음의 마무리 단락
+ALLOWED_EXTRA_HEADINGS = ("정리",)  # 10분 묶음·3분 단독의 마무리 단락
 
 
 def section_heading(item: VideoItem, plan: VideoPlan | None = None) -> str:
@@ -436,7 +436,7 @@ def structure_problems(text: str, plan: VideoPlan) -> list[str]:
             problems.append(f"고른 주제가 대본에 없음: '{short_name(it.topic.name, 24)}'")
         else:
             claimed.add(hit)
-    extra_ok = ALLOWED_EXTRA_HEADINGS if plan.format == "long" else ()
+    extra_ok = ALLOWED_EXTRA_HEADINGS if plan.format in ("long", "short") else ()
     for i, h in enumerate(headings):
         if i not in claimed and not (extra_ok and h.startswith(extra_ok)):
             problems.append(f"계획에 없는 단락: '{h}'")

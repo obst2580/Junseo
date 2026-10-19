@@ -1,4 +1,4 @@
-"""정치는푸르다 10분 롱폼 완성 편집(newsclip.long_edit) — 챕터·카드·자막·효과음·timeline.xml 트랙."""
+"""정치는푸르다 10분 롱폼·3분 단독 완성 편집(newsclip.long_edit) — 챕터·카드·자막·효과음·timeline.xml 트랙."""
 
 import subprocess
 from pathlib import Path
@@ -111,6 +111,20 @@ def test_build_cards_subtitles_sounds_and_timeline(tmp_path):
     assert xml.count("clipitem-a3-") == 3 and xml.count("<value>0.1</value>") == 3  # 50초 × 3 ≥ 120초
     assert "narration.mp4" in xml and xml.count("clipitem-a2-") == len(edit.sfx)
     assert "1. 감사원 '타이거파' 논란" in xml and "<name>챕터</name>" in xml
+
+
+def test_three_minute_single_topic_has_no_toc(tmp_path):
+    """3분 단독: 콜드 오픈 · 주제 하나 · 정리 — 목차 카드 없이 챕터 카드부터, 끝 화면까지."""
+    scenes = [sc for sc in _project(tmp_path) if not sc.topic.startswith("한동훈")]
+    for k, sc in enumerate(scenes):
+        sc.start_sec, sc.end_sec = k * 15.0, k * 15.0 + 15.0
+    total = 90.0
+    lines = [Cue(k + 1, k * 5.0, k * 5.0 + 4.5, f"자막 {k}번 줄입니다") for k in range(18)]
+    edit = le.build(tmp_path, scenes, lines, total=total, channel="정치는푸르다")
+    kinds = [p.name.split("_")[0] for p, _a, _b in edit.tracks[-1]]
+    assert kinds == ["chapter", "chapter", "end"]  # 주제 하나 + 정리, 목차 없음
+    assert [c.no for c in edit.chapters] == [0, 1, -1]
+    assert edit.youtube.splitlines() == ["0:00 오프닝", "0:30 1. 감사원 '타이거파' 논란", "1:00 정리"]
 
 
 def test_cards_render_and_fit(tmp_path):

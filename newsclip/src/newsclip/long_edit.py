@@ -1,6 +1,7 @@
-"""정치는푸르다 10분 롱폼 편집 — 챕터·자막·카드·상단 표시를 timeline.xml 트랙으로 깐다(프리미어에서 열고 내보내기만).
+"""정치는푸르다 10분 롱폼·3분 단독 편집 — 챕터·자막·카드·상단 표시를 timeline.xml 트랙으로 깐다(프리미어에서 열고 내보내기만).
 
 - 챕터: 대본의 `## 제목 — 한 줄 요약` 헤더(장면 topic). 헤더 없는 앞부분은 콜드 오픈, `## 정리`는 정리.
+  3분 단독은 주제(챕터)가 하나라 목차 카드 없이 챕터 카드부터.
 - 트랙(아래 → 위): 사진·영상(V1) · 출처(V2) · 아래 그늘 · 자막(모란봉, 강조는 매머드빵 색 글자) · 챕터 이름·채널 이름 ·
   카드(목차·챕터·발언·끝 화면 — 화면 전체를 덮는다)
 - 소리: 음성(A1), 효과음(A2 — 챕터 휙, 발언 카드·강조 자막 팝, 질문 띵), 배경음악(A3, 반복해 작게)
@@ -548,9 +549,9 @@ def build(
     by_id = {sc.id: sc for sc in scenes}
     cards: list[tuple[Path, float, float]] = []
     pops: list[float] = []
-    # 목차 카드: 콜드 오픈에서 목차를 부르는 문장(없으면 콜드 오픈 마지막 장면) 동안
+    # 목차 카드: 콜드 오픈에서 목차를 부르는 문장(없으면 콜드 오픈 마지막 장면) 동안 — 주제가 둘 이상일 때만(3분 단독은 없음)
     opening = next((c for c in chapters if c.no == 0), None)
-    if opening is not None and any(c.no > 0 for c in chapters):
+    if opening is not None and sum(c.no > 0 for c in chapters) >= 2:
         sc = next((s for s in reversed(opening.scenes) if _TOC_RE.search(s.text)), opening.scenes[-1])
         end = min(max(sc.end_sec, sc.start_sec + TOC_SEC[0]), sc.start_sec + TOC_SEC[1], opening.end)
         png = render_toc_card(
