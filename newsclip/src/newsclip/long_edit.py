@@ -33,6 +33,13 @@ TOC_SEC = (2.5, 6.0)  # 목차 카드 길이(그 문장 동안, 이 범위 안)
 QUOTE_SEC = (2.5, 5.0)  # 발언 카드 길이(그 장면 동안, 이 범위 안)
 END_SEC = 20.0  # 끝 화면(유튜브 최종 화면은 5~20초)
 EMPH_SAG = 14.0  # 강조 자막: 흐름이 이만큼 늘어질 때만 하나씩(쇼츠는 8초)
+# 초반 30초(콜드 오픈)는 쇼츠처럼 세게: 첫 문장은 화면 한가운데 큰 글씨(훅), 강조 자막은 5초 간격까지, 사진은 장면 안에서도
+# 다른 사진으로 빨리 넘긴다(1.5초 이상 컷)
+OPEN_SAG = 5.0
+OPEN_CUT_MIN = 1.5
+HOOK_SEC = 4.0  # 이 시각 전에 시작하는 첫 문장 자막이 훅
+HOOK_CHUNK = 8  # 훅 한 번에 보이는 글자 수(공백 빼고)
+HOOK_PX, HOOK_KEY_PX = 130, 170
 BGM_LEVEL = 0.1  # 배경음악 크기(약 -20 dB — 10분 내내 깔려도 목소리를 덮지 않게)
 SUB_PX, EMPH_PX = 74, 96
 SUB_BOTTOM = 1000  # 자막 아래 끝(유튜브 재생 막대 위)
@@ -62,6 +69,9 @@ class LongEdit:
     chapters: list[Chapter]
     youtube: str
     files: list[Path]
+    v1: list[Scene] = field(
+        default_factory=list
+    )  # V1(사진·영상) 장면 — 콜드 오픈은 장면 안에서도 사진을 바꾼다
 
 
 def split_heading(topic: str) -> tuple[str, str]:
@@ -155,7 +165,7 @@ def _cover(path: Path | None, size: tuple[int, int] = SIZE, centering=(0.5, 0.35
         return None
 
 
-def _dark_bg(photo: Path | None, amount: float = 0.62, blur: int = 18) -> Image.Image:
+def _dark_bg(photo: Path | None, amount: float = 0.68, blur: int = 30) -> Image.Image:
     im = _cover(photo)
     if im is None:
         return Image.new("RGB", SIZE, NAVY)
@@ -240,7 +250,7 @@ def render_chapter_card(ch: Chapter, photo: Path | None, out: Path) -> Path:
 
 
 def render_toc_card(chapters: list[Chapter], photo: Path | None, out: Path) -> Path:
-    im = _dark_bg(photo, amount=0.7)
+    im = _dark_bg(photo, amount=0.74)
     d = ImageDraw.Draw(im)
     _center(d, (SIZE[0] // 2, 230), "오늘의 순서", _font(TITLE_FONT, 92), BLUE)
     items = [c for c in chapters if c.no > 0][:5]
@@ -257,6 +267,24 @@ def render_toc_card(chapters: list[Chapter], photo: Path | None, out: Path) -> P
         d.text((x0 + 90, y), c.title, font=f, fill=WHITE, anchor="lm")
     out.parent.mkdir(parents=True, exist_ok=True)
     im.save(out, "PNG")
+    return out
+
+
+def render_hook(text: str, out: Path, kind: str = "chunk") -> Path:
+    """훅(첫 문장) 글자: 화면 한가운데 크게. chunk는 매머드빵 흰 글씨, quote는 “따옴표”째 손글씨 노랑, act는 빨강.
+    훅이 떠 있는 동안 사진을 조금 어둡게 깔아 글자가 어느 사진 위에서도 또렷하게."""
+    img = Image.new("RGBA", SIZE, (0, 0, 0, 96))
+    d = ImageDraw.Draw(img)
+    if kind == "quote":
+        text = f"“{text.strip().strip(chr(34) + chr(39) + '“”‘’')}”"
+        f, fill, stroke = _fit(d, text, QUOTE_FONT, HOOK_KEY_PX, 1760, 70), YELLOW, 7
+    elif kind == "act":
+        f, fill, stroke = _fit(d, text, TITLE_FONT, HOOK_KEY_PX, 1760, 70), RED, 9
+    else:
+        f, fill, stroke = _fit(d, text, TITLE_FONT, HOOK_PX, 1760, 60), WHITE, 9
+    _center(d, (SIZE[0] // 2, SIZE[1] // 2 + 20), text, f, fill, stroke=stroke)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out, "PNG")
     return out
 
 
@@ -291,7 +319,7 @@ def render_quote_card(spec: dict, photo: Path | None, ch: Chapter | None, channe
 
 def render_end_card(channel: str, photo: Path | None, out: Path) -> Path:
     """끝 화면: 채널 이름과 한 줄. 아래쪽은 비워 둔다(유튜브 최종 화면의 다음 영상·구독 버튼 자리)."""
-    im = _dark_bg(photo, amount=0.7, blur=22)
+    im = _dark_bg(photo, amount=0.74, blur=40)
     d = ImageDraw.Draw(im)
     _center(d, (SIZE[0] // 2, 190), channel, _font(TITLE_FONT, 120), WHITE)
     _center(d, (SIZE[0] // 2, 300), "구독과 좋아요, 다음 소식도 함께해요", _font(BODY_FONT, 54), YELLOW)
@@ -303,15 +331,170 @@ def render_end_card(channel: str, photo: Path | None, out: Path) -> Path:
 # ---- 편집 계획 ----------------------------------------------------------------------------------------
 
 
+_CLEAN: dict[str, bool] = {}
+
+
+def _usable(a) -> bool:  # noqa: ANN001 - Asset
+    """카드·바탕에 써도 되는 사진: 받은 사진이고 영상 썸네일(큰 제목 글씨)이 아닌 것."""
+    if a is None or a.media != "image" or not a.local_path or not Path(a.local_path).exists():
+        return False
+    if a.local_path not in _CLEAN:
+        from newsclip.download import text_heavy
+
+        _CLEAN[a.local_path] = not text_heavy(a)
+    return _CLEAN[a.local_path]
+
+
+def _photos(sc: Scene) -> list:
+    """장면의 쓸 수 있는 사진(고른 것 먼저)."""
+    seen, out = set(), []
+    for a in [sc.chosen, *sc.candidates]:
+        if a is not None and a.local_path not in seen and _usable(a):
+            seen.add(a.local_path)
+            out.append(a)
+    return out
+
+
 def _photo(sc: Scene) -> Path | None:
-    a = sc.chosen
-    if a is None or a.media != "image" or not a.local_path:
-        return None
-    return Path(a.local_path)
+    got = _photos(sc)
+    return Path(got[0].local_path) if got else None
 
 
 def _first_photo(scenes: list[Scene]) -> Path | None:
     return next((p for p in map(_photo, scenes) if p is not None), None)
+
+
+def _speaker_photo(spec: dict, sc: Scene, pool: list[Scene]) -> Path | None:
+    """발언 카드 인물 사진: 그 말을 한 사람 이름이 제목에 든 사진만(그 장면 먼저, 다음은 같은 챕터). 없으면 사진 없이 —
+    다른 사람 사진에 그 사람 말을 붙이지 않는다."""
+    name = (str(spec.get("who") or "").split() or [""])[0]
+    if len(name) < 2:
+        return None
+    for s_ in [sc, *[x for x in pool if x.id != sc.id]]:
+        for a in _photos(s_):
+            if name in (a.title or ""):
+                return Path(a.local_path)
+    return None
+
+
+def _clean_v1(scenes: list[Scene]) -> list[Scene]:
+    """V1에 깔 사진이 영상 썸네일(큰 제목 글씨)이면 같은 장면의 다른 사진으로, 없으면 가까운 앞뒤 장면 사진으로 바꾼다."""
+    out = []
+    for i, sc in enumerate(scenes):
+        a = sc.chosen
+        if a is None or a.media != "image" or _usable(a):
+            out.append(sc)
+            continue
+        alt = next(iter(_photos(sc)), None)
+        for d in range(1, len(scenes)):
+            if alt is not None:
+                break
+            for j in (i - d, i + d):
+                if 0 <= j < len(scenes) and (got := _photos(scenes[j])):
+                    alt = got[0]
+                    break
+        if alt is None:
+            out.append(sc)
+            continue
+        rest = [x for x in sc.candidates if x.local_path != alt.local_path and _usable(x)]
+        out.append(sc.model_copy(update={"chosen": alt, "candidates": [alt, *rest]}))
+    return out
+
+
+def _open_cuts(scenes: list[Scene], opening_end: float, cut_at: list[float]) -> list[Scene]:
+    """콜드 오픈 장면은 장면 안에서도 다른 사진으로 넘긴다: 쓸 수 있는 사진 수만큼(컷은 OPEN_CUT_MIN초 이상),
+    자르는 때는 자막이 바뀌는 때에 맞춘다(없으면 고르게)."""
+    out: list[Scene] = []
+    for sc in _clean_v1(scenes):
+        photos = _photos(sc)
+        dur = sc.end_sec - sc.start_sec
+        n = min(len(photos), int(dur // OPEN_CUT_MIN)) if sc.start_sec < opening_end else 1
+        if n < 2 or (sc.chosen is not None and sc.chosen.media != "image"):
+            out.append(sc)
+            continue
+        inner = [t for t in cut_at if sc.start_sec + OPEN_CUT_MIN <= t <= sc.end_sec - OPEN_CUT_MIN]
+        bounds = [sc.start_sec]
+        for k in range(1, n):
+            want = sc.start_sec + dur * k / n
+            t = min(inner, key=lambda x: abs(x - want)) if inner else want
+            if t - bounds[-1] >= OPEN_CUT_MIN:
+                bounds.append(t)
+        bounds.append(sc.end_sec)
+        for k in range(len(bounds) - 1):
+            a = photos[k % len(photos)]
+            rest = [x for x in sc.candidates if x.local_path != a.local_path]
+            out.append(sc.model_copy(update={
+                "id": sc.id if k == 0 else f"{sc.id}{chr(97 + k)}",
+                "start_sec": bounds[k], "end_sec": bounds[k + 1], "chosen": a, "candidates": [a, *rest],
+            }))  # fmt: skip
+    return out
+
+
+def _pick(
+    lines: list, keywords: set[str], opening_end: float, after: float
+) -> dict[int, tuple[int, int, int]]:
+    """강조 자막: 콜드 오픈은 OPEN_SAG초, 그 뒤는 EMPH_SAG초 흐름이 늘어질 때만 하나씩(after = 훅이 끝난 때)."""
+    from newsclip.render import EMPH_GREEN, EMPH_RED, EMPH_YELLOW
+    from newsclip.shorts_render import EMPH_LOOK, emph_color
+
+    order = (EMPH_RED, EMPH_YELLOW, EMPH_GREEN)
+    cands = [
+        (k, col) for k, c in enumerate(lines) if c.start >= after and (col := emph_color(c.text, keywords))
+    ]
+    picked: dict[int, tuple[int, int, int]] = {}
+    last, i = after, 0
+    while i < len(cands):
+        t = lines[cands[i][0]].start
+        if t - last < (OPEN_SAG if t < opening_end else EMPH_SAG):
+            i += 1
+            continue
+        window = [j for j in range(i, len(cands)) if lines[cands[j][0]].start - t <= EMPH_LOOK]
+        best = min(window, key=lambda j: (order.index(cands[j][1]), j))
+        picked[cands[best][0]] = cands[best][1]
+        last = lines[cands[best][0]].start
+        i = best + 1
+    return picked
+
+
+def _hook(
+    lines: list, words: list | None, lx: Path
+) -> tuple[list[tuple[Path, float, float]], int, float | None]:
+    """첫 문장(HOOK_SEC 전에 시작하는 자막부터 문장이 끝나는 자막까지) → 화면 한가운데 큰 글씨 조각들.
+    따옴표 안 발언은 손글씨 노랑, 없으면 문장 끝 행위를 빨강으로 그 말이 들릴 때 띄운다(쇼츠 훅과 같은 규칙).
+    반환: (그림 목록, 훅이 차지한 자막 줄 수, 핵심이 뜨는 때)."""
+    from newsclip.shorts_render import _SENT_END, REPORT_VERB, chunk_starts, hook_chunks, hook_key
+
+    n = 0
+    for cue in lines:
+        if cue.start >= HOOK_SEC:
+            break
+        n += 1
+        if _SENT_END.search(cue.text.strip()):
+            break
+    if not n:
+        return [], 0, None
+    start, end = lines[0].start, lines[n - 1].end
+    text = " ".join(c.text.replace("\n", " ").strip() for c in lines[:n])
+    key = hook_key(text)
+    pieces: list[tuple[str, str]] = []
+    if key is not None and key[1] in text:
+        kind, phrase = key
+        at = text.index(phrase)
+        pre = text[:at].rstrip(" \"“‘'")
+        post = text[at + len(phrase) :].lstrip("\"”’'")
+        pieces = [(x, "chunk") for x in hook_chunks(pre, HOOK_CHUNK)] + [(phrase, kind)]
+        if len(re.sub("[\\s.!?…,]", "", post)) > 5 and not REPORT_VERB.match(post.strip()):
+            pieces += [(x, "chunk") for x in hook_chunks(post, HOOK_CHUNK)]
+    else:
+        pieces = [(x, "chunk") for x in hook_chunks(text, HOOK_CHUNK)]
+    starts = chunk_starts([x for x, _k in pieces], start, end, words)
+    arts, key_at = [], None
+    for j, (piece, kind) in enumerate(pieces):
+        a, b = starts[j], (starts[j + 1] if j + 1 < len(pieces) else end)
+        arts.append((render_hook(piece, lx / f"hook_{_key(piece, kind)}.png", kind), a, b))
+        if kind != "chunk":
+            key_at = a
+    return arts, n, key_at
 
 
 def _key(*parts: object) -> str:
@@ -354,11 +537,11 @@ def build(
     channel: str,
     quotes: dict | None = None,
     keywords: set[str] = frozenset(),
+    words: list | None = None,
 ) -> LongEdit:
     """장면(topic = 챕터 헤더)·자막 줄(srt.Cue)·발언 카드 지정(queries.json "quotes": 장면 ID → {text, who, when}) →
     timeline.xml에 더할 트랙·효과음·마커와 설명란 챕터."""
     from newsclip.render import EMPH_RED
-    from newsclip.shorts_render import pick_emphasis
 
     lx = project_dir / "long"
     chapters = chapters_of(scenes)
@@ -396,7 +579,8 @@ def build(
         if end - start < 1.5:
             continue
         ch = ch_of.get(sid)
-        png = render_quote_card(spec, _photo(sc), ch, channel, lx / f"quote_{_key(sid, spec)}.png")
+        face = _speaker_photo(spec, sc, ch.scenes if ch else [sc])
+        png = render_quote_card(spec, face, ch, channel, lx / f"quote_{_key(sid, spec, face)}.png")
         cards.append((png, start, end))
         pops.append(start)
     # 끝 화면: 채널 끝 인사(채널 이름이 나오는 마지막 장면)부터 끝까지 — 길어도 20초
@@ -410,10 +594,17 @@ def build(
     def covered(t: float) -> bool:
         return any(a <= t < b for _p, a, b in cards)
 
-    # 자막: 카드에 가린 줄은 빼고, 흐름이 늘어질 때만 강조(색 글자)
-    lines = [c for c in lines if c.end > c.start and not covered((c.start + c.end) / 2)]
-    emph = pick_emphasis(lines, keywords, start=0, sag=EMPH_SAG)
-    subs = []
+    # 훅: 첫 문장은 아래 자막 대신 화면 한가운데 큰 글씨
+    lines = [c for c in lines if c.end > c.start]
+    hook, hook_n, key_at = _hook(lines, words, lx)
+    hook_end = lines[hook_n - 1].end if hook_n else 0.0
+    if key_at is not None:
+        pops.append(key_at)
+    # 자막: 카드에 가린 줄은 빼고, 흐름이 늘어질 때만 강조(색 글자 — 콜드 오픈은 더 자주)
+    opening_end = opening.end if opening is not None else 0.0
+    lines = [c for c in lines[hook_n:] if not covered((c.start + c.end) / 2)]
+    emph = _pick(lines, keywords, opening_end, hook_end)
+    subs = list(hook)
     for k, cue in enumerate(lines):
         color = emph.get(k)
         tone = None if color is None else RED if color == EMPH_RED else YELLOW  # 센 말은 빨강, 나머지 노랑
@@ -441,4 +632,5 @@ def build(
     ]
     tracks = [shade, subs, chrome, cards]
     files = sorted({p for tr in tracks for p, _a, _b in tr} | {p for _a, p in kept})
-    return LongEdit(tracks, kept, markers, chapters, youtube_chapters(chapters), files)
+    v1 = _open_cuts(scenes, opening_end, [c.start for c in lines] + [a for _p, a, _b in hook])
+    return LongEdit(tracks, kept, markers, chapters, youtube_chapters(chapters), files, v1)

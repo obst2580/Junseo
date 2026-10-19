@@ -188,7 +188,8 @@ def test_llm_script_gets_opinion_format_and_falls_back():
     )
     assert "출처·URL·편집 주석" in seen["system"]
     assert "사실을 또렷하게" in seen["system"] and "예고편처럼 감추지" in seen["system"]
-    assert "한 줄에 한 문장" in seen["system"] and "25자 안쪽" not in seen["system"]
+    assert "한 줄에 한 문장" in seen["system"] and "세로 쇼츠 규칙" not in seen["system"]  # 쇼츠 규칙은 안 섞인다
+    assert "콜드 오픈(첫 30초" in seen["system"]  # 10분 묶음은 초반 30초를 쇼츠 훅처럼
     assert (
         '"stance": "안보 예산 깎은 건 새한당이다"' in seen["prompt"]
         and '"target_chars": [2700, 3300]' in seen["prompt"]

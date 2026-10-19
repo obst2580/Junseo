@@ -787,10 +787,11 @@ def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> 
         channel=cfg.channel.name,
         quotes=(queries or {}).get("quotes") if isinstance((queries or {}).get("quotes"), dict) else None,
         keywords=keys,
+        words=words,
     )
     write_xml(
         proj,
-        sset,
+        sset.model_copy(update={"scenes": edit.v1 or sset.scenes}),  # 콜드 오픈은 장면 안에서도 사진을 바꾼다
         size=(1920, 1080),
         audio=narration,
         options=cfg.timeline,

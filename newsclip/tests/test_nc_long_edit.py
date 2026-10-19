@@ -124,3 +124,48 @@ def test_cards_render_and_fit(tmp_path):
     sub = le.render_sub("자막 한 줄", tmp_path / "s.png")
     im = Image.open(sub)
     assert im.mode == "RGBA" and im.getbbox()[3] <= le.SUB_BOTTOM + 30  # 아래 끝을 재생 막대 위에
+
+
+def test_opening_hook_fast_cuts_and_speaker_photo(tmp_path):
+    """초반 30초: 첫 문장은 화면 한가운데 큰 글씨(따옴표 안 발언은 손글씨 노랑), 콜드 오픈 장면은 사진을 더 자주 바꾸고,
+    발언 카드 사진은 그 말을 한 사람 이름이 제목에 든 사진만 쓴다."""
+    scenes = _project(tmp_path)
+    extra = tmp_path / "assets" / "s001_2.jpg"
+    Image.new("RGB", (1600, 1000), (200, 120, 60)).save(extra)
+    b = asset(
+        "naver_image",
+        "https://i/extra.jpg",
+        local_path=str(extra),
+        width=1600,
+        height=1000,
+        title="다른 사진",
+    )
+    scenes[0].candidates.append(b)
+    lines = [
+        Cue(1, 0.2, 1.8, "박지원 의원이 김영신 감사위원을"),
+        Cue(2, 1.8, 3.6, "‘타이거파 부두목’이라고 불렀습니다!"),
+        *[Cue(k + 3, 4.0 + k * 5.0, 8.5 + k * 5.0, f"자막 {k}번 줄입니다") for k in range(20)],
+    ]
+    quotes = {"s004": {"text": "타이거파 부두목, 사퇴하라", "who": "박지원 더불어민주당 의원"}}
+    edit = le.build(tmp_path, scenes, lines, total=120.0, channel="정치는푸르다", quotes=quotes)
+    subs = edit.tracks[1]
+    hook = [(p, a, b_) for p, a, b_ in subs if p.name.startswith("hook_")]
+    assert len(hook) >= 3 and hook[0][1] == 0.2 and hook[-1][2] == 3.6
+    assert not any(
+        a < 3.6 and not p.name.startswith("hook_") for p, a, _b in subs
+    )  # 첫 문장 아래 자막은 없다
+    assert any(p.stem == "hit" and abs(at - hook[-1][1]) < 1.5 for at, p in edit.sfx)  # 핵심 발언에 팝
+    first = [s for s in edit.v1 if s.id.startswith("s001")]
+    assert [s.id for s in first] == ["s001", "s001b"] and first[0].chosen.local_path != first[
+        1
+    ].chosen.local_path
+    assert first[0].end_sec == first[1].start_sec and first[1].end_sec == 15.0
+    assert [s.id for s in edit.v1 if s.id.startswith("s005")] == ["s005"]  # 콜드 오픈 뒤는 그대로
+    by_id = {s.id: s for s in scenes}
+    ch = [c for c in edit.chapters if c.no == 1][0]
+    assert le._speaker_photo(quotes["s004"], by_id["s004"], ch.scenes) == Path(
+        by_id["s003"].chosen.local_path
+    )
+    assert (
+        le._speaker_photo({"who": "홍길동 의원"}, by_id["s004"], ch.scenes) is None
+    )  # 다른 사람 사진은 안 붙인다
