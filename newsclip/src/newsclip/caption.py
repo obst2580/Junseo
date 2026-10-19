@@ -30,7 +30,7 @@ def render_caption(
     pad_x, pad_y, margin = 14, 8, int(min(w, h) * 0.045)
     box = draw.textbbox((0, 0), text, font=font)
     tw, th = box[2] - box[0], box[3] - box[1]
-    x0, y0 = margin, (box_top(size) + margin if is_vertical(size) else margin)
+    x0, y0 = margin, (box_top(size) + margin if is_vertical(size) else margin + style_of(style).caption_y)
     y1 = y0 + th + 2 * pad_y
     draw.rounded_rectangle((x0, y0, x0 + tw + 2 * pad_x, y1), radius=8, fill=style_of(style).caption_box)
     draw.text((x0 + pad_x - box[0], y0 + pad_y - box[1]), text, font=font, fill=(255, 255, 255, 235))

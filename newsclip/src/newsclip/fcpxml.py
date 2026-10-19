@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import hashlib
+import subprocess
 import wave
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -206,11 +207,21 @@ def caption_for(scene: Scene, asset: Asset) -> str:
 
 
 def audio_duration(path: Path) -> float | None:
-    """WAV 길이(초). WAV가 아니면 None."""
+    """소리 길이(초). WAV는 바로 읽고, 그 밖(mp4 음성·효과음·배경음악)은 ffprobe로. 못 읽으면 None."""
     try:
         with wave.open(str(path), "rb") as w:
             return w.getnframes() / float(w.getframerate())
     except (wave.Error, OSError, EOFError):
+        pass
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.strip()
+        return float(out) if out else None
+    except (OSError, ValueError, subprocess.SubprocessError):
         return None
 
 

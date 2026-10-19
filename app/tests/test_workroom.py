@@ -538,3 +538,33 @@ def test_render_needs_sources_and_voice(root):
         wr.render_ids(
             {"result": {"files": [{"id": "a", "name": "assets/a.jpg"}], "scenes": [{}]}, "audio": {}}
         )
+
+
+def test_long_edit_reuses_voice_and_bgm_assets(tmp_path):
+    """롱폼 완성 편집의 음성·배경음악은 이미 있는 자산 ID로 압축 파일에 넣는다(다시 올리지 않고, 지우지도 않음)."""
+    png = tmp_path / "long" / "chapter_x.png"
+    png.parent.mkdir(parents=True)
+    png.write_bytes(b"png")
+    (tmp_path / "timeline.xml.txt").write_text("<xmeml/>", encoding="utf-8")
+    (tmp_path / "narration.srt.txt").write_text("1\n", encoding="utf-8")
+    manifest = {
+        "files": [
+            {"name": "long/chapter_x.png", "path": str(png), "media": "image", "sha": wr._sha(png)},
+            {"name": "narration.mp4", "asset_id": "AUDIO", "media": "audio"},
+            {"name": "bgm.mp4", "asset_id": "BGM", "media": "audio"},
+        ],
+        "chapters": "0:00 오프닝",
+        "long_edit": {"chapters": 2},
+    }
+    previous = {
+        "audio": {"asset_id": "AUDIO"},
+        "result": {"files": [{"name": "old.jpg", "id": "OLD", "sha": "x"}]},
+    }
+    plan = wr.upload_plan(manifest, previous, tmp_path)
+    assert plan["reuse"] == {"narration.mp4": "AUDIO", "bgm.mp4": "BGM"}
+    assert plan["batches"] == [[str(png)]] and "AUDIO" not in plan["cleanup"] and "BGM" not in plan["cleanup"]
+    up = {str(png): "PNG", str(tmp_path / "timeline.xml.txt"): "T", str(tmp_path / "narration.srt.txt"): "S"}
+    doc = wr.result_doc({**manifest, "made_at": "now"}, plan, up, previous, tmp_path)
+    files = {f["name"]: f["id"] for f in doc["result"]["files"]}
+    assert files == {"long/chapter_x.png": "PNG", "narration.mp4": "AUDIO", "bgm.mp4": "BGM"}
+    assert doc["result"]["chapters"] == "0:00 오프닝" and doc["result"]["long_edit"] == {"chapters": 2}

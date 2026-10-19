@@ -44,6 +44,7 @@ ARTICLE_SUMMARY = 220
 ARTICLE_BODY = 1500
 BODY_ARTICLES = 60  # 본문까지 받을 관련 기사 수
 VIDEO_LINKS = 3  # 장면마다 남길 유튜브 영상 후보 수
+LONG_VOICE_SEC = 420  # 이보다 긴 음성은 올릴 때 128kbps
 RENDER_CRF = 20  # 완성본 화질 — 1분 1080×1920이 10MB 안팎
 RENDER_MAX_BYTES = 14 * 1024 * 1024  # 제작실 자산으로 올릴 수 있게(한 파일 15MB 안쪽)
 
@@ -327,10 +328,12 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
     )
     info = analyze(speech.path, min_silence=0.15)
     chars = len(text.replace("\n", ""))
-    # 제작실 자산은 wav를 받지 않아서 올릴 파일은 오디오만 든 mp4(AAC 192kbps)로 — 완성본 렌더도 이 파일을 받아 쓴다
+    # 제작실 자산은 wav를 받지 않아서 올릴 파일은 오디오만 든 mp4(AAC 192kbps)로 — 완성본 렌더도 이 파일을 받아 쓴다.
+    # 7분 넘는 음성(10분 묶음)은 128kbps — 자산 한도(15MB) 안에 들게(10분 ≈ 9.6MB)
+    rate = "192k" if speech.duration <= LONG_VOICE_SEC else "128k"
     upload = out / "narration.mp4"
     _ffmpeg(
-        ["-i", str(speech.path), "-vn", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(upload)]
+        ["-i", str(speech.path), "-vn", "-c:a", "aac", "-b:a", rate, "-movflags", "+faststart", str(upload)]
     )
     audio = {
         "source": "typecast",
@@ -603,8 +606,12 @@ async def sources(
     queries: dict | None = None,
     voice: Path | None = None,
     slides: dict | None = None,
+    bgm: Path | None = None,
+    bgm_id: str = "",
 ) -> dict:
     """대본 + 음성 분석값 → 자막·장면·자료·timeline.xml. 반환: manifest(올릴 파일 목록과 장면 요약).
+    채널 설정 timeline.long_edit이면 10분 묶음은 완성 편집(newsclip.long_edit): 음성(voice)·배경음악(bgm, 자산 bgm_id)·
+    자막·카드·효과음까지 timeline.xml에 깔고, 음성·배경음악은 이미 있는 자산 ID로 압축 파일에 넣는다(다시 안 올림).
     queries: 장면별 사진 검색어·주제별 유튜브 검색어(newsclip.pipeline.apply_queries 형식).
     세로 쇼츠(format "shorts")면 1080x1920 — 사진은 세로 화면에 맞추고, 썸네일 문구(thumb)를 상단 제목으로 깔고,
     자막 줄을 짧게(14자)."""
@@ -631,6 +638,9 @@ async def sources(
         headline=str(req.get("thumb") or "") if tall else "",
         style=cfg.shorts.style if tall else "default",
     )
+    long = None
+    if cfg.timeline.long_edit and req.get("format") == "long" and not tall:
+        long = _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm)
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)
     files: list[dict] = []
@@ -674,6 +684,19 @@ async def sources(
             rel = f"{folder}/{png.name}"
             if rel in xml and rel not in {f["name"] for f in files}:
                 files.append({"name": rel, "path": str(png), "media": "image", "sha": _sha(png)})
+    if long is not None:
+        # 롱폼 편집 그림(자막·카드·챕터 이름)·효과음(mp4), 음성·배경음악은 이미 올린 자산을 그대로
+        for path in long["edit"].files:
+            rel = path.relative_to(proj).as_posix()
+            if rel in xml and rel not in {f["name"] for f in files}:
+                media = "audio" if path.suffix == ".mp4" else "image"
+                files.append({"name": rel, "path": str(path), "media": media, "sha": _sha(path)})
+        for rel, asset_id in (
+            (long["narration"], (req.get("audio") or {}).get("asset_id")),
+            (long["bgm"], bgm_id),
+        ):
+            if rel and asset_id and rel in xml:
+                files.append({"name": rel, "asset_id": asset_id, "media": "audio"})
     # 효과음(화제 전환·질문 자리, A2 트랙)
     for wav in sorted((proj / "sfx").glob("*.wav")):
         rel = f"sfx/{wav.name}"
@@ -723,9 +746,76 @@ async def sources(
         **({"hook": _hook_spec(queries)} if _hook_spec(queries) else {}),
         # 강조 자막 문구(널스윤서): 긴 자막 안에서 잘라 정치 채널과 같은 강조 효과로 띄울 말(queries.json "emphasis")
         **({"emphasis": _emphasis(queries)} if _emphasis(queries) else {}),
+        # 롱폼 완성 편집: 유튜브 설명란 챕터(0:00 …)와 무엇을 깔았는지
+        **({"chapters": long["edit"].youtube, "long_edit": long["summary"]} if long is not None else {}),
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
+
+
+def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> dict:  # noqa: ANN001
+    """10분 묶음 완성 편집: 음성·배경음악을 프로젝트 폴더에 두고, 자막 줄·장면으로 long_edit 트랙을 만들어
+    timeline.xml을 다시 쓴다. 반환: {edit, narration(압축 파일 안 이름), bgm, summary}."""
+    import shutil
+
+    from newsclip import long_edit
+    from newsclip.autosub import SUB_LINE, subtitle_cues
+    from newsclip.fcpxml import audio_duration
+    from newsclip.pipeline import write_xml
+
+    narration = None
+    if voice is not None and voice.exists():
+        ext = (req.get("audio") or {}).get("ext") or voice.suffix or ".mp4"
+        narration = proj / f"narration{ext}"
+        if voice.resolve() != narration.resolve():
+            shutil.copyfile(voice, narration)
+    bgm_file, bgm_len = None, 0.0
+    if bgm is not None and bgm.exists():
+        bgm_file = proj / f"bgm{bgm.suffix or '.mp4'}"
+        if bgm.resolve() != bgm_file.resolve():
+            shutil.copyfile(bgm, bgm_file)
+        bgm_len = audio_duration(bgm_file) or 0.0
+    total = max([sc.end_sec for sc in sset.scenes] + [audio_duration(narration) or 0.0 if narration else 0.0])
+    lines = subtitle_cues(cues, limit=SUB_LINE, info=info, words=words)
+    first = min(sset.scenes, key=lambda s: s.start_sec) if sset.scenes else None
+    keys = {w for w in str(first.query if first else "").split()[:1] if len(w) >= 2}
+    edit = long_edit.build(
+        proj,
+        sset.scenes,
+        lines,
+        total=total,
+        channel=cfg.channel.name,
+        quotes=(queries or {}).get("quotes") if isinstance((queries or {}).get("quotes"), dict) else None,
+        keywords=keys,
+    )
+    write_xml(
+        proj,
+        sset,
+        size=(1920, 1080),
+        audio=narration,
+        options=cfg.timeline,
+        style="long",
+        overlays=edit.tracks,
+        sfx_list=edit.sfx,
+        bgm=(bgm_file, bgm_len, long_edit.BGM_LEVEL) if bgm_file and bgm_len else None,
+        markers=edit.markers,
+    )
+    cards = edit.tracks[-1]
+    summary = {
+        "chapters": len([c for c in edit.chapters if c.no > 0]),
+        "cards": len(cards),
+        "quotes": sum(1 for p, _a, _b in cards if p.name.startswith("quote_")),
+        "subtitles": len(edit.tracks[1]),
+        "sfx": len(edit.sfx),
+        "voice": bool(narration),
+        "bgm": bool(bgm_file and bgm_len),
+    }
+    return {
+        "edit": edit,
+        "narration": narration.name if narration else None,
+        "bgm": bgm_file.name if bgm_file and bgm_len else None,
+        "summary": summary,
+    }
 
 
 def _emphasis(queries: dict | None) -> list[str]:
@@ -787,7 +877,9 @@ def upload_plan(manifest: dict, previous: dict | None, out: Path) -> dict:
     reuse: dict[str, str] = {}
     todo: list[str] = []
     for f in manifest["files"]:
-        if f.get("sha") in by_sha:
+        if f.get("asset_id"):  # 이미 올린 자산(롱폼 음성·배경음악) — 다시 올리지 않는다
+            reuse[f["name"]] = f["asset_id"]
+        elif f.get("sha") in by_sha:
             reuse[f["name"]] = by_sha[f["sha"]]
         else:
             todo.append(f["path"])
@@ -824,10 +916,10 @@ def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None
 
     files, missing = [], []
     for f in manifest["files"]:
-        fid = plan["reuse"].get(f["name"]) or id_of(f["path"])
+        fid = plan["reuse"].get(f["name"]) or (id_of(f["path"]) if f.get("path") else None)
         if not fid:
             missing.append(f["name"])
-        files.append({"name": f["name"], "id": fid, "media": f["media"], "sha": f["sha"]})
+        files.append({"name": f["name"], "id": fid, "media": f["media"], "sha": f.get("sha", "")})
     ids = {}
     for key, name in TEXTS.items():
         ids[key] = plan["reuse_texts"].get(key) or id_of(str(out / name))
@@ -846,6 +938,8 @@ def result_doc(manifest: dict, plan: dict, uploaded: dict, previous: dict | None
         "credits",
         "hook",
         "emphasis",
+        "chapters",
+        "long_edit",
     )
     result = {k: manifest[k] for k in keys if k in manifest}
     result.update(
@@ -924,6 +1018,8 @@ def main() -> None:
     s.add_argument("--out", type=Path, required=True)
     s.add_argument("--per-scene", type=int, default=2)
     s.add_argument("--queries", type=Path, help="장면별 검색어 JSON(scenes 단계 뒤 작업자가 쓴 것)")
+    s.add_argument("--bgm", type=Path, help="롱폼 완성 편집: 공통 배경음악(config/bgm 자산) 받은 파일")
+    s.add_argument("--bgm-id", default="", help="그 배경음악의 자산 ID(압축 파일에 넣을 때 씀)")
     p = sub.add_parser("scenes", help="장면 나누기만 → scenes-plan.json")
     p.add_argument("--project", type=Path, required=True)
     p.add_argument("--out", type=Path, required=True)
@@ -1029,7 +1125,7 @@ def main() -> None:
         return
     queries = json.loads(a.queries.read_text(encoding="utf-8")) if a.queries else None
     slides = json.loads(a.slides.read_text(encoding="utf-8")) if a.slides else None
-    man = asyncio.run(sources(req, a.out, a.per_scene, queries, a.audio, slides))
+    man = asyncio.run(sources(req, a.out, a.per_scene, queries, a.audio, slides, a.bgm, a.bgm_id))
     print(
         json.dumps(
             {"files": len(man["files"]), "timing": man["timing"], "asr": man["asr"], **man["report"]},

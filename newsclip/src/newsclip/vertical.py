@@ -48,6 +48,7 @@ class Style:
     bands: tuple[tuple[int, int, int], ...] = ()  # 줄마다 띠 색(비우면 띠 없이 검은 테두리 글씨)
     text_colors: tuple[tuple[int, int, int], ...] = HEAD_LINE_COLORS
     caption_box: tuple[int, int, int, int] = (0, 0, 0, 150)  # 출처 표시 상자 색
+    caption_y: int = 0  # 가로 화면 출처 표시를 이만큼 아래로(롱폼: 왼쪽 위 챕터 이름 밑)
     head_box: tuple[int, int, int, int] = HEAD  # 상단 제목 자리(1080x1920 기준)
     head_px: int = 124  # 상단 제목 시작 글자 크기(자리에 안 들어가면 줄인다)
     head_line: float = 1.22  # 줄 간격(글자 크기 배수)
@@ -101,6 +102,8 @@ NEWS_EDIT = {
 }
 
 STYLES: dict[str, Style] = {
+    # 정치는푸르다 10분 롱폼(가로): 출처 표시를 왼쪽 위 챕터 이름(newsclip.long_edit) 밑으로
+    "long": Style("long", caption_y=76),
     # 정치는푸르다: 210 매머드빵 큰 글씨(테두리 없이 흐린 그림자), 둘째 줄 진한 노랑. 바탕은 검정, 화면 위·아래 끝은
     # 채널 아이콘 하늘색으로 마감, 사진 아랫부분은 검정으로 자연스럽게 이어져 그 위에 자막이 앉는다
     "default": Style(

@@ -49,6 +49,7 @@ budget:
 timeline:
   subtitles: false             # 대본 자막(음성에 맞춘 줄 자막) 트랙
   attribution: true            # 출처 표시(왼쪽 위) — 끄면 사진·영상 출처를 영상에 밝히지 않음
+  long_edit: true              # 10분 묶음은 완성 편집(음성·자막·카드·효과음·배경음악) — 프리미어에서 열고 내보내기만
 
 voice:                         # 타입캐스트 API로 음성 만들기(키는 환경 변수 TYPECAST_API_KEY)
   name: 이겸                   # 목소리 이름

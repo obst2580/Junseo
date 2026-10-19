@@ -1455,6 +1455,9 @@ function renderResult() {
       ${skipped.length ? `<span class="small">못 쓴 검색: ${skipped.map(([k, v]) => esc(k + ' — ' + v)).join(' / ')}</span>` : ''}
       ${vidScenes ? `<span class="small">유튜브 영상 후보가 있는 장면 ${vidScenes}개 — 클라우드에서는 영상을 받을 수 없어 링크로 남겼습니다(압축 파일의 <span class="mono">영상후보.txt</span>). 쓰려면 직접 받아 그 장면 위에 얹으세요.</span>` : ''}</div>
     <div class="scenes${res.size && res.size[1] > res.size[0] ? ' tall' : ''}">${sc}</div>
+    ${res.chapters ? `<h3>유튜브 챕터 <button class="btn small" id="chapters-copy" type="button">복사</button></h3>
+      <div class="small muted">설명란에 그대로 붙이면 영상에 챕터가 생깁니다. 챕터가 바뀌는 곳이 중간 광고 자리로도 좋습니다.</div>
+      <pre class="small mono">${esc(res.chapters)}</pre>` : ''}
     ${(res.credits || []).length ? `<h3>화면 소재 출처 <button class="btn small" id="credits-copy" type="button">복사</button></h3>
       <div class="small muted">Pexels·Pixabay에서 자동으로 받은 소재(받은 때 · 사이트 · 소재 번호 · 작가 · 주소). 화면에 출처를 띄우지 않으니 설명란에 붙이거나, 저작권 신고에 이의를 제기할 때 쓰세요.</div>
       <ul class="small mono" style="max-height:160px;overflow:auto">${res.credits.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
@@ -1462,11 +1465,12 @@ function renderResult() {
     <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
       <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
     <div class="small muted">압축 파일 안의 <span class="mono">${esc(p.id)}</span> 폴더가 이 폴더 안에 풀리면 됩니다.</div>
-    <div class="small muted">압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 자막.srt(한 줄 ${res.size && res.size[1] > res.size[0] ? '14' : '20'}자 안팎, 프리미어 캡션으로 가져오기), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성은 직접 넣으세요.</div>
+    <div class="small muted">${res.long_edit ? `압축 파일에는 timeline.xml 하나로 완성 편집이 다 들어갑니다 — 사진·출처, 음성, 자막(모란봉), 목차·챕터·발언·끝 화면 카드${res.long_edit.quotes ? `(발언 카드 ${res.long_edit.quotes}장)` : ''}, 효과음${res.long_edit.bgm ? ', 배경음악' : ''}. 프리미어에서 열고 내보내기만 하면 됩니다.${res.long_edit.voice ? '' : ' 음성이 아직 없어 음성 트랙은 빠졌습니다 — 음성을 만든 뒤 자료를 다시 모으세요.'}` : `압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 자막.srt(한 줄 ${res.size && res.size[1] > res.size[0] ? '14' : '20'}자 안팎, 프리미어 캡션으로 가져오기), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성은 직접 넣으세요.`}</div>
     <div class="row"><span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
     <div id="zip-state" class="small"></div>`;
   $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));
   if ($('#credits-copy')) $('#credits-copy').onclick = () => copyText(res.credits.join('\n'), '소재 출처를');
+  if ($('#chapters-copy')) $('#chapters-copy').onclick = () => copyText(res.chapters, '유튜브 챕터를');
   $('#zip').onclick = makeZip;
 }
 function folderUrl(folder) {
@@ -1505,7 +1509,9 @@ async function makeZip() {
     if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
     await downloads.save({ filename: `${p.id}.zip`, data: blob });
     sweepAssets(p);
-    st.textContent = '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
+    st.textContent = res.long_edit
+      ? '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml을 열면 음성·자막·카드·효과음까지 다 깔려 있습니다. 확인하고 내보내기만 하면 됩니다.'
+      : '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
     if (lost.length) st.innerHTML = `<div class="note bad"><b class="t">파일 ${lost.length}개를 받지 못해 압축에 빠졌습니다</b>프리미어에서 이 파일들은 '오프라인'으로 보입니다: ${esc(lost.slice(0, 8).join(', '))}${lost.length > 8 ? ' 외' : ''}. [자료 모으고 timeline.xml 만들기]를 다시 눌러 주세요.</div>`;
     try { await db.doc(`${COL('projects')}/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
   } catch (e) {

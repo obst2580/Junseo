@@ -175,6 +175,8 @@ class TimelineSection(BaseModel):
 
     subtitles: bool = False  # 대본 자막(음성에 맞춘 줄 자막 PNG 트랙). 기본 끔
     attribution: bool = True  # 출처 표시(왼쪽 위, 자료마다)
+    # 10분 묶음을 완성 편집으로(newsclip.long_edit): 음성·자막·챕터/목차/발언/끝 화면 카드·효과음·배경음악까지 깐다
+    long_edit: bool = False
 
 
 class ShortsSection(BaseModel):
