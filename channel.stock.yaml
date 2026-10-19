@@ -33,8 +33,9 @@ sources:
 images:
   preferred_domains: [krx.co.kr, fss.or.kr, bok.or.kr, go.kr]
   blocked_domains: []
-  # 사진에 섞여 나오는 유튜브 썸네일은 뉴스 공식 채널 것만(정치 채널과 같은 규칙 + 경제 방송)
-  youtube_thumb_channels: [KBS News, MBCNEWS, MBC 뉴스, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, 연합뉴스 Yonhapnews, MBN News, 채널A 뉴스, TV CHOSUN NEWS, 뉴스TVCHOSUN, KTV 국민방송, 한국경제TV, SBS Biz, 매일경제TV, 머니투데이방송, MTN, 연합뉴스경제TV, 서울경제TV]
+  # 사진 검색에 섞여 나오는 유튜브 썸네일은 쓰지 않는다(2026-10 사용자 결정 — 큰 제목 글씨 썸네일).
+  # 뉴스 기사에 실린 영상 썸네일(16:9에 큰 글씨)도 받은 뒤 거른다(newsclip.download.text_heavy)
+  youtube_thumb_channels: []
 
 videos:
   preferred_channels: [한국경제TV, SBS Biz, 매일경제TV, 머니투데이방송, MTN, 연합뉴스경제TV, 서울경제TV, KTV 국민방송]

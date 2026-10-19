@@ -43,9 +43,9 @@ images:
   # 가점만, 제한 없음. 접미사 일치(go.kr → moef.go.kr 포함). 정당 도메인은 사용 전 확인.
   preferred_domains: [wikimedia.org, go.kr, assembly.go.kr, theminjoo.kr, peoplepowerparty.kr, rebuildingkoreaparty.kr, reformparty.kr, justice21.org, jinboparty.com]
   blocked_domains: []        # 비워둠. 필요 시 사용자가 추가
-  # 사진 검색에 섞여 나오는 유튜브 썸네일은 아래 뉴스 공식 채널 것만 쓴다(그 밖의 채널·확인 못 한 썸네일은 뺌).
-  # 채널 이름은 공백·대소문자 무시, 일부만 맞아도 됨(예: 'KBS News'). 비우면 썸네일을 아예 안 씀
-  youtube_thumb_channels: [KBS News, MBCNEWS, MBC 뉴스, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, 연합뉴스 Yonhapnews, MBN News, 채널A 뉴스, TV CHOSUN NEWS, 뉴스TVCHOSUN, KTV 국민방송, 국회방송, OBS 뉴스, CBS 뉴스, 뉴스타파, 오마이TV, 한겨레, 경향신문, 뉴스1, 뉴시스]
+  # 사진 검색에 섞여 나오는 유튜브 썸네일은 쓰지 않는다(2026-10 사용자 결정 — 큰 제목 글씨 썸네일).
+  # 뉴스 기사에 실린 영상 썸네일(16:9에 큰 글씨)도 받은 뒤 거른다(newsclip.download.text_heavy)
+  youtube_thumb_channels: []
 
 videos:
   preferred_channels: [KTV 국민방송, 국회방송, NATV, 대한민국 정부, 국민의힘, 더불어민주당, 개혁신당]

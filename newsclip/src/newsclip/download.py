@@ -81,6 +81,58 @@ def normalize_image(
     return orig
 
 
+# 영상 썸네일(큰 제목 글씨를 박은 16:9 그림)은 쓰지 않는다(뉴스 채널). 2026-10 사용자가 고른 썸네일 10장은 모두
+# 0.089 이상, 괜찮다고 한 사진·인포그래픽·TV 아래 자막줄은 0.08 아래(건물 간판 한 장만 넘음)
+TEXT_HEAVY = 0.085
+
+
+def outlined_text_rows(path: Path) -> tuple[float, float]:
+    """(검은 테두리를 두른 밝은 글씨가 지나가는 줄의 비율, 가로/세로 비율). 밝은(흰·진한 색) 2~16화소 조각의
+    양옆 3화소 안이 검은 곳이 한 줄(폭 640)에 5곳 넘는 줄을 센다. 줄의 거의 절반이 밝은 줄(흰 바탕 인포그래픽·
+    문서·간판 벽)은 세지 않는다 — 그건 검은 글씨 사이 바탕이다."""
+    import numpy as np
+
+    with Image.open(path) as im:
+        rgb = im.convert("RGB")
+    ratio = rgb.width / rgb.height
+    rgb = rgb.resize((640, max(1, round(640 / ratio))))
+    g = np.asarray(rgb.convert("L")).astype(int)
+    hsv = np.asarray(rgb.convert("HSV")).astype(int)
+    bright = (g > 200) | ((hsv[..., 1] > 150) & (hsv[..., 2] > 190))
+    dark = g < 50
+    h, w = g.shape
+    rows = 0
+    for y in range(h):
+        if bright[y].mean() > 0.45:
+            continue
+        b = bright[y].astype(np.int8)
+        st = np.flatnonzero(np.diff(np.r_[0, b]) == 1)
+        en = np.flatnonzero(np.diff(np.r_[b, 0]) == -1)
+        lens = en - st + 1
+        ok = (lens >= 2) & (lens <= 16) & (st >= 3) & (en < w - 3)
+        dr = dark[y]
+        n = sum(
+            1
+            for s0, e0 in zip(st[ok], en[ok], strict=True)
+            if dr[s0 - 3 : s0].any() and dr[e0 + 1 : e0 + 4].any()
+        )
+        rows += n >= 5
+    return rows / h, ratio
+
+
+def text_heavy(a: Asset) -> bool:
+    """받은 사진이 영상 썸네일(16:9에 큰 제목 글씨)인가 — 받은 원본(assets/original/<이름>.bin)으로 잰다."""
+    if not a.local_path:
+        return False
+    local = Path(a.local_path)
+    orig = local.parent / "original" / f"{local.stem}.bin"
+    try:
+        rows, ratio = outlined_text_rows(orig if orig.exists() else local)
+    except Exception:  # noqa: BLE001 - 못 재면 쓴다
+        return False
+    return abs(ratio - 16 / 9) < 0.03 and rows >= TEXT_HEAVY
+
+
 async def download_image(
     client: httpx.AsyncClient,
     a: Asset,

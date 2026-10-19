@@ -12,7 +12,7 @@ from pathlib import Path
 
 import httpx
 
-from newsclip.download import DedupeRegistry, download_image, download_stock_video, download_video
+from newsclip.download import DedupeRegistry, download_image, download_stock_video, download_video, text_heavy
 from newsclip.fcpxml import build_xmeml, validate_xmeml
 from newsclip.license_log import STOCK_SOURCES, attribution_text, write_assets_json, write_credits
 from newsclip.models import Asset, Scene, SceneSet, asset_id
@@ -48,7 +48,7 @@ class RunReport:
     xml_errors: list[str] = field(default_factory=list)
     by_source: dict[str, int] = field(default_factory=dict)
     borrowed: int = 0  # 사진을 못 받아 앞뒤 장면 사진을 이어 쓴 장면 수
-    dropped_thumbs: int = 0  # 뉴스 공식 채널이 아니라 뺀 유튜브 썸네일 수
+    dropped_thumbs: int = 0  # 뺀 유튜브 썸네일 + 받고 보니 영상 썸네일(큰 제목 글씨)이라 뺀 사진 수
 
 
 def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClient) -> dict[str, Source]:
@@ -420,6 +420,8 @@ async def run_project(
                 if top is not None:
                     used[top.id] = used.get(top.id, 0) + 1
 
+        news = not cfg.images.sources  # 뉴스 사진을 찾는 채널만 영상 썸네일을 거른다(널스윤서는 소재 사이트)
+
         async def fetch(sc: Scene) -> None:
             """순위대로 받되, 받기에 실패하면(막힌 주소·문서 파일 등) 다음 후보로 — 사진 per_scene장이 모이거나
             후보 MAX_TRIES개를 써 볼 때까지. 영상은 videos일 때 앞쪽 후보만 받아 본다."""
@@ -461,9 +463,13 @@ async def run_project(
                     *(download_image(client, a, dest("jpg"), registry, size, sem, style) for a in chunk)
                 )
                 for a in res:
-                    if a is not None:
-                        got[a.id] = a
-                        ok += 1
+                    if a is None:
+                        continue
+                    if news and text_heavy(a):  # 큰 제목 글씨를 박은 영상 썸네일은 쓰지 않고 다음 후보로
+                        report.dropped_thumbs += 1
+                        continue
+                    got[a.id] = a
+                    ok += 1
             sc.candidates = [got.get(a.id, a) for a in sc.candidates]
             sc.chosen = next((a for a in sc.candidates if a.local_path), None)
 
@@ -553,6 +559,7 @@ def write_xml(
     options: TimelineSection | None = None,
     headline: Path | None = None,
     style: str = "default",
+    **extra,  # noqa: ANN003 - 롱폼 편집 트랙(build_xmeml의 overlays·sfx_list·bgm·markers)
 ) -> list[str]:
     """timeline.xml 생성 + 재파싱 검사. 오류 목록 반환.
 
@@ -574,6 +581,7 @@ def write_xml(
         attribution=opts.attribution,
         headline=headline,
         style=style,
+        **extra,
     )
     (project / "timeline.xml").write_text(xml, encoding="utf-8")
     return validate_xmeml(xml)

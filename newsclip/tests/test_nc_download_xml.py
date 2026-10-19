@@ -319,3 +319,43 @@ def test_shorts_styles_differ_by_channel(tmp_path):
     photo = Image.new("RGB", (1920, 1080), (200, 160, 120))
     assert compose_photo(photo, SIZE, "navy_red").getpixel((540, 60)) == (0, 0, 0)  # 사진 칸 위는 검은색
     assert compose_photo(photo, SIZE).getpixel((540, 60)) != (0, 0, 0)  # 정치는푸르다는 흐린 사진 바탕
+
+
+def test_text_heavy_spots_video_thumbnails(tmp_path):
+    """16:9에 검은 테두리 큰 제목 글씨 → 영상 썸네일(뉴스 채널은 안 씀). 흰 바탕 검은 글씨(인포그래픽)·
+    16:9가 아닌 그림은 그대로 쓴다."""
+    import random
+
+    from PIL import ImageDraw, ImageFont
+
+    from newsclip.download import text_heavy
+    from newsclip.models import Asset
+
+    font = ImageFont.truetype(str(Path(__file__).parents[1] / "src/newsclip/fonts/210MammothPpang-R.TTF"), 56)
+    rnd = random.Random(3)
+
+    def photo(size):
+        im = Image.new("RGB", size)
+        px = im.load()
+        for y in range(size[1]):
+            for x in range(size[0]):
+                px[x, y] = (90 + rnd.randint(0, 60), 80 + rnd.randint(0, 50), 70 + rnd.randint(0, 40))
+        return im
+
+    def save(im, name):
+        p = tmp_path / name
+        im.save(p, "JPEG", quality=92)
+        return Asset(source="naver_image", id=name, url="https://x/" + name, local_path=str(p))
+
+    thumb = photo((640, 360))
+    d = ImageDraw.Draw(thumb)
+    for k, line in enumerate(["검찰보다 더 잔혹했던 감사원", "“목표 뚜렷했던 칼춤!”"]):
+        d.text((20, 200 + k * 70), line, font=font, fill=(255, 236, 0), stroke_width=4, stroke_fill=(0, 0, 0))
+    info = Image.new("RGB", (640, 360), (250, 250, 250))
+    d = ImageDraw.Draw(info)
+    for k, line in enumerate(["대법원 격려금", "감사 지적에도 증액"]):
+        d.text((20, 60 + k * 90), line, font=font, fill=(20, 30, 60))
+    assert text_heavy(save(thumb, "thumb.jpg"))
+    assert not text_heavy(save(info, "info.jpg"))
+    assert not text_heavy(save(photo((640, 360)), "plain.jpg"))
+    assert not text_heavy(save(thumb.resize((480, 360)), "four3.jpg"))  # 16:9가 아니면 보도사진으로 본다

@@ -182,6 +182,23 @@ class _Files:
                 _text(sc, "height", h)
 
 
+def _level(clip: ET.Element, level: float) -> None:
+    """소리 크기(Audio Levels, 1.0 = 그대로)."""
+    fl = ET.SubElement(clip, "filter")
+    ef = ET.SubElement(fl, "effect")
+    _text(ef, "name", "Audio Levels")
+    _text(ef, "effectid", "audiolevels")
+    _text(ef, "effectcategory", "audiolevels")
+    _text(ef, "effecttype", "audiolevels")
+    _text(ef, "mediatype", "audio")
+    pm = ET.SubElement(ef, "parameter")
+    _text(pm, "parameterid", "level")
+    _text(pm, "name", "Level")
+    _text(pm, "valuemin", 0)
+    _text(pm, "valuemax", 3.98109)
+    _text(pm, "value", round(level, 4))
+
+
 def caption_for(scene: Scene, asset: Asset) -> str:
     """출처 칸 문구. 같은 인물이지만 사건과 다른 날 찍은 사진이면 앞에 '다른 날 사진 ·'을 붙인다."""
     text = asset.attribution_text or attribution_text(asset)
@@ -211,9 +228,16 @@ def build_xmeml(
     headline: Path | None = None,
     style: str = "default",
     sfx: bool = True,
+    overlays: list[list[tuple[Path, float, float]]] | None = None,
+    sfx_list: list[tuple[float, Path]] | None = None,
+    bgm: tuple[Path, float, float] | None = None,
+    markers: list[tuple[float, str, str]] | None = None,
 ) -> str:
     """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막,
-    headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내. audio가 있고 sfx이면 A2에 효과음."""
+    headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내. audio가 있고 sfx이면 A2에 효과음.
+    롱폼 편집(newsclip.long_edit): overlays(그림 트랙들, 아래 → 위 — 트랙마다 (PNG, 시작, 끝))는 자막 위에,
+    sfx_list((시각, 소리))가 있으면 A2를 그것으로, bgm((소리, 길이, 크기 0~1))은 A3에 끝까지 반복,
+    markers((시각, 이름, 설명))는 시퀀스 마커로 더한다."""
     segs, marks = plan_segments(sset, video_max_sec)
     seq_end = max([s.end_sec for s in sset.scenes] + [0.0])
     a_dur = audio_duration(audio) if audio else None
@@ -320,6 +344,26 @@ def build_xmeml(
             files.add(sc_, str(png), fps, en - st, size[0], size[1])
             last_end = en
 
+    # 롱폼 그림 트랙(그늘·자막·챕터 이름·카드): 같은 트랙 안에서 겹치면 뒤 그림이 앞 그림 끝부터
+    for t_no, items in enumerate(overlays or [], start=1):
+        vt = ET.SubElement(video, "track")
+        last_end = 0
+        for n, (png, a, b) in enumerate(sorted(items, key=lambda x: x[1]), start=1):
+            st, en = max(_f(a, fps), last_end), min(_f(b, fps), total)
+            if en <= st:
+                continue
+            oc = ET.SubElement(vt, "clipitem", {"id": f"clipitem-o{t_no}-{n}"})
+            _text(oc, "name", Path(png).name)
+            _text(oc, "enabled", "TRUE")
+            _text(oc, "duration", en - st)
+            _rate(oc, fps)
+            _text(oc, "start", st)
+            _text(oc, "end", en)
+            _text(oc, "in", 0)
+            _text(oc, "out", en - st)
+            files.add(oc, str(png), fps, en - st, size[0], size[1])
+            last_end = en
+
     # 맨 위: 상단 제목(세로 쇼츠) — 처음부터 끝까지 한 클립
     if headline is not None and total > 0:
         vh = ET.SubElement(video, "track")
@@ -356,13 +400,17 @@ def build_xmeml(
         _text(stk, "mediatype", "audio")
         _text(stk, "trackindex", 1)
         # A2 효과음: 화제 전환·질문 자리(sfx.py). 시퀀스 끝을 넘는 소리는 자른다.
-        cues = sfx_cues(sset.scenes) if sfx else []
-        if cues:
+        if sfx_list is not None:
+            placed = sorted(sfx_list, key=lambda x: x[0])
+        elif sfx:
             sfx_files = ensure_sfx(project_dir)
+            placed = [(cue.at, sfx_files[cue.name]) for cue in sfx_cues(sset.scenes)]
+        else:
+            placed = []
+        if placed:
             a2 = ET.SubElement(aud, "track")
-            for n, cue in enumerate(cues, start=1):
-                path = sfx_files[cue.name]
-                st = _f(cue.at, fps)
+            for n, (at, path) in enumerate(placed, start=1):
+                st = _f(at, fps)
                 length = min(_f(audio_duration(path) or 0.0, fps), total - st)
                 if length <= 0:
                     continue
@@ -379,8 +427,33 @@ def build_xmeml(
                 xtk = ET.SubElement(xc, "sourcetrack")
                 _text(xtk, "mediatype", "audio")
                 _text(xtk, "trackindex", 1)
+        # A3 배경음악: 끝까지 이어 붙이고(마지막 조각은 자름) 크기를 낮춘다
+        if bgm is not None and bgm[1] > 0:
+            path, length_sec, level = bgm
+            a3 = ET.SubElement(aud, "track")
+            piece, at, n = _f(length_sec, fps), 0, 0
+            while piece > 0 and at < total:
+                n += 1
+                length = min(piece, total - at)
+                bc = ET.SubElement(a3, "clipitem", {"id": f"clipitem-a3-{n}"})
+                _text(bc, "name", path.name)
+                _text(bc, "enabled", "TRUE")
+                _text(bc, "duration", piece)
+                _rate(bc, fps)
+                _text(bc, "start", at)
+                _text(bc, "end", at + length)
+                _text(bc, "in", 0)
+                _text(bc, "out", length)
+                files.add(bc, str(path), fps, piece, None, None, audio=True)
+                btk = ET.SubElement(bc, "sourcetrack")
+                _text(btk, "mediatype", "audio")
+                _text(btk, "trackindex", 1)
+                _level(bc, level)
+                at += length
 
-    for m in marks:
+    for at, name, comment in markers or []:
+        marks.append(Marker(at, name, comment))
+    for m in sorted(marks, key=lambda m: m.at):
         mk = ET.SubElement(seq, "marker")
         _text(mk, "comment", m.comment)
         _text(mk, "name", m.name)
