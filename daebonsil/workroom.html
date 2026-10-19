@@ -244,6 +244,7 @@ footer { font-size: 13px; color: var(--muted); }
     <div class="row">
       <button class="btn primary" id="sc-go" type="button">Claude로 대본 쓰기</button>
       <button class="btn" id="sc-fix" type="button">점검대로 고쳐 쓰기</button>
+      <button class="btn" id="hd-go" type="button" hidden>챕터 헤더 넣기(말은 그대로)</button>
       <button class="btn" id="sc-stop" type="button" hidden>멈추기</button>
       <span class="small muted" id="sc-state"></span>
     </div>
@@ -811,6 +812,24 @@ function queueSave(fields) {
 }
 
 /* ---------- 2. 대본 ---------- */
+// 완성 편집(챕터 카드·목차)을 까는 형식: 헤더가 빠지면 음성·자료 요청을 막는다
+const EDIT_FMT = ['long', 'short'];
+function missingHeads(p) {
+  if (!EDIT_FMT.includes(p.format)) return [];
+  const heads = String(p.script || '').split('\n').map(l => l.trim()).filter(l => l.startsWith('## ')).map(l => l.slice(3).trim()), claimed = new Set();
+  return (p.topics || []).map(t => t.heading || '').filter(want => {
+    const hit = heads.findIndex((h, i) => !claimed.has(i) && (h === want || h.startsWith(want.slice(0, 8)) || want.startsWith(h.slice(0, 8))));
+    if (hit >= 0) claimed.add(hit);
+    return hit < 0;
+  });
+}
+function headGuard(p) {
+  const miss = missingHeads(p);
+  if (!miss.length) return true;
+  toast(`대본에 챕터 헤더가 없습니다(${miss.length}개) — 대본 탭의 [챕터 헤더 넣기]를 먼저 눌러 주세요(말은 그대로, 음성도 그대로 씁니다)`, true);
+  setTab('script');
+  return false;
+}
 function planItems() {
   const p = S.project, spec = S.meta ? S.meta.formats[p.format] : { minutes: p.format === 'long' ? 10 : 3, lead_weight: 1.3 };
   const w = p.topics.map((_, i) => (i === 0 && p.topics.length > 1 ? (spec.lead_weight || 1.3) : 1));
@@ -877,11 +896,19 @@ function withLikeAsk(text, ask) {
   }
   return [...paras.slice(0, at), block, ...paras.slice(at)].join('\n\n') + '\n';
 }
+// 헤더처럼 쓴 줄(# 하나·### 셋, **굵게** 감싼 헤더)이 계획 주제·정리면 '## '로 바로잡는다 — 주석 줄로 지우면 챕터가 사라진다
+function fixHead(ln) {
+  const m = ln.replace(/^\*\*(.*)\*\*$/, '$1').trim().match(/^#{1,6}\s*(.+)$/);
+  if (!m) return null;
+  const h = m[1].replace(/\*\*/g, '').trim(), heads = ((S.project && S.project.topics) || []).map(t => t.heading || '');
+  return h.startsWith('정리') || heads.some(w => w && (h.startsWith(w.slice(0, 8)) || w.startsWith(h.slice(0, 8)))) ? '## ' + h : null;
+}
 function normalize(text) {
   const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
   const out = [];
   for (let ln of t.split('\n')) {
     ln = ln.trim();
+    if (!ln.startsWith('## ')) ln = fixHead(ln) || ln;
     if (ln.startsWith('#') && !ln.startsWith('## ')) continue; // 출처·주석 줄은 대본에 남기지 않는다
     if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
     if (out.length && out[out.length - 1].endsWith(',') && !ln.startsWith('#')) { out[out.length - 1] += ' ' + ln; continue; }  // 쉼표 뒤에서 줄을 바꾸지 않는다
@@ -922,7 +949,11 @@ function checkScript() {
   const heads = lines.filter(l => l.startsWith('## ')).map(l => l.slice(3).trim()), claimed = new Set();
   for (const { t } of planItems()) {
     const want = t.heading, hit = heads.findIndex((h, i) => !claimed.has(i) && (h === want || h.startsWith(want.slice(0, 8)) || want.startsWith(h.slice(0, 8))));
-    if (hit < 0) out.push({ bad: true, text: `헤더 없음: '## ${want}' (장면을 나누는 기준)` }); else claimed.add(hit);
+    if (hit < 0) out.push({ bad: true, text: `헤더 없음: '## ${want}' (장면을 나누는 기준${EDIT_FMT.includes(p.format) ? ' — 없으면 챕터 카드·목차가 빠집니다. [챕터 헤더 넣기]는 말을 그대로 두고 헤더만 넣습니다' : ''})` }); else claimed.add(hit);
+  }
+  if (EDIT_FMT.includes(p.format) && /콜드 오픈/.test(((r.format_rules || {})[p.format]) || '')) {  // 콜드 오픈 첫 문장은 화면 가운데 큰 글씨 훅
+    const first = firstSentence(spoken[0]);
+    if ([...first].length > SHORTS_HOOK_MAX) out.push({ bad: true, text: `첫 문장이 ${[...first].length}자 — 화면 가운데 큰 글씨로 뜨는 훅이라 가장 센 한 방을 25자 안쪽으로` });
   }
   // 마무리 '## 정리'는 형식 규칙이 부를 때(10분 묶음, 정치는푸르다 3분 단독)
   const wrap = /## 정리/.test(((r.format_rules || {})[p.format]) || '');
@@ -978,6 +1009,8 @@ function updateMeter() {
   const checks = (p.script || '').trim() ? checkScript() : [];
   $('#checks').innerHTML = checks.map(c => `<li class="${c.bad ? 'bad' : ''}">${c.bad ? '⚠ ' : c.warn ? '· ' : '✓ '}${esc(c.text)}</li>`).join('');
   $('#sc-fix').disabled = !!ctl || !checks.some(c => c.bad);
+  $('#hd-go').hidden = !(p.script || '').trim() || !missingHeads(p).length;
+  $('#hd-go').disabled = !!ctl || !claudeOk();
 }
 function renderScript(fromSnap) {
   const p = S.project; if (!p || !S.meta) return;
@@ -1069,6 +1102,32 @@ async function runScript(mode) {
 }
 $('#sc-go').onclick = () => { if (S.project.script && S.project.script.trim()) { if ($('#sc-go').dataset.armed !== '1') { $('#sc-go').dataset.armed = '1'; $('#sc-go').textContent = '지금 대본을 지우고 새로 쓰기'; setTimeout(() => { $('#sc-go').dataset.armed = ''; $('#sc-go').textContent = 'Claude로 대본 쓰기'; }, 4000); return; } } $('#sc-go').dataset.armed = ''; $('#sc-go').textContent = 'Claude로 대본 쓰기'; runScript('new'); };
 $('#sc-fix').onclick = () => runScript('fix');
+// 챕터 헤더만 넣기: 말하는 문장은 한 글자도 바꾸지 않는다(이미 만든 음성을 그대로 쓸 수 있게) — 바뀌면 쓰지 않는다
+async function runHeads() {
+  if (!claudeOk() || ctl) return;
+  const p = S.project, r = S.meta.rules, wrap = /## 정리/.test(((r.format_rules || {})[p.format]) || '');
+  const items = planItems().map(({ t, order }) => `${order}. ${t.heading} (주제: ${t.name})`);
+  const prompt = ['아래 대본에 챕터 헤더 줄만 넣어라. 말하는 문장은 한 글자도 바꾸거나 빼거나 더하지 않는다(띄어쓰기·문장부호·줄 순서까지 그대로).',
+    `- 주제마다 그 주제 이야기가 시작되는 줄 바로 앞에 \`## heading — 한 줄 요약\`을 넣는다(heading은 아래 목록 그대로, 요약은 그 단락을 20자 안쪽으로). 첫 헤더 앞(콜드 오픈·목차 문장)에는 헤더를 넣지 않는다.`,
+    ...(wrap ? ['- 마지막에 주제들을 묶어 맺는 단락이 시작되는 줄 바로 앞에 `## 정리 — 한 줄 요약`을 넣는다(채널 끝 인사 줄은 그 단락 안에 그대로).'] : []),
+    '- 헤더 줄 앞뒤는 빈 줄. 출력은 대본 텍스트만(설명·코드블록 없이).', '', '주제(순서대로):', ...items, '', '<대본>', p.script, '</대본>'].join('\n');
+  const flat = t => spokenLines(t).join('').replace(/\s+/g, '');
+  ctl = new AbortController(); $('#hd-go').disabled = true; $('#sc-state').innerHTML = spinner('챕터 헤더를 넣는 중…');
+  try {
+    const { text } = await sample(prompt, { modelTier: 'default', cache: false, signal: ctl.signal });
+    const next = normalize(text);
+    if (flat(next) !== flat(p.script)) throw { code: 'changed' };
+    if (missingHeads({ ...p, script: next }).length) throw { code: 'nohead' };
+    p.script = next; $('#script').value = next; queueSave({ script: next }); updateMeter();
+    $('#sc-state').textContent = '챕터 헤더를 넣었습니다 — 말은 그대로라 음성은 다시 만들지 않아도 됩니다';
+  } catch (e) {
+    $('#sc-state').textContent = '';
+    if (e && e.code === 'changed') toast('Claude가 말하는 문장까지 바꿔서 쓰지 않았습니다 — 한 번 더 눌러 주세요', true);
+    else if (e && e.code === 'nohead') toast('헤더가 다 들어가지 않았습니다 — 한 번 더 눌러 주세요', true);
+    else if (e && e.code !== 'cancelled') toast(claudeError(e), true);
+  } finally { ctl = null; updateMeter(); }
+}
+$('#hd-go').onclick = runHeads;
 $('#sc-stop').onclick = () => ctl && ctl.abort();
 $('#ti-go').onclick = async () => {
   if (!claudeOk() || ctl) return;
@@ -1287,6 +1346,7 @@ function fillTc() {
 $('#tc-go').onclick = async () => {
   const p = S.project;
   if (!p || !narrationText(p.script)) { toast('대본이 아직 없습니다.', true); return; }
+  if (!headGuard(p)) return;
   const tempo = Math.min(2, Math.max(0.5, parseFloat($('#tc-tempo').value) || 1));
   const sil = $('#tc-silence').value;
   const voice = { name: $('#tc-voice').value.trim(), tempo, remove_silence_ms: sil === '' ? null : Number(sil) };
@@ -1425,6 +1485,7 @@ $('#src-go').onclick = async () => {
   const p = S.project;
   sweepAssets(p);
   if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
+  if (!headGuard(p)) return;
   if (isShorts(p) && !String(p.thumb || '').trim()) { toast('상단 제목을 먼저 써 주세요 — 세로 쇼츠는 이 문구가 영상 내내 위쪽에 뜹니다', true); setTab('script'); $('#thumb').focus(); return; }
   if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); } catch (e) { /* 다음에 */ } pendingSave = false; }
   $('#src-go').disabled = true;

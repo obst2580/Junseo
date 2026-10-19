@@ -626,6 +626,13 @@ async def sources(
     cfg = load_channel(settings)
     tall = is_vertical_format(req)
     size = vertical.SIZE if tall else (1920, 1080)
+    edit = cfg.timeline.long_edit and req.get("format") in EDIT_FORMATS and not tall
+    if edit and not any(ln.strip().startswith("## ") for ln in str(req.get("script") or "").splitlines()):
+        # 헤더가 없으면 영상 전체가 콜드 오픈 하나가 된다(챕터·목차 카드 없음, 빠른 컷이 끝까지) — 만들지 않고 알린다
+        raise ValueError(
+            "대본에 챕터 헤더(## 제목 — 요약)가 없습니다 — 제작실 대본 탭의 [챕터 헤더 넣기]를 누른 뒤 다시 요청해 주세요"
+            "(말은 그대로라 음성은 다시 만들지 않아도 됩니다)."
+        )
     # 클라우드에서는 유튜브 영상 받기가 막혀(403) 영상은 링크 후보로만 남긴다(사용자가 직접 받아 넣음)
     sset, report = await run_project(
         settings,
@@ -641,7 +648,7 @@ async def sources(
         style=cfg.shorts.style if tall else "default",
     )
     long = None
-    if cfg.timeline.long_edit and req.get("format") in EDIT_FORMATS and not tall:
+    if edit:
         long = _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm)
     xml = rebase_xml((proj / "timeline.xml").read_text(encoding="utf-8"), proj)
     out.mkdir(parents=True, exist_ok=True)

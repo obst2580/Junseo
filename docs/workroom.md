@@ -234,6 +234,8 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    **정치는푸르다 10분 묶음(`format: "long"`)과 3분 단독(`format: "short"`)은 완성 편집**입니다(channel.yaml `timeline.long_edit`): 음성(`--audio`,
    보통 타입캐스트 음성), 채널 배경음악(아래 '채널 배경음악' 문서의 `asset_id`를 `Artifact read`로 받아 `--bgm <받은 파일> --bgm-id <asset_id>`),
    모란봉 자막, 목차(10분만)·챕터·발언·끝 화면 카드, 왼쪽 위 챕터 이름·오른쪽 위 채널 이름, 효과음까지 timeline.xml에 깔립니다.
+   대본에 `## ` 헤더가 하나도 없으면 sources가 만들지 않고 멈춥니다(영상 전체가 콜드 오픈 하나가 되므로) — 요청을 `error`로,
+   note에 그 문장을 그대로 씁니다(사용자가 대본 탭 [챕터 헤더 넣기]를 누르면 말은 그대로라 음성은 다시 만들지 않아도 됨).
    음성·배경음악은 이미 있는 자산이라 다시 올리지 않습니다(upload-plan이 그 ID를 그대로 씀). 결과의 `chapters`가 유튜브 설명란
    챕터, `long_edit`이 깐 것 요약입니다. note에 `완성 편집 · 챕터 N개 · 발언 카드 N장 · 음성 있음/없음`을 붙입니다.
 

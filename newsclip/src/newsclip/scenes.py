@@ -145,25 +145,48 @@ def _norm(s: str) -> str:
 
 
 def align_topics(cues: list[Cue], lines: list[ScriptLine], lookahead: int = 12) -> list[str]:
-    """큐마다 주제 이름(대본 줄 순서를 벗어나지 않는 탐욕 정렬)."""
+    """큐마다 주제 이름(대본 줄 순서를 벗어나지 않는 탐욕 정렬).
+
+    큐 글자가 지금 줄의 남은 부분(또는 그 뒤 줄)에 그대로 들어 있으면 가장 가까운 그 줄로 맞춘다 — 콜드 오픈이 본문 첫 문장을
+    거의 그대로 되풀이해도 본문으로 건너뛰지 않는다. 그대로 들어 있는 줄이 없으면(음성 인식 오차) 가장 비슷한 줄로."""
     if not lines:
         return ["본문"] * len(cues)
-    ptr, topics = 0, []
+    norms = [_norm(ln.text) for ln in lines]
+    ptr, pos, topics = 0, 0, []
     current = lines[0].topic
     for cue in cues:
-        best, best_j = 0.0, None
         target = _norm(cue.text)
+        hit = None
+        for j in range(ptr, min(len(lines), ptr + lookahead)) if target else ():
+            start = pos if j == ptr else 0
+            k = norms[j].find(target, start)
+            if k >= 0:
+                hit = (j, j, k + len(target))
+                break
+            if j + 1 < len(lines):  # 줄 끝과 다음 줄 처음에 걸친 큐
+                k = (norms[j] + norms[j + 1]).find(target, start)
+                if 0 <= k < len(norms[j]):
+                    hit = (j, j + 1, k + len(target) - len(norms[j]))
+                    break
+        if hit is not None:
+            first, ptr, pos = hit
+            current = lines[first].topic
+            if pos >= len(norms[ptr]) and ptr + 1 < len(lines):
+                ptr, pos = ptr + 1, 0
+            topics.append(current)
+            continue
+        best, best_j = 0.0, None
         for j in range(ptr, min(len(lines), ptr + lookahead)):
             # 큐가 여러 줄을 합친 경우를 위해 두 줄 연결도 비교
-            cands = [_norm(lines[j].text)]
+            cands = [norms[j]]
             if j + 1 < len(lines):
-                cands.append(_norm(lines[j].text + lines[j + 1].text))
+                cands.append(norms[j] + norms[j + 1])
             r = max(difflib.SequenceMatcher(None, target, c).ratio() for c in cands)
             if r > best:
                 best, best_j = r, j
         if best_j is not None and best >= 0.35:
             current = lines[best_j].topic
-            ptr = best_j + 1 if best >= 0.6 else best_j
+            ptr, pos = (best_j + 1 if best >= 0.6 else best_j), 0
         topics.append(current)
     return topics
 

@@ -60,6 +60,29 @@ def test_parse_and_align_topics():
     assert align_topics(_cues(), []) == ["본문"] * 5
 
 
+def test_align_keeps_cold_open_that_repeats_first_chapter():
+    """콜드 오픈이 본문 첫 문장을 거의 그대로 되풀이해도 콜드 오픈 큐는 '도입'에 남는다(말 덩어리 큐)."""
+    script = (
+        '추미애 지사가 지난 13일 국정감사에서 "소방이 재정 빨대 같다"고 말했는데요, 엿새 뒤 또 터졌습니다.\n'
+        "오늘은 차례로 짚어 보겠습니다.\n\n"
+        "## 추미애 빨대 발언 — 사과 뒤에도\n"
+        '추미애 지사가 지난 13일 국회 국정감사에서 "소방이 재정 빨대 같다"고 말했습니다.\n'
+        "## 정리\n결국 문제는 하나입니다.\n"
+    )
+    texts = [
+        "추미애 지사가 지난 13일 국정감사에서",
+        '"소방이 재정 빨대 같다"고 말했는데요,',
+        "엿새 뒤 또 터졌습니다.",
+        "오늘은 차례로 짚어 보겠습니다.",
+        "추미애 지사가 지난 13일 국회 국정감사에서",
+        '"소방이 재정 빨대 같다"고 말했습니다.',
+        "결국 문제는 하나입니다.",
+    ]
+    cues = [Cue(i + 1, i * 2.0, i * 2.0 + 1.9, t) for i, t in enumerate(texts)]
+    topics = align_topics(cues, parse_script(script))
+    assert topics == ["도입"] * 4 + ["추미애 빨대 발언 — 사과 뒤에도"] * 2 + ["정리"]
+
+
 def test_segment_rules():
     cues = _cues()
     topics = ["A", "A", "B", "B", "B"]

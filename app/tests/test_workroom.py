@@ -137,6 +137,27 @@ def test_sources_without_voice_and_no_audio_track(root, tmp_path):
     assert all(s["end"] > s["start"] for s in man["scenes"])
 
 
+def test_sources_refuses_long_edit_without_chapter_headers(root, tmp_path, monkeypatch):
+    """완성 편집(10분·3분)인데 대본에 ## 헤더가 없으면 챕터 없는 편집(영상 전체가 콜드 오픈)을 만들지 않고 알린다."""
+    import pytest
+
+    real = wr.load_channel
+
+    def with_edit(settings):  # noqa: ANN001, ANN202
+        cfg = real(settings)
+        return cfg.model_copy(update={"timeline": cfg.timeline.model_copy(update={"long_edit": True})})
+
+    monkeypatch.setattr(wr, "load_channel", with_edit)
+    req = {
+        "id": "2026-10-08_1920_long",
+        "format": "long",
+        "script": "첫 문장입니다.\n둘째 문장입니다.\n",
+        "audio": None,
+    }
+    with pytest.raises(ValueError, match="챕터 헤더"):
+        asyncio.run(wr.sources(req, tmp_path / "out"))
+
+
 def test_sources_with_voice_uses_heard_words(root, tmp_path, monkeypatch):
     """화면이 올린 음성이 있으면 인식 결과로 시각을 맞추고(timing voice+asr), 듣지 못하면 쉼만으로 맞추며 이유를 남긴다."""
     import newsclip.asr as asr
