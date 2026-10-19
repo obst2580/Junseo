@@ -768,7 +768,7 @@ def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> 
     import shutil
 
     from newsclip import long_edit
-    from newsclip.autosub import SUB_LINE, subtitle_cues
+    from newsclip.autosub import subtitle_cues
     from newsclip.fcpxml import audio_duration
     from newsclip.pipeline import write_xml
 
@@ -785,7 +785,7 @@ def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> 
             shutil.copyfile(bgm, bgm_file)
         bgm_len = audio_duration(bgm_file) or 0.0
     total = max([sc.end_sec for sc in sset.scenes] + [audio_duration(narration) or 0.0 if narration else 0.0])
-    lines = subtitle_cues(cues, limit=SUB_LINE, info=info, words=words)
+    lines = subtitle_cues(cues, limit=long_edit.SUB_LINE_LONG, info=info, words=words)
     first = min(sset.scenes, key=lambda s: s.start_sec) if sset.scenes else None
     keys = {w for w in str(first.query if first else "").split()[:1] if len(w) >= 2}
     edit = long_edit.build(
@@ -809,6 +809,7 @@ def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> 
         sfx_list=edit.sfx,
         bgm=(bgm_file, bgm_len, long_edit.BGM_LEVEL) if bgm_file and bgm_len else None,
         markers=edit.markers,
+        audio_level=long_edit.voice_level(narration) if narration else 1.0,  # 최고점 -1 dBTP 넘지 않게
     )
     cards = edit.tracks[-1]
     summary = {

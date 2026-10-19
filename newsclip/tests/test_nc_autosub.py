@@ -158,6 +158,21 @@ def test_subtitle_lines_even_and_not_after_short_adverbs():
     assert len(subs) == 2 and subs[0].start == 0.0 and subs[-1].end <= 4.0
 
 
+def test_subtitle_lines_keep_quotes_names_and_modifiers_together():
+    """인용 안·이름과 직함·꾸미는 말과 명사 사이에서는 자르지 않는다(따옴표 반쪽, '이재명 | 정부와'가 안 생기게)."""
+    from newsclip.autosub import subtitle_lines
+
+    q = subtitle_lines("그 사이 김민석 대표는 '응급전용 주차' 논란에 휘말렸고,", 22)
+    assert all(x.count("'") % 2 == 0 for x in q)
+    names = subtitle_lines("그다음은 개혁을 밀어붙여야 할 이재명 정부와 민주당 전체입니다.", 20)
+    assert not any(x.endswith("이재명") for x in names)
+    assert not any(
+        x.endswith("부승찬") for x in subtitle_lines("엿새 뒤 같은 당 부승찬 의원은 사과는 충분했다면서", 20)
+    )
+    mod = subtitle_lines("진짜 문제는 소방 정국이라는 가장 예민한 시기에 지도부가 자기 일정과 동선부터", 22)
+    assert not any(x.endswith("예민한") for x in mod)
+
+
 def test_spoken_length_and_comma_pause_snapping():
     from newsclip.autosub import spoken_len, subtitle_cues
 

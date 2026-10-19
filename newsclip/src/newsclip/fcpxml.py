@@ -243,12 +243,13 @@ def build_xmeml(
     sfx_list: list[tuple[float, Path]] | None = None,
     bgm: tuple[Path, float, float] | None = None,
     markers: list[tuple[float, str, str]] | None = None,
+    audio_level: float = 1.0,
 ) -> str:
     """xmeml v5 문자열. attribution이면 V2에 출처 표시, subtitles(자막 큐 목록)가 있으면 그 위 트랙에 대본 자막,
     headline(투명 PNG)이 있으면 맨 위 트랙에 영상 내내. audio가 있고 sfx이면 A2에 효과음.
     롱폼 편집(newsclip.long_edit): overlays(그림 트랙들, 아래 → 위 — 트랙마다 (PNG, 시작, 끝))는 자막 위에,
     sfx_list((시각, 소리))가 있으면 A2를 그것으로, bgm((소리, 길이, 크기 0~1))은 A3에 끝까지 반복,
-    markers((시각, 이름, 설명))는 시퀀스 마커로 더한다."""
+    markers((시각, 이름, 설명))는 시퀀스 마커로 더한다. audio_level(1.0 = 그대로)은 A1 음성 크기."""
     segs, marks = plan_segments(sset, video_max_sec)
     seq_end = max([s.end_sec for s in sset.scenes] + [0.0])
     a_dur = audio_duration(audio) if audio else None
@@ -410,6 +411,8 @@ def build_xmeml(
         stk = ET.SubElement(ac, "sourcetrack")
         _text(stk, "mediatype", "audio")
         _text(stk, "trackindex", 1)
+        if audio_level < 0.999:
+            _level(ac, audio_level)
         # A2 효과음: 화제 전환·질문 자리(sfx.py). 시퀀스 끝을 넘는 소리는 자른다.
         if sfx_list is not None:
             placed = sorted(sfx_list, key=lambda x: x[0])

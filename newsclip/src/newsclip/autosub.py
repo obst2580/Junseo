@@ -44,6 +44,14 @@ _NO_BREAK_AFTER = {
     "새",
 }
 _CLAUSE_END = (",", "고", "며", "면", "서", "데", "지만", "는데요,", "아니라")
+# 이 말 앞에서는 줄을 바꾸지 않는다: 이름 뒤 직함('부승찬 | 의원은', '이재명 | 정부와'), 숫자 뒤 단위
+_TITLE_NEXT = re.compile(
+    r"^(의원|대표|지사|장관|차관|대통령|총리|청장|처장|실장|위원장|위원|원내대표|대변인|정부|후보|당선인)"
+)
+_PARTICLE_END = re.compile(r"[은는이가을를의에도와과로만,.?!…'\"”’]$")
+# 꾸미는 말(뒤 명사와 붙어야 읽힘: '순직한 | 소방관', '가장 예민한 | 시기에')
+_MODIFIER_END = ("한", "할", "된", "될", "던", "운", "른", "린", "인")
+_QUOTE_OPEN = {'"': '"', "'": "'", "“": "”", "‘": "’"}
 
 _SENT_END_RE = re.compile(r"[.?!…]['\"”’」』)\]]*$")
 _DUR_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
@@ -186,9 +194,45 @@ def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
     return lines
 
 
+def _quoted(text: str) -> set[int]:
+    """따옴표 안에 든 글자 위치(여는 따옴표 다음부터 닫는 따옴표 앞까지)."""
+    inside: set[int] = set()
+    close, at = None, 0
+    for i, ch in enumerate(text):
+        if close is None and ch in _QUOTE_OPEN:
+            close, at = _QUOTE_OPEN[ch], i
+        elif close is not None and ch == close:
+            inside.update(range(at + 1, i))
+            close = None
+    return inside
+
+
+def _break_cost(text: str, i: int, quoted: set[int]) -> float:
+    """i(띄어쓰기) 자리에서 줄을 바꿀 때 덧붙는 값: 절·문장이 끝나는 곳은 반기고, 붙어야 읽히는 곳은 피한다."""
+    word = text[:i].rsplit(" ", 1)[-1]
+    nxt = text[i + 1 :].split(" ", 1)[0]
+    cost = 0.0
+    if _SENT_END_RE.search(word):
+        cost -= 4
+    elif word.endswith(_CLAUSE_END):
+        cost -= 3
+    if word in _NO_BREAK_AFTER or len(word) == 1:
+        cost += 8
+    if i in quoted:  # 인용 한가운데(따옴표 반쪽만 남는다)
+        cost += 12
+    if _TITLE_NEXT.match(nxt) and not _PARTICLE_END.search(word):
+        cost += 10
+    if re.search(r"\d$", word) or (re.search(r"\d", word) and re.match(r"\d", nxt)):
+        cost += 8
+    if len(word) >= 2 and word.endswith(_MODIFIER_END):
+        cost += 5
+    return cost
+
+
 def _split_lines(text: str, k: int) -> list[str]:
     """text를 띄어쓰기에서 k줄 안팎으로 고르게 나눈다(subtitle_lines의 한 번 나누기)."""
     spaces = [i for i, ch in enumerate(text) if ch == " "]
+    quoted = _quoted(text)
     lines, start = [], 0
     for part in range(1, k):
         target = start + (len(text) - start) / (k - part + 1)
@@ -196,12 +240,10 @@ def _split_lines(text: str, k: int) -> list[str]:
         for i in spaces:
             if i <= start + 3 or i >= len(text) - 3:
                 continue
-            word = text[:i].rsplit(" ", 1)[-1]
-            cost = (
-                abs(i - target)
-                - (3 if word.endswith(_CLAUSE_END) else 0)
-                + (8 if word in _NO_BREAK_AFTER or len(word) == 1 else 0)
-            )
+            cost = abs(i - target) + _break_cost(text, i, quoted)
+            # 6자 이하로 남는 조각('말했는데요,')은 0.5초쯤 스치고 사라진다 — 인용을 나누는 편이 낫다
+            if i - start <= 6 or (part == k - 1 and len(text) - i - 1 <= 6):
+                cost += 6
             if cost < best_cost:
                 best, best_cost = i, cost
         if best is None:

@@ -39,9 +39,15 @@ EMPH_SAG = 14.0  # 강조 자막: 흐름이 이만큼 늘어질 때만 하나씩
 OPEN_SAG = 5.0
 OPEN_CUT_MIN = 1.5
 HOOK_SEC = 4.0  # 이 시각 전에 시작하는 첫 문장 자막이 훅
-HOOK_CHUNK = 8  # 훅 한 번에 보이는 글자 수(공백 빼고)
+HOOK_MIN = 2.5  # 훅 한 줄이 떠 있는 최소 시간(조각으로 넘기지 않고 센 말 하나를 머물게)
+SUB_LINE_LONG = 22  # 가로 자막 한 줄 글자 수(쇼츠보다 넓은 화면 — 줄이 덜 자주 바뀌게)
+FLASH_SEC, FLASH_CHARS = (
+    1.0,
+    10,
+)  # 이보다 짧게 스치는 짧은 줄은 앞(문장 끝 꼬리)이나 뒤(문장 머리) 줄과 합친다
 HOOK_PX, HOOK_KEY_PX = 130, 170
-BGM_LEVEL = 0.1  # 배경음악 크기(약 -20 dB — 10분 내내 깔려도 목소리를 덮지 않게)
+BGM_LEVEL = 0.15  # 배경음악 크기(약 -16 dB — 10분 내내 깔려도 목소리를 덮지 않게, 들리기는 하게)
+VOICE_PEAK = -1.0  # 음성 최고점(dBTP) — 넘으면 음성 트랙 크기를 낮춰 내보낼 때 찢어지지 않게
 SUB_PX, EMPH_PX = 74, 96
 SUB_BOTTOM = 1000  # 자막 아래 끝(유튜브 재생 막대 위)
 ORDINALS = ["첫", "두", "세", "네", "다섯", "여섯"]
@@ -209,8 +215,11 @@ def render_shade(out: Path, h: int = 420, alpha: int = 230) -> Path:
     return out
 
 
-def render_sub(text: str, out: Path, color: tuple[int, int, int] | None = None) -> Path:
-    """아래 자막: 보통은 모란봉 흰 글씨, color가 있으면 강조(매머드빵 큰 색 글자). 아래 끝을 SUB_BOTTOM에 맞춘다."""
+def render_sub(
+    text: str, out: Path, color: tuple[int, int, int] | None = None, mark: str | None = None
+) -> Path:
+    """아래 자막: 보통은 모란봉 흰 글씨. color가 있으면 강조 — mark(따옴표 인용·센 말)가 있으면 줄은 매머드빵 흰
+    글씨에 그 말만 색으로, 없으면 줄 전체를 색으로. 아래 끝을 SUB_BOTTOM에 맞춘다."""
     img = Image.new("RGBA", SIZE, (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     text = text.strip()
@@ -220,7 +229,26 @@ def render_sub(text: str, out: Path, color: tuple[int, int, int] | None = None) 
         f, fill, stroke = _fit(d, text, TITLE_FONT, EMPH_PX, 1700), color, 8
     box = d.multiline_textbbox((0, 0), text, font=f, spacing=14, stroke_width=stroke, align="center")
     th = box[3] - box[1]
-    _center(d, (SIZE[0] // 2, SUB_BOTTOM - th // 2), text, f, fill, stroke=stroke)
+    rows = text.split("\n")
+    if color is not None and mark and any(mark in r for r in rows):
+        lh = th / len(rows)  # 줄마다 가운데 맞춰, 강조할 말이 든 줄에서 그 말만 색으로
+        for n, row in enumerate(rows):
+            x = (SIZE[0] - d.textlength(row, font=f)) / 2
+            y = SUB_BOTTOM - th + lh * (n + 0.5)
+            at = row.find(mark)
+            segs = (
+                [(row, WHITE)]
+                if at < 0
+                else [(row[:at], WHITE), (mark, color), (row[at + len(mark) :], WHITE)]
+            )
+            for seg, col in segs:
+                if seg:
+                    d.text(
+                        (x, y), seg, font=f, fill=col, anchor="lm", stroke_width=stroke, stroke_fill=(0, 0, 0)
+                    )
+                    x += d.textlength(seg, font=f)
+    else:
+        _center(d, (SIZE[0] // 2, SUB_BOTTOM - th // 2), text, f, fill, stroke=stroke)
     out.parent.mkdir(parents=True, exist_ok=True)
     img.save(out, "PNG")
     return out
@@ -276,8 +304,13 @@ def render_hook(text: str, out: Path, kind: str = "chunk") -> Path:
     훅이 떠 있는 동안 사진을 조금 어둡게 깔아 글자가 어느 사진 위에서도 또렷하게."""
     img = Image.new("RGBA", SIZE, (0, 0, 0, 96))
     d = ImageDraw.Draw(img)
+    text = text.strip()
+    if len(text.replace(" ", "")) > 13:  # 긴 말은 두 줄로(작게 줄이지 않고 — 자막 줄 나누기와 같은 자리에서)
+        from newsclip.autosub import _split_lines
+
+        text = "\n".join(_split_lines(text, 2))
     if kind == "quote":
-        text = f"“{text.strip().strip(chr(34) + chr(39) + '“”‘’')}”"
+        text = f"“{text.strip(chr(34) + chr(39) + '“”‘’')}”"
         f, fill, stroke = _fit(d, text, QUOTE_FONT, HOOK_KEY_PX, 1760, 70), YELLOW, 7
     elif kind == "act":
         f, fill, stroke = _fit(d, text, TITLE_FONT, HOOK_KEY_PX, 1760, 70), RED, 9
@@ -431,39 +464,115 @@ def _open_cuts(scenes: list[Scene], opening_end: float, cut_at: list[float]) -> 
     return out
 
 
+_QUOTE_SPAN = re.compile("(['\"“‘])([^'\"“”‘’]{2,16})(['\"”’])")
+MARK_MAX = 14  # 강조할 말(색 글자) 길이 상한(공백 빼고)
+# 10분 영상에서 너무 흔해 강조가 안 되는 센 말(쇼츠는 그대로 강조)
+_COMMON_STRONG = re.compile("논란|의혹|비판|비난|경고")
+
+
+def _mark(text: str, keywords: set[str]) -> tuple[str, tuple[int, int, int]] | None:
+    """강조할 말과 색: 센 말이 든 낱말 → 빨강, 따옴표째 인용(짧은 것) → 노랑, 핵심 키워드 낱말 → 초록.
+    따옴표 짝이 안 맞는 줄(인용이 줄 사이에서 끊긴 줄)은 강조하지 않는다."""
+    from newsclip.render import EMPH_GREEN, EMPH_RED, EMPH_YELLOW, is_hot
+    from newsclip.shorts_render import STRONG
+
+    if not _balanced(text):
+        return None
+    for w in text.split():
+        if STRONG.search(w) and not _COMMON_STRONG.search(w):
+            return w.rstrip(",.?!…"), EMPH_RED
+    m = _QUOTE_SPAN.search(text)
+    if m and len(re.sub(r"\s", "", m.group(2))) <= MARK_MAX:
+        return m.group(0), EMPH_YELLOW
+    for w in text.split():
+        if is_hot(w, keywords) and not is_hot(w, set()):
+            return w.rstrip(",.?!…"), EMPH_GREEN
+    return None
+
+
 def _pick(
     lines: list, keywords: set[str], opening_end: float, after: float
-) -> dict[int, tuple[int, int, int]]:
-    """강조 자막: 콜드 오픈은 OPEN_SAG초, 그 뒤는 EMPH_SAG초 흐름이 늘어질 때만 하나씩(after = 훅이 끝난 때)."""
+) -> dict[int, tuple[tuple[int, int, int], str]]:
+    """강조 자막: 콜드 오픈은 OPEN_SAG초, 그 뒤는 EMPH_SAG초 흐름이 늘어질 때만 하나씩(after = 훅이 끝난 때).
+    줄 전체가 아니라 그 줄의 센 말·인용만 색으로(반환: 줄 번호 → (색, 강조할 말))."""
     from newsclip.render import EMPH_GREEN, EMPH_RED, EMPH_YELLOW
-    from newsclip.shorts_render import EMPH_LOOK, emph_color
+    from newsclip.shorts_render import EMPH_LOOK
 
     order = (EMPH_RED, EMPH_YELLOW, EMPH_GREEN)
-    cands = [
-        (k, col) for k, c in enumerate(lines) if c.start >= after and (col := emph_color(c.text, keywords))
-    ]
-    picked: dict[int, tuple[int, int, int]] = {}
+    cands = [(k, mk) for k, c in enumerate(lines) if c.start >= after and (mk := _mark(c.text, keywords))]
+    picked: dict[int, tuple[tuple[int, int, int], str]] = {}
+    used: set[str] = set()  # 같은 말은 한 번만 강조
     last, i = after, 0
     while i < len(cands):
         t = lines[cands[i][0]].start
-        if t - last < (OPEN_SAG if t < opening_end else EMPH_SAG):
+        if t - last < (OPEN_SAG if t < opening_end else EMPH_SAG) or _flat(cands[i][1][0]) in used:
             i += 1
             continue
-        window = [j for j in range(i, len(cands)) if lines[cands[j][0]].start - t <= EMPH_LOOK]
-        best = min(window, key=lambda j: (order.index(cands[j][1]), j))
-        picked[cands[best][0]] = cands[best][1]
+        window = [
+            j
+            for j in range(i, len(cands))
+            if lines[cands[j][0]].start - t <= EMPH_LOOK and _flat(cands[j][1][0]) not in used
+        ]
+        best = min(window, key=lambda j: (order.index(cands[j][1][1]), j))
+        phrase, col = cands[best][1]
+        picked[cands[best][0]] = (col, phrase)
+        used.add(_flat(phrase))
         last = lines[cands[best][0]].start
         i = best + 1
     return picked
 
 
+def _merge_flashes(lines: list) -> list:
+    """1초도 안 떠 있는 짧은 줄('말했는데요,', '바로 이어서')을 이웃 줄과 합친다. 끝이 맺어진 꼬리는 앞 줄에,
+    머리는 뒤 줄에. 합쳐 길어지면 두 줄로."""
+    from dataclasses import replace
+
+    from newsclip.autosub import _SENT_END_RE
+
+    out = list(lines)
+    i = 0
+    while i < len(out):
+        c = out[i]
+        short = c.end - c.start < FLASH_SEC and len(c.text.replace(" ", "")) <= FLASH_CHARS
+        tail = _SENT_END_RE.search(c.text.strip()) or c.text.strip().endswith(",")
+        if short and tail and i > 0 and c.start - out[i - 1].end < 0.15:
+            p = out[i - 1]
+            sep = " " if len(p.text) + len(c.text) < SUB_LINE_LONG + 4 else "\n"
+            out[i - 1] = replace(p, end=c.end, text=f"{p.text.strip()}{sep}{c.text.strip()}")
+            del out[i]
+            continue
+        if short and not tail and i + 1 < len(out) and out[i + 1].start - c.end < 0.15:
+            n = out[i + 1]
+            sep = " " if len(n.text) + len(c.text) < SUB_LINE_LONG + 4 else "\n"
+            out[i + 1] = replace(n, start=c.start, text=f"{c.text.strip()}{sep}{n.text.strip()}")
+            del out[i]
+            continue
+        i += 1
+    return out
+
+
+def _flat(text: str) -> str:
+    """비교용: 띄어쓰기·따옴표·문장부호를 뺀 글자."""
+    return re.sub("[\\s\"'“”‘’.,!?…]", "", text)
+
+
+def _balanced(text: str) -> bool:
+    """따옴표 짝이 맞는 줄인가(인용이 줄 사이에서 끊기지 않았나)."""
+    return (
+        all(text.count(q) % 2 == 0 for q in "\"'")
+        and text.count("“") == text.count("”")
+        and (text.count("‘") == text.count("’"))
+    )
+
+
 def _hook(
     lines: list, words: list | None, lx: Path
-) -> tuple[list[tuple[Path, float, float]], int, float | None]:
-    """첫 문장(HOOK_SEC 전에 시작하는 자막부터 문장이 끝나는 자막까지) → 화면 한가운데 큰 글씨 조각들.
-    따옴표 안 발언은 손글씨 노랑, 없으면 문장 끝 행위를 빨강으로 그 말이 들릴 때 띄운다(쇼츠 훅과 같은 규칙).
-    반환: (그림 목록, 훅이 차지한 자막 줄 수, 핵심이 뜨는 때)."""
-    from newsclip.shorts_render import _SENT_END, REPORT_VERB, chunk_starts, hook_chunks, hook_key
+) -> tuple[list[tuple[Path, float, float]], set[int], float | None]:
+    """첫 문장(HOOK_SEC 전에 시작하는 자막부터 문장이 끝나는 자막까지) → 화면 한가운데 큰 글씨 한 줄.
+    조각으로 넘기지 않고 가장 센 말 하나(따옴표 안 발언은 손글씨 노랑, 없으면 문장 끝 행위는 빨강, 둘 다 없으면
+    첫 줄)를 첫 문장 내내(적어도 HOOK_MIN초) 띄운다. 아래 자막은 그 말이 든 줄만 뺀다.
+    반환: (그림 목록, 뺄 자막 줄 번호, 핵심이 뜨는 때)."""
+    from newsclip.shorts_render import _SENT_END, hook_key
 
     n = 0
     for cue in lines:
@@ -473,33 +582,40 @@ def _hook(
         if _SENT_END.search(cue.text.strip()):
             break
     if not n:
-        return [], 0, None
+        return [], set(), None
     start, end = lines[0].start, lines[n - 1].end
     text = " ".join(c.text.replace("\n", " ").strip() for c in lines[:n])
     key = hook_key(text)
-    pieces: list[tuple[str, str]] = []
-    if key is not None and key[1] in text:
-        kind, phrase = key
-        at = text.index(phrase)
-        pre = text[:at].rstrip(" \"“‘'")
-        post = text[at + len(phrase) :].lstrip("\"”’'")
-        pieces = [(x, "chunk") for x in hook_chunks(pre, HOOK_CHUNK)] + [(phrase, kind)]
-        if len(re.sub("[\\s.!?…,]", "", post)) > 5 and not REPORT_VERB.match(post.strip()):
-            pieces += [(x, "chunk") for x in hook_chunks(post, HOOK_CHUNK)]
-    else:
-        pieces = [(x, "chunk") for x in hook_chunks(text, HOOK_CHUNK)]
-    starts = chunk_starts([x for x, _k in pieces], start, end, words)
-    arts, key_at = [], None
-    for j, (piece, kind) in enumerate(pieces):
-        a, b = starts[j], (starts[j + 1] if j + 1 < len(pieces) else end)
-        arts.append((render_hook(piece, lx / f"hook_{_key(piece, kind)}.png", kind), a, b))
-        if kind != "chunk":
-            key_at = a
-    return arts, n, key_at
+    kind, phrase = key if key is not None and key[1] in text else ("chunk", lines[0].text.strip())
+    later = [c.start for c in lines[n:]]
+    end = max(end, min(start + HOOK_MIN, later[0] if later else start + HOOK_MIN))
+    art = render_hook(phrase, lx / f"hook_{_key(phrase, kind)}.png", kind)
+
+    core = _flat(phrase)
+    drop = {k for k in range(n) if core and (core in _flat(lines[k].text) or _flat(lines[k].text) in core)}
+    return [(art, start, end)], drop, (start if kind != "chunk" else None)
 
 
 def _key(*parts: object) -> str:
     return hashlib.sha1("|".join(map(str, parts)).encode()).hexdigest()[:10]
+
+
+def voice_level(path: Path) -> float:
+    """음성 트랙 크기(1.0 = 그대로): 최고점(true peak)이 VOICE_PEAK를 넘으면 그만큼 낮춘다. 못 재면 1.0."""
+    try:
+        r = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-i", str(path), "-af", "ebur128=peak=true", "-f", "null", "-"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        peaks = re.findall(r"Peak:\s+(-?[\d.]+|-inf) dBFS", r.stderr)
+        peak = float(peaks[-1]) if peaks and peaks[-1] != "-inf" else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return 1.0
+    if peak is None or peak <= VOICE_PEAK:
+        return 1.0
+    return round(10 ** ((VOICE_PEAK - peak) / 20), 4)
 
 
 def sfx_mp4(project_dir: Path) -> dict[str, Path]:
@@ -595,21 +711,26 @@ def build(
     def covered(t: float) -> bool:
         return any(a <= t < b for _p, a, b in cards)
 
-    # 훅: 첫 문장은 아래 자막 대신 화면 한가운데 큰 글씨
-    lines = [c for c in lines if c.end > c.start]
-    hook, hook_n, key_at = _hook(lines, words, lx)
-    hook_end = lines[hook_n - 1].end if hook_n else 0.0
+    # 짧게 스치는 줄은 이웃 줄과 합치고, 훅: 첫 문장의 센 말 한 줄을 화면 한가운데 크게
+    lines = _merge_flashes([c for c in lines if c.end > c.start])
+    hook, drop, key_at = _hook(lines, words, lx)
+    hook_end = hook[0][2] if hook else 0.0
     if key_at is not None:
         pops.append(key_at)
-    # 자막: 카드에 가린 줄은 빼고, 흐름이 늘어질 때만 강조(색 글자 — 콜드 오픈은 더 자주)
+    # 자막: 인용이 두 줄에 걸치면 줄마다 따옴표 짝을 맞추고(앞뒤 문맥으로), 카드에 가린 줄·훅이 띄운 줄은 빼고,
+    # 흐름이 늘어질 때만 강조(색 글자 — 콜드 오픈은 더 자주)
+    from newsclip.shorts_render import pair_quotes
+
     opening_end = opening.end if opening is not None else 0.0
-    lines = [c for c in lines[hook_n:] if not covered((c.start + c.end) / 2)]
+    shown = dict(zip(range(len(lines)), pair_quotes([c.text for c in lines]), strict=True))
+    keep = [k for k, c in enumerate(lines) if k not in drop and not covered((c.start + c.end) / 2)]
+    lines, texts = [lines[k] for k in keep], [shown[k] for k in keep]
     emph = _pick(lines, keywords, opening_end, hook_end)
     subs = list(hook)
     for k, cue in enumerate(lines):
-        color = emph.get(k)
+        color, mark = emph.get(k, (None, None))
         tone = None if color is None else RED if color == EMPH_RED else YELLOW  # 센 말은 빨강, 나머지 노랑
-        png = render_sub(cue.text, lx / f"sub_{_key(cue.text, tone)}.png", tone)
+        png = render_sub(texts[k], lx / f"sub_{_key(texts[k], tone, mark)}.png", tone, mark)
         subs.append((png, cue.start, cue.end))
         if color:
             pops.append(cue.start)

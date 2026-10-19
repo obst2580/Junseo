@@ -108,7 +108,9 @@ def test_build_cards_subtitles_sounds_and_timeline(tmp_path):
     )
     assert validate_xmeml(xml) == []
     assert xml.count("clipitem-o4-") == len(cards) and xml.count("clipitem-o1-") == 1
-    assert xml.count("clipitem-a3-") == 3 and xml.count("<value>0.1</value>") == 3  # 50초 × 3 ≥ 120초
+    assert (
+        xml.count("clipitem-a3-") == 3 and xml.count(f"<value>{le.BGM_LEVEL}</value>") == 3
+    )  # 50초 × 3 ≥ 120초
     assert "narration.mp4" in xml and xml.count("clipitem-a2-") == len(edit.sfx)
     assert "1. 감사원 '타이거파' 논란" in xml and "<name>챕터</name>" in xml
 
@@ -125,6 +127,30 @@ def test_three_minute_single_topic_has_no_toc(tmp_path):
     assert kinds == ["chapter", "chapter", "end"]  # 주제 하나 + 정리, 목차 없음
     assert [c.no for c in edit.chapters] == [0, 1, -1]
     assert edit.youtube.splitlines() == ["0:00 오프닝", "0:30 1. 감사원 '타이거파' 논란", "1:00 정리"]
+
+
+def test_subtitle_marks_and_flash_merge():
+    """강조는 줄의 센 말·짧은 인용만 색으로(따옴표가 반쪽인 줄은 강조 안 함), 1초도 안 뜨는 짧은 꼬리 줄은 앞 줄에 붙는다."""
+    from newsclip.render import EMPH_RED, EMPH_YELLOW
+
+    assert le._mark("'응급전용 주차' 논란에 휘말렸고,", set()) == (
+        "'응급전용 주차'",
+        EMPH_YELLOW,
+    )  # 흔한 '논란'보다 인용
+    assert le._mark("박지원 의원이 막말을 했습니다", set()) == ("막말을", EMPH_RED)
+    assert le._mark("주차' 논란에 휘말렸고,", set()) is None  # 인용이 끊긴 줄
+    lines = [
+        Cue(1, 0.0, 2.5, '"소방이 가장 큰 골치 아픈 재정 빨대 같다"고'),
+        Cue(2, 2.5, 3.0, "말했는데요,"),
+        Cue(3, 3.0, 3.6, "바로 이어서"),
+        Cue(4, 3.6, 6.0, "부 의원이 마이크를 잡았습니다."),
+    ]
+    out = le._merge_flashes(lines)
+    assert [c.text for c in out] == [
+        '"소방이 가장 큰 골치 아픈 재정 빨대 같다"고\n말했는데요,',
+        "바로 이어서 부 의원이 마이크를 잡았습니다.",
+    ]
+    assert (out[0].start, out[0].end, out[1].start, out[1].end) == (0.0, 3.0, 3.0, 6.0)
 
 
 def test_cards_render_and_fit(tmp_path):
@@ -164,11 +190,17 @@ def test_opening_hook_fast_cuts_and_speaker_photo(tmp_path):
     edit = le.build(tmp_path, scenes, lines, total=120.0, channel="정치는푸르다", quotes=quotes)
     subs = edit.tracks[1]
     hook = [(p, a, b_) for p, a, b_ in subs if p.name.startswith("hook_")]
-    assert len(hook) >= 3 and hook[0][1] == 0.2 and hook[-1][2] == 3.6
-    assert not any(
-        a < 3.6 and not p.name.startswith("hook_") for p, a, _b in subs
-    )  # 첫 문장 아래 자막은 없다
-    assert any(p.stem == "hit" and abs(at - hook[-1][1]) < 1.5 for at, p in edit.sfx)  # 핵심 발언에 팝
+    # 조각으로 넘기지 않고 센 말(따옴표 발언) 한 줄이 첫 문장 내내 — 아래 자막은 그 말이 든 줄만 빠진다
+    assert len(hook) == 1 and hook[0][1] == 0.2 and hook[0][2] == 3.6
+    under = [a for p, a, _b in subs if a < 3.6 and not p.name.startswith("hook_")]
+    assert under == [0.2]  # '박지원 의원이 김영신 감사위원을'은 아래 자막으로 남는다
+    yellow = [
+        px
+        for px in Image.open(hook[0][0]).convert("RGBA").getdata()
+        if px[3] > 200 and px[2] < 60 and px[0] > 200
+    ]
+    assert len(yellow) > 2000  # 발언은 손글씨 노랑
+    assert any(p.stem == "hit" and abs(at - hook[0][1]) < 1.5 for at, p in edit.sfx)  # 핵심 발언에 팝
     first = [s for s in edit.v1 if s.id.startswith("s001")]
     assert [s.id for s in first] == ["s001", "s001b"] and first[0].chosen.local_path != first[
         1
