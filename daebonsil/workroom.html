@@ -349,6 +349,9 @@ const CHANNELS = {
 };
 const LOCKED = /*__CHANNEL__*/null;  // 채널 하나만 쓰는 제작실(build.py --channel)이면 그 채널로 고정
 const CH = LOCKED && CHANNELS[LOCKED] ? LOCKED : CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
+// 배경음악: 채널마다 따로(config/bgm_<채널>, 예: 자유뉴스365는 config/bgm_right). 없으면 공통(config/bgm). 정치는푸르다와
+// 채널 하나만 쓰는 제작실은 config/bgm 그대로
+const BGM_DOC = LOCKED || CH === 'politics' ? 'config/bgm' : `config/bgm_${CH}`;
 const STOCK = CH === 'stock';
 const HEALTH = CH === 'health';  // 건강 채널: 증시처럼 기사로만 주제를 정하고(커뮤니티 없음), 세로 쇼츠만
 const NEWS = STOCK || HEALTH;  // 기사로만 주제를 정하는 채널
@@ -1226,7 +1229,7 @@ function workerMessage(rid, kind) {
     `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, CH !== 'politics' ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
     S.project && kind !== 'collect' ? `프로젝트: ${COL('projects')}/${S.project.id}` : '',
     S.project && kind === 'sources' && isShorts(S.project) ? '형식: 세로 쇼츠(1080×1920 — sources가 format을 보고 세로로 만듦)' : '',
-    kind === 'render' ? '배경음악: config/bgm' : '',
+    kind === 'render' ? `배경음악: ${S.bgmOwn ? BGM_DOC : 'config/bgm'}` : '',
     '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
 }
 // 작업자 깨우기: 이 아티팩트 댓글을 "Claude에게 보내기"로 남기면, 제작실을 지켜보는 작업자 대화가 깨어난다.
@@ -1312,7 +1315,7 @@ async function sweepAssets(p) {
       (xr.files || []).forEach(f => keep.add(f.id)); keep.add(xr.timeline_id); keep.add(xr.srt_id); keep.add(x.audio && x.audio.asset_id);
       keep.add(x.render && x.render.asset_id);
     }
-    keep.add(S.bgm && S.bgm.asset_id);
+    keep.add(S.bgm && S.bgm.asset_id); keep.add(S.bgmCommon && S.bgmCommon.asset_id);
     const ids = r.cleanup.filter(id => id && !keep.has(id));
     for (let i = 0; i < ids.length; i += 6) {
       for (let tryNo = 0; ; tryNo++) {
@@ -1430,8 +1433,9 @@ $('#bgm-file').onchange = async e => {
     const ctx = new Ctx(); let buf;
     try { buf = await ctx.decodeAudioData(await file.arrayBuffer()); } finally { try { ctx.close(); } catch (x) { /* 무시 */ } }
     const up = await assets.upload(await encodeVoice(buf, true), { type: 'video/webm' });
-    const old = S.bgm && S.bgm.asset_id;
-    await db.doc('config/bgm').set({ asset_id: up.id, name: file.name, duration: +buf.duration.toFixed(2), volume: (S.bgm && S.bgm.volume) || 0.22, uploaded_at: new Date().toISOString() });
+    // 이 채널 음악만 바꾼다(공통 음악을 쓰던 채널이면 공통 음악은 지우지 않는다)
+    const own = BGM_DOC === 'config/bgm' ? S.bgmCommon : S.bgmOwn, old = own && own.asset_id;
+    await db.doc(BGM_DOC).set({ asset_id: up.id, name: file.name, duration: +buf.duration.toFixed(2), volume: (S.bgm && S.bgm.volume) || 0.22, uploaded_at: new Date().toISOString() });
     if (old && old !== up.id) assets.delete(old).catch(() => {});
     st.textContent = '바꿨습니다. 다음 완성 영상부터 이 음악을 깝니다.';
   } catch (x) { st.textContent = `올리지 못했습니다(${x.message || x.code || '알 수 없음'})`; }
@@ -1549,7 +1553,9 @@ setTab((location.hash || '').replace('#', '') || 'topics');
   await refreshSend();
   if (!db) return;
   db.doc('config/worker').onSnapshot(snap => { if (snap.exists) S.worker = { ...WORKER, ...snap.data() }; }, () => {});
-  db.doc('config/bgm').onSnapshot(snap => { S.bgm = snap.exists ? snap.data() : null; if (S.tab === 'sources') renderFinal(); }, () => {});
+  const bgmNow = () => { S.bgm = S.bgmOwn || S.bgmCommon || null; if (S.tab === 'sources') renderFinal(); };
+  db.doc('config/bgm').onSnapshot(snap => { S.bgmCommon = snap.exists ? snap.data() : null; bgmNow(); }, () => {});
+  if (BGM_DOC !== 'config/bgm') db.doc(BGM_DOC).onSnapshot(snap => { S.bgmOwn = snap.exists ? snap.data() : null; bgmNow(); }, () => {});
   db.doc(`${COL('raw')}/meta`).onSnapshot(snap => { S.meta = snap.exists ? snap.data() : null; renderStatus(); loadRaw(S.meta); renderTopics(); if (S.project) renderScript(); }, () => {});
   db.doc(`${COL('topics')}/current`).onSnapshot(snap => { if (!ctl) { S.topics = snap.exists ? snap.data() : null; renderTopics(); } }, () => {});
   db.collection(COL('projects')).orderBy('created_at', 'desc').limit(30).onSnapshot(q => { S.projects = q.docs.map(x => x.data()); renderProjects(); }, () => {});

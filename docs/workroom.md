@@ -232,7 +232,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
      사건과 인물이 모두 다른 사진은 쓰지 않습니다.
 4. 검색어를 넣어 자료와 timeline.xml을 만듭니다(장면 ID는 2단계와 같습니다).
    **정치는푸르다 10분 묶음(`format: "long"`)은 완성 편집**입니다(channel.yaml `timeline.long_edit`): 음성(`--audio`,
-   보통 타입캐스트 음성), 공통 배경음악(`config/bgm`의 `asset_id`를 `Artifact read`로 받아 `--bgm <받은 파일> --bgm-id <asset_id>`),
+   보통 타입캐스트 음성), 채널 배경음악(아래 '채널 배경음악' 문서의 `asset_id`를 `Artifact read`로 받아 `--bgm <받은 파일> --bgm-id <asset_id>`),
    모란봉 자막, 목차·챕터·발언·끝 화면 카드, 왼쪽 위 챕터 이름·오른쪽 위 채널 이름, 효과음까지 timeline.xml에 깔립니다.
    음성·배경음악은 이미 있는 자산이라 다시 올리지 않습니다(upload-plan이 그 ID를 그대로 씀). 결과의 `chapters`가 유튜브 설명란
    챕터, `long_edit`이 깐 것 요약입니다. note에 `완성 편집 · 챕터 N개 · 발언 카드 N장 · 음성 있음/없음`을 붙입니다.
@@ -276,10 +276,13 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 ## kind = render (완성 영상 mp4 — 세로 쇼츠)
 
 화면의 **[완성 영상 만들기]**가 남긴 요청입니다(자료 모으기가 끝난 쇼츠 프로젝트). 자료(사진·출처·상단 제목)와 자막.srt,
-올린 음성, 공통 배경음악(`config/bgm`)을 받아 자막 효과(훅·색 강조 자막)·효과음·컷 편집을 넣은 1080×1920 mp4를 만들어
+올린 음성, 채널 배경음악을 받아 자막 효과(훅·색 강조 자막)·효과음·컷 편집을 넣은 1080×1920 mp4를 만들어
 올립니다. 렌더는 1분 영상에 2~3분, 메모리 3GB 안팎입니다.
 
-1. `ArtifactData get` — `projects/<프로젝트 ID>`와 `config/bgm`을 `out_dir`(`/tmp/wr`)로 받습니다.
+1. `ArtifactData get` — `projects/<프로젝트 ID>`와 **채널 배경음악** 문서를 `out_dir`(`/tmp/wr`)로 받습니다.
+   채널 배경음악은 채널마다 따로입니다: 정치는푸르다는 `config/bgm`, 자유뉴스365는 `config/bgm_right`, 오늘증시는
+   `config/bgm_stock` — 그 채널 문서가 없으면 `config/bgm`(공통). 요청 문서의 `bgm`(자산 ID)이 그 문서의 `asset_id`와 같은지
+   봅니다(화면이 그 채널 음악을 넣어 보냄). 아래 명령의 `--bgm`에는 받은 그 문서 파일을 넘깁니다.
 2. 받을 자산 목록을 뽑습니다.
 
    ```bash
@@ -314,6 +317,7 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 |---|---|---|
 | `config/worker` | 작업자(처음 한 번) | `session_id`, `session_url`, `artifact_url` — 붙여 넣기 안내에 쓰는 작업자 대화 주소 |
 | `config/bgm` | 화면(배경음악 바꾸기) | 공통 배경음악 `asset_id`(오디오 mp4·webm), `name`, `duration`, `volume` — 완성 영상에 반복해 깔고 내레이션이 나올 때 낮춤 |
+| `config/bgm_<채널>` | 화면(그 채널에서 배경음악 바꾸기) | 그 채널 배경음악(자유뉴스365 `config/bgm_right` = 보수음악). 같은 칸. 없으면 `config/bgm`을 씀 |
 | `raw/meta`, `raw/posts-N`, `raw/articles-N` | 작업자(collect) | 수집 묶음: 규칙·형식·사이트 상태 / 커뮤니티 글 / 기사(관련 기사는 본문) |
 | `topics/current` | 화면(Claude) | 주제 묶음: 주제별 글·기사 ID, 커뮤니티 주장, 10분 묶음 추천 |
 | `projects/<ID>` | 화면 + 작업자 | 형식·고른 주제(글·기사 사본)·대본·제목·음성 분석값(`audio`, 올린 음성은 `audio.asset_id` — 쇼츠는 완성 영상용 고음질 `audio.hq`)·`result`·완성 영상 `render`(`asset_id`, `size`, `duration`, `made_at`) |

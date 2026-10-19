@@ -1019,7 +1019,11 @@ def main() -> None:
     s.add_argument("--out", type=Path, required=True)
     s.add_argument("--per-scene", type=int, default=2)
     s.add_argument("--queries", type=Path, help="장면별 검색어 JSON(scenes 단계 뒤 작업자가 쓴 것)")
-    s.add_argument("--bgm", type=Path, help="롱폼 완성 편집: 공통 배경음악(config/bgm 자산) 받은 파일")
+    s.add_argument(
+        "--bgm",
+        type=Path,
+        help="롱폼 완성 편집: 채널 배경음악(config/bgm 또는 config/bgm_<채널> 자산) 받은 파일",
+    )
     s.add_argument("--bgm-id", default="", help="그 배경음악의 자산 ID(압축 파일에 넣을 때 씀)")
     p = sub.add_parser("scenes", help="장면 나누기만 → scenes-plan.json")
     p.add_argument("--project", type=Path, required=True)
@@ -1049,7 +1053,11 @@ def main() -> None:
     rn = sub.add_parser("render", help="받은 자산으로 완성 mp4 만들기 → final.mp4 + render.json")
     for x in (ri, rn):
         x.add_argument("--project", type=Path, required=True)
-        x.add_argument("--bgm", type=Path, help="config/bgm 문서(ArtifactData out_dir 파일) — 공통 배경음악")
+        x.add_argument(
+            "--bgm",
+            type=Path,
+            help="채널 배경음악 문서(config/bgm 또는 config/bgm_<채널>, ArtifactData out_dir 파일)",
+        )
     rn.add_argument(
         "--fetched", type=Path, required=True, help="Artifact read로 받은 자산 폴더(<ID>.<확장자>)"
     )
