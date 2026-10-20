@@ -46,6 +46,13 @@ PUNCH_OVER = 1.8  # 지나치는 정도(ease-out-back 세기)
 ZOOM_TRAIL = 0.12  # 줌 흐림: 겹치는 화면들이 덜 당긴 정도
 BLUR_SEC = 0.2  # 끝에서 흐려지는 시간
 BLUR_MAX = 14
+# 메모지 소품(prop="memo"): 따뜻한 나무 책상 위 노란 메모지, 위에 반투명 마스킹 테이프
+MEMO_DESK = (226, 208, 182)
+MEMO = (255, 233, 132)
+MEMO_TOP = (250, 222, 110)  # 메모지 윗부분(접착 띠)
+MEMO_BOX = (30, 120, 910, 1060)
+TAPE = (236, 240, 244, 170)
+MEMO_TILT = 2.0
 
 
 def _ease_out_back(p: float, s: float = PUNCH_OVER) -> float:
@@ -164,10 +171,13 @@ class ChartHook:
         duration: float,
         size: tuple[int, int],
         style: str = "health",
+        prop: str = "chart",
     ) -> None:
         from newsclip.vertical import _box, plain_background, style_of
 
         st = style_of(style)
+        self.prop = prop
+        self.tilt = MEMO_TILT if prop == "memo" else TILT
         self.size = size
         self.box = _box(size, st)
         bg = plain_background(size, st)
@@ -193,14 +203,17 @@ class ChartHook:
     # ---- 정지된 층 ----
     def _desk(self) -> Image.Image:
         bw, bh = self.box[2] - self.box[0], self.box[3] - self.box[1]
-        desk = Image.new("RGB", (bw, bh), DESK)
+        base = MEMO_DESK if self.prop == "memo" else DESK
+        desk = Image.new("RGB", (bw, bh), base)
         d = ImageDraw.Draw(desk)
         rnd = random.Random(3)
         for y in range(0, bh, 6):  # 결이 살짝 보이는 책상
-            d.line((0, y, bw, y), fill=tuple(c + rnd.randint(-4, 4) for c in DESK))
+            d.line((0, y, bw, y), fill=tuple(c + rnd.randint(-4, 4) for c in base))
         return desk
 
     def _board(self) -> Image.Image:
+        if self.prop == "memo":
+            return self._memo()
         cb = Image.new("RGBA", (CB_W, CB_H), (0, 0, 0, 0))
         c = ImageDraw.Draw(cb)
         c.rounded_rectangle((0, 40, CB_W, CB_H), radius=36, fill=BOARD)
@@ -212,6 +225,28 @@ class ChartHook:
             c.line((80, self._line_y(li) + 30, 860, self._line_y(li) + 30), fill=RULE, width=2)
         return cb
 
+    def _memo(self) -> Image.Image:
+        """노란 메모지: 윗부분 접착 띠는 조금 진하게, 오른쪽 아래 모서리는 살짝 들려 그늘, 위에 마스킹 테이프."""
+        cb = Image.new("RGBA", (CB_W, CB_H), (0, 0, 0, 0))
+        c = ImageDraw.Draw(cb)
+        x1, y1, x2, y2 = MEMO_BOX
+        c.rectangle(MEMO_BOX, fill=MEMO)
+        c.rectangle((x1, y1, x2, y1 + 110), fill=MEMO_TOP)
+        for i in range(60):  # 오른쪽 아래가 들려 생기는 그늘(아래로 갈수록 진하게)
+            k = i / 60
+            col = tuple(round(v * (1 - 0.07 * k)) for v in MEMO)
+            c.line((x1, y2 - 60 + i, x2, y2 - 60 + i), fill=col)
+        c.polygon([(x2 - 70, y2), (x2, y2 - 70), (x2, y2)], fill=(0, 0, 0, 0))  # 접힌 모서리
+        c.polygon([(x2 - 70, y2), (x2, y2 - 70), (x2 - 58, y2 - 58)], fill=(236, 206, 96))
+        tape = Image.new("RGBA", (CB_W, CB_H), (0, 0, 0, 0))
+        t = ImageDraw.Draw(tape)
+        cx = (x1 + x2) // 2
+        t.polygon(
+            [(cx - 150, y1 - 46), (cx + 150, y1 - 58), (cx + 156, y1 + 40), (cx - 144, y1 + 52)], fill=TAPE
+        )
+        cb.alpha_composite(tape)
+        return cb
+
     def _ink(self) -> Image.Image:
         """글씨 전부(써지는 만큼만 가려서 붙인다)."""
         ink = Image.new("RGBA", (CB_W, CB_H), (0, 0, 0, 0))
@@ -221,7 +256,7 @@ class ChartHook:
         return ink
 
     def _shadow(self) -> Image.Image:
-        rot = self.board.rotate(TILT, resample=Image.BICUBIC, expand=True)
+        rot = self.board.rotate(self.tilt, resample=Image.BICUBIC, expand=True)
         sh = Image.new("RGBA", rot.size, (0, 0, 0, 0))
         sh.paste((0, 0, 0, 110), mask=rot.getchannel("A"))
         return sh.filter(ImageFilter.GaussianBlur(18))
@@ -249,7 +284,7 @@ class ChartHook:
         cb.paste(self.ink, (0, 0), Image.composite(self.ink.getchannel("A"), mask, mask))
         if self.circle_at is not None and t > self.circle_at:
             self._circle(cb, min(1.0, (t - self.circle_at) / CIRCLE_SEC))
-        rot = cb.rotate(TILT, resample=Image.BICUBIC, expand=True)
+        rot = cb.rotate(self.tilt, resample=Image.BICUBIC, expand=True)
         rise = 1 - min(1.0, t / RISE_SEC)  # 남은 올라오기(1 → 0), 끝에서 부드럽게 멈춘다
         oy = -30 + round(RISE_PX * rise**2)
         desk = self.desk.convert("RGBA")
@@ -361,9 +396,10 @@ def make_chart_clip(
     size: tuple[int, int],
     style: str = "health",
     lines: list[str] | None = None,
+    prop: str = "chart",
 ) -> tuple[Path, float | None, float | None]:
     """첫 문장 → 차트판 훅 mp4. starts는 낱말마다 써지기 시작하는 때(lines를 띄어쓰기로 나눈 순서). 돌려주는 값:
     (파일, 펀치인 시작 때, 동그라미가 그려지기 시작하는 때 — 효과음 자리, 핵심 말이 없으면 None)."""
     ls = lines or split_lines(text)
-    hook = ChartHook(ls, key, starts, duration, size, style)
+    hook = ChartHook(ls, key, starts, duration, size, style, prop)
     return hook.write(out), hook.punch_at, hook.circle_at
