@@ -263,7 +263,8 @@ footer { font-size: 13px; color: var(--muted); }
       <div class="t" id="pin-row" hidden><span>고정 댓글</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="pin" maxlength="120" title="영상을 올린 뒤 댓글로 달고 고정하세요 — 시청자 의견을 끌어냅니다"><button class="btn small" id="pin-copy" type="button">복사</button></div></div>
       <div class="t" id="notice-row" hidden><span>설명란 고지</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="notice" readonly title="영상 설명란에 붙이세요(채널 설정 script.notice)"><button class="btn small" id="notice-copy" type="button">복사</button></div></div>
     </div>
-    <div class="row"><span class="spacer"></span><button class="btn primary" id="to-voice" type="button">다음: 음성</button></div>
+    <div id="voice-stale"></div>
+    <div class="row" style="justify-content:flex-end"><span class="spacer"></span><button class="btn" id="sc-revoice" type="button" hidden>고친 대본으로 음성 다시 만들기</button><button class="btn primary" id="to-voice" type="button">다음: 음성</button></div>
   </section>
 
   <!-- 3. 음성 -->
@@ -276,7 +277,8 @@ footer { font-size: 13px; color: var(--muted); }
         <label>읽는 속도<input type="number" id="tc-tempo" min="0.5" max="2" step="0.05" value="1"></label>
         <label>문장 사이 쉼<select id="tc-silence"><option value="">그대로</option><option value="300">짧게</option><option value="150">아주 짧게</option></select></label>
       </div>
-      <div class="reqbox"><button class="btn primary" id="tc-go" type="button">타입캐스트로 음성 만들기</button><span id="tc-state" class="small"></span></div>
+      <div id="voice-stale2"></div>
+      <div class="reqbox"><button class="btn primary" id="tc-go" type="button">타입캐스트로 음성 만들기</button><button class="btn" id="to-script" type="button" hidden>대본 고치기</button><span id="tc-state" class="small"></span></div>
       <div class="fallback" id="tc-fallback" hidden></div>
     </div>
     <div class="small muted">직접 만들 때</div>
@@ -1011,6 +1013,7 @@ function updateMeter() {
   $('#sc-fix').disabled = !!ctl || !checks.some(c => c.bad);
   $('#hd-go').hidden = !(p.script || '').trim() || !missingHeads(p).length;
   $('#hd-go').disabled = !!ctl || !claudeOk();
+  renderVoiceStale();
 }
 function renderScript(fromSnap) {
   const p = S.project; if (!p || !S.meta) return;
@@ -1314,8 +1317,9 @@ function renderVoice() {
   $('#tts').textContent = tts || '대본이 아직 없습니다.';
   $('#tts-n').textContent = tts ? `${tts.replace(/\s/g, '').length.toLocaleString()}자(공백 빼고)` : '';
   $('#copy-tts').disabled = !tts;
-  fillTc(); $('#tc-go').disabled = !tts;
+  fillTc(p); $('#tc-go').disabled = !tts;
   watchRequest('voice', p.voice_request_id || null);
+  renderVoiceStale();
   const a = p.audio;
   // 올린 음성(타입캐스트로 만든 것 포함) 바로 듣기 — 바뀔 때만 다시 그려 듣는 중에 끊기지 않게
   const play = $('#audio-play'), aid = (a && a.asset_id) || '';
@@ -1335,32 +1339,74 @@ function renderVoice() {
 }
 $('#to-sources').onclick = () => setTab('sources');
 
+/* 음성이 지금 대본을 읽은 것인가: 타입캐스트 음성은 받은 낱말(words)을 이으면 읽은 글이 그대로 나온다 — 띄어쓰기·줄바꿈·챕터 헤더는
+   견주지 않는다(헤더만 넣으면 말은 같다). 직접 올린 음성은 올릴 때 센 글자 수로 견준다 */
+const bare = t => String(t || '').replace(/\s+/g, '');
+function voiceStale(p) {
+  if (!p || !p.audio || !(p.script || '').trim()) return false;
+  const a = p.audio;
+  if (a.source === 'typecast' && Array.isArray(a.words) && a.words.length) return bare(a.words.map(w => w[0]).join('')) !== bare(narrationText(p.script));
+  return !!a.chars && a.chars !== spokenLines(p.script).reduce((n, l) => n + [...l].length, 0);
+}
+function renderVoiceStale() {
+  const p = S.project, stale = voiceStale(p), busy = reqBusy(reqWatch.voice.doc);
+  const msg = !stale ? '' : busy ? `<div class="note info">${spinner('고친 대본으로 음성을 다시 만드는 중… 다 되면 자료를 다시 모아 주세요')}</div>` : `<div class="note warn"><b class="t">대본이 음성을 만든 뒤에 바뀌었습니다</b>지금 음성은 예전 대본을 읽은 것입니다. ${p.audio && p.audio.source === 'typecast' ? '<b>[고친 대본으로 음성 다시 만들기]</b>를 누르면 같은 목소리·속도로 다시 읽습니다.' : '음성을 다시 만들어 올려 주세요.'}</div>`;
+  $('#voice-stale').innerHTML = msg; $('#voice-stale2').innerHTML = msg;
+  $('#sc-revoice').hidden = !stale || busy;
+  $('#tc-go').textContent = p && p.audio ? (stale ? '고친 대본으로 음성 다시 만들기' : '음성 다시 만들기') : '타입캐스트로 음성 만들기';
+  $('#to-script').hidden = !(p && p.audio);
+}
+// 작업자가 맡았거나 맡을 요청(못 보낸 요청은 아직 아무도 안 하므로 빼고)
+const reqBusy = d => !!d && (d.status === 'working' || (d.status === 'queued' && d.sent_to_worker !== false));
 /* 타입캐스트로 음성 만들기: 작업자가 API로 읽어 음성(과 낱말 시각)을 올리고 projects/<ID>.audio에 쓴다 */
 function tcSettings() { const v = ls.get(lsk('tc_voice'), {}); return v && typeof v === 'object' ? v : {}; }
-function fillTc() {
-  const v = tcSettings();
-  if (!$('#tc-voice').value && v.name) $('#tc-voice').value = v.name;
-  if (v.tempo) $('#tc-tempo').value = v.tempo;
-  if (v.remove_silence_ms !== undefined) $('#tc-silence').value = v.remove_silence_ms === null ? '' : String(v.remove_silence_ms);
+// 목소리 칸은 프로젝트를 열 때 한 번 채운다 — 타입캐스트로 만든 음성이 있으면 그 목소리·속도·쉼(다시 만들어도 똑같이 읽게),
+// 없으면 지난번에 쓴 값. 그 뒤 사용자가 고친 값은 그대로 둔다
+function fillTc(p) {
+  const el = $('#tc-voice');
+  if (!p || el.dataset.pid === p.id) return;
+  el.dataset.pid = p.id;
+  const a = p.audio && p.audio.source === 'typecast' ? p.audio : null;
+  const v = a ? { name: a.voice, tempo: a.tempo, remove_silence_ms: a.remove_silence_ms } : tcSettings();
+  el.value = v.name || '';
+  $('#tc-tempo').value = v.tempo || 1;
+  $('#tc-silence').value = v.remove_silence_ms == null ? '' : String(v.remove_silence_ms);
 }
-$('#tc-go').onclick = async () => {
+// btn: 누른 버튼(대본 탭의 [고친 대본으로 음성 다시 만들기]도 같은 요청 — 목소리·속도·쉼은 음성 탭 칸의 값)
+async function requestVoice(btn) {
   const p = S.project;
   if (!p || !narrationText(p.script)) { toast('대본이 아직 없습니다.', true); return; }
   if (!headGuard(p)) return;
+  fillTc(p);
   const tempo = Math.min(2, Math.max(0.5, parseFloat($('#tc-tempo').value) || 1));
   const sil = $('#tc-silence').value;
   const voice = { name: $('#tc-voice').value.trim(), tempo, remove_silence_ms: sil === '' ? null : Number(sil) };
-  if (HEALTH && !voice.name) { toast('목소리 이름을 적어 주세요(타입캐스트 목소리 이름 — 널스윤서는 기본 목소리 없이 직접 고릅니다).', true); $('#tc-voice').focus(); return; }
+  if (HEALTH && !voice.name) { toast('목소리 이름을 적어 주세요(타입캐스트 목소리 이름 — 널스윤서는 기본 목소리 없이 직접 고릅니다).', true); setTab('voice'); $('#tc-voice').focus(); return; }
   ls.set(lsk('tc_voice'), voice);
-  $('#tc-go').disabled = true;
-  const r = await requestWork('voice', $('#tc-go'), { voice });
-  $('#tc-go').disabled = false;
+  // 고친 대본을 먼저 저장 — 작업자는 저장된 대본을 읽는다
+  // 저장이 안 되면 맡기지 않는다(예전 대본을 다시 읽게 된다)
+  if (pendingSave) {
+    clearTimeout(saveTimer);
+    try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); $('#save-state').textContent = '저장됨'; }
+    catch (e) { toast('고친 대본을 저장하지 못했습니다 — 잠시 뒤 다시 눌러 주세요.', true); return; }
+    pendingSave = false;
+  }
+  btn.disabled = true;
+  const r = await requestWork('voice', btn, { voice });
+  btn.disabled = false;
   if (!r) return;
   try { await db.doc(`${COL('projects')}/${p.id}`).update({ voice_request_id: r.rid }); } catch (e) { /* 무시 */ }
   watchRequest('voice', r.rid);
-  if (!r.sent) fallbackBox($('#tc-fallback'), r); else { $('#tc-fallback').hidden = true; toast('작업자에게 음성 만들기를 맡겼습니다'); }
-};
-function renderVoiceReq() { $('#tc-state').innerHTML = reqLabel(reqWatch.voice.doc); }
+  if (S.tab !== 'voice') setTab('voice');  // 진행 상황(과 못 보냈을 때 붙여 넣을 글)은 음성 탭에 뜬다
+  if (!r.sent) fallbackBox($('#tc-fallback'), r); else { $('#tc-fallback').hidden = true; toast('작업자에게 음성 만들기를 맡겼습니다 — 다 되면 자료도 다시 모아 주세요'); }
+}
+$('#tc-go').onclick = () => requestVoice($('#tc-go'));
+$('#sc-revoice').onclick = () => requestVoice($('#sc-revoice'));
+$('#to-script').onclick = () => { setTab('script'); $('#script').focus(); };
+function renderVoiceReq() {
+  $('#tc-state').innerHTML = reqLabel(reqWatch.voice.doc);
+  if (S.project) renderVoiceStale();
+}
 
 /* ---------- 4. 자료·XML(클라우드 작업자) ---------- */
 const reqWatch = { collect: { id: null, un: null, doc: null }, sources: { id: null, un: null, doc: null }, voice: { id: null, un: null, doc: null }, render: { id: null, un: null, doc: null } };
@@ -1502,7 +1548,14 @@ function renderSources() {
   if (!p.script || !spokenLines(p.script).length) ready.push('대본이 아직 없습니다 — 2단계에서 써 주세요');
   const tall = isShorts(p) ? `<div class="note ${(p.thumb || '').trim() ? 'info' : 'warn'}"><b class="t">세로 쇼츠 — timeline.xml을 세로(1080×1920)로 만듭니다</b>
       <span class="small">사진은 가운데 칸에 크게, 바탕은 같은 사진을 흐리게 깔고, 위쪽에 상단 제목(${(p.thumb || '').trim() ? `'${esc(p.thumb.trim())}'` : '<b>비어 있음 — 2단계 대본 칸의 상단 제목을 먼저 채워 주세요</b>'})이 영상 내내 뜹니다. 자막.srt는 한 줄 14자 안팎이고, 프리미어에서 사진 칸 바로 아래(화면 4분의 3 높이)에 두면 쇼츠 버튼에 가리지 않습니다.</span></div>` : '';
-  $('#src-ready').innerHTML = (ready.length ? `<div class="note warn"><ul>${ready.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '') + tall;
+  // 음성을 다시 만들었으면 그 전에 모은 자료·완성 영상은 예전 음성에 맞춘 것
+  const at = x => { const t = Date.parse(x || ''); return Number.isNaN(t) ? 0 : t; };
+  const va = p.audio ? at(p.audio.analyzed_at) : 0;
+  const oldRes = p.result && va && at(p.result.made_at) && at(p.result.made_at) < va;
+  const oldFin = p.render && va && at(p.render.made_at) && at(p.render.made_at) < va;
+  const redo = voiceStale(p) ? '<div class="note warn"><b class="t">대본이 음성을 만든 뒤에 바뀌었습니다</b>3단계에서 음성을 먼저 다시 만들고 자료를 모아 주세요.</div>'
+    : oldRes ? `<div class="note warn"><b class="t">음성을 다시 만들었습니다</b>지금 자료는 예전 음성에 맞춘 것이라 <b>[자료 다시 모으기]</b>를 눌러 주세요${oldFin ? ' — 그다음 완성 영상도 다시 만들어 주세요' : ''}.</div>` : '';
+  $('#src-ready').innerHTML = (ready.length ? `<div class="note warn"><ul>${ready.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '') + redo + tall;
   $('#src-go').disabled = !!ready.length;
   $('#src-go').textContent = p.result ? '자료 다시 모으기' : '자료 모으고 timeline.xml 만들기';
   if (p.request_id) watchRequest('sources', p.request_id); else renderReq();
