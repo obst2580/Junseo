@@ -52,6 +52,14 @@ _PARTICLE_END = re.compile(r"[은는이가을를의에도와과로만,.?!…'\"�
 # 꾸미는 말(뒤 명사와 붙어야 읽힘: '순직한 | 소방관', '가장 예민한 | 시기에')
 _MODIFIER_END = ("한", "할", "된", "될", "던", "운", "른", "린", "인")
 _QUOTE_OPEN = {'"': '"', "'": "'", "“": "”", "‘": "’"}
+# 이 말 앞에서는 줄을 바꾸지 않는다 — 앞말에 매여 쓰는 말('불이 났을 | 때', '국무회의 | 도중', '참석 | 중이던', '사흘 | 전부터')
+_BOUND_NEXT = re.compile(
+    r"^(때|도중|중|동안|무렵|직후|직전|이후|이전|뒤|후|전|만큼|뿐|것|거|걸|건|수|줄|데|채|적|등|탓|덕분|정도|가량)"
+    r"(은|는|이|가|을|를|에|에도|에는|에서|도|만|부터|까지|이다|이고|이던|인|이며|입니다|이었|이라|이란|으로|로"
+    r"|이죠|이지|이에요|이야|이나|이든)?[,.?!…'\"”’]*$"
+)
+# 조사·어미로 끝난 낱말. 이렇게 끝나지 않은 맨 이름씨 뒤는 뒷말과 한 덩어리일 때가 많다('사람 | 목숨이', '강유정 | 청와대')
+_ENDED = re.compile(r"[은는이가을를의에도와과로만고며면서데다요죠네지니나야게라든랑께,.?!…'\"”’)」』]$")
 
 _SENT_END_RE = re.compile(r"[.?!…]['\"”’」』)\]]*$")
 _DUR_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)")
@@ -191,7 +199,11 @@ def subtitle_lines(text: str, limit: int = SUB_LINE) -> list[str]:
         if max(len(ln) for ln in lines) <= limit + 4:
             break
         lines = _split_lines(text, k + more)
-    return lines
+    # 그래도 너무 긴 줄(긴 인용 등)은 그 줄만 다시 나눈다 — 한 줄이 길면 쇼츠 자막 글씨가 통째로 작아진다
+    out: list[str] = []
+    for ln in lines:
+        out += _split_lines(ln, -(-len(ln) // (limit + 2))) if len(ln) > limit + 4 else [ln]
+    return out
 
 
 def _quoted(text: str) -> set[int]:
@@ -210,27 +222,40 @@ def _quoted(text: str) -> set[int]:
 def _break_cost(text: str, i: int, quoted: set[int]) -> float:
     """i(띄어쓰기) 자리에서 줄을 바꿀 때 덧붙는 값: 절·문장이 끝나는 곳은 반기고, 붙어야 읽히는 곳은 피한다."""
     word = text[:i].rsplit(" ", 1)[-1]
-    nxt = text[i + 1 :].split(" ", 1)[0]
+    rest = text[i + 1 :].split(" ", 2)
+    nxt, after = rest[0], (rest[1] if len(rest) > 1 else "")
     cost = 0.0
     if _SENT_END_RE.search(word):
         cost -= 4
     elif word.endswith(_CLAUSE_END):
         cost -= 3
-    if word in _NO_BREAK_AFTER or len(word) == 1:
+    if word in _NO_BREAK_AFTER or (
+        len(word) == 1 and not _BOUND_NEXT.match(word)
+    ):  # '때·중·전' 뒤는 끊어도 된다
         cost += 8
     if i in quoted:  # 인용 한가운데(따옴표 반쪽만 남는다)
         cost += 12
-    if _TITLE_NEXT.match(nxt) and not _PARTICLE_END.search(word):
-        cost += 10
+    if _TITLE_NEXT.match(nxt) and not _PARTICLE_END.search(word):  # 이름과 직함은 꼭 한 줄에
+        cost += 14
     if re.search(r"\d$", word) or (re.search(r"\d", word) and re.match(r"\d", nxt)):
         cost += 8
     if len(word) >= 2 and word.endswith(_MODIFIER_END):
         cost += 5
+    # '전'은 '윤석열 전 대통령'처럼 직함 앞이면 매인 말이 아니다
+    if _BOUND_NEXT.match(nxt) and not (nxt == "전" and _TITLE_NEXT.match(after)):
+        cost += 10
+    elif i in quoted:  # 인용 안은 위의 값으로 충분(더 얹으면 긴 인용을 한 줄로 남긴다)
+        pass
+    elif re.search(r"[가-힣]$", word) and not _ENDED.search(word) and not word.endswith(_MODIFIER_END):
+        cost += 4
+    elif len(word) >= 2 and word.endswith(("와", "과")) and re.match(r"[가-힣]", nxt):  # '대피와 | 구조에'
+        cost += 3
     return cost
 
 
-def _split_lines(text: str, k: int) -> list[str]:
-    """text를 띄어쓰기에서 k줄 안팎으로 고르게 나눈다(subtitle_lines의 한 번 나누기)."""
+def _split_lines(text: str, k: int, edge: int = 3) -> list[str]:
+    """text를 띄어쓰기에서 k줄 안팎으로 고르게 나눈다(subtitle_lines의 한 번 나누기). 맨 앞·뒤 edge자 안에서는
+    자르지 않는다(짧은 자막 두 줄 나누기는 1 — '받은 | 이재명 대통령은'처럼 이름·직함을 지키게)."""
     spaces = [i for i, ch in enumerate(text) if ch == " "]
     quoted = _quoted(text)
     lines, start = [], 0
@@ -238,7 +263,7 @@ def _split_lines(text: str, k: int) -> list[str]:
         target = start + (len(text) - start) / (k - part + 1)
         best, best_cost = None, float("inf")
         for i in spaces:
-            if i <= start + 3 or i >= len(text) - 3:
+            if i <= start + edge or i >= len(text) - edge:
                 continue
             cost = abs(i - target) + _break_cost(text, i, quoted)
             # 6자 이하로 남는 조각('말했는데요,')은 0.5초쯤 스치고 사라진다 — 인용을 나누는 편이 낫다

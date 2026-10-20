@@ -267,6 +267,11 @@ def wrap_hook(text: str, limit: int = 8) -> str:
     return "\n".join(lines)
 
 
+_LONE_PARTICLE = re.compile(
+    r"^(부터|까지|마저|조차|처럼|만큼|보다|에게|한테|께서|에서|으로|로|은|는|이|가|을|를|도|만|의|와|과|에)$"
+)
+
+
 def hook_chunks(text: str, limit: int = HOOK_CHUNK) -> list[str]:
     """훅 자막 한 줄 → 짧은 조각들(낱말을 이어 붙이되 공백 빼고 limit자 안쪽). 긴 낱말은 혼자 한 조각."""
     out: list[str] = []
@@ -280,7 +285,21 @@ def hook_chunks(text: str, limit: int = HOOK_CHUNK) -> list[str]:
             cur = cand
     if cur:
         out.append(cur)
-    return out
+
+    # 조사만 남은 조각('부터', '까지')이나 한 글자 조각은 혼자 뜨면 뜻이 없다 — 다음 조각(마지막이면 앞 조각)에 붙인다
+    def lone(piece: str) -> bool:
+        core = re.sub(r"[\s\"'“”‘’.,!?…]", "", piece)
+        return len(core) <= 1 or bool(_LONE_PARTICLE.match(core))
+
+    merged: list[str] = []
+    for piece in out:
+        if merged and lone(merged[-1]) and not _SENT_END.search(merged[-1]):
+            merged[-1] = f"{merged[-1]} {piece}"
+        else:
+            merged.append(piece)
+    if len(merged) > 1 and lone(merged[-1]):
+        merged[-2:] = [f"{merged[-2]} {merged[-1]}"]
+    return merged
 
 
 _SENT_END = re.compile(r"[.!?…][\"'”’」』)]*$")

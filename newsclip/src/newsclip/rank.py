@@ -62,6 +62,37 @@ def route_for(scene: Scene, google: bool | None = None) -> list[str]:
     return routes["broll"]
 
 
+# 미리보기에 워터마크를 박는 유료 사진·그림 사이트(받으면 '크라우드픽' 같은 글자가 화면에 그대로 뜬다) — 채널 설정과 별개로 늘 뺀다
+WATERMARK_DOMAINS = [
+    "crowdpic.net",
+    "gettyimages.com",
+    "gettyimages.co.kr",
+    "gettyimagesbank.com",
+    "gettyimageskorea.com",
+    "shutterstock.com",
+    "istockphoto.com",
+    "123rf.com",
+    "dreamstime.com",
+    "alamy.com",
+    "depositphotos.com",
+    "ftcdn.net",
+    "stock.adobe.com",
+    "imagetoday.co.kr",
+    "utoimage.com",
+    "clipartkorea.co.kr",
+    "pixta.jp",
+    "pngtree.com",
+    "vectorstock.com",
+    "freepik.com",
+]
+
+
+def _host(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return (urlparse(url or "").hostname or "").lower()
+
+
 def domain_match(domain: str, patterns: list[str]) -> bool:
     """도메인 접미사 일치(go.kr ⊃ moef.go.kr). 도메인 형식이 아닌 항목은 무시."""
     d = domain.lower()
@@ -85,7 +116,9 @@ def score_asset(
     if a.media == "video":
         if is_blocked(a.author_or_channel, cfg.videos.blocked_channels):
             return None
-    elif domain_match(a.source_domain, cfg.images.blocked_domains):
+    elif domain_match(a.source_domain, [*cfg.images.blocked_domains, *WATERMARK_DOMAINS]) or domain_match(
+        _host(a.download_url or a.url), WATERMARK_DOMAINS
+    ):
         return None
     s = 0.0
     if a.source in route:

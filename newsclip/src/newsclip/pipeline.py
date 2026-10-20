@@ -12,7 +12,14 @@ from pathlib import Path
 
 import httpx
 
-from newsclip.download import DedupeRegistry, download_image, download_stock_video, download_video, text_heavy
+from newsclip.download import (
+    DedupeRegistry,
+    doc_like,
+    download_image,
+    download_stock_video,
+    download_video,
+    text_heavy,
+)
 from newsclip.fcpxml import build_xmeml, validate_xmeml
 from newsclip.license_log import STOCK_SOURCES, attribution_text, write_assets_json, write_credits
 from newsclip.models import Asset, Scene, SceneSet, asset_id
@@ -49,6 +56,7 @@ class RunReport:
     by_source: dict[str, int] = field(default_factory=dict)
     borrowed: int = 0  # 사진을 못 받아 앞뒤 장면 사진을 이어 쓴 장면 수
     dropped_thumbs: int = 0  # 뺀 유튜브 썸네일 + 받고 보니 영상 썸네일(큰 제목 글씨)이라 뺀 사진 수
+    dropped_docs: int = 0  # 세로 쇼츠에서 받고 보니 문서·표·화면 캡처(흰 바탕 잔글씨)라 뺀 사진 수
 
 
 def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClient) -> dict[str, Source]:
@@ -467,6 +475,9 @@ async def run_project(
                         continue
                     if news and text_heavy(a):  # 큰 제목 글씨를 박은 영상 썸네일은 쓰지 않고 다음 후보로
                         report.dropped_thumbs += 1
+                        continue
+                    if size[1] > size[0] and doc_like(a):  # 세로 쇼츠: 문서·표·화면 캡처는 글씨가 안 읽힌다
+                        report.dropped_docs += 1
                         continue
                     got[a.id] = a
                     ok += 1

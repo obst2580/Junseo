@@ -287,3 +287,19 @@ def test_align_with_words_survives_all_silent_audio():
     words = [(t, i * 32.5 / len(toks), (i + 1) * 32.5 / len(toks) - 0.02) for i, t in enumerate(toks)]
     cues, _ = align(script_phrases(script), AudioInfo(33.0, [(0.0, 33.0)]), words=words)
     assert cues and cues[-1].end <= 33.0 + 1e-6
+
+
+def test_breaks_keep_bound_nouns_names_and_long_quotes():
+    """'불이 났을 | 때'·'국무회의 | 도중'·'받은 이재명 | 대통령은'처럼 끊지 않고, 긴 인용도 한 줄로 남기지 않는다(쇼츠 두 줄도 같은 기준)."""
+    from newsclip.autosub import subtitle_lines
+    from newsclip.render import sub_lines
+
+    assert sub_lines("불이 났을 때 대피와 구조에") == ["불이 났을 때", "대피와 구조에"]
+    assert sub_lines("보고를 받은 이재명 대통령은,") == ["보고를 받은", "이재명 대통령은,"]
+    assert sub_lines("사흘 전부터 준비했다는") == ["사흘 전부터", "준비했다는"]
+    assert sub_lines("사람 목숨이 먼저입니다.") == ["사람 목숨이", "먼저입니다."]
+    lines = subtitle_lines("10월 20일 화요일 국무회의 도중 역삼동 화재 보고를 받은 이재명 대통령은,", 14)
+    assert not any(ln.endswith("국무회의") for ln in lines) and not any(ln.endswith("이재명") for ln in lines)
+    quote = subtitle_lines('"인명 구조·소방대원 안전 확보에 만전 기해 달라"고 주문했는데요,', 14)
+    assert max(len(ln) for ln in quote) <= 18
+    assert subtitle_lines("윤석열 전 대통령이 말했습니다.", 14)[0].startswith("윤석열 전 대통령")

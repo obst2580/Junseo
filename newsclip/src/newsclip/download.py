@@ -133,6 +133,46 @@ def text_heavy(a: Asset) -> bool:
     return abs(ratio - 16 / 9) < 0.03 and rows >= TEXT_HEAVY
 
 
+# 흰 바탕에 검은 잔글씨가 빼곡한 그림(문서·표·홈페이지·SNS 캡처) — 세로 쇼츠에서는 글씨가 읽히지 않는다.
+# 2026-10 확인: 표·문서·영장·인사말 캡처는 (0.09, 0.6) 또는 (0.06, 0.75)를 넘고, 현수막·간판 있는 행사 사진은 흰 비율이 0.55 아래
+DOC_ROWS = ((0.09, 0.6), (0.06, 0.75))
+
+
+def doc_text_rows(path: Path) -> tuple[float, float]:
+    """(흰 줄 가운데 검은 잔글씨 조각이 10곳 넘는 줄의 비율, 흰 바탕 비율). 흰 줄 = 흰(밝고 채도 낮은) 화소가 55% 넘는 줄."""
+    import numpy as np
+
+    with Image.open(path) as im:
+        rgb = im.convert("RGB")
+    rgb = rgb.resize((640, max(1, round(640 * rgb.height / rgb.width))))
+    g = np.asarray(rgb.convert("L")).astype(int)
+    sat = np.asarray(rgb.convert("HSV")).astype(int)[..., 1]
+    white = (g > 215) & (sat < 40)
+    dark = g < 110
+    rows = 0
+    for y in range(g.shape[0]):
+        if white[y].mean() < 0.55:
+            continue
+        d = dark[y].astype(np.int8)
+        st = np.flatnonzero(np.diff(np.r_[0, d]) == 1)
+        en = np.flatnonzero(np.diff(np.r_[d, 0]) == -1)
+        rows += int(((en - st + 1) <= 6).sum()) >= 10
+    return rows / g.shape[0], float(white.mean())
+
+
+def doc_like(a: Asset) -> bool:
+    """받은 사진이 문서·표·화면 캡처인가 — 받은 원본으로 잰다(못 재면 사진으로 본다)."""
+    if not a.local_path:
+        return False
+    local = Path(a.local_path)
+    orig = local.parent / "original" / f"{local.stem}.bin"
+    try:
+        rows, white = doc_text_rows(orig if orig.exists() else local)
+    except Exception:  # noqa: BLE001
+        return False
+    return any(rows >= r and white >= w for r, w in DOC_ROWS)
+
+
 async def download_image(
     client: httpx.AsyncClient,
     a: Asset,

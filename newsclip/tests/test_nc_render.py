@@ -224,6 +224,7 @@ def test_subtitles_follow_given_srt(tmp_path):
     from newsclip.shorts_render import HOOK_CENTER_Y, hook_chunks, subtitles_for
 
     assert hook_chunks("홍준표 전 대구시장이 방송") == ["홍준표 전", "대구시장이", "방송"]
+    assert hook_chunks("부터 챙겼습니다!") == ["부터 챙겼습니다!"]  # 따옴표 뒤 조사가 혼자 뜨지 않게
     audio = tmp_path / "n.wav"
     _wav(audio, 3)
     srt = tmp_path / "s.srt"

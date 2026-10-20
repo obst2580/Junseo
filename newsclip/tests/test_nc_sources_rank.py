@@ -311,3 +311,39 @@ def test_rank_skips_photos_of_other_people_abroad_and_sns_events():
     a = asset("naver_image", "https://i/lee.jpg", width=1600, height=1200, title=lee)
     notes = rank(quote, [a], stock)[0].score_notes
     assert not any("장면에 없음" in n or "외국" in n for n in notes)
+
+
+def test_watermark_stock_sites_are_never_used():
+    """'크라우드픽'처럼 미리보기에 워터마크를 박는 유료 사진 사이트는 채널 설정과 상관없이 뺀다."""
+    from newsclip.rank import score_asset
+
+    sc = scene("s001", 0, 3)
+    cfg = ChannelConfig()
+    bad = asset(url="https://cdn.crowdpic.net/detail-thumb/x.jpg", source_domain="cdn.crowdpic.net")
+    getty = asset(url="https://media.gettyimages.com/id/1.jpg", source_domain="news.example.com")
+    ok = asset(url="https://imgnews.pstatic.net/a.jpg", source_domain="imgnews.naver.net")
+    assert score_asset(bad, sc, ["naver_image"], cfg) is None
+    assert score_asset(getty, sc, ["naver_image"], cfg) is None  # 주소가 워터마크 사이트여도
+    assert score_asset(ok, sc, ["naver_image"], cfg) is not None
+
+
+def test_document_captures_are_detected(tmp_path):
+    """흰 바탕 잔글씨(문서·표·화면 캡처)는 걸리고, 현수막이 있는 행사 사진 같은 보통 사진은 안 걸린다."""
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    from newsclip.download import DOC_ROWS, doc_text_rows
+
+    doc = Image.new("RGB", (800, 1000), "white")
+    d = ImageDraw.Draw(doc)
+    for y in range(40, 960, 22):  # 줄마다 잔글씨처럼 짧은 검은 조각
+        for x in range(30, 760, 16):
+            d.rectangle((x, y, x + 4, y + 10), fill="black")
+    doc.save(tmp_path / "doc.png")
+    rng = np.random.default_rng(0)
+    photo = Image.fromarray(rng.integers(0, 200, (600, 900, 3), dtype=np.uint8))
+    ImageDraw.Draw(photo).rectangle((100, 50, 800, 150), fill="white")  # 현수막
+    photo.save(tmp_path / "photo.png")
+    hit = lambda r, w: any(r >= a and w >= b for a, b in DOC_ROWS)  # noqa: E731
+    assert hit(*doc_text_rows(tmp_path / "doc.png"))
+    assert not hit(*doc_text_rows(tmp_path / "photo.png"))

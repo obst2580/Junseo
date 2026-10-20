@@ -135,9 +135,12 @@ def sub_lines(text: str, limit: int = SUB_WRAP) -> list[str]:
     text = text.strip()
     if len(text.replace(" ", "")) <= limit:
         return [text] if text else []
+    # 자막 줄 나누기와 같은 기준(끊으면 안 되는 자리 피하기 — '불이 났을 | 때' 같은 끊김 없이)으로 두 줄
+    from newsclip.autosub import _split_lines
     from newsclip.vertical import split_head
 
-    return split_head(text)
+    rows = _split_lines(text, 2, edge=1)
+    return rows if len(rows) == 2 else split_head(text)
 
 
 def fit_sub_px(texts: list[str], size: tuple[int, int], px: int = SUB_PX) -> int:
