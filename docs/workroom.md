@@ -38,6 +38,10 @@ unset STUDIO_FIXTURES
 
 제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`, `"right"`, `"health"`) 그 채널입니다.
 널스윤서(건강)는 채널을 고정한 **따로 만든 제작실**(`uv run python daebonsil/build.py --channel=health`, 작업자는 `daebonsil/worker.health.json`)에서도 씁니다.
+하루집사(반려동물, `channel: "pet"`)는 널스윤서와 같은 틀(기사로 주제, 30초 세로 쇼츠만, 첫 문장 차트판 손글씨)이고, 따로 만든 제작실
+(`uv run python daebonsil/build.py --channel=pet`, 작업자는 `daebonsil/worker.pet.json`)에서 씁니다. 설정 `channel.pet.yaml`, 아티팩트 데이터
+`pet_raw/…`·`pet_topics/current`·`pet_projects/<ID>`, 로컬 폴더 `data-pet/`·`projects-pet/`, 작업자 명령 `… workroom --channel pet …`.
+아래 널스윤서 절차가 그대로 적용됩니다(대본 규칙은 `topicradar/prompts.py` `PET_*`).
 
 | | 정치는푸르다(기본, `channel: "politics"` 또는 없음) | 자유뉴스365(`channel: "right"`) | 오늘증시 김시연(`channel: "stock"`) | 널스윤서(`channel: "health"`) |
 |---|---|---|---|---|

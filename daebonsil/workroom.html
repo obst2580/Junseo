@@ -192,7 +192,7 @@ footer { font-size: 13px; color: var(--muted); }
 
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="right">자유뉴스365</option><option value="stock">오늘증시 김시연</option><option value="health">널스윤서</option></select></label><span class="by" id="by"></span></div>
+    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="right">자유뉴스365</option><option value="stock">오늘증시 김시연</option><option value="health">널스윤서</option><option value="pet">하루집사</option></select></label><span class="by" id="by"></span></div>
     <p class="lede" id="lede"></p>
     <div class="row" id="status"></div>
   </header>
@@ -351,7 +351,13 @@ const CHANNELS = {
   stock: { name: '오늘증시 김시연', prefix: 'stock_', tags: ['주식', '증시뉴스'], by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
     lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
   health: { name: '널스윤서', prefix: 'health_', tags: ['건강', '건강정보'], by: 'studio · 보도자료·건강 기사로 고르고, 친구처럼 쉽게, 쇼츠까지',
-    lede: '40~50대를 위한 건강 정보 <b>세로 쇼츠</b>를 만듭니다. 진행자는 전직 간호사 윤서 — 또래 친구처럼 쉽게 풀어 줍니다. 주제·사실은 <b>공공기관 보도자료·의학 전문지·건강 기사</b>와 이달의 계절 주제로만 정하고(커뮤니티는 쓰지 않음), 근거의 무게(공공기관·진료지침·연구 종류)를 밝힙니다. 진단·처방, 약을 바꾸라는 말, 제품·건강기능식품 효능 광고는 하지 않습니다. 화면은 <b>Pexels·Pixabay 영상·사진을 자동으로</b> 모으고, 숫자는 표·차트 컷으로 지나갑니다.' },
+    lede: '40~50대를 위한 건강 정보 <b>세로 쇼츠</b>를 만듭니다. 진행자는 전직 간호사 윤서 — 또래 친구처럼 쉽게 풀어 줍니다. 주제·사실은 <b>공공기관 보도자료·의학 전문지·건강 기사</b>와 이달의 계절 주제로만 정하고(커뮤니티는 쓰지 않음), 근거의 무게(공공기관·진료지침·연구 종류)를 밝힙니다. 진단·처방, 약을 바꾸라는 말, 제품·건강기능식품 효능 광고는 하지 않습니다. 화면은 <b>Pexels·Pixabay 영상·사진을 자동으로</b> 모으고, 숫자는 표·차트 컷으로 지나갑니다.',
+    sh: { kind: '건강 기사·보도자료', order: '40~50대에게 가깝고 근거 탄탄한 순', basis: '근거 수준(공공기관·진료지침·연구 종류)',
+      hook: "'가을 아침, 잘못하면 혈압 올라요!'", hint: '근거(공공기관·진료지침)' } },
+  pet: { name: '하루집사', prefix: 'pet_', tags: ['반려동물', '강아지', '고양이'], by: 'studio · 반려동물 기사로 고르고, 이웃 집사처럼 쉽게, 쇼츠까지',
+    lede: '강아지·고양이 보호자를 위한 반려동물 정보 <b>세로 쇼츠</b>를 만듭니다. 진행자는 10년 넘게 강아지·고양이를 키운 집사 하루 — 이웃 보호자처럼 쉽게 풀어 줍니다(수의사가 아님). 주제·사실은 <b>공공기관 발표(농식품부·검역본부)·수의 전문지·반려동물 기사</b>와 이달의 계절 주제로만 정하고(커뮤니티는 쓰지 않음), 연구 종류와 개·고양이 구분을 밝힙니다. 진단·처방, 사람 약을 먹이라는 말, 사료·영양제·용품 효능 광고는 하지 않고 약·치료는 동물병원·수의사와 상의로 맺습니다. 화면은 <b>Pexels·Pixabay 영상·사진을 자동으로</b> 모으고, 숫자는 표·차트 컷으로 지나갑니다.',
+    sh: { kind: '반려동물 기사·보도자료', order: '보호자에게 가깝고 근거 탄탄한 순', basis: '근거 수준(공공기관 발표·연구 종류·개/고양이)',
+      hook: "'이 간식, 강아지한텐 독이에요!'", hint: '근거(공공기관 발표·연구)' } },
 };
 const LOCKED = /*__CHANNEL__*/null;  // 채널 하나만 쓰는 제작실(build.py --channel)이면 그 채널로 고정
 const CH = LOCKED && CHANNELS[LOCKED] ? LOCKED : CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
@@ -360,7 +366,10 @@ const CH = LOCKED && CHANNELS[LOCKED] ? LOCKED : CHANNELS[ls.get('channel', 'pol
 const BGM_DOC = LOCKED || CH === 'politics' ? 'config/bgm' : `config/bgm_${CH}`;
 const STOCK = CH === 'stock';
 const HEALTH = CH === 'health';  // 건강 채널: 증시처럼 기사로만 주제를 정하고(커뮤니티 없음), 세로 쇼츠만
-const NEWS = STOCK || HEALTH;  // 기사로만 주제를 정하는 채널
+const PET = CH === 'pet';  // 반려동물 채널: 건강 채널과 같은 틀(기사로 주제, 30초 세로 쇼츠만)
+const SHORT = HEALTH || PET;  // 30초 세로 쇼츠만 만드는 기사 채널(널스윤서·하루집사)
+const SH = CHANNELS[CH].sh || {};  // 그 채널 화면 문구
+const NEWS = STOCK || SHORT;  // 기사로만 주제를 정하는 채널
 const RIGHT = CH === 'right';  // 보수 채널: 게시판 글 자리에 사설·칼럼이 함께 들어온다
 const COL = n => CHANNELS[CH].prefix + n;  // raw → stock_raw, topics → stock_topics, projects → stock_projects
 const lsk = k => (CH === 'politics' ? k : `${k}:${CH}`);  // 채널마다 따로 기억할 것(열어 둔 프로젝트 등)
@@ -508,7 +517,7 @@ function groupPrompt(angle = '', exclude = []) {
     body: (p.body || '').slice(0, p.kind === 'opinion' ? 300 : 150),  // 사설·칼럼은 주장이 본문에 있어 조금 길게
     top_comments: (p.top_comments || []).slice(0, 3).map(c => ({ text: c.text.slice(0, 100), votes: c.votes })) }; });
   // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만). 마감 시황 기사를 앞에, 같은 제목 되풀이는 하나만
-  const A = (STOCK ? stockPick(S.articles, 260) : HEALTH ? healthPick(S.articles, 220) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
+  const A = (STOCK ? stockPick(S.articles, 260) : SHORT ? healthPick(S.articles, 220) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
     return NEWS ? { id, source: a.source, ...(a.kind ? { kind: a.kind } : {}), title: a.title, summary: (a.summary || '').slice(0, 120) } : { id, title: a.title }; });
   const focus = angle ? ['', `이번 작업은 angle이 "${angle}"인 주제만 고른다(다른 angle에 더 맞는 주제는 뺀다 — 다른 각도는 따로 묶는다). `
     + `topics는 이 angle에서 반응이 큰 순으로 많아야 ${PER_ANGLE}개다(앞의 '많아야 15개'보다 이 줄이 우선). 글이 하나뿐이어도 댓글·공감이 있으면 주제로 남긴다.`
@@ -518,7 +527,7 @@ function groupPrompt(angle = '', exclude = []) {
   const text = [m.rules.identity, m.rules.group_task, ...focus,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
     `{"topics":[{"id":"t1","name":"…","category":"…","angle":"${angles()[0]}","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}`,
-    ...(HEALTH && m.rules.season && m.rules.season.length ? ['', 'season(이달의 계절 주제): ' + JSON.stringify(m.rules.season)] : []),
+    ...(SHORT && m.rules.season && m.rules.season.length ? ['', 'season(이달의 계절 주제): ' + JSON.stringify(m.rules.season)] : []),
     ...(NEWS ? [] : ['', 'posts:', JSON.stringify(P)]), '', 'articles:', JSON.stringify(A)].join('\n');
   return { text, pmap, amap };
 }
@@ -678,9 +687,9 @@ function renderTopics() {
   const m = S.meta;
   $('#raw-meta').innerHTML = m
     ? (STOCK ? `최근 24시간 증시 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
-      : HEALTH ? `건강 기사·보도자료 <b>${m.articles}</b>건(보도자료 ${S.articles.filter(a => a.kind === 'press').length}건 · 본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}${m.rules && m.rules.season && m.rules.season.length ? ` · 이달의 계절 주제: ${esc(m.rules.season.join(', '))}` : ''}`
+      : SHORT ? `${SH.kind} <b>${m.articles}</b>건(보도자료 ${S.articles.filter(a => a.kind === 'press').length}건 · 본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}${m.rules && m.rules.season && m.rules.season.length ? ` · 이달의 계절 주제: ${esc(m.rules.season.join(', '))}` : ''}`
       : `최근 24시간 커뮤니티 글 <b>${activePosts().length}</b>개 · 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`)
-    : `아직 모은 ${NEWS ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스' : HEALTH ? '보도자료·건강 기사' : '커뮤니티·뉴스'}를 모읍니다.`;
+    : `아직 모은 ${NEWS ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스' : SHORT ? SH.kind : '커뮤니티·뉴스'}를 모읍니다.`;
   const T = S.topics;
   const fresh = T && m && T.raw_at === m.collected_at;
   $('#group').textContent = T ? (fresh ? 'Claude로 다시 묶기' : '새 글로 다시 묶기') : 'Claude로 주제 묶기·의견 정리';
@@ -688,7 +697,7 @@ function renderTopics() {
   if (!T || !T.topics.length) {
     $('#topics-wrap').hidden = true; $('#bundles-wrap').hidden = true; $('#pickbar').hidden = true;
     const top = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 8);
-    if (NEWS) { const ar = HEALTH ? healthPick(S.articles, 8) : S.articles.slice(0, 8); $('#topics-empty').innerHTML = ar.length ? `<div class="note info"><b class="t">${HEALTH ? '최근 건강 기사·보도자료' : '최근 증시 기사'}</b>${HEALTH ? 'Claude가 기사를 주제로 묶고, 주제마다 핵심과 근거 수준(공공기관·진료지침·연구 종류)을 정리합니다.' : 'Claude가 기사를 이슈로 묶고, 이슈마다 핵심 숫자와 원인을 정리합니다.'}</div>
+    if (NEWS) { const ar = SHORT ? healthPick(S.articles, 8) : S.articles.slice(0, 8); $('#topics-empty').innerHTML = ar.length ? `<div class="note info"><b class="t">${SHORT ? '최근 ' + SH.kind : '최근 증시 기사'}</b>${SHORT ? `Claude가 기사를 주제로 묶고, 주제마다 핵심과 ${SH.basis}을 정리합니다.` : 'Claude가 기사를 이슈로 묶고, 이슈마다 핵심 숫자와 원인을 정리합니다.'}</div>
       <ul class="postlist" style="margin-top:8px">${ar.map(a => `<li><span class="num">${esc(when(a.time).split(' ').pop())}</span><span>${esc(a.title)} <span class="small muted">${esc(a.source)}</span></span></li>`).join('')}</ul>` : ''; return; }
     $('#topics-empty').innerHTML = top.length ? `<div class="note info"><b class="t">반응 큰 글</b>Claude가 이 글들을 주제로 묶고 커뮤니티 의견을 정리합니다.</div>
       <ul class="postlist" style="margin-top:8px">${top.map(p => `<li><span class="num">댓글 ${p.comments}${p.votes ? `<br>공감 ${p.votes}` : ''}</span><span>${esc(p.title)} <span class="small muted">${esc(p.site)}</span></span></li>`).join('')}</ul>` : '';
@@ -706,7 +715,7 @@ function renderTopics() {
   const postsById = Object.fromEntries(S.posts.map(p => [p.id, p]));
   const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
   $('#topics-wrap').hidden = false;
-  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : HEALTH ? '40~50대에게 가깝고 근거 탄탄한 순' : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
+  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : SHORT ? SH.order : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
   // 각도 탭(정치는푸르다): 전체 · 대통령 방어 · 상대 비판 · 당내 비판 · 정책 해설 · 사건사고·이슈
   const tab = ANGLE_TABS && (S.atab === '' || TAB_ORDER.includes(S.atab)) ? S.atab : '';
   $('#angle-tabs').hidden = !ANGLE_TABS;
@@ -727,11 +736,11 @@ function renderTopics() {
     const sites = [...new Set(posts.map(p => p.site))].join('·');
     return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
       <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
-      ${NEWS ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건${HEALTH && arts.some(a => a.kind === 'press') ? ' · <b>보도자료</b>' : ''} · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
+      ${NEWS ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건${SHORT && arts.some(a => a.kind === 'press') ? ' · <b>보도자료</b>' : ''} · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
       ${NEWS ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''}${sites ? ` · ${esc(sites)}` : ''} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
       <div class="stance"><span class="tag">${NEWS ? '핵심' : RIGHT ? '채널 시선' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
-      ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : HEALTH ? '한계·주의' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
+      ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : SHORT ? '한계·주의' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
       ${t.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(t.questions.join(' / '))}</div>` : ''}
       <details class="ev"><summary>근거 보기 · ${NEWS ? '' : `글 ${posts.length} · `}기사 ${arts.length}</summary>
         <ul>${posts.map(p => `<li>[${esc(p.site)} · 댓글 ${p.comments}${p.votes ? ` · 공감 ${p.votes}` : ''}] ${esc(p.title)}${(p.top_comments || []).slice(0, 2).map(c => `<br><span class="muted">└ [공감 ${c.votes}] ${esc(c.text)}</span>`).join('')}</li>`).join('')}</ul>
@@ -745,7 +754,7 @@ function renderTopics() {
   });
   const n = S.picked.length;
   $('#pickbar').hidden = !n;
-  $('#pick-sum').innerHTML = HEALTH ? `고른 주제 <b>${n}</b>개${n > 1 ? ' · <span style="color:var(--bad)">쇼츠는 주제 하나</span>' : ''}` : `고른 주제 <b>${n}</b>개${n > 3 ? ' · <span style="color:var(--bad)">10분 묶음은 3개까지</span>' : n === 1 ? ' · 하나 더 고르면 10분 묶음' : ''}`;
+  $('#pick-sum').innerHTML = SHORT ? `고른 주제 <b>${n}</b>개${n > 1 ? ' · <span style="color:var(--bad)">쇼츠는 주제 하나</span>' : ''}` : `고른 주제 <b>${n}</b>개${n > 3 ? ' · <span style="color:var(--bad)">10분 묶음은 3개까지</span>' : n === 1 ? ' · 하나 더 고르면 10분 묶음' : ''}`;
   $('#go-short').disabled = n !== 1; $('#go-long').disabled = n < 2 || n > 3;
   $('#go-short').hidden = !hasFormat('short'); $('#go-long').hidden = !hasFormat('long');  // 건강 채널은 쇼츠만
   $('#go-shorts').hidden = !hasFormat('shorts'); $('#go-shorts').disabled = n !== 1;
@@ -986,16 +995,16 @@ function checkScript() {
     const head = spoken.slice(0, 3).join(' '), first = firstSentence(spoken[0]);
     if (/^(안녕|여러분[, ]*안녕|오늘은|이번 영상|이번 시간|지금부터)/.test(spoken[0] || '') || /알아보겠습니다|살펴보겠습니다|준비했습니다/.test(head))
       out.push({ bad: true, text: '쇼츠 첫 10초가 인사·예고로 시작합니다 — 가장 센 발언·숫자·장면으로 바로 열기' });
-    if (HEALTH && /\?\s*$/.test(first))
-      out.push({ bad: true, text: "첫 문장이 질문입니다 — 후킹 멘트로 단정해 경고하기(예: '가을 아침, 잘못하면 혈압 올라요!')" });
+    if (SHORT && /\?\s*$/.test(first))
+      out.push({ bad: true, text: `첫 문장이 질문입니다 — 후킹 멘트로 단정해 경고하기(예: ${SH.hook})` });
     if ([...first].length > SHORTS_HOOK_MAX)
       out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 가장 강력한 소식 하나를 25자 안쪽으로` });
-    if (!HEALTH && !endQuestion(p))  // 널스윤서 30초 쇼츠는 끝 질문 없이(댓글 질문은 고정 댓글로)
+    if (!SHORT && !endQuestion(p))  // 널스윤서·하루집사 30초 쇼츠는 끝 질문 없이(댓글 질문은 고정 댓글로)
       out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
-    if (!HEALTH && aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
+    if (!SHORT && aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
       out.push({ bad: true, text: "이재명 대통령 사안인데 첫 마디가 '이재명'이 아닙니다 — 첫 문장을 '이재명 대통령이 …'으로" });
   }
-  if (HEALTH) {  // 건강: 단정·효능 광고·약 바꾸라는 말(식품표시광고법·의료법, 유튜브 의료 잘못된 정보 정책)
+  if (SHORT) {  // 건강·반려동물: 단정·효능 광고·약 바꾸라는 말(식품표시광고법·의료법, 유튜브 의료 잘못된 정보 정책)
     const risky = ((r.risk && r.risk.legal_words) || []).filter(w => spoken.some(l => l.includes(w)));
     if (risky.length) out.push({ bad: true, text: `조심할 말: ${risky.join(', ')} — ${(r.risk && r.risk.legal_note) || '단정·효능 광고 빼기'}` });
   }
@@ -1023,7 +1032,7 @@ function renderScript(fromSnap) {
   const spec = S.meta.formats[p.format];
   $('#fmt-chip').textContent = `${spec.name} · ${spec.target_chars[0].toLocaleString()}~${spec.target_chars[1].toLocaleString()}자${spec.vertical ? ' · 세로 1080×1920' : ''}`;
   $('#thumb-label').textContent = isShorts(p) ? '상단 제목' : '썸네일';
-  $('#thumb').title = isShorts(p) ? `세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(${RIGHT ? '남색·빨강 띠 두 줄' : HEALTH ? '흰 바탕 두 줄, 첫 줄 검정·둘째 줄 하늘색 강조' : '두 줄, 둘째 줄 노랑'})` : '';
+  $('#thumb').title = isShorts(p) ? `세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(${RIGHT ? '남색·빨강 띠 두 줄' : SHORT ? '흰 바탕 두 줄, 첫 줄 검정·둘째 줄 하늘색 강조' : '두 줄, 둘째 줄 노랑'})` : '';
   $('#plan').innerHTML = planItems().map(({ t, order, sec }) => `<div class="item"><span class="rank">${order}</span><b>## ${esc(t.heading)}</b><span class="sec">${sec}초</span><span class="small muted">주장: ${esc(t.stance)}</span>${t.articles.length ? `<span class="badge">기사 ${t.articles.length}</span>` : '<span class="badge warn">기사 없음</span>'}</div>`).join('');
   $('#link-field').hidden = p.format !== 'long';
   const ae = document.activeElement;
@@ -1384,7 +1393,7 @@ async function requestVoice(btn) {
   const tempo = Math.min(2, Math.max(0.5, parseFloat($('#tc-tempo').value) || 1));
   const sil = $('#tc-silence').value;
   const voice = { name: $('#tc-voice').value.trim(), tempo, remove_silence_ms: sil === '' ? null : Number(sil) };
-  if (HEALTH && !voice.name) { toast('목소리 이름을 적어 주세요(타입캐스트 목소리 이름 — 널스윤서는 기본 목소리 없이 직접 고릅니다).', true); setTab('voice'); $('#tc-voice').focus(); return; }
+  if (SHORT && !voice.name) { toast(`목소리 이름을 적어 주세요(타입캐스트 목소리 이름 — ${CHANNELS[CH].name}는 기본 목소리 없이 직접 고릅니다).`, true); setTab('voice'); $('#tc-voice').focus(); return; }
   ls.set(lsk('tc_voice'), voice);
   // 고친 대본을 먼저 저장 — 작업자는 저장된 대본을 읽는다
   // 저장이 안 되면 맡기지 않는다(예전 대본을 다시 읽게 된다)
@@ -1746,7 +1755,7 @@ function renderProjects() {
 /* ---------- 시작 ---------- */
 renderStatus(); renderTopics(); renderTabs();
 if (RIGHT) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>이나 <b>세로 쇼츠</b>(1분), 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 여러 매체가 함께 다룬 순이고, 국민의힘 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.';
-if (HEALTH) $('#pickhint').innerHTML = '주제 하나를 고르면 <b>세로 쇼츠</b>(30초)를 만듭니다. <b>보도자료</b> 표시가 있거나 근거(공공기관·진료지침)가 탄탄한 주제가 좋습니다.';
+if (SHORT) $('#pickhint').innerHTML = `주제 하나를 고르면 <b>세로 쇼츠</b>(30초)를 만듭니다. <b>보도자료</b> 표시가 있거나 ${SH.hint}가 탄탄한 주제가 좋습니다.`;
 if (STOCK) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>, 2~3개를 고르면 <b>10분 시황 브리핑</b>입니다. 고른 순서가 영상 순서입니다. 10분은 <b>시황</b> 이슈를 먼저 고르면 브리핑 흐름이 자연스럽습니다.';
 if (LOCKED) $('.chsel').hidden = true;  // 채널 하나만 쓰는 제작실
 $('#channel').value = CH; $('#by').textContent = CHANNELS[CH].by; $('#lede').innerHTML = CHANNELS[CH].lede;

@@ -109,7 +109,7 @@ class ChannelSection(BaseModel):
 
     youtube_channel_id: str = ""
     name: str = ""  # 채널 이름(화면 표시용)
-    profile: str = "politics"  # 대본·주제 규칙 묶음: politics(진보 정치) | stock(증시 뉴스) | conservative | health(건강 정보)
+    profile: str = "politics"  # 대본·주제 규칙 묶음: politics(진보 정치) | stock(증시 뉴스) | conservative | health(건강 정보) | pet(반려동물 정보)
     stance: str = ""
     categories: list[str] = Field(
         default_factory=lambda: ["국회", "정부", "사법", "선거", "외교안보", "국제", "경제", "노동", "복지"]

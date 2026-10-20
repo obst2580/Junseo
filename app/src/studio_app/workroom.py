@@ -221,7 +221,7 @@ async def collect(out: Path, hours: int | None = None) -> dict:
     # 커뮤니티 화제와 겹치는 기사는 본문까지 받는다(대본의 사실 근거). 증시·건강 채널은 주제를 기사로 정하므로
     # 최근 기사도 본문을 받는다 — 숫자(지수·수급·환율, 기준값·연구 규모)는 본문에 있다.
     related = related_articles(posts, articles, set(cfg.clustering.generic_tokens), BODY_ARTICLES)
-    if cfg.channel.profile in ("stock", "health"):
+    if cfg.channel.profile in ("stock", "health", "pet"):
         want = set(related[: BODY_ARTICLES // 3]) | {a["id"] for a in articles[:BODY_ARTICLES]}
         want |= {a["id"] for a in articles if a.get("kind") == "press"}  # 보도자료는 오래돼도 본문까지
     else:

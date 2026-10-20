@@ -313,3 +313,36 @@ def test_health_profile_rules(monkeypatch):
     assert channel_rules(ChannelConfig())["formats"]["shorts"]["target_chars"] == list(
         target_chars("shorts", 300)
     )
+
+
+def test_pet_profile_rules(monkeypatch):
+    """반려동물 채널(하루집사): 널스윤서와 같은 틀(쇼츠 30초만, 계절 주제, 설명란 고지)에 반려동물 규칙·말투·조심할 말."""
+    from studio_core.config import Settings, load_channel
+    from topicradar import prompts
+    from topicradar.handoff import channel_rules
+
+    monkeypatch.setenv("STUDIO_NOW", "2026-10-18T09:00:00")
+    root = __import__("pathlib").Path(__file__).resolve().parents[2]
+    monkeypatch.setenv("STUDIO_CHANNEL", "pet")
+    cfg = load_channel(Settings(root=root))
+    assert cfg.channel.profile == "pet" and cfg.channel.name == "하루집사"
+    assert cfg.communities == [] and cfg.images.sources[0] == "pexels_video"
+    assert cfg.shorts.style == "health"  # 널스윤서와 같은 디자인(첫 문장 차트판 손글씨)
+    r = channel_rules(cfg)
+    assert list(r["formats"]) == ["shorts"]
+    rules = r["rules"]
+    assert rules["identity"] == prompts.PET_IDENTITY and "수의사가 아니다" in rules["identity"]
+    assert "사람 약" in rules["script_rules"] and "개 이야기인지 고양이 이야기인지" in rules["script_rules"]
+    assert "영양제" in rules["risk"]["legal_words"] and "완치" in rules["risk"]["legal_words"]
+    assert "집사" in rules["tone_rules"] and rules["shorts_outro"].startswith("지금까지 하루집사였습니다!")
+    assert "수의사의 진단이나 치료를 대신하지 않습니다" in rules["notice"]
+    assert "반려견 환절기" in rules["season"]  # 10월
+    shorts = rules["format_rules"]["shorts"]
+    assert (
+        "30초" in shorts
+        and "간호" not in shorts
+        and "질병관리청" not in shorts
+        and "동물병원·수의사와 상의" in shorts
+    )
+    lo, hi = r["formats"]["shorts"]["target_chars"]
+    assert 200 <= lo < hi <= 290
