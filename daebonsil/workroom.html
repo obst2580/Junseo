@@ -183,6 +183,7 @@ pre.tts { white-space: pre-wrap; background: var(--paper-2); border: 1px solid v
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.bad { background: var(--bad); color: #fff; }
 footer { font-size: 13px; color: var(--muted); }
+.qa-sheet { display: block; width: 100%; height: auto; margin-top: 8px; border-radius: 8px; }
 @media (max-width: 560px) {
   section.card { padding: 16px; }
   .script { min-height: 380px; font-size: 15.5px; }
@@ -317,6 +318,7 @@ footer { font-size: 13px; color: var(--muted); }
       <div class="reqbox"><button class="btn primary" id="final-go" type="button">완성 영상 만들기</button><span id="final-state" class="small"></span></div>
       <div class="fallback" id="final-fallback" hidden></div>
       <div id="final-video" class="final"></div>
+      <div id="final-qa"></div>
     </div>
   </section>
 
@@ -1613,11 +1615,35 @@ function renderFinal() {
       <div class="row"><button class="btn" id="final-dl" type="button">mp4 받기</button><span id="final-dl-state" class="small"></span></div>` : '';
     if (fin && fin.asset_id) $('#final-dl').onclick = () => saveFinal(p, fin);
   }
+  renderQa(fin);
   // 다시 만들면 작업자가 지난 완성본 ID를 replaced에 남긴다 — 여기서 지운다
   if (fin && fin.replaced && fin.replaced !== fin.asset_id && assets && db && !swept.has(fin.replaced)) {
     swept.add(fin.replaced);
     assets.delete(fin.replaced).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced: null } }).catch(() => {}));
   }
+  const oldSheet = fin && fin.replaced_sheet, sheet = fin && fin.qa && fin.qa.sheet_id;
+  if (oldSheet && oldSheet !== sheet && assets && db && !swept.has(oldSheet)) {
+    swept.add(oldSheet);
+    assets.delete(oldSheet).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced_sheet: null } }).catch(() => {}));
+  }
+}
+/* 자동 검수: 작업자가 렌더 전후로 스스로 검사해 고칠 수 있는 것(자막 끊김·문서 캡처·워터마크 사진·음량)은 고쳐서 제출한다.
+   화면에는 고친 것과, 고치지 못해 남은 것(있으면)만 — 1초 간격 장면 모음(남은 곳은 빨간 테두리)과 함께 */
+const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function renderQa(fin) {
+  const box = $('#final-qa'), q = fin && fin.asset_id && fin.qa;
+  const key = q ? JSON.stringify([fin.asset_id, q.sheet_id || '', (q.issues || []).length, (q.fixed || []).length]) : '';
+  if (box.dataset.key === key) return;  // 펼쳐 둔 장면 모음이 다시 그려져 닫히지 않게
+  box.dataset.key = key;
+  if (!q) { box.innerHTML = ''; return; }
+  const issues = q.issues || [], fixed = q.fixed || [];
+  const li = i => `<li><b>${mmss(i.at)}</b> ${esc(i.label)}${i.what ? ` — <span class="muted">${esc(i.what)}</span>` : ''}</li>`;
+  const loud = q.lufs != null ? ` · 음량 ${Number(q.lufs).toFixed(1)} LUFS` : '';
+  const fixNote = fixed.length ? `<details class="small"><summary>제출 전에 ${fixed.length}곳 고쳤습니다</summary><ul>${fixed.map(li).join('')}</ul></details>` : '';
+  const head = q.ok === null ? `<div class="note warn"><b class="t">자동 검수를 못 했습니다</b>${esc(q.error || '')}</div>`
+    : issues.length ? `<div class="note warn"><b class="t">고치지 못한 곳 ${issues.length}곳 — 확인해 주세요</b><ul>${issues.map(li).join('')}</ul>${fixNote}</div>`
+    : `<div class="note info"><b class="t">자동 검수 통과${fixed.length ? ` — ${fixed.length}곳 고쳐서 제출` : ''}</b>자막 끊김·문서 캡처·워터마크 사진·검은 화면·소리 끊김·음량을 봤습니다${esc(loud)}.${fixNote}</div>`;
+  box.innerHTML = head + (q.sheet_id ? `<details${issues.length ? ' open' : ''}><summary class="small">장면 모음(1초 간격${issues.length ? ' — 빨간 칸이 확인할 곳' : ''})</summary><a href="/_blob/${esc(q.sheet_id)}" target="_blank" rel="noopener" title="눌러서 크게 보기"><img class="qa-sheet" src="/_blob/${esc(q.sheet_id)}" alt="완성 영상 1초 간격 장면 모음"></a></details>` : '');
 }
 async function saveFinal(p, fin) {
   const st = $('#final-dl-state');

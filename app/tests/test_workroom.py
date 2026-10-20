@@ -546,8 +546,12 @@ def test_render_final_mp4_from_fetched_assets(root, tmp_path, monkeypatch):
     doc = wr.make_render(req, fetched, tmp_path / "out", bgm)
     assert (tmp_path / "out" / "final.mp4").exists() and abs(doc["duration"] - 3.0) < 0.1
     assert doc["bgm"] == "e" * 32 and doc["replaced"] == "f" * 32 and doc["size"] < wr.RENDER_MAX_BYTES
-    up = wr.render_doc(tmp_path / "out" / "render.json", "9" * 32)
+    # 자동 검수: 음량·자막·사진을 보고 장면 모음을 만든다(올린 장면 모음 ID는 render-doc이 붙인다)
+    assert isinstance(doc["qa"]["issues"], list) and "lufs" in doc["qa"]
+    assert (tmp_path / "out" / "sheet.jpg").exists()
+    up = wr.render_doc(tmp_path / "out" / "render.json", "9" * 32, "8" * 32)
     assert up["render"]["asset_id"] == "9" * 32 and up["render"]["file"] == "final.mp4"
+    assert up["render"]["qa"]["sheet_id"] == "8" * 32
 
 
 def test_render_needs_sources_and_voice(root):

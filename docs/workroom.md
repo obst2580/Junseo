@@ -311,15 +311,22 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    자막은 자료를 모을 때 만든 자막.srt 시각 그대로, 훅 조각은 낱말 시각(타입캐스트 음성이면 받은 시각, 아니면 음성 인식)에
    맞춥니다. 자료를 모은 뒤 디자인이 바뀌었으면 사진 바탕·상단 제목을 지금 디자인으로 다시 합성합니다(`redesigned`). 강조음은 처음 쓸 때 녹음된 효과음(Mixkit 무료)을 받아 씁니다(못 받으면 합성음). 결과가 14MB를 넘으면 화면만
    조금 더 압축합니다. 받지 못한 파일이 있으면 이름을 알려 주며 멈춥니다 — 그 자산만 다시 받고 다시 돌립니다.
-4. `/tmp/wr-render/final.mp4`를 `Artifact`(`url`: 제작실, `asset: true`, `file_path`)로 올리고 자산 ID를 받습니다.
+   **고쳐서 제출합니다**(`render.json`의 `qa`): 렌더 전에 자막(어색한 자리에서 두 줄로 갈리거나 넘어감·너무 짧게 스침·너무
+   긴 줄 → 앞뒤 자막과 이어 다시 나누고 타입캐스트 낱말 시각에 맞춤)과 사진(워터마크 사이트·문서·화면 캡처 → 빼고 같은
+   장면 다른 사진, 골라 쓴 사진이면 옆 장면 사진을 출처째)을 고치고, 렌더 뒤 음량·최고점이 벗어나면 소리만 -14 LUFS로
+   맞춥니다. 그다음 다시 검수(검은 화면·소리 끊김 포함)해 `qa.fixed`(고친 것)·`qa.issues`(고치지 못하고 남은 것)를 남기고,
+   1초 간격 장면 모음(`/tmp/wr-render/sheet.jpg`, 남은 곳은 빨간 테두리)을 만듭니다.
+4. `/tmp/wr-render/final.mp4`와 `/tmp/wr-render/sheet.jpg`를 `Artifact`(`url`: 제작실, `asset: true`, `file_path`)로
+   하나씩 올리고 자산 ID를 받습니다.
 5. 자산 ID를 붙여 프로젝트에 쓸 값을 만들고 `ArtifactData update`로 `projects/<ID>`에 씁니다(1단계 `version`으로 `if_version`).
 
    ```bash
-   uv run python -m studio_app.workroom render-doc --render /tmp/wr-render/render.json --asset-id <자산 ID>
+   uv run python -m studio_app.workroom render-doc --render /tmp/wr-render/render.json --asset-id <완성본 자산 ID> --sheet-id <장면 모음 자산 ID>
    ```
 
-   `render.replaced`(지난 완성본 자산 ID)는 화면이 보고 지웁니다 — 작업자는 지우지 않습니다.
-6. 요청을 `done`으로, note 예: `61.2초 · 10.4MB · 배경음악 있음`.
+   `render.replaced`(지난 완성본)와 `render.replaced_sheet`(지난 장면 모음)는 화면이 보고 지웁니다 — 작업자는 지우지 않습니다.
+6. 요청을 `done`으로, note 예: `61.2초 · 10.4MB · 배경음악 있음 · 검수 통과(3곳 고침)`. `qa.issues`가 남았으면
+   `고치지 못한 곳 1곳: 0:12 검은 화면`처럼 시각·이름을 적습니다 — 화면에도 뜹니다.
 
 ## 데이터 구조(아티팩트 db)
 

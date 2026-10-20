@@ -215,7 +215,9 @@ async def collect(out: Path, hours: int | None = None) -> dict:
             "summary": (s.summary or "")[:ARTICLE_SUMMARY],
             "url": s.url,
             **({"kind": "press"} if s.kind == "press" else {}),
-            **({"press": s.metric["press"]} if s.metric.get("press") else {}),  # 구글 뉴스 검색: 매체 이름  # 공공기관 보도자료(건강 채널 근거의 첫째)
+            **(
+                {"press": s.metric["press"]} if s.metric.get("press") else {}
+            ),  # 구글 뉴스 검색: 매체 이름  # 공공기관 보도자료(건강 채널 근거의 첫째)
         }
         for s in sorted(news, key=lambda s: s.published_at, reverse=True)
         if s.url
@@ -234,7 +236,9 @@ async def collect(out: Path, hours: int | None = None) -> dict:
         async def fill(a: dict) -> None:
             async with sem:
                 try:
-                    if is_google_link(a["url"]):  # 구글 뉴스 검색(네이버 키 없을 때)은 중계 주소 → 원문 주소로 풀어 읽는다
+                    if is_google_link(
+                        a["url"]
+                    ):  # 구글 뉴스 검색(네이버 키 없을 때)은 중계 주소 → 원문 주소로 풀어 읽는다
                         real = await decode_google_link(client, a["url"])
                         if real:
                             a["url"] = real
@@ -457,9 +461,23 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
     words = audio.get("words") if audio.get("source") == "typecast" else None
     srt = proj / "narration.srt"
     res = req["result"]
+    # 제출 전에 고치기: 자막 검수에 걸린 곳은 앞뒤 자막과 이어 지금 규칙으로 다시 나누고(낱말 시각에 맞춤),
+    # 사진 검수에 걸린 사진(워터마크·문서 캡처)은 빼고 다른 후보·옆 장면 사진으로 — 렌더 뒤 검수에는 남은 것만
+    from newsclip import vertical
+    from newsclip.srt import parse_srt, write_srt
+    from studio_app.qa import fix_photos, fix_subtitles
+
+    fixed: list[dict] = []
+    if srt.exists():
+        cues, sub_fixed = fix_subtitles(parse_srt(srt.read_text(encoding="utf-8")), words, vertical.SUB_LINE)
+        if sub_fixed:
+            srt.write_text(write_srt(cues), encoding="utf-8")
+            fixed += sub_fixed
+    scenes, photo_fixed = fix_photos(res["scenes"], proj)
+    fixed += photo_fixed
     project = {
         "script": req["script"],
-        "scenes": res["scenes"],
+        "scenes": scenes,
         "hook": res.get("hook"),
         "emphasis": res.get("emphasis"),
     }
@@ -495,23 +513,34 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
             ]
         )
         smaller.replace(final)
+    # 자동 검수: 사용자가 보기 전에 잔실수(자막 끊김·문서 캡처·워터마크 사진·검은 화면·음량)를 먼저 찾고 장면 모음을 만든다
+    from studio_app.qa import check_short
+
+    try:
+        qa = check_short(final, proj, scenes, out, fixed)
+    except Exception as e:  # noqa: BLE001 - 검수가 실패해도 영상은 올린다
+        qa = {"ok": None, "issues": [], "error": str(e)[:200]}
     doc = {
         "file": final.name,
         "size": final.stat().st_size,
         "duration": round(probe_duration(final), 2),
+        "qa": qa,  # 장면 모음(out/sheet.jpg)을 올리면 render-doc --sheet-id로 qa.sheet_id
         "bgm": (bgm or {}).get("asset_id"),
         "timing": "typecast" if words else "srt+asr",
         "redesigned": refreshed,  # 지금 디자인으로 다시 합성한 사진 수
         "replaced": (req.get("render") or {}).get("asset_id"),  # 화면이 지울 지난 완성본
+        "replaced_sheet": ((req.get("render") or {}).get("qa") or {}).get("sheet_id"),  # 지난 장면 모음
         "made_at": _iso(now_kst()),
     }
     (out / "render.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     return doc
 
 
-def render_doc(render_json: Path, asset_id: str) -> dict:
-    """올린 완성본 자산 ID를 붙여 projects/<ID>에 쓸 값({render})을 같은 폴더 update.json에 쓴다."""
+def render_doc(render_json: Path, asset_id: str, sheet_id: str = "") -> dict:
+    """올린 완성본 자산 ID(와 장면 모음 자산 ID)를 붙여 projects/<ID>에 쓸 값({render})을 같은 폴더 update.json에 쓴다."""
     r = json.loads(render_json.read_text(encoding="utf-8"))
+    if sheet_id:
+        r["qa"] = {**(r.get("qa") or {}), "sheet_id": sheet_id}
     doc = {"render": {**r, "asset_id": asset_id}}
     (render_json.parent / "update.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     return doc
@@ -1083,6 +1112,7 @@ def main() -> None:
     rd = sub.add_parser("render-doc", help="올린 완성본 자산 ID를 붙여 projects/<ID>에 쓸 update.json 만들기")
     rd.add_argument("--render", type=Path, required=True)
     rd.add_argument("--asset-id", required=True)
+    rd.add_argument("--sheet-id", default="", help="올린 장면 모음(sheet.jpg) 자산 ID")
     a = ap.parse_args()
     if a.channel:
         os.environ["STUDIO_CHANNEL"] = a.channel
@@ -1123,7 +1153,7 @@ def main() -> None:
         print(json.dumps({"file": str(a.voice.parent / "update.json")}, ensure_ascii=False))
         return
     if a.cmd == "render-doc":
-        render_doc(a.render, a.asset_id)
+        render_doc(a.render, a.asset_id, a.sheet_id)
         print(json.dumps({"file": str(a.render.parent / "update.json")}, ensure_ascii=False))
         return
     req = _load_project(a.project)
