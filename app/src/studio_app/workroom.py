@@ -306,10 +306,11 @@ async def collect(out: Path, hours: int | None = None) -> dict:
 # ---- sources ---------------------------------------------------------------------------------
 
 
-def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> dict:  # noqa: ANN001
+def make_voice(req: dict, out: Path, voice: dict | None = None, client=None, check: bool = True) -> dict:  # noqa: ANN001
     """대본을 타입캐스트 API로 읽어 out/narration.wav와 out/voice.json(projects/<ID>.audio에 쓸 값, asset_id 빼고)을
     만든다. voice는 화면이 요청에 담은 {name, tempo, remove_silence_ms} — 비운 칸은 채널 설정(voice:)을 쓴다.
-    낱말 시각(words)도 함께 저장해, 자료를 모을 때 음성을 다시 듣지 않고 그 시각에 자막·장면을 맞춘다."""
+    낱말 시각(words)도 함께 저장해, 자료를 모을 때 음성을 다시 듣지 않고 그 시각에 자막·장면을 맞춘다.
+    check면 만든 음성을 다시 듣고 잘못 읽은 곳을 audio.reading에 남긴다(작업자가 그 표기를 고쳐 다시 읽힌다)."""
     from newsclip.autosub import analyze, narration_text
     from newsclip.typecast_tts import TypecastError, find_voice, synthesize
 
@@ -368,8 +369,23 @@ def make_voice(req: dict, out: Path, voice: dict | None = None, client=None) -> 
         "words": [[w, s, e] for w, s, e in speech.words],
         "analyzed_at": _iso(now_kst()),
     }
+    if check:
+        audio["reading"] = reading_check(speech.path, audio["words"], out)
     (out / "voice.json").write_text(json.dumps(audio, ensure_ascii=False), encoding="utf-8")
     return audio
+
+
+def reading_check(wav: Path, words: list, cache: Path) -> dict:
+    """음성 읽기 검수: 만든 음성을 음성 인식으로 다시 듣고 대본과 대조(숫자 사이 기호를 '대'로 읽음·숫자가 바뀜·
+    문장 건너뜀·되풀이). 걸린 곳은 정밀하게 한 번 더 들어 확인한 것만 남긴다."""
+    from newsclip.asr import AsrUnavailable, transcribe
+    from newsclip.reading_check import check_reading, confirm
+
+    try:
+        heard = transcribe(wav, cache_dir=cache)
+        return {"checked": True, "issues": confirm(wav, check_reading(words, heard), words)}
+    except AsrUnavailable as e:
+        return {"checked": False, "issues": [], "error": str(e)[:200]}
 
 
 def voice_doc(voice_json: Path, asset_id: str) -> dict:
@@ -1168,7 +1184,17 @@ def main() -> None:
     if a.cmd == "voice":
         rq = _load_project(a.request) if a.request else {}
         audio = make_voice(req, a.out, rq.get("voice"))
-        keys = ("voice", "voice_id", "tempo", "duration", "chars", "credits", "retried", "warnings")
+        keys = (
+            "voice",
+            "voice_id",
+            "tempo",
+            "duration",
+            "chars",
+            "credits",
+            "retried",
+            "warnings",
+            "reading",
+        )
         print(
             json.dumps(
                 {**{k: audio[k] for k in keys if k in audio}, "file": str(a.out / "narration.mp4")},

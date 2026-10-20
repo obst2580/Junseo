@@ -279,6 +279,7 @@ footer { font-size: 13px; color: var(--muted); }
         <label>문장 사이 쉼<select id="tc-silence"><option value="">그대로</option><option value="300">짧게</option><option value="150">아주 짧게</option></select></label>
       </div>
       <div id="voice-stale2"></div>
+      <div id="audio-reading"></div>
       <div class="reqbox"><button class="btn primary" id="tc-go" type="button">타입캐스트로 음성 만들기</button><button class="btn" id="to-script" type="button" hidden>대본 고치기</button><span id="tc-state" class="small"></span></div>
       <div class="fallback" id="tc-fallback" hidden></div>
     </div>
@@ -380,6 +381,7 @@ function toast(msg, bad = false) {
   clearTimeout(toast._t); toast._t = setTimeout(() => { t.className = 'toast'; }, bad ? 5200 : 2400);
 }
 const spinner = txt => `<span class="thinking"><span class="spin"></span>${esc(txt)}</span>`;
+const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
 /* ---------- 시각(KST) ---------- */
 function kst(d = new Date()) {
@@ -982,6 +984,19 @@ function checkScript() {
   const nums = [...new Set(spoken.flatMap(l => (l.match(/\d[\d,.]*/g) || []).map(x => x.replace(/,/g, '').replace(/\.$/, ''))))]
     .filter(x => !facts.replace(/,/g, '').includes(x));
   if (nums.length) out.push({ bad: true, text: `고른 기사에 없는 숫자 ${nums.length}개(${nums.slice(0, 4).join(', ')}) — 지우거나 기사 확인` });
+  // 음성이 잘못 읽는 표기: 숫자 사이 기호('2-3부'를 '이 대 삼 부'로 읽는다)
+  const odd = [...new Set(spoken.flatMap(l => l.match(/\d+\s*[-~/:]\s*\d+[가-힣]?/g) || []))];
+  if (odd.length) out.push({ bad: true, text: `음성이 잘못 읽는 표기 ${odd.length}곳(${odd.slice(0, 3).join(', ')}) — 말로 풀어 쓰기(항소부·서너 명·3분의 1·10시 30분)` });
+  // 날짜: 오늘·앞날 일에 '지난', 올리는 날에 따라 틀려지는 '어제·내일'
+  const today = kst(), dd = +today.d, mm = +today.mo, dateBad = [];
+  for (const l of spoken) {
+    for (const m of l.matchAll(/지난\s*(?:(\d{1,2})월\s*)?(\d{1,2})일/g)) {
+      const mo = m[1] ? +m[1] : mm, d = +m[2];
+      if (mo > mm || (mo === mm && d >= dd)) dateBad.push(m[0]);
+    }
+    for (const m of l.matchAll(/(?:^|[\s,])(어제|그제|그저께|내일|모레)(?=[\s,은는도의에]|$)/g)) dateBad.push(m[1]);
+  }
+  if (dateBad.length) out.push({ bad: true, text: `날짜 표현 ${dateBad.length}곳(${[...new Set(dateBad)].slice(0, 3).join(', ')}) — 오늘·앞날 일엔 '지난'을 빼고, '어제·내일'은 날짜로` });
   const banned = isShorts(p) ? [] : (r.banned || []).filter(w => spoken.some(l => l.includes(w))); if (banned.length) out.push({ bad: true, text: `금지 표현: ${banned.join(', ')}` });
   const slang = (r.slang || []).filter(w => spoken.some(l => l.includes(w))); if (slang.length) out.push({ bad: true, text: `비속어: ${slang.join(', ')}` });
   const joined = spoken.join('').replace(/\s+/g, ''), keys = new Set();
@@ -1370,6 +1385,11 @@ function renderVoiceStale() {
   $('#sc-revoice').hidden = !stale || busy;
   $('#tc-go').textContent = p && p.audio ? (stale ? '고친 대본으로 음성 다시 만들기' : '음성 다시 만들기') : '타입캐스트로 음성 만들기';
   $('#to-script').hidden = !(p && p.audio);
+  // 음성 읽기 검수(작업자가 음성을 다시 듣고 대조 — 고칠 수 있는 건 고쳐서 올리고, 남은 것만 여기)
+  const rd = !stale && p && p.audio && p.audio.reading, left = (rd && rd.issues) || [];
+  const KIND = { reading_symbol: '기호를 잘못 읽음', reading_number: '숫자를 잘못 읽음', reading_skip: '건너뛰고 읽음', reading_repeat: '두 번 읽음' };
+  $('#audio-reading').innerHTML = left.length ? `<div class="note warn"><b class="t">음성이 잘못 읽었을 수 있는 곳 ${left.length}곳</b><ul>${left.map(i => `<li><b>${mmss(i.at)}</b> ${esc(KIND[i.kind] || i.kind)} — ${esc(i.word || '')}${i.heard ? ` <span class="muted">(들린 말: ${esc(i.heard)})</span>` : ''}</li>`).join('')}</ul>대본에서 그 표기를 말로 풀어 쓰고 [고친 대본으로 음성 다시 만들기]를 눌러 주세요.</div>`
+    : rd && rd.checked ? '<div class="small muted">음성 읽기 검수: 숫자·기호를 대본대로 읽었고 건너뛴 문장이 없습니다.</div>' : '';
 }
 // 작업자가 맡았거나 맡을 요청(못 보낸 요청은 아직 아무도 안 하므로 빼고)
 const reqBusy = d => !!d && (d.status === 'working' || (d.status === 'queued' && d.sent_to_worker !== false));
@@ -1629,7 +1649,6 @@ function renderFinal() {
 }
 /* 자동 검수: 작업자가 렌더 전후로 스스로 검사해 고칠 수 있는 것(자막 끊김·문서 캡처·워터마크 사진·음량)은 고쳐서 제출한다.
    화면에는 고친 것과, 고치지 못해 남은 것(있으면)만 — 1초 간격 장면 모음(남은 곳은 빨간 테두리)과 함께 */
-const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function renderQa(fin) {
   const box = $('#final-qa'), q = fin && fin.asset_id && fin.qa;
   const key = q ? JSON.stringify([fin.asset_id, q.sheet_id || '', (q.issues || []).length, (q.fixed || []).length]) : '';

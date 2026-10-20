@@ -172,6 +172,18 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 
    출력: 목소리·voice_id·속도·길이(초)·글자 수·차감 크레딧(널스윤서는 문장마다 읽어 `retried`=같은 말을 두 번 읽어 다시 읽은 문장 수, `warnings`=다시 읽어도 남은 의심 — 있으면 note에 적기). 길이는 읽은 그대로 씁니다(1분에 억지로 맞추지 않음). 실패하면(키 없음 401, 크레딧 부족 402, 목소리 못 찾음 등)
    요청을 `error`로, 메시지를 그대로 `error`에 적습니다.
+
+   **음성 읽기 검수(고쳐서 제출)**: 만든 음성을 음성 인식으로 다시 듣고 대본과 대조한 결과가 출력의 `reading.issues`에
+   있습니다(`reading_symbol` 숫자 사이 기호를 '대'처럼 읽음, `reading_number` 숫자가 바뀜, `reading_skip`·`reading_repeat`
+   문장 건너뜀·되풀이 — 정밀하게 한 번 더 들어 확인한 것만). 비어 있지 않으면 올리기 전에 고칩니다:
+   - `reading_symbol`·`reading_number`: 대본의 그 낱말(`word`)만 음성이 바로 읽을 말로 바꿉니다 — 뜻은 그대로, 다른
+     문장은 건드리지 않습니다(예: `형사항소2-3부는` → `항소부는`, `3~4명` → `서너 명`, `1/3` → `3분의 1`).
+     `ArtifactData str_replace`(`projects/<ID>`, `field: "script"`, 1단계 `version`으로 `if_version`)로 고치고,
+     받은 프로젝트 파일의 대본도 같게 고친 뒤 2단계를 **한 번 더** 돌립니다.
+   - `reading_skip`·`reading_repeat`: 대본은 그대로 두고 2단계를 한 번 더 돌립니다(타입캐스트가 가끔 건너뜀).
+   - 두 번째에도 남으면 그대로 올리고 note에 `읽기 확인 필요: 0:15 형사항소2-3부는(들린 말 2대3부는)`처럼 적습니다.
+   - 고쳤으면 note에 `읽기 고침: 형사항소2-3부 → 항소부`를 붙입니다.
+   음성 인식은 1분 음성에 30초, 10분 음성에 4~6분 걸립니다(처음 한 번 모델 약 480MB를 받음).
 3. `/tmp/wr-voice/narration.mp4`(오디오만 든 mp4 — 제작실 자산은 wav·mp3를 받지 않습니다)를 `Artifact`(`url`: 제작실,
    `asset: true`, `file_path`)로 올리고 자산 ID를 받습니다.
 4. 자산 ID를 붙여 프로젝트에 쓸 값을 만듭니다.

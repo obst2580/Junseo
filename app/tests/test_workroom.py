@@ -425,6 +425,7 @@ def test_make_voice_with_typecast_then_update_doc(root, tmp_path, monkeypatch):
         tmp_path / "v",
         {"name": "이겸", "tempo": 1.1, "remove_silence_ms": 200},
         client=_typecast_client(seen),
+        check=False,  # 음성 읽기 검수(음성 인식)는 test_nc_reading_check에서
     )
     assert audio["source"] == "typecast" and audio["voice_id"] == "tc_gyeom" and audio["tempo"] == 1.1
     assert seen[0]["output"]["audio_tempo"] == 1.1 and seen[0]["output"]["remove_silence_ms"] == 200
