@@ -660,7 +660,7 @@ def build_plan(
     if chart:  # 첫 문장 동안은 차트판 훅 영상 하나 — 그 뒤 컷부터 사진·영상
         out = asset_dir / "subtitles" / "chart_hook.mp4"
         clip, punch_at, circle_at = make_chart_clip(
-            hook[0], key, starts, hook_end, out, SIZE, style, lines=lines, prop=st.hook_prop
+            hook[0], key, starts, hook_end, out, SIZE, style, lines=lines
         )
         if (
             punch_at is not None and punch_at < hook_end

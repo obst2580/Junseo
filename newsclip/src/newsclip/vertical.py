@@ -73,7 +73,6 @@ class Style:
     sub_shift: int = 0  # 대본 자막을 기본 자리(render.SUB_TEXT_Y)에서 이만큼 아래로(사진 칸이 다른 디자인)
     # 첫 문장 훅: flash(짧게 잘라 사진 칸 가운데에 크게) | chart(간호 차트판 손글씨, newsclip.chart_hook)
     hook: str = "flash"
-    hook_prop: str = "chart"  # chart 훅의 소품: chart(간호 차트판) | memo(노란 메모지)
     # 뉴스 채널 편집 규칙(널스윤서와 따로 간다 — 기본값은 예전 그대로)
     emph_sag: float = 0.0  # 강조 자막: 0이면 4초 간격으로 여럿, 있으면 흐름이 이만큼(초) 늘어질 때만 하나씩
     quote_pairs: bool = False  # 인용이 두 자막에 걸치면 조각마다 따옴표 짝을 맞춘다
