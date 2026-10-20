@@ -2,9 +2,9 @@
 
 - 챕터: 대본의 `## 제목 — 한 줄 요약` 헤더(장면 topic). 헤더 없는 앞부분은 콜드 오픈, `## 정리`는 정리.
   3분 단독은 주제(챕터)가 하나라 목차 카드 없이 챕터 카드부터.
-- 트랙(아래 → 위): 사진·영상(V1) · 출처(V2) · 아래 그늘 · 자막(모란봉, 강조는 매머드빵 색 글자) · 챕터 이름·채널 이름 ·
+- 트랙(아래 → 위): 사진·영상(V1) · 출처(V2) · 아래 그늘 · 자막(모란봉 100px, 강조는 같은 글씨에 그 말만 색) · 챕터 이름·채널 이름 ·
   카드(목차·챕터·발언·끝 화면 — 화면 전체를 덮는다)
-- 소리: 음성(A1), 효과음(A2 — 챕터 휙, 발언 카드·강조 자막 팝, 질문 띵), 배경음악(A3, 반복해 작게)
+- 소리: 음성(A1), 효과음(A2 — 챕터 휙, 발언 카드·훅 팝, 질문 띵 — 아래 자막에는 없음), 배경음악(A3, 반복해 작게)
 - 유튜브 설명란 챕터(0:00 …)도 같이 만든다.
 """
 
@@ -23,7 +23,7 @@ from newsclip.sfx import DING, HIT, WHOOSH, ensure_sfx, sfx_cues
 
 SIZE = (1920, 1080)
 FONTS = Path(__file__).parent / "fonts"
-TITLE_FONT = FONTS / "210MammothPpang-R.TTF"  # 제목·채널 이름·챕터 번호·강조 자막
+TITLE_FONT = FONTS / "210MammothPpang-R.TTF"  # 제목·채널 이름·챕터 번호·훅
 BODY_FONT = FONTS / "210Moranbong-Light.TTF"  # 자막·요약·누가/언제·챕터 이름
 QUOTE_FONT = FONTS / "210Yeohaengilgi-B.TTF"  # 발언 카드 인용(손글씨)
 BLUE, YELLOW, RED, WHITE = (62, 136, 200), (255, 236, 0), (228, 36, 36), (255, 255, 255)
@@ -48,7 +48,7 @@ FLASH_SEC, FLASH_CHARS = (
 HOOK_PX, HOOK_KEY_PX = 130, 170
 BGM_LEVEL = 0.15  # 배경음악 크기(약 -16 dB — 10분 내내 깔려도 목소리를 덮지 않게, 들리기는 하게)
 VOICE_PEAK = -1.0  # 음성 최고점(dBTP) — 넘으면 음성 트랙 크기를 낮춰 내보낼 때 찢어지지 않게
-SUB_PX, EMPH_PX = 74, 96
+SUB_PX = 100  # 아래 자막 글자 크기(강조 줄도 같은 크기·글꼴 — 강조는 그 말의 색만 바꾼다)
 SUB_BOTTOM = 1000  # 자막 아래 끝(유튜브 재생 막대 위)
 ORDINALS = ["첫", "두", "세", "네", "다섯", "여섯"]
 _TOC_RE = re.compile("차례로|순서대로|짚어 보|살펴보|하나씩")
@@ -218,15 +218,12 @@ def render_shade(out: Path, h: int = 420, alpha: int = 230) -> Path:
 def render_sub(
     text: str, out: Path, color: tuple[int, int, int] | None = None, mark: str | None = None
 ) -> Path:
-    """아래 자막: 보통은 모란봉 흰 글씨. color가 있으면 강조 — mark(따옴표 인용·센 말)가 있으면 줄은 매머드빵 흰
-    글씨에 그 말만 색으로, 없으면 줄 전체를 색으로. 아래 끝을 SUB_BOTTOM에 맞춘다."""
+    """아래 자막: 모란봉 흰 글씨. color가 있으면 강조 — 글꼴·크기는 그대로 두고 mark(따옴표 인용·센 말)만 색으로,
+    mark가 없으면 줄 전체를 색으로. 아래 끝을 SUB_BOTTOM에 맞춘다."""
     img = Image.new("RGBA", SIZE, (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     text = text.strip()
-    if color is None:
-        f, fill, stroke = _fit(d, text, BODY_FONT, SUB_PX, 1700), WHITE, 6
-    else:
-        f, fill, stroke = _fit(d, text, TITLE_FONT, EMPH_PX, 1700), color, 8
+    f, fill, stroke = _fit(d, text, BODY_FONT, SUB_PX, 1760), color or WHITE, 6
     box = d.multiline_textbbox((0, 0), text, font=f, spacing=14, stroke_width=stroke, align="center")
     th = box[3] - box[1]
     rows = text.split("\n")
@@ -731,16 +728,14 @@ def build(
         color, mark = emph.get(k, (None, None))
         tone = None if color is None else RED if color == EMPH_RED else YELLOW  # 센 말은 빨강, 나머지 노랑
         png = render_sub(texts[k], lx / f"sub_{_key(texts[k], tone, mark)}.png", tone, mark)
-        subs.append((png, cue.start, cue.end))
-        if color:
-            pops.append(cue.start)
+        subs.append((png, cue.start, cue.end))  # 강조 줄도 효과음 없이 색만
     # 챕터 이름·채널 이름: 챕터마다 한 장(콜드 오픈은 채널 이름만)
     chrome = [
         (render_chrome(ch, channel, lx / f"chrome_{_key(ch.no, ch.title, channel)}.png"), ch.start, ch.end)
         for ch in chapters
     ]
     shade = [(render_shade(lx / "shade.png"), 0.0, total)]
-    # 효과음: 화제 전환·질문(장면 문장) + 발언 카드·강조 자막 팝. 서로 0.5초 안이면 앞의 것만
+    # 효과음: 화제 전환·질문(장면 문장) + 발언 카드·훅 팝(아래 자막에는 효과음 없음). 서로 0.5초 안이면 앞의 것만
     snd = sfx_mp4(project_dir)
     sounds = [(c.at, snd[c.name]) for c in sfx_cues(scenes) if c.name in (WHOOSH, DING)]
     sounds += [(ch.start, snd[WHOOSH]) for ch in chapters if ch.no != 0]

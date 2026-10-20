@@ -164,6 +164,13 @@ def test_cards_render_and_fit(tmp_path):
     sub = le.render_sub("자막 한 줄", tmp_path / "s.png")
     im = Image.open(sub)
     assert im.mode == "RGBA" and im.getbbox()[3] <= le.SUB_BOTTOM + 30  # 아래 끝을 재생 막대 위에
+    # 강조 줄도 글꼴·크기는 보통 줄과 같고(높이 같음), 그 말만 색
+    plain = Image.open(le.render_sub("검찰이 결국 영장을 쳤다", tmp_path / "p.png"))
+    em = Image.open(le.render_sub("검찰이 결국 영장을 쳤다", tmp_path / "e.png", le.RED, "영장"))
+    assert plain.getbbox()[1] == em.getbbox()[1] and plain.getbbox()[3] == em.getbbox()[3]
+    px = [em.getpixel((x, y)) for x in range(0, le.SIZE[0], 3) for y in range(800, 1000, 3)]
+    assert any(p[3] > 200 and p[0] > 200 and p[1] < 80 for p in px)  # 빨간 글자
+    assert any(p[3] > 200 and min(p[:3]) > 230 for p in px)  # 나머지는 흰 글자
 
 
 def test_opening_hook_fast_cuts_and_speaker_photo(tmp_path):
