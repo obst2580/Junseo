@@ -49,22 +49,24 @@ def silent_spans(final: Path) -> list[tuple[float, float]]:
     return list(zip(starts, ends, strict=False))
 
 
-def subtitle_issues(cues: list) -> list[dict]:
-    """자막: 두 줄이 어색한 데서 갈림, 한 문장 안 자막 경계가 어색함, 너무 짧게 스침, 한 줄이 너무 길어 글씨가 작아짐."""
+def subtitle_issues(cues: list, long: bool = False) -> list[dict]:
+    """자막: 두 줄이 어색한 데서 갈림, 한 문장 안 자막 경계가 어색함, 너무 짧게 스침, 한 줄이 너무 길어 글씨가 작아짐.
+    long이면 롱폼(가로) 자막 — 한 줄 자막(짧은 줄을 합친 것만 두 줄), 한 줄 글자 상한도 롱폼 기준."""
     from newsclip.autosub import _break_cost, _quoted
     from newsclip.render import SUB_WRAP, sub_lines
 
+    row_max = 22 + 4 if long else SUB_WRAP + 4  # 롱폼: long_edit.SUB_LINE_LONG
     out: list[dict] = []
     for k, c in enumerate(cues):
         text = c.text.replace("\n", " ").strip()
-        rows = sub_lines(c.text)
+        rows = [r for r in c.text.split("\n") if r.strip()] if long else sub_lines(c.text)
         if len(rows) == 2 and " " in text:
             at, q = len(rows[0]), _quoted(text)
             # 긴 인용은 안에서 갈릴 수밖에 없다 — 인용 밖에서 어색하게 갈린 것만
             cost = _break_cost(text, at, q) if text[at : at + 1] == " " and at not in q else 0.0
             if cost >= BREAK_BAD:
                 out.append({"kind": "subtitle_break", "at": c.start, "what": " / ".join(rows)})
-        if any(len(r.replace(" ", "")) > SUB_WRAP + 4 for r in rows):
+        if any(len(r.replace(" ", "")) > row_max for r in rows):
             out.append({"kind": "subtitle_long", "at": c.start, "what": text})
         if c.end - c.start < CUE_MIN and k + 1 < len(cues):
             out.append({"kind": "subtitle_flash", "at": c.start, "what": text})
@@ -285,7 +287,7 @@ def _times_for(lines: list[str], a: float, b: float, words: list | None) -> list
     return out
 
 
-def _resplit(cues: list, i: int, j: int, words: list | None, limit: int) -> list | None:
+def _resplit(cues: list, i: int, j: int, words: list | None, limit: int) -> list | None:  # noqa: PLR0911
     """cues[i..j]를 이어 지금 규칙(subtitle_lines)으로 다시 나눈 자막들(시각은 낱말 시각). 같으면 None."""
     from newsclip.autosub import subtitle_lines
     from newsclip.srt import Cue
@@ -308,14 +310,15 @@ def _resplit(cues: list, i: int, j: int, words: list | None, limit: int) -> list
     ]
 
 
-def fix_subtitles(cues: list, words: list | None, limit: int) -> tuple[list, list[dict]]:
-    """자막 검수에 걸린 곳마다 앞뒤 자막과 이어 다시 나눠 본다(걸린 수가 줄어드는 쪽으로). (고친 자막, 고친 것)."""
+def fix_subtitles(cues: list, words: list | None, limit: int, long: bool = False) -> tuple[list, list[dict]]:
+    """자막 검수에 걸린 곳마다 앞뒤 자막과 이어 다시 나눠 본다(걸린 수가 줄어드는 쪽으로). (고친 자막, 고친 것).
+    long이면 롱폼 자막 기준(subtitle_issues의 long)."""
     from newsclip.srt import Cue
 
     fixed: list[dict] = []
     tried: set[str] = set()
     for _round in range(40):
-        issues = [x for x in subtitle_issues(cues) if x["kind"].startswith("subtitle_")]
+        issues = [x for x in subtitle_issues(cues, long) if x["kind"].startswith("subtitle_")]
         todo = [x for x in issues if f"{x['kind']}|{x['what']}" not in tried]
         if not todo:
             break
@@ -330,7 +333,7 @@ def fix_subtitles(cues: list, words: list | None, limit: int) -> tuple[list, lis
             if new is None:
                 continue
             cand = [*cues[:i], *new, *cues[j + 1 :]]
-            n = len(subtitle_issues(cand))
+            n = len(subtitle_issues(cand, long))
             if n < best_n:
                 best, best_n = cand, n
         if best is not None:

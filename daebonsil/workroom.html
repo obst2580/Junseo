@@ -1647,6 +1647,13 @@ function renderFinal() {
     assets.delete(oldSheet).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced_sheet: null } }).catch(() => {}));
   }
 }
+// 롱폼 자동 검수(자료를 모을 때): 어색하게 넘어가는 자막은 앞뒤와 이어 다시 나눠 timeline.xml에 넣었다
+function qaLong(q) {
+  const fixed = q.fixed || [], left = q.issues || [];
+  const li = i => `<li><b>${mmss(i.at)}</b> ${esc(i.label)}${i.what ? ` — <span class="muted">${esc(i.what)}</span>` : ''}</li>`;
+  if (left.length) return `<div class="note warn"><b class="t">자막 확인할 곳 ${left.length}곳</b><ul>${left.map(li).join('')}</ul>${fixed.length ? `<div class="small muted">${fixed.length}곳은 고쳐서 넣었습니다.</div>` : ''}</div>`;
+  return `<div class="small muted">자동 검수 통과${fixed.length ? ` — 자막 ${fixed.length}곳 고쳐서 넣었습니다` : ''} (자막 끊김·짧게 스침·긴 줄).</div>`;
+}
 /* 자동 검수: 작업자가 렌더 전후로 스스로 검사해 고칠 수 있는 것(자막 끊김·문서 캡처·워터마크 사진·음량)은 고쳐서 제출한다.
    화면에는 고친 것과, 고치지 못해 남은 것(있으면)만 — 1초 간격 장면 모음(남은 곳은 빨간 테두리)과 함께 */
 function renderQa(fin) {
@@ -1736,6 +1743,7 @@ function renderResult() {
       <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
     <div class="small muted">압축 파일 안의 <span class="mono">${esc(p.id)}</span> 폴더가 이 폴더 안에 풀리면 됩니다.</div>
     <div class="small muted">${res.long_edit ? `압축 파일에는 timeline.xml 하나로 완성 편집이 다 들어갑니다 — 사진·출처, 음성, 자막(모란봉), 목차·챕터·발언·끝 화면 카드${res.long_edit.quotes ? `(발언 카드 ${res.long_edit.quotes}장)` : ''}, 효과음${res.long_edit.bgm ? ', 배경음악' : ''}. 프리미어에서 열고 내보내기만 하면 됩니다.${res.long_edit.voice ? '' : ' 음성이 아직 없어 음성 트랙은 빠졌습니다 — 음성을 만든 뒤 자료를 다시 모으세요.'}` : `압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 자막.srt(한 줄 ${res.size && res.size[1] > res.size[0] ? '14' : '20'}자 안팎, 프리미어 캡션으로 가져오기), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성은 직접 넣으세요.`}</div>
+    ${res.long_edit && res.long_edit.qa ? qaLong(res.long_edit.qa) : ''}
     <div class="row"><span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
     <div id="zip-state" class="small"></div>`;
   $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));

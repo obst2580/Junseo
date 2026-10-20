@@ -839,6 +839,19 @@ def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> 
         bgm_len = audio_duration(bgm_file) or 0.0
     total = max([sc.end_sec for sc in sset.scenes] + [audio_duration(narration) or 0.0 if narration else 0.0])
     lines = subtitle_cues(cues, limit=long_edit.SUB_LINE_LONG, info=info, words=words)
+    # 자동 검수: 어색한 자리에서 넘어가거나 너무 짧게 스치는 자막은 앞뒤와 이어 다시 나눈다(타입캐스트 낱말 시각)
+    from studio_app.qa import LABELS, fix_subtitles, subtitle_issues
+
+    lines, sub_fixed = fix_subtitles(lines, words, long_edit.SUB_LINE_LONG, long=True)
+    left = subtitle_issues(lines, long=True)
+    qa = {
+        "fixed": [
+            {**x, "label": LABELS.get(x["kind"], x["kind"]), "at": round(x["at"], 2)} for x in sub_fixed
+        ][:30],
+        "issues": [{**x, "label": LABELS.get(x["kind"], x["kind"]), "at": round(x["at"], 2)} for x in left][
+            :30
+        ],
+    }
     first = min(sset.scenes, key=lambda s: s.start_sec) if sset.scenes else None
     keys = {w for w in str(first.query if first else "").split()[:1] if len(w) >= 2}
     edit = long_edit.build(
@@ -873,6 +886,7 @@ def _long_edit(req, proj, sset, cfg, cues, info, words, queries, voice, bgm) -> 
         "sfx": len(edit.sfx),
         "voice": bool(narration),
         "bgm": bool(bgm_file and bgm_len),
+        "qa": qa,
     }
     return {
         "edit": edit,
