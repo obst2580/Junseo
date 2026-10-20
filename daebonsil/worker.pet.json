@@ -1,5 +1,7 @@
 {
   "session_id": "session_013FH5oGDUvxQY4h6D5ew8YY",
   "session_url": "https://claude.ai/code/session_013FH5oGDUvxQY4h6D5ew8YY",
-  "artifact_url": "https://claude.ai/artifact/3opA8YVN5GfbhePsQwaQpB"
+  "artifact_url": "https://claude.ai/artifact/3opA8YVN5GfbhePsQwaQpB",
+  "poll_minutes": 5,
+  "poll_hours": "아침 8시~밤 12시"
 }

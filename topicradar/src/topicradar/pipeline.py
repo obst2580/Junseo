@@ -13,11 +13,13 @@ from pathlib import Path
 
 from studio_core.config import ChannelConfig, Settings, append_past_title, now_kst
 from studio_core.http import make_client
+from studio_core.keys import Unavailable, naver_credentials
 from studio_core.llm import ClaudeLLM
 from topicradar import handoff
 from topicradar.board import BoardContext, build_board, make_plan
 from topicradar.collectors.base import Collector, CollectorDisabled, CollectReport, collect_all
 from topicradar.collectors.community import CommunityCollector
+from topicradar.collectors.google_news import GoogleNewsCollector
 from topicradar.collectors.naver_news import NaverNewsCollector
 from topicradar.collectors.overseas import OverseasCollector
 from topicradar.collectors.rss import RssCollector
@@ -48,6 +50,15 @@ def needs_detail(store: Store) -> Callable[[Signal], bool]:
     return check
 
 
+def news_collector(queries: list[str], client: object) -> Collector:
+    """뉴스 검색 수집기: 네이버 키가 있으면 네이버, 없으면 구글 뉴스 검색 RSS(키 불필요)."""
+    try:
+        naver_credentials()
+    except Unavailable:
+        return GoogleNewsCollector(queries, client)  # type: ignore[arg-type]
+    return NaverNewsCollector(queries, client)  # type: ignore[arg-type]
+
+
 def build_collectors(
     settings: Settings, cfg: ChannelConfig, client: object, store: Store | None = None
 ) -> list[Collector]:
@@ -61,7 +72,7 @@ def build_collectors(
     ]
     queries = cfg.sources.queries_now(now_kst().month)  # 고정 검색어 + 이달의 계절 주제(건강 채널)
     if queries:
-        cols.append(NaverNewsCollector(queries, client))  # type: ignore[arg-type]
+        cols.append(news_collector(queries, client))
     if cfg.communities:
         cols.append(
             CommunityCollector(
@@ -92,10 +103,11 @@ async def run_collect(
             exclude=set(cfg.sources.queries_now(now_kst().month)),
         )
         if queries:
-            extra = await collect_all([NaverNewsCollector(queries, client)], since)  # type: ignore[arg-type]
+            nc = news_collector(queries, client)
+            extra = await collect_all([nc], since)
             known = {s.id for s in report.signals}
             report.signals += [s for s in extra.signals if s.id not in known]
-            report.counts["naver_news(커뮤니티 화제)"] = extra.counts.get("naver_news", 0)
+            report.counts[f"{nc.name}(커뮤니티 화제)"] = extra.counts.get(nc.name, 0)
             report.skipped.update({f"{k}(커뮤니티 화제)": v for k, v in extra.skipped.items()})
             report.errors.update({f"{k}(커뮤니티 화제)": v for k, v in extra.errors.items()})
             report.derived_queries = queries

@@ -16,6 +16,9 @@
 
 작업자 세션은 `ArtifactComments watch`(url: 제작실)로 제작실을 지켜보고 있어야 합니다. 세션을 새로 만들었으면
 한 번 실행하고, `config/worker`의 `session_id`·`session_url`도 새 세션으로 바꿉니다.
+원격(클라우드) 세션은 아직 아티팩트를 지켜볼 수 없어 댓글로 깨어나지 않습니다. 그런 작업자는 `config/worker`(와 `daebonsil/worker.<채널>.json`)에
+`poll_minutes`·`poll_hours`를 적고, 세션 안 예약(CronCreate)으로 그 간격마다 `requests`에서 `status: "queued"`인 문서를 찾아 처리합니다.
+화면은 그 값을 보고 "작업자: N분마다 확인"을 띄우고, 못 보낸 요청에도 "N분 안에 가져갑니다"라고 안내합니다(붙여 넣으면 바로 시작).
 (예전에는 Claude Code Remote 커넥터의 `send_message`로 보냈지만, 조직 정책이 아티팩트에서의 호출을 막아
 `blocked_by_policy`로 실패해서 댓글 방식으로 바꿨습니다.)
 
@@ -31,6 +34,7 @@ unset STUDIO_FIXTURES
 ```
 
 네이버·YouTube 키는 클라우드 환경 설정의 Environment variables에 있어야 합니다(없으면 사진·영상 검색을 건너뜁니다).
+네이버 키가 없으면 뉴스 검색어 수집은 구글 뉴스 검색 RSS(키 불필요)로 대신합니다 — 본문을 받을 기사만 중계 주소를 원문 주소로 풉니다.
 타입캐스트 키(`TYPECAST_API_KEY`)도 같은 곳에 둡니다. 환경 변수는 세션이 시작될 때 읽으므로, 키를 넣은 뒤에는 작업자 세션을 새로 엽니다.
 키 값은 화면·파일·메시지 어디에도 적지 않습니다.
 

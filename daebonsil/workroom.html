@@ -426,6 +426,7 @@ function renderStatus() {
     : claudeOk() ? '<span class="chip ok"><span class="dot"></span>내 Claude 연결됨</span>'
     : '<span class="chip warn"><span class="dot"></span>Claude 없이(직접 쓰기)</span>');
   chips.push(!known ? '' : S.canSend === 'available' ? '<span class="chip ok"><span class="dot"></span>클라우드 작업자 연결</span>'
+    : pollMin() ? `<span class="chip ok" title="작업자가 요청을 ${pollMin()}분마다 확인합니다${esc(pollHours())}"><span class="dot"></span>작업자: ${pollMin()}분마다 확인</span>`
     : `<span class="chip warn" title="${esc(SEND_WHY[S.canSend] || '')} — 작업 요청은 대화에 붙여 넣는 글로 대신합니다"><span class="dot"></span>작업자: 대화로 요청</span>`);
   if (m) chips.push(`<span class="chip">수집 ${esc(when(m.collected_at))} · ${esc(ago(m.collected_at))}</span>`);
   if (known && !db) chips.push('<span class="chip bad"><span class="dot"></span>저장소 없음 — claude.ai에서 열어 주세요</span>');
@@ -1479,7 +1480,8 @@ async function requestWork(kind, el, extra = {}) {
 function fallbackBox(el, r) {
   const w = S.worker || {};
   el.hidden = false;
-  el.innerHTML = `<div class="note warn"><b class="t">작업자에게 자동으로 보내지 못했습니다${r.why ? ` — ${esc(r.why)}` : ''}</b>아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으면 처리합니다.</div>
+  el.innerHTML = pollMin() ? `<div class="note info"><b class="t">요청을 남겼습니다 — 작업자가 ${pollMin()}분 안에 가져갑니다${esc(pollHours())}</b>바로 시작하려면 아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으세요.</div>
+    <textarea readonly spellcheck="false">${esc(r.msg)}</textarea><div><button class="btn small" type="button">복사</button></div>` : `<div class="note warn"><b class="t">작업자에게 자동으로 보내지 못했습니다${r.why ? ` — ${esc(r.why)}` : ''}</b>아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으면 처리합니다.</div>
     <textarea readonly spellcheck="false">${esc(r.msg)}</textarea><div><button class="btn small" type="button">복사</button></div>`;
   el.querySelector('button').onclick = () => copyText(r.msg, '요청 글을', null);
 }
@@ -1492,7 +1494,10 @@ $('#collect').onclick = async () => {
   if (!r.sent) fallbackBox($('#collect-state'), r); else { $('#collect-state').innerHTML = ''; toast('작업자에게 수집을 맡겼습니다'); }
   renderCollect();
 };
-const reqLabel = r => !r ? '' : r.status === 'queued' ? (r.sent_to_worker === false ? '작업자 대기 — 아래 글을 대화에 보내 주세요' : '작업자에게 보냈습니다 — 곧 시작합니다')
+// 작업자가 요청 문서를 몇 분마다 직접 확인하는 제작실(config/worker의 poll_minutes — 댓글로 깨울 수 없는 클라우드 세션)
+function pollMin() { return Number((S.worker || {}).poll_minutes) || 0; }
+function pollHours() { return (S.worker || {}).poll_hours ? ` · ${(S.worker || {}).poll_hours}` : ''; }
+const reqLabel = r => !r ? '' : r.status === 'queued' ? (r.sent_to_worker === false ? (pollMin() ? `작업자 대기 — ${pollMin()}분 안에 가져갑니다${pollHours()}` : '작업자 대기 — 아래 글을 대화에 보내 주세요') : '작업자에게 보냈습니다 — 곧 시작합니다')
   : r.status === 'working' ? `작업 중… ${esc(r.note || '')}` : r.status === 'done' ? `끝 · ${esc(r.note || '')}` : `실패: ${esc(r.error || r.note || '알 수 없음')}`;
 function renderCollect() {
   const r = reqWatch.collect.doc;
@@ -1768,7 +1773,7 @@ setTab((location.hash || '').replace('#', '') || 'topics');
   db = d; sample = s; assets = a; downloads = dl; comments = cm; known = true;
   await refreshSend();
   if (!db) return;
-  db.doc('config/worker').onSnapshot(snap => { if (snap.exists) S.worker = { ...WORKER, ...snap.data() }; }, () => {});
+  db.doc('config/worker').onSnapshot(snap => { if (snap.exists) { S.worker = { ...WORKER, ...snap.data() }; renderStatus(); } }, () => {});
   const bgmNow = () => { S.bgm = S.bgmOwn || S.bgmCommon || null; if (S.tab === 'sources') renderFinal(); };
   db.doc('config/bgm').onSnapshot(snap => { S.bgmCommon = snap.exists ? snap.data() : null; bgmNow(); }, () => {});
   if (BGM_DOC !== 'config/bgm') db.doc(BGM_DOC).onSnapshot(snap => { S.bgmOwn = snap.exists ? snap.data() : null; bgmNow(); }, () => {});

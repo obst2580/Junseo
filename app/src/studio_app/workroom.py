@@ -146,6 +146,7 @@ def chunk(items: list[dict], key: str, limit: int = DOC_LIMIT) -> list[dict]:
 async def collect(out: Path, hours: int | None = None) -> dict:
     """수집 → out/meta.json, posts-N.json, articles-N.json. 반환: meta. hours를 비우면 채널 설정(board.window_hours)."""
     from topicradar import handoff, pipeline
+    from topicradar.collectors.google_news import decode_google_link, is_google_link
 
     settings = load_settings()
     cfg = load_channel(settings)
@@ -213,7 +214,8 @@ async def collect(out: Path, hours: int | None = None) -> dict:
             "title": s.title,
             "summary": (s.summary or "")[:ARTICLE_SUMMARY],
             "url": s.url,
-            **({"kind": "press"} if s.kind == "press" else {}),  # 공공기관 보도자료(건강 채널 근거의 첫째)
+            **({"kind": "press"} if s.kind == "press" else {}),
+            **({"press": s.metric["press"]} if s.metric.get("press") else {}),  # 구글 뉴스 검색: 매체 이름  # 공공기관 보도자료(건강 채널 근거의 첫째)
         }
         for s in sorted(news, key=lambda s: s.published_at, reverse=True)
         if s.url
@@ -232,6 +234,10 @@ async def collect(out: Path, hours: int | None = None) -> dict:
         async def fill(a: dict) -> None:
             async with sem:
                 try:
+                    if is_google_link(a["url"]):  # 구글 뉴스 검색(네이버 키 없을 때)은 중계 주소 → 원문 주소로 풀어 읽는다
+                        real = await decode_google_link(client, a["url"])
+                        if real:
+                            a["url"] = real
                     resp = await request(client, "GET", a["url"], retries=1)
                     body = article_body(resp.text)
                 except Exception:  # 기사 하나 실패는 요약으로 대신
