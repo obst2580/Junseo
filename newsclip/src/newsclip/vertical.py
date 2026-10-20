@@ -277,10 +277,12 @@ def split_head(text: str) -> list[str]:
     mid = len(text) / 2
 
     def cost(i: int) -> float:
-        return abs(i - mid) + (2 if len(text[:i].rsplit(" ", 1)[-1]) == 1 else 0)
+        word = text[:i].rsplit(" ", 1)[-1]
+        return abs(i - mid) + (2 if len(word) == 1 else 0) - (2 if word.endswith(",") else 0)
 
     cut = min(spaces, key=cost) if spaces else round(mid)
-    a, b = text[:cut].strip(), text[cut:].strip()
+    # 줄이 바뀌는 자리의 쉼표는 뺀다(작은 화면에서 마침표처럼 보인다: '역삼동 화재, / 안전은?' → '역삼동 화재 / 안전은?')
+    a, b = text[:cut].strip().removesuffix(","), text[cut:].strip()
     return [x for x in (a, b) if x]
 
 

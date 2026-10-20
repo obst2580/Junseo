@@ -280,6 +280,7 @@ def test_vertical_photo_and_headline(tmp_path):
 
     assert split_head("이게 사과입니까") == ["이게", "사과입니까"]
     assert split_head("한마디") == ["한마디"]
+    assert split_head("역삼동 화재, 안전은?") == ["역삼동 화재", "안전은?"]  # 줄 끝 쉼표는 마침표처럼 보여 뺀다
     assert split_head("與도 등 돌린 추미애") == [
         "與도 등 돌린",
         "추미애",
