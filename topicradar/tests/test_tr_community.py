@@ -96,6 +96,9 @@ def test_is_political():
     assert not is_political("플랫폼법 통과했네요")  # 기관·절차·정당 어휘가 없으면 정치글로 보지 않는다
     assert not is_political("점심 뭐 먹지")
     assert is_political("한빛당 또 이러네", extra=["한빛당"])
+    # 진보 채널이 다룰 사건사고·사회 이슈도 남긴다(연예·잡담은 빼고)
+    assert is_political("공장 화재 참사 유족 기자회견") and is_political("전세사기 피해 또 늘어")
+    assert not is_political("배우 열애설 터졌네")
 
 
 def test_parse_board_generic_links():

@@ -493,9 +493,11 @@ function renderSites() {
 }
 
 /* ---------- 1. 주제 묶기(Claude) ---------- */
-// 정치는푸르다: 주제판을 각도(대통령 방어·상대 비판·당내 비판·정책 해설) 탭으로 나누고, 각도마다 따로 묶어 주제를 더 많이
+// 정치는푸르다: 주제판을 각도(대통령 방어·상대 비판·당내 비판·정책 해설·사건사고·이슈) 탭으로 나누고, 각도마다 따로 묶어 주제를 더 많이
 const ANGLE_TABS = CH === 'politics' && !LOCKED;
-const TAB_ORDER = ['대통령 방어', '상대 비판', '당내 비판', '정책 해설'];
+const TAB_ORDER = ['대통령 방어', '상대 비판', '당내 비판', '정책 해설', '사건사고·이슈'];
+// 커뮤니티 글이 없어도 기사 둘 이상이면 주제로 삼는 각도
+const NEWS_OK = ['정책 해설', '사건사고·이슈'];
 const PER_ANGLE = 10;  // 각도 하나에서 한 번에 묶는 주제 수
 function groupPrompt(angle = '', exclude = []) {
   // 증시는 뉴스만: 커뮤니티 글은 보내지 않는다
@@ -511,6 +513,7 @@ function groupPrompt(angle = '', exclude = []) {
   const focus = angle ? ['', `이번 작업은 angle이 "${angle}"인 주제만 고른다(다른 angle에 더 맞는 주제는 뺀다 — 다른 각도는 따로 묶는다). `
     + `topics는 이 angle에서 반응이 큰 순으로 많아야 ${PER_ANGLE}개다(앞의 '많아야 15개'보다 이 줄이 우선). 글이 하나뿐이어도 댓글·공감이 있으면 주제로 남긴다.`
     + (angle === '정책 해설' ? ' 정책 해설은 커뮤니티 글이 없어도 이재명 대통령·정부 정책을 다룬 기사가 둘 이상이면 주제로 삼는다(그때 post_ids는 빈 목록).' : '')
+    + (angle === '사건사고·이슈' ? ' 사건사고·이슈는 커뮤니티 글이 없어도 같은 사건을 다룬 기사가 둘 이상이면 주제로 삼는다(그때 post_ids는 빈 목록). 진보 채널이 다룰 만한 것만: 참사·재난·산업재해·안전사고, 갑질·학대·혐오 범죄, 전세사기 같은 서민 피해, 공권력·기업의 잘못처럼 책임과 제도를 따질 수 있는 일. 연예인 사생활, 단순 교통사고·개인 다툼, 흥밋거리 범죄는 고르지 않는다. 정치인의 수사·재판은 다른 각도로 두고 여기서는 뺀다.' : '')
     + (exclude.length ? ` 이미 만든 주제와 같은 사건은 다시 만들지 않는다: ${JSON.stringify(exclude)}` : '')] : [];
   const text = [m.rules.identity, m.rules.group_task, ...focus,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
@@ -540,7 +543,7 @@ function stockPick(arts, n) {  // 마감 시황·지수 기사 먼저, 그다음
   }
   return out;
 }
-const ANGLES = ['상대 비판', '대통령 방어', '당내 비판', '정책 해설'];
+const ANGLES = ['상대 비판', '대통령 방어', '당내 비판', '정책 해설', '사건사고·이슈'];
 const angles = () => (S.meta && S.meta.rules && Array.isArray(S.meta.rules.angles) && S.meta.rules.angles.length ? S.meta.rules.angles : ANGLES);
 /* 채널 규칙이 바뀌었는지(주제 묶음·대본을 만든 때의 규칙과 지금 규칙 비교) */
 function hashKey(parts) {
@@ -615,15 +618,15 @@ async function runGroup() {
     if (e && e.code !== 'cancelled') $('#group-msg').innerHTML = `<div class="note warn">${esc(claudeError(e))}</div>`;
   } finally { ctl = null; $('#group').disabled = false; $('#group-stop').hidden = true; }
 }
-// Claude 결과 → 주제 목록. angle을 주면(각도별 묶기) 그 각도로 붙이고, 정책 해설은 기사만 있어도(둘 이상) 주제
+// Claude 결과 → 주제 목록. angle을 주면(각도별 묶기) 그 각도로 붙이고, 정책 해설·사건사고·이슈는 기사만 있어도(둘 이상) 주제
 function topicsOf(res, pmap, amap, angle = '') {
   const byPost = Object.fromEntries(S.posts.map(p => [p.id, p]));
   const out = [];
   for (const t of (res && Array.isArray(res.topics) ? res.topics : [])) {
     const post_ids = [...new Set(strList(t.post_ids, 40).map(x => pmap[x]).filter(Boolean))];
     const article_ids = [...new Set(strList(t.article_ids, NEWS ? 8 : 6).map(x => amap[x]).filter(Boolean))];
-    const policyNews = angle === '정책 해설' && article_ids.length >= 2;
-    // 정치는 커뮤니티 글이 있어야 주제(정책 해설은 기사 둘 이상이어도), 증시는 기사만 있어도 주제
+    const policyNews = NEWS_OK.includes(angle) && article_ids.length >= 2;
+    // 정치는 커뮤니티 글이 있어야 주제(정책 해설·사건사고·이슈는 기사 둘 이상이어도), 증시는 기사만 있어도 주제
     if (!(NEWS ? article_ids.length : post_ids.length || policyNews) || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
     const a = angle || (angles().includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '');
     out.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(), angle: a,
@@ -704,7 +707,7 @@ function renderTopics() {
   const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
   $('#topics-wrap').hidden = false;
   $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : HEALTH ? '40~50대에게 가깝고 근거 탄탄한 순' : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
-  // 각도 탭(정치는푸르다): 전체 · 대통령 방어 · 상대 비판 · 당내 비판 · 정책 해설
+  // 각도 탭(정치는푸르다): 전체 · 대통령 방어 · 상대 비판 · 당내 비판 · 정책 해설 · 사건사고·이슈
   const tab = ANGLE_TABS && (S.atab === '' || TAB_ORDER.includes(S.atab)) ? S.atab : '';
   $('#angle-tabs').hidden = !ANGLE_TABS;
   if (ANGLE_TABS) {
@@ -725,7 +728,7 @@ function renderTopics() {
     return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
       <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
       ${NEWS ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건${HEALTH && arts.some(a => a.kind === 'press') ? ' · <b>보도자료</b>' : ''} · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
-      ${NEWS ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''} · ${esc(sites)} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
+      ${NEWS ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''}${sites ? ` · ${esc(sites)}` : ''} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
       <div class="stance"><span class="tag">${NEWS ? '핵심' : RIGHT ? '채널 시선' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
       ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
       ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : HEALTH ? '한계·주의' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}

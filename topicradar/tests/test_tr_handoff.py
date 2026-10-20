@@ -183,6 +183,7 @@ def test_stock_profile_rules():
     ].get("vague")
     base = channel_rules(ChannelConfig())["rules"]  # 정치 채널은 그대로
     assert base["identity"] == prompts.IDENTITY and base["angles"][0] == "상대 비판"
+    assert base["angles"][-1] == "사건사고·이슈" and "사건사고·이슈" in base["group_task"]
 
 
 def test_stock_rules_are_news_only():

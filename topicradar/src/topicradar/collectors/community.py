@@ -181,9 +181,34 @@ def parse_time(text: str, now: datetime) -> datetime | None:
     return None
 
 
+# 진보 채널이 다룰 만한 사건사고·사회 이슈(혼합 게시판에서 정치글과 함께 남긴다) — 연예·잡담 사고가 섞이지 않게 좁게
+ISSUE_WORDS = [
+    "참사",
+    "산재",
+    "중대재해",
+    "재난",
+    "붕괴",
+    "화재",
+    "침수",
+    "싱크홀",
+    "안전사고",
+    "사망사고",
+    "갑질",
+    "학대",
+    "혐오",
+    "묻지마",
+    "스토킹",
+    "전세사기",
+    "압수수색",
+    "구속",
+    "유족",
+    "노동자",
+]
+
+
 def is_political(title: str, extra: list[str] | None = None) -> bool:
-    """제목이 정치글인가."""
-    return any(w in title for w in [*POLITICS_WORDS, *(extra or [])])
+    """제목이 정치글(또는 사건사고·사회 이슈 글)인가."""
+    return any(w in title for w in [*POLITICS_WORDS, *ISSUE_WORDS, *(extra or [])])
 
 
 def parse_board(html_text: str, spec: CommunitySpec, base_url: str, now: datetime) -> list[BoardPost]:
