@@ -5,6 +5,7 @@
   문장 사이 쉼 remove_silence_ms, 음량 target_lufs.
 - 한 번에 2,000자까지라서 긴 대본은 문단·문장 단위로 나눠 읽고 이어 붙인다. 뒤 조각의 시각은 앞 조각 길이만큼 민다.
 - 받은 시각은 그 음성에 맞춘 값이라 자막·장면 시간을 따로 짐작하지 않아도 된다.
+- 사건·기념일 날짜(5·18, 4·19, 6·25, 12·12)는 관례대로 읽히게 바꿔 보내고(오일팔·사일구), 받은 시각은 원래 글로 되돌린다.
 """
 
 from __future__ import annotations
@@ -26,6 +27,74 @@ MAX_CHARS = 2000
 MODEL = "ssfm-v30"
 USER_AGENT = "studio-newsclip/1"
 _SENT_RE = re.compile(r"(?<=[.!?…])\s+")
+# 사건·기념일 날짜는 숫자('오백십팔', '오 십팔')로 읽지 않고 관례대로: 5·18 → 오일팔, 4·19 → 사일구, 6·25 → 육이오.
+# 월은 그대로(10 → 십, 12 → 십이), 일은 한 자씩(18 → 일팔). 가운뎃점(·)으로 쓴 것과 이름처럼 쓰는 붙여 쓴 숫자만.
+_SINO = "영일이삼사오육칠팔구"
+_EVENT_EXCEPT = {"12·12": "십이십이", "6·10": "육십", "10·26": "십이륙", "10·4": "십사", "12·3": "십이삼"}
+_EVENT_DOT = re.compile(r"(?<![\d.,])(1[0-2]|[1-9])\s*[·ㆍ･‧∙]\s*([1-9]|[12]\d|3[01])(?![\d%])")
+_BARE_EVENT = {"518": "5·18", "419": "4·19", "625": "6·25", "815": "8·15", "1212": "12·12", "1026": "10·26"}
+_BARE_RE = re.compile(
+    r"(?<![\d.,])("
+    + "|".join(_BARE_EVENT)
+    + r")(?=\s*(?:민주|광주|혁명|전쟁|사태|정신|묘역|기념|왜곡|폄훼|폄하|망언|단체|유공|진상|특별법|쿠데타|군사|광복|은|는|이|가|을|를|의|에|과|와|도|만|로|으로|[\s,.!?'\"”’)]|$))"
+)
+
+
+def _event_read(month: str, day: str) -> str:
+    key = f"{int(month)}·{int(day)}"
+    if key in _EVENT_EXCEPT:
+        return _EVENT_EXCEPT[key]
+    m = int(month)
+    mon = _SINO[m] if m < 10 else "십" + (_SINO[m - 10] if m > 10 else "")
+    d = int(day)
+    return mon + ("십" if d == 10 else "".join(_SINO[int(ch)] for ch in str(d)))
+
+
+def speakable(text: str) -> tuple[str, list[tuple[str, str]]]:
+    """타입캐스트에 보낼 글: 사건·기념일 날짜를 관례대로 읽히게 바꾼다. 반환: (보낼 글, [(읽는 말, 원래 글)]) —
+    받은 낱말·글자 시각을 원래 글(자막에 보이는 '5·18')로 되돌릴 때 쓴다."""
+    pairs: list[tuple[str, str]] = []
+
+    def dot(m: re.Match) -> str:
+        said = _event_read(m.group(1), m.group(2))
+        pairs.append((said, m.group(0)))
+        return said
+
+    def bare(m: re.Match) -> str:
+        mon, day = _BARE_EVENT[m.group(1)].split("·")
+        said = _event_read(mon, day)
+        pairs.append((said, m.group(1)))
+        return said
+
+    out = _BARE_RE.sub(bare, _EVENT_DOT.sub(dot, text))
+    return out, list(dict.fromkeys(pairs))
+
+
+def _unspeak_words(words: list[Word], pairs: list[tuple[str, str]]) -> list[Word]:
+    """읽는 말로 받은 낱말 시각의 글을 원래 글로('오일팔은' → '5·18은')."""
+    out = []
+    for text, a, b in words:
+        for said, orig in pairs:
+            text = text.replace(said, orig)
+        out.append((text, a, b))
+    return out
+
+
+def _unspeak_chars(chars: list[Word], pairs: list[tuple[str, str]]) -> list[Word]:
+    """글자 시각에서 읽는 말 글자들을 원래 글 글자들로 바꾼다(그 말이 읽힌 시간을 원래 글 글자 수로 고르게 나눔)."""
+    out = list(chars)
+    for said, orig in pairs:
+        i = 0
+        while i <= len(out) - len(said):
+            if "".join(t for t, _a, _b in out[i : i + len(said)]) != said:
+                i += 1
+                continue
+            a, b = out[i][1], out[i + len(said) - 1][2]
+            step = (b - a) / max(len(orig), 1)
+            new = [(ch, round(a + k * step, 3), round(a + (k + 1) * step, 3)) for k, ch in enumerate(orig)]
+            out[i : i + len(said)] = new
+            i += len(new)
+    return out
 
 
 class TypecastError(RuntimeError):
@@ -232,19 +301,20 @@ def synthesize(
         output: dict = {"audio_format": "wav", "audio_tempo": tempo, "target_lufs": target_lufs}
         if remove_silence_ms is not None:
             output["remove_silence_ms"] = remove_silence_ms
+        said, pairs = speakable(chunk)
         body: dict = {
             "model": model,
             "voice_id": voice_id,
-            "text": read_as(chunk, reading),
+            "text": read_as(said, reading),
             "language": "kor",
             "output": output,
         }
         if smart:
             prompt: dict = {"emotion_type": "smart"}
             if i > 0:
-                prompt["previous_text"] = read_as(_edge(chunks[i - 1], last=True), reading)
+                prompt["previous_text"] = read_as(speakable(_edge(chunks[i - 1], last=True))[0], reading)
             if i + 1 < len(chunks):
-                prompt["next_text"] = read_as(_edge(chunks[i + 1], last=False), reading)
+                prompt["next_text"] = read_as(speakable(_edge(chunks[i + 1], last=False))[0], reading)
             body["prompt"] = prompt
         best = None
         for _attempt in range(1 + (RETRIES if per_sentence else 0)):
@@ -271,19 +341,26 @@ def synthesize(
         if params is None:
             params = wparams
         frames.append(pcm)
-        words += _back(
-            [
-                (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
-                for s in data.get("words") or []
-            ],
-            reading,
+        # 채널 읽는 법(read_as)을 먼저 되돌리고, 사건·기념일 날짜(speakable)를 되돌린다(보낼 때와 거꾸로)
+        words += _unspeak_words(
+            _back(
+                [
+                    (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
+                    for s in data.get("words") or []
+                ],
+                reading,
+            ),
+            pairs,
         )
-        chars += _back(
-            [
-                (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
-                for s in data.get("characters") or []
-            ],
-            reading,
+        chars += _unspeak_chars(
+            _back(
+                [
+                    (s["text"], round(s["start"] + offset, 3), round(s["end"] + offset, 3))
+                    for s in data.get("characters") or []
+                ],
+                reading,
+            ),
+            pairs,
         )
         offset += dur
     out.parent.mkdir(parents=True, exist_ok=True)

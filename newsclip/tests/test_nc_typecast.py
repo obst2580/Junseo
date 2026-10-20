@@ -219,3 +219,24 @@ def test_read_as_changes_sound_only():
     ]
     chars = [(c, float(i), float(i + 1)) for i, c in enumerate("로일일구")]
     assert [c for c, _, _ in _back(chars, table)] == ["로", "1", "1", "9"]
+
+
+def test_event_dates_read_by_custom_and_times_map_back(monkeypatch, tmp_path):
+    """5·18은 '오일팔'로 읽게 보내고(숫자 '오 십팔'로 읽지 않게), 받은 낱말·글자 시각은 자막에 보이는 '5·18'로 되돌린다."""
+    from newsclip.typecast_tts import speakable
+
+    assert speakable("5·18 민주화운동")[0] == "오일팔 민주화운동"
+    assert speakable("518 왜곡 망언")[0] == "오일팔 왜곡 망언"
+    assert (
+        speakable("4·19와 6·25, 12·12 군사반란, 10·26 사태")[0]
+        == "사일구와 육이오, 십이십이 군사반란, 십이륙 사태"
+    )
+    assert speakable("3·1절과 8·15 광복절")[0] == "삼일절과 팔일오 광복절"
+    for plain in ("518명이 모였습니다", "지지율 3.5% 하락", "10월 19일 국정감사"):  # 수·날짜는 그대로
+        assert speakable(plain) == (plain, [])
+    monkeypatch.setenv("TYPECAST_API_KEY", "test-key")
+    seen: list = []
+    speech = synthesize("5·18은 폭동이라는 말", "tc_gyeom", tmp_path / "n.wav", client=_fake_server(seen))
+    assert seen[0]["text"] == "오일팔은 폭동이라는 말"
+    assert speech.words[0][0] == "5·18은"
+    assert "".join(ch for ch, _a, _b in speech.chars).startswith("5·18은 폭동")
