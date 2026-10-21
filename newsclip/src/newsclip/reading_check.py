@@ -39,7 +39,13 @@ def number_issues(tc_words: list, asr: list) -> list[dict]:
             if not (sep.group(1) == "~" and between in ("에서", "부터", "내지")):
                 out.append({"kind": "reading_symbol", "at": float(s), "word": w, "heard": heard.strip()})
                 continue
-        if got and want and got != want and want not in got:
+        # '20일'(이십 일)은 '이십일'과 소리가 같아 인식이 21로 받아 적는다 — 0으로 끝나는 날짜는 +1도 맞게 친다
+        same_sound = bool(
+            w.endswith(("일", "일은", "일에", "일부터", "일까지"))
+            and want.endswith("0")
+            and got == want[:-1] + "1"
+        )
+        if got and want and got != want and want not in got and not same_sound:
             out.append({"kind": "reading_number", "at": float(s), "word": w, "heard": heard.strip()})
     return out
 
@@ -56,7 +62,9 @@ def sentence_issues(tc_words: list, asr: list) -> list[dict]:
         want = len(_HANGUL.findall(text))
         if want >= 12:
             heard = _heard(asr, float(sent[0][1]), float(sent[-1][2]), pad=0.05)
-            got = len(_HANGUL.findall(heard)) + 2 * len(_DIGITS.findall(heard))  # 숫자는 받아 적으면 글자가 줄어든다
+            got = len(_HANGUL.findall(heard)) + 2 * len(
+                _DIGITS.findall(heard)
+            )  # 숫자는 받아 적으면 글자가 줄어든다
             ratio = got / want
             if ratio < SENT_LOW or ratio > SENT_HIGH:
                 kind = "reading_skip" if ratio < SENT_LOW else "reading_repeat"

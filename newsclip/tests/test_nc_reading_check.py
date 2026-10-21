@@ -20,6 +20,8 @@ def test_correct_numbers_and_ranges_pass():
         ("70대는", 4.0, 4.4),
     ]
     assert number_issues(tc, asr) == []
+    # '20일'(이십 일)을 인식이 21로 받아 적는 건 소리가 같아서 — 실수가 아니다
+    assert number_issues([["20일", 21.0, 21.4]], [("21정례", 21.0, 21.6)]) == []
     wrong = [("10월", 2.2, 2.4), ("12일", 2.4, 2.6)]
     assert [g["kind"] for g in number_issues(tc[:2], wrong)] == ["reading_number"]
 
