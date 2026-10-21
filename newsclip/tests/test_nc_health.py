@@ -401,3 +401,14 @@ def test_card_cut_is_brief(tmp_path):
     shots = shots_for(scenes, tmp_path, 6.0, {}, cuts=[3.0])
     assert shots[0].path.name == "s003_card.jpg" and shots[0].end - shots[0].start == pytest.approx(CARD_MAX)
     assert shots[1].kind == "video" and shots[-1].end == 6.0
+
+
+def test_people_query_hint():
+    """사람 장면 검색어에만 people_hint(asian)를 앞에 붙인다 — 이미 있거나 사물 장면이면 그대로."""
+    from newsclip.pipeline import people_query
+
+    assert people_query("senior woman walking park", "asian") == "asian senior woman walking park"
+    assert people_query("doctor consultation patient", "asian") == "asian doctor consultation patient"
+    assert people_query("blood test tubes laboratory", "asian") is None
+    assert people_query("Asian woman cooking", "asian") is None
+    assert people_query("senior woman walking park", "") is None

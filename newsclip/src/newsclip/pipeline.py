@@ -135,8 +135,29 @@ def query_for(scene: Scene, source: str) -> str:
     return " ".join([*anchor, *own]) or " ".join(scene.keywords_ko[:2])
 
 
+# 사람이 나오는 장면인지 가리는 영어 검색어 낱말(소재 사이트 검색어는 영어)
+PEOPLE_WORDS = {
+    "woman", "women", "man", "men", "senior", "seniors", "elderly", "older", "aged", "people", "person",
+    "couple", "family", "doctor", "nurse", "patient", "girl", "boy", "child", "parents", "grandmother",
+    "grandfather", "friends", "adult", "mother", "father", "lady", "guy", "worker",
+}  # fmt: skip
+
+
+def people_query(query: str, hint: str) -> str | None:
+    """사람이 나오는 검색어면 hint를 앞에 붙인 검색어(이미 들어 있거나 사람 장면이 아니면 None)."""
+    words = query.lower().split()
+    if not hint or hint.lower() in words or not PEOPLE_WORDS & set(words):
+        return None
+    return f"{hint} {query}"
+
+
 async def gather_candidates(
-    scene: Scene, sources: dict[str, Source], report: RunReport, want: int, want_videos: int = 0
+    scene: Scene,
+    sources: dict[str, Source],
+    report: RunReport,
+    want: int,
+    want_videos: int = 0,
+    people_hint: str = "",
 ) -> list[Asset]:
     """우선순위대로 검색해 후보를 모은다(사진이 want장, 영상이 want_videos개 모이면 멈춤, 키 없는 소스는 경고 후 건너뜀).
     무료 소재 사이트만 쓰는 채널은 설정 순서(images.sources)가 곧 찾는 순서다.
@@ -172,7 +193,14 @@ async def gather_candidates(
     for name in route:
         if enough():
             break
-        await search(name, query_for(scene, name))
+        q = query_for(scene, name)
+        # 사람 장면은 people_hint(예: asian)를 붙여 먼저 찾고, 모자라면 원래 검색어로 채운다
+        hinted = people_query(q, people_hint) if name in STOCK_SOURCES else None
+        if hinted:
+            await search(name, hinted)
+            if enough():
+                break
+        await search(name, q)
     fallback = topic_query(scene)
     for name in route:
         if enough() or name in (
@@ -408,7 +436,12 @@ async def run_project(
         found = await asyncio.gather(
             *(
                 gather_candidates(
-                    sc, sources, report, want=per_scene * 3, want_videos=3 if stock_video else 0
+                    sc,
+                    sources,
+                    report,
+                    want=per_scene * 3,
+                    want_videos=3 if stock_video else 0,
+                    people_hint=cfg.images.people_hint,
                 )
                 for sc in scenes
             )

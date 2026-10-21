@@ -50,6 +50,7 @@ images:
   # 화면 소재는 무료 소재 사이트에서만 자동으로 모은다 — Pexels 세로 영상 먼저, 모자라면 Pixabay 영상(가로는 가운데를 잘라 씀)
   sources: [pexels_video, pexels_image, pixabay_video, pixabay_image]
   orientation: portrait
+  people_hint: asian           # 사람 장면은 아시아인 영상·사진을 먼저(한국 40~50대 시청자에게 익숙한 얼굴) — 모자라면 원래 검색어로
 
 videos:
   preferred_channels: []

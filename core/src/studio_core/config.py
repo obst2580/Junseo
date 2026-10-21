@@ -147,6 +147,9 @@ class ImagesSection(BaseModel):
     orientation: Literal["", "portrait", "landscape"] = (
         ""  # 소재 사이트에서 먼저 찾을 화면 방향(비우면 가리지 않음)
     )
+    # 사람이 나오는 장면 검색어 앞에 붙여 먼저 찾을 말(예: "asian" — 한국 시청자에게 익숙한 얼굴). 그 말로 모자라면
+    # 원래 검색어로 채운다. 비우면 붙이지 않음
+    people_hint: str = ""
 
 
 class VideosSection(BaseModel):
