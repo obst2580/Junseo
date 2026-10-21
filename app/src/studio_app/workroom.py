@@ -438,7 +438,14 @@ def _fetched(fetched: Path, asset_id: str, use: str) -> Path:
     return hits[0]
 
 
-def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, crf: int = RENDER_CRF) -> dict:
+def make_render(
+    req: dict,
+    fetched: Path,
+    out: Path,
+    bgm: dict | None = None,
+    crf: int = RENDER_CRF,
+    drop: tuple[str, ...] = (),
+) -> dict:
     """받은 자산(fetched/<ID>.<확장자>)으로 프로젝트 폴더를 다시 꾸미고 완성 mp4(out/final.mp4)를 만든다.
     자막은 자료를 모을 때 만든 SRT 시각 그대로, 훅 조각은 낱말 시각(타입캐스트, 아니면 음성 인식)에 맞춘다.
     out/render.json(projects/<ID>.render에 쓸 값, asset_id 빼고)을 쓰고 그 내용을 돌려준다."""
@@ -489,7 +496,7 @@ def make_render(req: dict, fetched: Path, out: Path, bgm: dict | None = None, cr
         if sub_fixed:
             srt.write_text(write_srt(cues), encoding="utf-8")
             fixed += sub_fixed
-    scenes, photo_fixed = fix_photos(res["scenes"], proj)
+    scenes, photo_fixed = fix_photos(res["scenes"], proj, drop)  # drop: 작업자가 장면 모음을 보고 뺀 사진
     fixed += photo_fixed
     project = {
         "script": req["script"],
@@ -1128,6 +1135,11 @@ def main() -> None:
     vd.add_argument("--asset-id", required=True)
     ri = sub.add_parser("render-ids", help="완성 영상에 필요한 자산 ID 목록(작업자가 하나씩 받는다)")
     rn = sub.add_parser("render", help="받은 자산으로 완성 mp4 만들기 → final.mp4 + render.json")
+    rn.add_argument(
+        "--drop",
+        action="append",
+        help="뺄 사진(assets/s006_1.jpg — 장면 모음을 보고 문장과 안 맞는 사진, 여러 번 줄 수 있음)",
+    )
     for x in (ri, rn):
         x.add_argument("--project", type=Path, required=True)
         x.add_argument(
@@ -1192,7 +1204,7 @@ def main() -> None:
         if a.cmd == "render-ids":
             print(json.dumps(render_ids(req, bgm), ensure_ascii=False))
             return
-        doc = make_render(req, a.fetched, a.out, bgm)
+        doc = make_render(req, a.fetched, a.out, bgm, drop=tuple(a.drop or ()))
         print(json.dumps({**doc, "file": str(a.out / "final.mp4")}, ensure_ascii=False))
         return
     if a.cmd == "voice":

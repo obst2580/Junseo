@@ -80,3 +80,36 @@ def test_fix_photos_borrows_neighbour_when_chosen_is_watermarked(tmp_path):
     assert [f["kind"] for f in fixed] == ["photo_watermark"]
     assert new[1]["chosen"] == "assets/s017_1.jpg" and new[1]["attribution"] == "출처: gangnam.go.kr"
     assert scenes[1]["chosen"] == "assets/s018_1.jpg"  # 원본은 그대로
+
+
+def test_worker_can_drop_a_mismatched_photo(tmp_path):
+    """작업자가 장면 모음을 보고 문장과 안 맞는다고 고른 사진(--drop)은 같은 장면 다른 후보로, 없으면 옆 장면 사진으로."""
+    scenes = [
+        {
+            "start": 11.4,
+            "end": 14.9,
+            "attribution": "출처: a",
+            "chosen": "assets/s005_1.jpg",
+            "files": ["assets/s005_1.jpg"],
+        },
+        {
+            "start": 14.9,
+            "end": 17.8,
+            "attribution": "출처: b",
+            "chosen": "assets/s006_1.jpg",
+            "files": ["assets/s006_1.jpg", "assets/s006_2.jpg"],
+        },
+        {
+            "start": 17.8,
+            "end": 21.5,
+            "attribution": "출처: c",
+            "chosen": "assets/s007_1.jpg",
+            "files": ["assets/s007_1.jpg"],
+        },
+    ]
+    new, fixed = qa.fix_photos(scenes, tmp_path, ("@15.5",))
+    assert new[1]["chosen"] == "assets/s006_2.jpg" and [f["kind"] for f in fixed] == ["photo_mismatch"]
+    new, _ = qa.fix_photos(scenes, tmp_path, ("assets/s007_1.jpg",))
+    assert (
+        new[2]["chosen"] == "assets/s006_1.jpg" and new[2]["attribution"] == "출처: b"
+    )  # 옆 장면 사진을 출처째

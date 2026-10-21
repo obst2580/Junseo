@@ -194,6 +194,7 @@ LABELS = {
     "photo_watermark": "워터마크 사진",
     "photo_document": "문서·화면 캡처 사진",
     "photo_repeat": "같은 사진이 다시 나옴",
+    "photo_mismatch": "문장과 안 맞는 사진",
 }
 
 
@@ -342,22 +343,55 @@ def fix_subtitles(cues: list, words: list | None, limit: int, long: bool = False
     return cues, fixed
 
 
-def fix_photos(scenes: list[dict], proj: Path) -> tuple[list[dict], list[dict]]:
-    """사진 검수에 걸린 사진을 뺀다: 장면의 다른 후보 사진으로, 골라 쓴 사진이 걸렸으면 옆 장면 사진(출처째)으로."""
+def fix_photos(
+    scenes: list[dict], proj: Path, drop: list[str] | tuple[str, ...] = ()
+) -> tuple[list[dict], list[dict]]:
+    """사진 검수에 걸린 사진(과 drop — 작업자가 장면 모음을 보고 문장과 안 맞는다고 고른 사진)을 뺀다: 장면의 다른
+    후보 사진으로, 골라 쓴 사진이 걸렸으면 옆 장면 사진(출처째)으로."""
     import copy
 
     scenes = copy.deepcopy(scenes)
     fixed: list[dict] = []
-    for it in photo_issues(scenes, proj):
-        n = next((k for k, sc in enumerate(scenes) if float(sc.get("start") or 0) == it["at"]), None)
+    todo = [(it, None) for it in photo_issues(scenes, proj)]
+    for rel in drop:
+        if rel.startswith("@"):  # '@15.5' — 그 시각 장면의 대표 사진
+            t = float(rel[1:])
+            hit = next(
+                (sc for sc in scenes if float(sc.get("start") or 0) <= t < float(sc.get("end") or 0)), None
+            )
+            rel = (hit or {}).get("chosen") or ""
+        k = next(
+            (k for k, sc in enumerate(scenes) if rel == sc.get("chosen") or rel in (sc.get("files") or [])),
+            None,
+        )
+        if k is not None:
+            at = float(scenes[k].get("start") or 0)
+            todo.append(
+                (
+                    {
+                        "kind": "photo_mismatch",
+                        "at": at,
+                        "until": float(scenes[k].get("end") or at),
+                        "what": rel,
+                    },
+                    k,
+                )
+            )
+    for it, n in todo:
+        if n is None:
+            n = next((k for k, sc in enumerate(scenes) if float(sc.get("start") or 0) == it["at"]), None)
         if n is None:
             continue
         sc = scenes[n]
         bad = it["what"] if it["kind"] != "photo_watermark" else sc.get("chosen")
         if it["kind"] == "photo_repeat" and bad == sc.get("chosen"):
             continue  # 골라 쓴 사진의 반복은 빌려 와도 또 반복이다 — 그대로 둔다
+        others = [f for f in sc.get("files") or [] if f != bad]
         if bad != sc.get("chosen") and it["kind"] != "photo_watermark":
-            sc["files"] = [f for f in sc.get("files") or [] if f != bad]
+            sc["files"] = others
+        elif it["kind"] == "photo_mismatch" and others:
+            # 문장과 안 맞는 대표 사진: 같은 장면의 다른 후보가 있으면 그걸로(출처는 같은 검색 결과)
+            sc["chosen"], sc["files"] = others[0], others
         else:
             # 골라 쓴 사진(출처가 이 사진의 것)이 걸림 — 옆 장면의 사진과 출처를 빌린다
             near = [m for m in (n - 1, n + 1, n - 2, n + 2) if 0 <= m < len(scenes)]

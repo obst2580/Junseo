@@ -330,6 +330,13 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    장면 다른 사진, 골라 쓴 사진이면 옆 장면 사진을 출처째)을 고치고, 렌더 뒤 음량·최고점이 벗어나면 소리만 -14 LUFS로
    맞춥니다. 그다음 다시 검수(검은 화면·소리 끊김 포함)해 `qa.fixed`(고친 것)·`qa.issues`(고치지 못하고 남은 것)를 남기고,
    1초 간격 장면 모음(`/tmp/wr-render/sheet.jpg`, 남은 곳은 빨간 테두리)을 만듭니다.
+   **눈으로 검수**: `Read`로 `/tmp/wr-render/sheet.jpg`(1초 간격 장면 모음)를 보고, 받은 프로젝트 파일의
+   `result.scenes`(장면마다 `start`·`end`·`text`·`photo_title`·`chosen`·`files`)와 견줍니다. 문장과 사진이 **분명히**
+   안 맞는 칸 — 문장에 나온 사람과 다른 사람, 엉뚱한 장소·사건, 글자 캡처·워터마크·얼굴이 잘린 사진 — 이 있으면 그 사진을
+   빼고 3단계를 **한 번 더** 돌립니다: `--drop @15.5`(그 시각 장면의 대표 사진) 또는 `--drop assets/s006_2.jpg`(장면의 다른
+   사진 — `/tmp/wr-render/project/assets/`의 그림을 `Read`로 열어 확인), 여러 개면 `--drop`을 여러 번. 같은 장면의 다른
+   후보가 있으면 그걸로, 없으면 옆 장면 사진으로 바뀝니다. 사건 현장·건물·국회 같은 일반 사진은 괜찮으니 애매하면 그대로 둡니다.
+   다시 본 뒤에도 안 맞으면 그대로 두고 note에 적습니다. 뺀 사진은 `qa.fixed`에 '문장과 안 맞는 사진'으로 남습니다.
 4. `/tmp/wr-render/final.mp4`와 `/tmp/wr-render/sheet.jpg`를 `Artifact`(`url`: 제작실, `asset: true`, `file_path`)로
    하나씩 올리고 자산 ID를 받습니다.
 5. 자산 ID를 붙여 프로젝트에 쓸 값을 만들고 `ArtifactData update`로 `projects/<ID>`에 씁니다(1단계 `version`으로 `if_version`).
