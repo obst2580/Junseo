@@ -528,6 +528,7 @@ function groupPrompt(angle = '', exclude = []) {
     + `topics는 이 angle에서 반응이 큰 순으로 많아야 ${PER_ANGLE}개다(앞의 '많아야 15개'보다 이 줄이 우선). 글이 하나뿐이어도 댓글·공감이 있으면 주제로 남긴다.`
     + (angle === '정책 해설' ? ' 정책 해설은 커뮤니티 글이 없어도 이재명 대통령·정부 정책을 다룬 기사가 둘 이상이면 주제로 삼는다(그때 post_ids는 빈 목록).' : '')
     + (angle === '사건사고·이슈' ? ' 사건사고·이슈는 커뮤니티 글이 없어도 같은 사건을 다룬 기사가 둘 이상이면 주제로 삼는다(그때 post_ids는 빈 목록). 진보 채널이 다룰 만한 것만: 참사·재난·산업재해·안전사고, 갑질·학대·혐오 범죄, 전세사기 같은 서민 피해, 공권력·기업의 잘못처럼 책임과 제도를 따질 수 있는 일. 연예인 사생활, 단순 교통사고·개인 다툼, 흥밋거리 범죄는 고르지 않는다. 정치인의 수사·재판은 다른 각도로 두고 여기서는 뺀다.' : '')
+    + (NEWS_OK.includes(angle) ? '' : ' 커뮤니티 글이 적은 날을 위해, 같은 사건을 다룬 기사가 셋 이상인 큰 뉴스는 커뮤니티 글이 없어도 주제로 삼는다(그때 post_ids는 빈 목록, stance·points는 채널 시선으로 기사 사실에서). 커뮤니티 글이 있는 주제를 먼저 고른다.')
     + (exclude.length ? ` 이미 만든 주제와 같은 사건은 다시 만들지 않는다: ${JSON.stringify(exclude)}` : '')] : [];
   const text = [m.rules.identity, m.rules.group_task, ...focus,
     '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
@@ -639,8 +640,9 @@ function topicsOf(res, pmap, amap, angle = '') {
   for (const t of (res && Array.isArray(res.topics) ? res.topics : [])) {
     const post_ids = [...new Set(strList(t.post_ids, 40).map(x => pmap[x]).filter(Boolean))];
     const article_ids = [...new Set(strList(t.article_ids, NEWS ? 8 : 6).map(x => amap[x]).filter(Boolean))];
-    const policyNews = NEWS_OK.includes(angle) && article_ids.length >= 2;
-    // 정치는 커뮤니티 글이 있어야 주제(정책 해설·사건사고·이슈는 기사 둘 이상이어도), 증시는 기사만 있어도 주제
+    // 각도별 묶기: 정책 해설·사건사고·이슈는 기사 둘, 다른 각도는 기사 셋 이상이면 커뮤니티 글 없이도 주제(큰 뉴스)
+    const policyNews = !!angle && article_ids.length >= (NEWS_OK.includes(angle) ? 2 : 3);
+    // 정치는 커뮤니티 글이 있어야 주제(각도별 묶기에서는 기사 둘·셋 이상이어도), 증시는 기사만 있어도 주제
     if (!(NEWS ? article_ids.length : post_ids.length || policyNews) || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
     const a = angle || (angles().includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '');
     out.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(), angle: a,
