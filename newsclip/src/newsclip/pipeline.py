@@ -140,6 +140,7 @@ PEOPLE_WORDS = {
     "woman", "women", "man", "men", "senior", "seniors", "elderly", "older", "aged", "people", "person",
     "couple", "family", "doctor", "nurse", "patient", "girl", "boy", "child", "parents", "grandmother",
     "grandfather", "friends", "adult", "mother", "father", "lady", "guy", "worker",
+    "pharmacist", "customer", "staff", "wife", "husband", "mom", "dad", "grandma", "grandpa", "teacher", "student",
 }  # fmt: skip
 
 
@@ -198,8 +199,10 @@ async def gather_candidates(
         hinted = people_query(q, people_hint) if name in STOCK_SOURCES else None
         if hinted:
             await search(name, hinted)
-            if enough():
-                break
+            # 이 사이트의 자료(영상 또는 사진)가 hint 검색어로 넉넉하면 원래 검색어 결과는 섞지 않는다
+            media = "video" if name.endswith("_video") else "image"
+            if sum(1 for a in out if a.media == media) >= (want_videos if media == "video" else want):
+                continue
         await search(name, q)
     fallback = topic_query(scene)
     for name in route:
