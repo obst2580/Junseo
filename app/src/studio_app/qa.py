@@ -95,6 +95,8 @@ def photo_issues(scenes: list[dict], proj: Path) -> list[dict]:
             path = proj / rel
             if not path.exists() or path.suffix.lower() not in (".jpg", ".jpeg", ".png"):
                 continue
+            if path.stem.endswith("_card"):  # 우리가 그린 수치 카드(글자가 많아 문서처럼 재지만 일부러 넣은 것)
+                continue
             try:
                 measured = [doc_text_rows(path)]
                 probe = _white_box(
