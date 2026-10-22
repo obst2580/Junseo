@@ -189,6 +189,11 @@ class ShortsSection(BaseModel):
     """세로 쇼츠 디자인."""
 
     style: str = "default"  # default(흰·노랑 글씨 + 검은 테두리) | navy_red(남색·빨강 띠 + 블랙한산스 + 검은 바탕) | health(흰 바탕 위 검정·하늘색 글씨) — newsclip.vertical.STYLES
+    # 끝 인사(script.shorts_outro) 장면에 넣을 채널 영상(저장소 기준 경로, 비우면 그 장면도 무료 소재). 완성 영상에서
+    # 끝 인사 첫 장면부터 끝까지 이 영상을 이어 쓴다(소리는 빼고, 사진 칸에 맞춰 위쪽 outro_top 비율 자리를 잘라 씀)
+    outro_clip: str = ""
+    outro_start: float = 0.0  # 이 초부터 쓴다(예: 손 흔드는 때)
+    outro_top: float = 0.0  # 사진 칸 비율로 자를 때 윗선(원본 높이 대비 비율, 0이면 가운데)
 
 
 class VoiceSection(BaseModel):

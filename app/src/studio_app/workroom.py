@@ -500,6 +500,21 @@ def make_render(
             fixed += sub_fixed
     scenes, photo_fixed = fix_photos(res["scenes"], proj, drop)  # drop: 작업자가 장면 모음을 보고 뺀 사진
     fixed += photo_fixed
+    # 끝 인사 장면은 채널 끝 인사 영상으로(널스윤서: 윤서가 손 흔들며 인사)
+    cfg = load_channel(settings)
+    outro_ids: list[str] = []
+    if cfg.shorts.outro_clip:
+        from newsclip.shorts_render import use_outro_clip
+
+        outro_ids = use_outro_clip(
+            scenes,
+            proj,
+            cfg.script.shorts_outro or cfg.script.outro,
+            settings.root / cfg.shorts.outro_clip,
+            style,
+            cfg.shorts.outro_start,
+            cfg.shorts.outro_top,
+        )
     project = {
         "script": req["script"],
         "scenes": scenes,
@@ -561,6 +576,7 @@ def make_render(
         "timing": "typecast" if words else "srt+asr",
         "redesigned": refreshed,  # 지금 디자인으로 다시 합성한 사진 수
         "english": bool(english),  # 영어 자막을 넣었나(en-srt-id는 render-doc이 붙인다)
+        "outro": outro_ids,  # 채널 끝 인사 영상을 넣은 장면
         "replaced": (req.get("render") or {}).get("asset_id"),  # 화면이 지울 지난 완성본
         "replaced_sheet": ((req.get("render") or {}).get("qa") or {}).get("sheet_id"),  # 지난 장면 모음
         "replaced_en": (req.get("render") or {}).get("en_srt_id"),  # 지난 영어 자막

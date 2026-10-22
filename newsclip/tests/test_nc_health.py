@@ -450,3 +450,23 @@ def test_people_query_hint():
     assert people_query("blood test tubes laboratory", "asian") is None
     assert people_query("Asian woman cooking", "asian") is None
     assert people_query("senior woman walking park", "") is None
+
+
+def test_outro_scenes():
+    """끝 인사 장면: 마지막 장면부터 거슬러 올라가며 문장이 끝 인사 글에 든 장면들."""
+    from newsclip.shorts_render import outro_from
+
+    outro = "지금까지 널스윤서였습니다! 더 건강한 삶을 위해서 영상 오른쪽 하트와 구독 버튼을 눌러주세요!"
+    scenes = [
+        {"id": "s001", "start": 0.0, "text": "코골이, 심장까지 위협할 수 있어요!"},
+        {"id": "s002", "start": 3.0, "text": "진료를 받아 보세요."},
+        {"id": "s003", "start": 6.0, "text": "지금까지 널스윤서였습니다!"},
+        {
+            "id": "s004",
+            "start": 8.0,
+            "text": "더 건강한 삶을 위해서 영상 오른쪽 하트와 구독 버튼을 눌러주세요!",
+        },
+    ]
+    assert outro_from(scenes, outro) == 2
+    assert outro_from(scenes[:2], outro) is None
+    assert outro_from(scenes, "") is None

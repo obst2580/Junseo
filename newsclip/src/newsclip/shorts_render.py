@@ -615,6 +615,80 @@ def english_arts(
     return arts
 
 
+def outro_from(scenes: list[dict], outro: str) -> int | None:
+    """끝 인사 첫 장면 번호: 마지막 장면부터 거슬러 올라가며 문장이 끝 인사 글(script.shorts_outro)에 든 장면들."""
+    want = _bare(outro)
+    if not want:
+        return None
+    first = None
+    for k in sorted(range(len(scenes)), key=lambda k: float(scenes[k]["start"]), reverse=True):
+        text = _bare(str(scenes[k].get("text") or ""))
+        if not text or text not in want:
+            break
+        first = k
+    return first
+
+
+def use_outro_clip(
+    scenes: list[dict],
+    asset_dir: Path,
+    outro: str,
+    clip: Path,
+    style: str = "default",
+    start: float = 0.0,
+    top: float = 0.0,
+) -> list[str]:
+    """끝 인사 장면들의 자료를 채널 끝 인사 영상(clip)으로 바꾼다 — 장면마다 이어지는 구간을 잘라(start초부터)
+    사진 칸에 맞춘 조각(assets/outro_N.mp4, 소리 없음)으로. top을 주면 사진 칸 비율로 자를 때 원본 높이의 그
+    비율 자리부터(얼굴이 잘리지 않게). 출처 표시는 뺀다. 바꾼 장면 id 목록."""
+    from newsclip.download import prepare_clip
+    from newsclip.vertical import _box, style_of
+
+    first = outro_from(scenes, outro)
+    if first is None or not clip.exists():
+        return []
+    x0, y0, x1, y1 = _box(SIZE, style_of(style))
+    ratio = (y1 - y0) / (x1 - x0)
+    crop = (
+        f"crop=iw:min(ih\\,iw*{ratio:.4f}):0:min(ih*{top:.3f}\\,ih-min(ih\\,iw*{ratio:.4f}))"
+        if top
+        else "null"
+    )
+    length = probe_duration(clip)
+    todo = sorted(
+        (sc for sc in scenes if float(sc["start"]) >= float(scenes[first]["start"])), key=lambda s: s["start"]
+    )
+    at, done = start, []
+    work = asset_dir / "assets" / "original"
+    work.mkdir(parents=True, exist_ok=True)
+    for n, sc in enumerate(todo):
+        span = float(sc["end"]) - float(sc["start"]) + (1.0 if n == len(todo) - 1 else 0.0)
+        cut = work / f"outro_{n}.src.mp4"
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-y",
+                "-loglevel",
+                "error",
+                "-stream_loop",
+                "-1",
+                "-ss",
+                f"{at % max(length, 0.1):.2f}",
+            ]
+            + ["-i", str(clip), "-t", f"{span + 0.5:.2f}", "-vf", crop, "-an", str(cut)],
+            check=True,
+            capture_output=True,
+            timeout=300,
+        )
+        rel = f"assets/outro_{n}.mp4"
+        prepare_clip(cut, asset_dir / rel, span, SIZE, style)
+        cut.unlink(missing_ok=True)
+        sc.update(chosen=rel, files=[rel], attribution="")
+        at += float(sc["end"]) - float(sc["start"])
+        done.append(sc["id"])
+    return done
+
+
 def subtitles_for(
     script: str,
     audio: Path,
