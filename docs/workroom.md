@@ -326,6 +326,9 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    끝 인사(`script.shorts_outro`) 첫 장면부터 끝까지 그 영상을 이어 씁니다(`outro_start`초부터, 소리 없이, 사진 칸에 맞춰
    `outro_top` 비율 자리부터 잘라). 결과 `render.json`의 `outro`에 바꾼 장면 id가 남습니다. 영상을 바꾸려면 그 파일만 바꿉니다.
 
+   **좋아요 스티커**: 채널 설정 `shorts.like_sticker`가 있으면(널스윤서: "공감하면 좋아요!") 영상 20~70% 사이 첫 강조
+   자막(핵심 숫자·정보)이 끝난 직후 사진 칸 오른쪽 위에 👍 스티커가 톡 튀어나와 2.6초 머뭅니다(짧은 팝 소리).
+
    **영어 자막**: 요청 문서에 `en_subs: true`가 있으면(화면의 [영어 자막 같이 넣기]) 렌더 전에 옮길 문장을 뽑아
 
    ```bash

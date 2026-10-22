@@ -194,6 +194,8 @@ class ShortsSection(BaseModel):
     outro_clip: str = ""
     outro_start: float = 0.0  # 이 초부터 쓴다(예: 손 흔드는 때)
     outro_top: float = 0.0  # 사진 칸 비율로 자를 때 윗선(원본 높이 대비 비율, 0이면 가운데)
+    # 완성 영상 중간(핵심 정보 직후)에 사진 칸 오른쪽 위로 톡 튀어나오는 👍 스티커 문구(비우면 없음)
+    like_sticker: str = ""
 
 
 class VoiceSection(BaseModel):

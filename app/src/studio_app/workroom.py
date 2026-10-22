@@ -534,6 +534,8 @@ def make_render(
         style=style,
         english=english,
         en_font=_en_font(settings),
+        like=cfg.shorts.like_sticker,
+        like_font=_en_font(settings),
     )
     en_srt = proj / "subtitles" / "en.srt"
     if english and en_srt.exists():

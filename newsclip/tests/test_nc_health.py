@@ -470,3 +470,22 @@ def test_outro_scenes():
     assert outro_from(scenes, outro) == 2
     assert outro_from(scenes[:2], outro) is None
     assert outro_from(scenes, "") is None
+
+
+def test_like_sticker(tmp_path):
+    """좋아요 스티커: 그림이 그려지고, 영상 20~70% 사이 첫 강조 자막 직후에 뜬다(없으면 45% 자리)."""
+    from PIL import Image
+
+    from newsclip.render import CueArt
+    from newsclip.shorts_render import draw_like_sticker, like_time
+
+    art = draw_like_sticker("공감하면 좋아요!", tmp_path / "like.png", None)
+    w, h = Image.open(art).size
+    assert w > h > 60
+    cues = [
+        CueArt(tmp_path / "emph_001.png", 1.0, 2.0, 10, 10, 0),  # 영상 20% 앞 — 너무 이르다
+        CueArt(tmp_path / "cue_003.png", 5.0, 7.0, 10, 10, 0),
+        CueArt(tmp_path / "emph_004.png", 8.0, 9.5, 10, 10, 0),
+    ]
+    assert like_time(cues, 30.0, hook_end=3.0) == 9.65
+    assert like_time(cues[:2], 30.0, hook_end=3.0) == 13.5

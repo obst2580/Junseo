@@ -615,6 +615,59 @@ def english_arts(
     return arts
 
 
+EMOJI_FONT = Path("/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf")
+LIKE_SEC = 2.6  # 좋아요 스티커가 떠 있는 시간
+LIKE_AT = (0.2, 0.7)  # 영상 길이의 이 비율 사이에서 핵심(강조 자막)이 끝난 직후에 띄운다
+
+
+def draw_like_sticker(text: str, out: Path, font_path: str | None) -> Path:
+    """좋아요 스티커: 흰 둥근 상자(하늘색 테두리) 안에 👍와 문구. 엄지는 컬러 이모지 글꼴(없으면 문구만)."""
+    from PIL import ImageDraw, ImageFont
+
+    from newsclip.render import _sub_font
+    from newsclip.vertical import SKY
+
+    px, pad, gap, border = 52, 26, 14, 6
+    font = ImageFont.truetype(font_path, px) if font_path else _sub_font(px)
+    thumb = None
+    if EMOJI_FONT.exists():
+        emo = ImageFont.truetype(str(EMOJI_FONT), 109)  # 컬러 이모지 글꼴은 109px로만 그려진다
+        im = Image.new("RGBA", (136, 136), (0, 0, 0, 0))
+        ImageDraw.Draw(im).text((0, 0), "👍", font=emo, embedded_color=True)
+        box = im.getbbox()
+        if box:
+            thumb = im.crop(box)
+            thumb = thumb.resize((round(thumb.width * 78 / thumb.height), 78), Image.LANCZOS)
+    probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    tw = round(probe.textlength(text, font=font))
+    th = max(78, round(px * 1.2))
+    w = pad * 2 + (thumb.width + gap if thumb else 0) + tw
+    h = pad * 2 + th
+    img = Image.new("RGBA", (w + 12, h + 12), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((6, 10, w + 6, h + 10), radius=h // 2, fill=(0, 0, 0, 60))  # 아래 그림자
+    d.rounded_rectangle(
+        (0, 0, w, h), radius=h // 2, fill=(255, 255, 255, 255), outline=(*SKY, 255), width=border
+    )
+    x = pad
+    if thumb:
+        img.alpha_composite(thumb, (x, (h - thumb.height) // 2))
+        x += thumb.width + gap
+    d.text((x, h // 2), text, font=font, fill=(*SKY, 255), anchor="lm")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out, "PNG")
+    return out
+
+
+def like_time(cues: list[CueArt], total: float, hook_end: float = 0.0) -> float:
+    """좋아요 스티커를 띄울 때: 영상 20~70% 사이 첫 강조 자막(핵심 숫자·정보)이 끝난 직후. 없으면 영상 45% 자리."""
+    lo, hi = total * LIKE_AT[0], total * LIKE_AT[1]
+    for c in sorted(cues, key=lambda c: c.start):
+        if c.path.name.startswith("emph_") and lo <= c.end <= hi and c.end >= hook_end:
+            return round(c.end + 0.15, 3)
+    return round(max(hook_end, total * 0.45), 3)
+
+
 def outro_from(scenes: list[dict], outro: str) -> int | None:
     """끝 인사 첫 장면 번호: 마지막 장면부터 거슬러 올라가며 문장이 끝 인사 글(script.shorts_outro)에 든 장면들."""
     want = _bare(outro)
@@ -811,6 +864,8 @@ def build_plan(
     style: str = "default",
     english: list[dict] | None = None,
     en_font: str | None = None,
+    like: str = "",
+    like_font: str | None = None,
 ) -> RenderPlan:
     """프로젝트 dict(script, thumb, scenes) + 자료 폴더 + 음성 → 렌더 계획. english를 주면 영어 자막도(subtitles_for)."""
     from newsclip.autosub import wav_duration
@@ -921,8 +976,23 @@ def build_plan(
         cut.parent.mkdir(parents=True, exist_ok=True)
         img.crop(box).save(cut, "PNG")
         caps.append(Overlay(cut, float(sc["start"]), float(sc["end"]), x=box[0], y=box[1]))
+    stickers = []
+    if like:  # 좋아요 스티커: 사진 칸 오른쪽 위에 톡 튀어나오고 짧은 팝
+        art = draw_like_sticker(like, asset_dir / "subtitles" / "like.png", like_font)
+        lw, lh = Image.open(art).size
+        bx = box_of(st) or (0, 0, SIZE[0], SIZE[1])
+        at = like_time(cues, total, hook_end)
+        if at + 1.0 < total:
+            stickers.append(
+                Overlay(
+                    art, at, min(at + LIKE_SEC, total - 0.3), x=bx[2] - 36 - lw // 2, y=bx[1] + 36 + lh // 2
+                )
+            )
+            sfx.append((max(0.0, at - HIT_EARLY), sfx_dir[HIT]))
+            sfx.sort()
     head = next(iter(sorted((asset_dir / "overlays").glob("headline_*.png"))), None)
     return RenderPlan(
+        stickers=stickers,
         shots=shots,
         total=total,
         narration=audio,
@@ -1015,6 +1085,8 @@ def render_short(
     style: str = "default",
     english: list[dict] | None = None,
     en_font: str | None = None,
+    like: str = "",
+    like_font: str | None = None,
 ) -> Path:
     plan = build_plan(
         project,
@@ -1029,6 +1101,8 @@ def render_short(
         style=style,
         english=english,
         en_font=en_font,
+        like=like,
+        like_font=like_font,
     )
     return render(replace(plan, crf=crf), out)
 

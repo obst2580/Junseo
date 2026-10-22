@@ -111,6 +111,8 @@ class RenderPlan:
     photo_fade: Path | None = None  # 사진 칸 아래를 검정으로 잇는 그림(photo_box 자리에 얹는다)
     crf: int = 18  # 화질(낮을수록 좋고 파일이 큼). 제작실에 올릴 완성본은 크기 한도 때문에 조금 높인다
     peak: float = 0.95  # 소리 최고점(믹스 끝 리미터, 1.0 = 0 dBFS) — 디자인(vertical.Style.peak)에서 받는다
+    # 톡 튀어나오는 스티커(좋아요 등): x, y는 스티커 가운데 자리. 자막 위에 얹는다
+    stickers: list[Overlay] = field(default_factory=list)
 
 
 # ---------- 자막 그림 ----------
@@ -390,6 +392,25 @@ def _cue_y(cue: CueArt) -> str:
     return f"{cue.top}+({cue.height}-h)/2+{SLIDE_PX}*max(0,1-(t-{cue.start:.3f})/{SLIDE_SEC})"
 
 
+STICKER_POP = (
+    0.25,
+    0.4,
+    0.3,
+)  # 스티커: 0.25초 동안 40%→115%로 커지고, 0.4초까지 100%로, 끝 0.3초 동안 작아지며 사라짐
+
+
+def _sticker_chain(st: Overlay) -> str:
+    """스티커 등장·퇴장: 톡 튀어나와(커졌다 제자리) 머물다가 작아지며 사라진다(시각 t는 화면 기준)."""
+    up, settle, out = STICKER_POP
+    d = f"(t-{st.start:.3f})"
+    r = f"({st.end:.3f}-t)"
+    k = (
+        f"if(lt({d},{up}),0.4+0.75*{d}/{up},if(lt({d},{settle}),1.15-0.15*({d}-{up})/{settle - up:.3f},"
+        f"if(lt({r},{out}),max(0.05,{r}/{out}),1)))"
+    )
+    return f",scale=w='iw*{k}':h='ih*{k}':eval=frame"
+
+
 def build_command(plan: RenderPlan, out: Path) -> list[str]:
     """RenderPlan → ffmpeg 명령(목록). 실행은 render()."""
     W, H = plan.size
@@ -451,6 +472,8 @@ def build_command(plan: RenderPlan, out: Path) -> list[str]:
             add_overlay(cue.path, at, cue.end, x="(W-w)/2", y=str(cue.top))
             continue
         add_overlay(cue.path, cue.start, cue.end, x="(W-w)/2", y=_cue_y(cue), chain=_cue_chain(cue))
+    for st in plan.stickers:
+        add_overlay(st.path, st.start, st.end, x=f"{st.x}-w/2", y=f"{st.y}-h/2", chain=_sticker_chain(st))
     chains.append(f"{cur}format=yuv420p[vout]")
 
     # 음성·배경음악·효과음

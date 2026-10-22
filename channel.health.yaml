@@ -71,6 +71,7 @@ shorts:
   style: health                # 흰 바탕 위 검정·하늘색 상단 제목(newsclip/vertical.py STYLES)
   outro_clip: assets/health/outro.mp4   # 끝 인사 장면: 윤서가 손 흔들며 인사하는 영상
   outro_start: 1.5             # 손 흔들기 시작하는 때부터
+  like_sticker: 공감하면 좋아요!   # 영상 중간 핵심 정보 직후 👍 스티커(오른쪽 위, 2.6초)
   outro_top: 0.19              # 머리가 사진 칸 맨 위에 오게(머리 윗선이 원본 높이의 19~28%) — 오른쪽 아래 생성 표시는 빠짐
 
 clustering:
