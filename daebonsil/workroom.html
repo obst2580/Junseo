@@ -316,6 +316,7 @@ footer { font-size: 13px; color: var(--muted); }
       <div class="bgmrow"><span class="small"><b>배경음악</b></span><span id="final-bgm"></span><label class="btn small" for="bgm-file" id="bgm-label">올리기</label><input type="file" id="bgm-file" accept="audio/*,.mp3,.wav,.m4a" hidden></div>
       <div id="bgm-state" class="small"></div>
       <div id="final-notes"></div>
+      <label class="small" id="final-en-row"><input type="checkbox" id="final-en"> 영어 자막 같이 넣기 <span class="muted">— 한국어 자막 아래 작게(작업자가 문장마다 옮김, 1~2분 더 걸림)</span></label>
       <div class="reqbox"><button class="btn primary" id="final-go" type="button">완성 영상 만들기</button><span id="final-state" class="small"></span></div>
       <div class="fallback" id="final-fallback" hidden></div>
       <div id="final-video" class="final"></div>
@@ -1457,13 +1458,14 @@ function watchRequest(slot, rid) {
   if (!rid || !db) { renderSlot(slot); return; }
   w.un = db.doc(`requests/${rid}`).onSnapshot(s => { w.doc = s.exists ? { id: rid, ...s.data() } : null; renderSlot(slot); }, () => {});
 }
-function workerMessage(rid, kind) {
+function workerMessage(rid, kind, extra = {}) {
   const w = S.worker || {};
   return [`[studio 제작실 요청] ${rid} · ${({ collect: '수집', voice: '음성(타입캐스트)', render: '완성 영상(mp4)' })[kind] || '자료·timeline.xml'}`,
     `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, CH !== 'politics' ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
     S.project && kind !== 'collect' ? `프로젝트: ${COL('projects')}/${S.project.id}` : '',
     S.project && kind === 'sources' && isShorts(S.project) ? '형식: 세로 쇼츠(1080×1920 — sources가 format을 보고 세로로 만듦)' : '',
     kind === 'render' ? `배경음악: ${S.bgmOwn ? BGM_DOC : 'config/bgm'}` : '',
+    kind === 'render' && extra.en_subs ? '영어 자막: 넣음(한국어 자막 아래 작게 — en-lines로 옮겨 render --en)' : '',
     '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
 }
 // 작업자 깨우기: 이 아티팩트 댓글을 "Claude에게 보내기"로 남기면, 제작실을 지켜보는 작업자 대화가 깨어난다.
@@ -1486,7 +1488,7 @@ async function requestWork(kind, el, extra = {}) {
   if (!db) { toast('저장소를 쓸 수 없는 화면입니다.', true); return null; }
   const k = kst(), rid = `${k.y}${k.mo}${k.d}-${k.h}${k.mi}-${kind}-${Math.random().toString(36).slice(2, 6)}`;
   const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '', channel: CH, ...extra };
-  const msg = workerMessage(rid, kind);
+  const msg = workerMessage(rid, kind, extra);
   // 누른 직후에만 보낼 수 있어서, 요청 문서 저장과 보내기를 함께 시작한다(작업자는 깨어난 뒤 문서를 읽는다).
   let why = 'no_comments', send = null;
   if (comments && typeof comments.sendToClaude === 'function') {
@@ -1628,15 +1630,19 @@ function renderFinal() {
   const busy = !!r && (r.status === 'queued' || r.status === 'working');
   $('#final-go').disabled = !!need || busy;
   $('#final-go').textContent = fin && fin.asset_id ? '완성 영상 다시 만들기' : '완성 영상 만들기';
+  const en = $('#final-en');
+  if (en.dataset.pid !== p.id) { en.dataset.pid = p.id; en.checked = !!p.en_subs; }  // 프로젝트마다 지난 선택
+  en.disabled = busy;
   $('#final-state').innerHTML = r ? (r.status === 'working' ? spinner('작업자가 영상을 만드는 중… ' + (r.note || '')) : reqLabel(r)) : '';
   $('#final-state').style.color = r && r.status === 'error' ? 'var(--bad)' : '';
   const vid = $('#final-video');
   if (vid.dataset.id !== String((fin && fin.asset_id) || '')) {
     vid.dataset.id = (fin && fin.asset_id) || '';
     vid.innerHTML = fin && fin.asset_id ? `<video controls playsinline preload="metadata" src="/_blob/${esc(fin.asset_id)}"></video>
-      <div class="small muted">${fmtSec(fin.duration || 0)} · ${((fin.size || 0) / 1048576).toFixed(1)}MB · ${esc(when(fin.made_at))}</div>
-      <div class="row"><button class="btn" id="final-dl" type="button">mp4 받기</button><span id="final-dl-state" class="small"></span></div>` : '';
+      <div class="small muted">${fmtSec(fin.duration || 0)} · ${((fin.size || 0) / 1048576).toFixed(1)}MB · ${esc(when(fin.made_at))}${fin.english ? ' · 영어 자막 있음' : ''}</div>
+      <div class="row"><button class="btn" id="final-dl" type="button">mp4 받기</button>${fin.en_srt_id ? '<button class="btn" id="final-en-dl" type="button">영어 자막(srt) 받기</button>' : ''}<span id="final-dl-state" class="small"></span></div>` : '';
     if (fin && fin.asset_id) $('#final-dl').onclick = () => saveFinal(p, fin);
+    if (fin && fin.en_srt_id) $('#final-en-dl').onclick = () => saveFinal(p, fin, fin.en_srt_id, `${p.id}.en.srt`);
   }
   renderQa(fin);
   // 다시 만들면 작업자가 지난 완성본 ID를 replaced에 남긴다 — 여기서 지운다
@@ -1648,6 +1654,11 @@ function renderFinal() {
   if (oldSheet && oldSheet !== sheet && assets && db && !swept.has(oldSheet)) {
     swept.add(oldSheet);
     assets.delete(oldSheet).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced_sheet: null } }).catch(() => {}));
+  }
+  const oldEn = fin && fin.replaced_en;
+  if (oldEn && oldEn !== fin.en_srt_id && assets && db && !swept.has(oldEn)) {
+    swept.add(oldEn);
+    assets.delete(oldEn).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced_en: null } }).catch(() => {}));
   }
 }
 // 롱폼 자동 검수(자료를 모을 때): 어색하게 넘어가는 자막은 앞뒤와 이어 다시 나눠 timeline.xml에 넣었다
@@ -1674,14 +1685,14 @@ function renderQa(fin) {
     : `<div class="note info"><b class="t">자동 검수 통과${fixed.length ? ` — ${fixed.length}곳 고쳐서 제출` : ''}</b>자막 끊김·문서 캡처·워터마크 사진·검은 화면·소리 끊김·음량을 봤습니다${esc(loud)}.${fixNote}</div>`;
   box.innerHTML = head + (q.sheet_id ? `<details${issues.length ? ' open' : ''}><summary class="small">장면 모음(1초 간격${issues.length ? ' — 빨간 칸이 확인할 곳' : ''})</summary><a href="/_blob/${esc(q.sheet_id)}" target="_blank" rel="noopener" title="눌러서 크게 보기"><img class="qa-sheet" src="/_blob/${esc(q.sheet_id)}" alt="완성 영상 1초 간격 장면 모음"></a></details>` : '');
 }
-async function saveFinal(p, fin) {
+async function saveFinal(p, fin, id = fin.asset_id, filename = `${p.id}.mp4`) {
   const st = $('#final-dl-state');
   if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
   st.innerHTML = spinner('받는 중…');
   try {
-    const res = await fetch('/_blob/' + fin.asset_id);
+    const res = await fetch('/_blob/' + id);
     if (!res.ok) throw new Error('파일을 받지 못했습니다');
-    await downloads.save({ filename: `${p.id}.mp4`, data: await res.blob() });
+    await downloads.save({ filename, data: await res.blob() });
     st.textContent = '저장했습니다.';
   } catch (e) {
     const code = e && e.code;
@@ -1691,7 +1702,9 @@ async function saveFinal(p, fin) {
 $('#final-go').onclick = async () => {
   const p = S.project; if (!p) return;
   $('#final-go').disabled = true;
-  const r = await requestWork('render', $('#final-go'), { bgm: S.bgm ? S.bgm.asset_id : null });
+  const en_subs = $('#final-en').checked;
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ en_subs }); } catch (e) { /* 무시 */ }
+  const r = await requestWork('render', $('#final-go'), { bgm: S.bgm ? S.bgm.asset_id : null, en_subs });
   if (!r) { $('#final-go').disabled = false; return; }
   try { await db.doc(`${COL('projects')}/${p.id}`).update({ render_request_id: r.rid }); } catch (e) { /* 무시 */ }
   watchRequest('render', r.rid);

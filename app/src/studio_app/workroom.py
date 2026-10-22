@@ -445,10 +445,12 @@ def make_render(
     bgm: dict | None = None,
     crf: int = RENDER_CRF,
     drop: tuple[str, ...] = (),
+    english: list[dict] | None = None,
 ) -> dict:
     """받은 자산(fetched/<ID>.<확장자>)으로 프로젝트 폴더를 다시 꾸미고 완성 mp4(out/final.mp4)를 만든다.
     자막은 자료를 모을 때 만든 SRT 시각 그대로, 훅 조각은 낱말 시각(타입캐스트, 아니면 음성 인식)에 맞춘다.
-    out/render.json(projects/<ID>.render에 쓸 값, asset_id 빼고)을 쓰고 그 내용을 돌려준다."""
+    out/render.json(projects/<ID>.render에 쓸 값, asset_id 빼고)을 쓰고 그 내용을 돌려준다.
+    english(작업자가 옮긴 {ko, en} 문장 목록 — en-lines)를 주면 한국어 자막 아래 작은 영어 자막을 넣고 out/en.srt도 쓴다."""
     import shutil
 
     from newsclip.shorts_render import probe_duration, refresh_design, render_short
@@ -515,7 +517,14 @@ def make_render(
         words=words,
         crf=crf,
         style=style,
+        english=english,
+        en_font=_en_font(settings),
     )
+    en_srt = proj / "subtitles" / "en.srt"
+    if english and en_srt.exists():
+        shutil.copyfile(
+            en_srt, out / "en.srt.txt"
+        )  # 유튜브 영어 자막용(.srt는 자산 형식이 아니라 .txt로 올린다)
     if final.stat().st_size > RENDER_MAX_BYTES:  # 한도를 넘으면 화면만 조금 더 압축
         smaller = out / "final-small.mp4"
         _ffmpeg(
@@ -551,19 +560,39 @@ def make_render(
         "bgm": (bgm or {}).get("asset_id"),
         "timing": "typecast" if words else "srt+asr",
         "redesigned": refreshed,  # 지금 디자인으로 다시 합성한 사진 수
+        "english": bool(english),  # 영어 자막을 넣었나(en-srt-id는 render-doc이 붙인다)
         "replaced": (req.get("render") or {}).get("asset_id"),  # 화면이 지울 지난 완성본
         "replaced_sheet": ((req.get("render") or {}).get("qa") or {}).get("sheet_id"),  # 지난 장면 모음
+        "replaced_en": (req.get("render") or {}).get("en_srt_id"),  # 지난 영어 자막
         "made_at": _iso(now_kst()),
     }
     (out / "render.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     return doc
 
 
-def render_doc(render_json: Path, asset_id: str, sheet_id: str = "") -> dict:
-    """올린 완성본 자산 ID(와 장면 모음 자산 ID)를 붙여 projects/<ID>에 쓸 값({render})을 같은 폴더 update.json에 쓴다."""
+def _en_font(settings) -> str | None:  # noqa: ANN001
+    """영어 자막 글꼴: 자료 모을 때 받아 둔 Pretendard Bold(없으면 자막 글꼴)."""
+    for name in ("Pretendard-Bold.otf", "Pretendard-ExtraBold.otf"):
+        p = settings.data_dir / "fonts" / name
+        if p.exists():
+            return str(p)
+    return None
+
+
+def en_lines(req: dict) -> list[dict]:
+    """영어 자막으로 옮길 대본 문장 목록 [{ko, en: ""}] — 작업자가 en을 채워 render --en으로 넘긴다."""
+    from newsclip.shorts_render import en_sentences
+
+    return [{"ko": s, "en": ""} for s in en_sentences(str(req.get("script") or ""))]
+
+
+def render_doc(render_json: Path, asset_id: str, sheet_id: str = "", en_srt_id: str = "") -> dict:
+    """올린 완성본 자산 ID(와 장면 모음·영어 자막 자산 ID)를 붙여 projects/<ID>에 쓸 값({render})을 같은 폴더
+    update.json에 쓴다."""
     r = json.loads(render_json.read_text(encoding="utf-8"))
     if sheet_id:
         r["qa"] = {**(r.get("qa") or {}), "sheet_id": sheet_id}
+    r["en_srt_id"] = en_srt_id or None
     doc = {"render": {**r, "asset_id": asset_id}}
     (render_json.parent / "update.json").write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
     return doc
@@ -1151,10 +1180,15 @@ def main() -> None:
         "--fetched", type=Path, required=True, help="Artifact read로 받은 자산 폴더(<ID>.<확장자>)"
     )
     rn.add_argument("--out", type=Path, required=True)
+    rn.add_argument("--en", type=Path, help="영어 자막: en-lines 결과에 en을 채운 파일([{ko, en}])")
+    el = sub.add_parser("en-lines", help="영어 자막으로 옮길 대본 문장 목록([{ko, en: ''}])")
+    el.add_argument("--project", type=Path, required=True)
+    el.add_argument("--out", type=Path, required=True, help="쓸 파일(en.json)")
     rd = sub.add_parser("render-doc", help="올린 완성본 자산 ID를 붙여 projects/<ID>에 쓸 update.json 만들기")
     rd.add_argument("--render", type=Path, required=True)
     rd.add_argument("--asset-id", required=True)
     rd.add_argument("--sheet-id", default="", help="올린 장면 모음(sheet.jpg) 자산 ID")
+    rd.add_argument("--en-srt-id", default="", help="올린 영어 자막(en.srt.txt) 자산 ID")
     a = ap.parse_args()
     if a.channel:
         os.environ["STUDIO_CHANNEL"] = a.channel
@@ -1195,16 +1229,23 @@ def main() -> None:
         print(json.dumps({"file": str(a.voice.parent / "update.json")}, ensure_ascii=False))
         return
     if a.cmd == "render-doc":
-        render_doc(a.render, a.asset_id, a.sheet_id)
+        render_doc(a.render, a.asset_id, a.sheet_id, a.en_srt_id)
         print(json.dumps({"file": str(a.render.parent / "update.json")}, ensure_ascii=False))
         return
     req = _load_project(a.project)
+    if a.cmd == "en-lines":
+        lines = en_lines(req)
+        a.out.parent.mkdir(parents=True, exist_ok=True)
+        a.out.write_text(json.dumps(lines, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(json.dumps({"lines": len(lines), "file": str(a.out)}, ensure_ascii=False))
+        return
     if a.cmd in ("render-ids", "render"):
         bgm = _load_doc(a.bgm) if a.bgm else None
         if a.cmd == "render-ids":
             print(json.dumps(render_ids(req, bgm), ensure_ascii=False))
             return
-        doc = make_render(req, a.fetched, a.out, bgm, drop=tuple(a.drop or ()))
+        english = json.loads(a.en.read_text(encoding="utf-8")) if a.en else None
+        doc = make_render(req, a.fetched, a.out, bgm, drop=tuple(a.drop or ()), english=english)
         print(json.dumps({**doc, "file": str(a.out / "final.mp4")}, ensure_ascii=False))
         return
     if a.cmd == "voice":

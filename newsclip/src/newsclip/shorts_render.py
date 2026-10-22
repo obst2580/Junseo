@@ -475,13 +475,144 @@ def phrase_in(text: str, phrases: list[str], strong: re.Pattern | None) -> str |
 
 def split_emphasis(cue: Cue, phrase: str, words: list | None) -> list[tuple[str, float, float, bool]]:
     """자막 하나를 강조 문구 앞·문구·뒤로 나눈다 → [(글, 시작, 끝, 강조?)]. 시각은 그 말이 들리는 때(낱말 시각,
-    없으면 글자 수 비율)."""
-    at = cue.text.index(phrase)
-    parts = [(cue.text[:at].strip(), False), (phrase, True), (cue.text[at + len(phrase) :].strip(), False)]
-    parts = [(t, e) for t, e in parts if re.sub("[\\s.,!?…]", "", t)]
-    starts = chunk_starts([t for t, _e in parts], cue.start, cue.end, words)
+    없으면 글자 수 비율). 문구는 낱말 경계까지 넓혀 자른다 — 낱말 한가운데서 자르면 뒤 조각이 조사로 시작한다
+    ('현장조사 | 에 나선대요' → '현장조사에 | 나선대요'). 뒤 조각 앞에 남은 쉼표는 뺀다."""
+    text = cue.text
+    at = text.index(phrase)
+    s = text.rfind(" ", 0, at) + 1
+    e = text.find(" ", at + len(phrase))
+    e = len(text) if e < 0 else e
+    parts = [(text[:s].strip(), False), (text[s:e].strip().rstrip(","), True), (text[e:].strip(" ,"), False)]
+    parts = [(t, hot) for t, hot in parts if re.sub("[\\s.,!?…]", "", t)]
+    starts = chunk_starts([t for t, _hot in parts], cue.start, cue.end, words)
     ends = [*starts[1:], cue.end]
-    return [(t, a, b, e) for (t, e), a, b in zip(parts, starts, ends, strict=True)]
+    return [(t, a, b, hot) for (t, hot), a, b in zip(parts, starts, ends, strict=True)]
+
+
+EN_PX = 50  # 영어 자막 글자 크기(한국어 자막의 절반쯤). 두 줄을 넘으면 EN_MIN_PX까지 줄인다
+EN_MIN_PX = 38
+EN_BELOW = (
+    -20
+)  # 영어 자막 상자 윗선: 그 문장 한국어 자막 상자 아래 끝에서 이만큼(두 상자 다 그림자 자리가 있어 겹쳐도 됨)
+
+
+def en_sentences(script: str) -> list[str]:
+    """영어 자막을 붙일 대본 문장(헤더·빈 줄 빼고, 한 줄에 두 문장이면 나눠서) — 작업자가 문장마다 옮긴다."""
+    from newsclip.autosub import _sentences_of, script_sentences
+
+    return [s for sent in script_sentences(script) for s in _sentences_of(" ".join(sent))]
+
+
+def _bare(text: str) -> str:
+    return re.sub(r"[^0-9A-Za-z가-힣]", "", text)
+
+
+def english_spans(lines: list[Cue], english: list[dict]) -> list[tuple[int, int, str]]:
+    """영어 문장({ko, en})마다 그 한국어 문장이 나오는 자막 번호 범위 → [(첫 자막, 끝 자막, 영어)].
+    자막을 앞에서부터 그 문장 글자 수만큼 차례로 잇는다(부호·띄어쓰기는 빼고 센다)."""
+    out: list[tuple[int, int, str]] = []
+    k = 0
+    for item in english:
+        ko, en = _bare(str(item.get("ko") or "")), str(item.get("en") or "").strip()
+        if not ko or k >= len(lines):
+            continue
+        first, got = k, 0
+        while k < len(lines) and got < len(ko) - 1:
+            got += len(_bare(lines[k].text))
+            k += 1
+        if en:
+            out.append((first, max(first, k - 1), en))
+    return out
+
+
+def render_en(text: str, out: Path, font_path: str | None, px: int = EN_PX) -> CueArt | None:
+    """영어 자막 한 블록(흰 글씨, 검은 테두리·그림자) — 화면 폭 안에서 두 줄까지(넘으면 글자를 줄인다)."""
+    from PIL import ImageDraw, ImageFilter, ImageFont
+
+    from newsclip.render import SUB_MAX_W, _sub_font
+
+    words = text.split()
+    if not words:
+        return None
+    probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    while True:
+        font = ImageFont.truetype(font_path, px) if font_path else _sub_font(px)
+        rows: list[str] = []
+        for w in words:
+            if rows and probe.textlength(f"{rows[-1]} {w}", font=font) <= SUB_MAX_W:
+                rows[-1] = f"{rows[-1]} {w}"
+            else:
+                rows.append(w)
+        if len(rows) <= 2 or px <= EN_MIN_PX:
+            break
+        px -= 2
+    pad = round(px * 0.35)
+    line_h = round(px * 1.25)
+    bw = round(max(probe.textlength(r, font=font) for r in rows)) + 2 * pad
+    bh = line_h * len(rows) + 2 * pad
+    img = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    spots = [((bw - probe.textlength(r, font=font)) / 2, pad + i * line_h, r) for i, r in enumerate(rows)]
+    sh = Image.new("RGBA", (bw, bh), (0, 0, 0, 0))
+    sd = ImageDraw.Draw(sh)
+    for x, y, r in spots:
+        sd.text(
+            (x, y),
+            r,
+            font=font,
+            fill=(0, 0, 0, 255),
+            stroke_width=max(2, round(px * 0.1)),
+            stroke_fill=(0, 0, 0, 255),
+        )
+    blur = sh.filter(ImageFilter.GaussianBlur(px * 0.12))
+    img.alpha_composite(blur)
+    img.alpha_composite(blur)
+    draw = ImageDraw.Draw(img)
+    for x, y, r in spots:
+        draw.text(
+            (x, y),
+            r,
+            font=font,
+            fill=(255, 255, 255, 255),
+            stroke_width=max(1, round(px * 0.06)),
+            stroke_fill=(0, 0, 0, 255),
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    img.save(out, "PNG")
+    return CueArt(path=out, start=0.0, end=0.0, width=bw, height=bh, top=0)
+
+
+def english_arts(
+    lines: list[Cue],
+    english: list[dict],
+    korean: list[CueArt],
+    asset_dir: Path,
+    size: tuple[int, int],
+    font_path: str | None,
+    first: int = 0,
+    sub_top: int = 0,
+) -> list[CueArt]:
+    """문장마다 영어 자막 하나 — 그 문장 한국어 자막이 뜨는 동안 그 아래(문장 안 가장 낮은 한국어 자막 밑)에 둔다.
+    first 앞 자막(훅)만으로 된 문장은 넣지 않는다. 같은 폴더에 en.srt(유튜브 영어 자막용)도 쓴다."""
+    from newsclip.srt import write_srt
+
+    arts: list[CueArt] = []
+    rows: list[Cue] = []
+    for n, (i, j, en) in enumerate(english_spans(lines, english)):
+        rows.append(Cue(index=len(rows) + 1, start=lines[i].start, end=lines[j].end, text=en))
+        if j < first:
+            continue
+        start, end = lines[max(i, first)].start, lines[j].end
+        art = render_en(en, asset_dir / "subtitles" / f"en_{n:03d}.png", font_path)
+        if art is None:
+            continue
+        over = [a for a in korean if a.start < end and a.end > start]
+        bottom = max((a.top + a.height for a in over), default=sub_top + 260)
+        top = min(bottom + EN_BELOW, size[1] - art.height - 40)
+        arts.append(replace(art, start=start, end=end, top=top))
+    if rows:
+        (asset_dir / "subtitles").mkdir(parents=True, exist_ok=True)
+        (asset_dir / "subtitles" / "en.srt").write_text(write_srt(rows), encoding="utf-8")
+    return arts
 
 
 def subtitles_for(
@@ -498,13 +629,16 @@ def subtitles_for(
     quote_pairs: bool = False,
     emphasis: list[str] | None = None,
     strong: re.Pattern = STRONG,
+    english: list[dict] | None = None,
+    en_font: str | None = None,
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo, tuple[str, float, float] | None]:
     """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다.
     hook_mode "chart"(널스윤서)면 첫 문장 자막을 만들지 않는다 — 그동안 화면은 차트판 훅(chart_hook)이 첫 문장을
     손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). emph_sag는 강조 자막 고르기
     (pick_emphasis), quote_pairs면 훅 뒤 자막의 따옴표 짝을 맞춘다(pair_quotes). 마지막 값은 첫 문장 (글, 시작, 끝).
     emphasis(강조 문구 목록, 널스윤서)를 주면 긴 자막 안의 그 문구를 잘라 강조 자막(정치 채널과 같은 효과)으로 띄운다 —
-    자막을 문구 앞·문구·뒤로 나눠 그 말이 들리는 때에 차례로. strong은 강조할 센 말(채널마다)."""
+    자막을 문구 앞·문구·뒤로 나눠 그 말이 들리는 때에 차례로. strong은 강조할 센 말(채널마다).
+    english({ko, en} 문장 목록)를 주면 문장마다 한국어 자막 아래 작은 영어 자막을 더한다(english_arts, en_font 글꼴)."""
     info = analyze(audio)
     if srt is not None:
         # 받은 자막(SRT)을 그대로 쓴다: 제작실에서 본 자막과 같은 시간
@@ -576,6 +710,12 @@ def subtitles_for(
             )
         if art is not None:
             arts.append(replace(_timed(art, cue.start, cue.end), top=art.top + sub_shift))
+    if english:
+        from newsclip.render import SUB_TEXT_Y
+
+        arts += english_arts(
+            lines, english, list(arts), asset_dir, size, en_font, first=hook_n, sub_top=SUB_TEXT_Y + sub_shift
+        )
     return arts, [(cue.start, cue.end) for cue in lines], info, hook
 
 
@@ -595,8 +735,10 @@ def build_plan(
     max_shot_sec: float | None = None,
     words: list | None = None,
     style: str = "default",
+    english: list[dict] | None = None,
+    en_font: str | None = None,
 ) -> RenderPlan:
-    """프로젝트 dict(script, thumb, scenes) + 자료 폴더 + 음성 → 렌더 계획."""
+    """프로젝트 dict(script, thumb, scenes) + 자료 폴더 + 음성 → 렌더 계획. english를 주면 영어 자막도(subtitles_for)."""
     from newsclip.autosub import wav_duration
 
     total = wav_duration(audio)
@@ -628,6 +770,8 @@ def build_plan(
         quote_pairs=st.quote_pairs,
         emphasis=list(project.get("emphasis") or []) if st.hook == "chart" else None,
         strong=HEALTH_STRONG if st.hook == "chart" else STRONG,
+        english=english,
+        en_font=en_font,
     )
     cues = [c for c in cues if c.start < total]
     # 컷 편집: 자막이 바뀌는 때(훅 조각 포함)에 맞춰 사진을 바꾼다. max_shot_sec를 주면 예전 방식(길이로만 나눔)
@@ -795,6 +939,8 @@ def render_short(
     words: list | None = None,
     crf: int = 18,
     style: str = "default",
+    english: list[dict] | None = None,
+    en_font: str | None = None,
 ) -> Path:
     plan = build_plan(
         project,
@@ -807,6 +953,8 @@ def render_short(
         max_shot_sec=max_shot_sec,
         words=words,
         style=style,
+        english=english,
+        en_font=en_font,
     )
     return render(replace(plan, crf=crf), out)
 

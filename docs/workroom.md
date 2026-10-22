@@ -322,6 +322,17 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    uv run python -m studio_app.workroom render --project /tmp/wr/projects/<ID>.json --bgm /tmp/wr/config/bgm.json --fetched /tmp/wr-render/dl --out /tmp/wr-render
    ```
 
+   **영어 자막**: 요청 문서에 `en_subs: true`가 있으면(화면의 [영어 자막 같이 넣기]) 렌더 전에 옮길 문장을 뽑아
+
+   ```bash
+   uv run python -m studio_app.workroom en-lines --project /tmp/wr/projects/<ID>.json --out /tmp/wr-render/en.json
+   ```
+
+   문장마다 `en`을 채웁니다 — 뜻은 그대로, 쉬운 영어로 짧게(한 문장 70자 안쪽이면 두 줄에 들어감; 길면 글씨가 작아짐),
+   숫자·기관 이름은 대본 그대로, 채널 인사는 "This has been Nurse Yunseo!"처럼. 그리고 위 render에 `--en /tmp/wr-render/en.json`을
+   붙입니다. 문장마다 그 한국어 자막이 뜨는 동안 한국어 자막 아래 작은 영어 자막이 뜨고(첫 문장 차트판 훅 동안은 없음),
+   `/tmp/wr-render/en.srt.txt`(유튜브 영어 자막용)가 생깁니다.
+
    자막은 자료를 모을 때 만든 자막.srt 시각 그대로, 훅 조각은 낱말 시각(타입캐스트 음성이면 받은 시각, 아니면 음성 인식)에
    맞춥니다. 자료를 모은 뒤 디자인이 바뀌었으면 사진 바탕·상단 제목을 지금 디자인으로 다시 합성합니다(`redesigned`). 강조음은 처음 쓸 때 녹음된 효과음(Mixkit 무료)을 받아 씁니다(못 받으면 합성음). 결과가 14MB를 넘으면 화면만
    조금 더 압축합니다. 받지 못한 파일이 있으면 이름을 알려 주며 멈춥니다 — 그 자산만 다시 받고 다시 돌립니다.
@@ -338,14 +349,14 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
    후보가 있으면 그걸로, 없으면 옆 장면 사진으로 바뀝니다. 사건 현장·건물·국회 같은 일반 사진은 괜찮으니 애매하면 그대로 둡니다.
    다시 본 뒤에도 안 맞으면 그대로 두고 note에 적습니다. 뺀 사진은 `qa.fixed`에 '문장과 안 맞는 사진'으로 남습니다.
 4. `/tmp/wr-render/final.mp4`와 `/tmp/wr-render/sheet.jpg`를 `Artifact`(`url`: 제작실, `asset: true`, `file_path`)로
-   하나씩 올리고 자산 ID를 받습니다.
+   하나씩 올리고 자산 ID를 받습니다. 영어 자막을 넣었으면 `/tmp/wr-render/en.srt.txt`도 따로 올립니다(글 파일은 하나씩).
 5. 자산 ID를 붙여 프로젝트에 쓸 값을 만들고 `ArtifactData update`로 `projects/<ID>`에 씁니다(1단계 `version`으로 `if_version`).
 
    ```bash
-   uv run python -m studio_app.workroom render-doc --render /tmp/wr-render/render.json --asset-id <완성본 자산 ID> --sheet-id <장면 모음 자산 ID>
+   uv run python -m studio_app.workroom render-doc --render /tmp/wr-render/render.json --asset-id <완성본 자산 ID> --sheet-id <장면 모음 자산 ID> [--en-srt-id <영어 자막 자산 ID>]
    ```
 
-   `render.replaced`(지난 완성본)와 `render.replaced_sheet`(지난 장면 모음)는 화면이 보고 지웁니다 — 작업자는 지우지 않습니다.
+   `render.replaced`(지난 완성본)·`render.replaced_sheet`(지난 장면 모음)·`render.replaced_en`(지난 영어 자막)은 화면이 보고 지웁니다 — 작업자는 지우지 않습니다.
 6. 요청을 `done`으로, note 예: `61.2초 · 10.4MB · 배경음악 있음 · 검수 통과(3곳 고침)`. `qa.issues`가 남았으면
    `고치지 못한 곳 1곳: 0:12 검은 화면`처럼 시각·이름을 적습니다 — 화면에도 뜹니다.
 

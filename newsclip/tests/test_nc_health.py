@@ -333,6 +333,44 @@ def test_health_emphasis_splits_long_cue():
     assert [p[0] for p in parts] == ["집에서 잰 혈압은", "135에 85를", "넘으면 고혈압으로 본대요."]
     assert [p[3] for p in parts] == [False, True, False]
     assert parts[0][1] == 13.0 and parts[-1][2] == 16.0 and parts[0][2] == parts[1][1]
+    # 문구는 낱말 경계까지 넓힌다 — 뒤 조각이 조사로 시작하지 않게, 앞에 남은 쉼표는 빼고
+    parts = split_emphasis(Cue(1, 0.0, 3.0, "보건복지부가 현장조사에 나선대요."), "현장조사", None)
+    assert [p[0] for p in parts] == ["보건복지부가", "현장조사에", "나선대요."]
+    parts = split_emphasis(Cue(1, 0.0, 3.0, "혈당 스파이크, 그러니까 밥 먹고"), "혈당 스파이크", None)
+    assert [p[0] for p in parts] == ["혈당 스파이크", "그러니까 밥 먹고"]
+
+
+def test_english_subtitles(tmp_path):
+    """영어 자막: 대본 문장 → 자막 범위 맞추기, 한국어 자막 아래에 두기, en.srt."""
+    from newsclip.render import CueArt
+    from newsclip.shorts_render import en_sentences, english_arts, english_spans
+    from newsclip.srt import Cue
+
+    script = "## 제목\n비만 주사, 원칙 위반이에요!\n현장조사에 나선대요.\n\n지금까지 널스윤서였습니다! 구독해 주세요!"
+    assert en_sentences(script) == [
+        "비만 주사, 원칙 위반이에요!",
+        "현장조사에 나선대요.",
+        "지금까지 널스윤서였습니다!",
+        "구독해 주세요!",
+    ]
+    lines = [
+        Cue(1, 0.0, 2.0, "비만 주사, 원칙 위반이에요!"),
+        Cue(2, 2.0, 3.0, "현장조사에"),
+        Cue(3, 3.0, 4.0, "나선대요."),
+        Cue(4, 4.0, 5.0, "지금까지 널스윤서였습니다!"),
+        Cue(5, 5.0, 6.0, "구독해 주세요!"),
+    ]
+    english = [{"ko": k, "en": f"E{n}"} for n, k in enumerate(en_sentences(script))]
+    assert english_spans(lines, english) == [(0, 0, "E0"), (1, 2, "E1"), (3, 3, "E2"), (4, 4, "E3")]
+    korean = [
+        CueArt(tmp_path / "k.png", 2.0, 3.0, 500, 150, 1300),
+        CueArt(tmp_path / "k.png", 3.0, 4.0, 500, 300, 1300),
+    ]
+    arts = english_arts(lines, english, korean, tmp_path, (1080, 1920), None, first=1, sub_top=1276)
+    assert [(a.start, a.end) for a in arts] == [(2.0, 4.0), (4.0, 5.0), (5.0, 6.0)]  # 훅 문장(첫 자막)은 빼고
+    assert arts[0].top == 1300 + 300 - 20  # 그 문장에서 가장 낮은 한국어 자막 아래
+    srt = (tmp_path / "subtitles" / "en.srt").read_text(encoding="utf-8")
+    assert "E0" in srt and "E3" in srt
 
 
 def test_health_emphasis_whole_short_line(tmp_path):
