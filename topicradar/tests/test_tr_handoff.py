@@ -244,7 +244,8 @@ def test_conservative_profile_rules():
     r = channel_rules(cfg)
     rules = r["rules"]
     assert r["profile"] == "conservative" and set(r["formats"]) == {"long", "short", "shorts"}
-    assert rules["angles"] == ["상대 비판", "보수 방어", "당내 비판", "정책 해설"]
+    assert rules["angles"] == ["상대 비판", "보수 방어", "당내 비판", "정책 해설", "사건사고·이슈"]
+    assert "사건사고·이슈" in rules["group_task"] and "법질서" in rules["group_task"]
     for key in ("identity", "group_task", "script_rules"):
         text = rules[key]
         for line in ("부정선거", "5·18", "12·3 비상계엄", "혐오"):
