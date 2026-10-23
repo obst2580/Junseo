@@ -142,6 +142,9 @@ unset STUDIO_FIXTURES
 1. `ArtifactData get` — `requests/<요청 ID>`를 읽고 `kind`·`status`를 확인합니다. 이미 `done`이면 아무것도 하지 않습니다.
 2. `ArtifactData update` — `{status: "working", note: "…"}`(읽은 `version`으로 `if_version`).
 3. 끝나면 `{status: "done", note: "한 줄 요약", done_at}`, 실패하면 `{status: "error", error: "쉬운 말로 이유와 할 일"}`.
+   **저장 공간이 차서 올리기가 막히면**(자산 올리기가 용량·파일 수 한도로 거절됨 — 제작실 저장소는 1GB·파일 5000개를 모든 채널이 함께 씀)
+   지우려 하지 말고(자산 지우기는 사용자 확인이 하나씩 필요) 바로 `{status: "error", error: "저장 공간이 가득 찼습니다 — 프로젝트 탭에서 [저장 공간 비우기]를 누른 뒤 다시 요청해 주세요"}`로 멈춥니다. 화면의 그 버튼이 안 쓰는 파일과 3일 넘게 손대지 않은 프로젝트의
+   사진·영상 자료를 한꺼번에 지우고, 지운 프로젝트 문서는 `result: null`·`purged: {at, files, bytes}`가 됩니다(대본·음성·완성 영상은 남음).
 4. 댓글로 온 요청이면 그 스레드(요청 문서의 `thread_id`)에 한 줄로 답하고(`ArtifactComments reply`) 해결로 표시합니다(`resolve`).
 
 ## kind = collect (수집)
@@ -376,5 +379,5 @@ uv run python -m studio_app.workroom collect --out /tmp/wr-collect
 | `config/bgm_<채널>` | 화면(그 채널에서 배경음악 바꾸기) | 그 채널 배경음악(자유뉴스365 `config/bgm_right` = 보수음악). 같은 칸. 없으면 `config/bgm`을 씀 |
 | `raw/meta`, `raw/posts-N`, `raw/articles-N` | 작업자(collect) | 수집 묶음: 규칙·형식·사이트 상태 / 커뮤니티 글 / 기사(관련 기사는 본문) |
 | `topics/current` | 화면(Claude) | 주제 묶음: 주제별 글·기사 ID, 커뮤니티 주장, 10분 묶음 추천 |
-| `projects/<ID>` | 화면 + 작업자 | 형식·고른 주제(글·기사 사본)·대본·제목·음성 분석값(`audio`, 올린 음성은 `audio.asset_id` — 쇼츠는 완성 영상용 고음질 `audio.hq`)·`result`·완성 영상 `render`(`asset_id`, `size`, `duration`, `made_at`) |
+| `projects/<ID>` | 화면 + 작업자 | 형식·고른 주제(글·기사 사본)·대본·제목·음성 분석값(`audio`, 올린 음성은 `audio.asset_id` — 쇼츠는 완성 영상용 고음질 `audio.hq`)·`result`·완성 영상 `render`(`asset_id`, `size`, `duration`, `made_at`)·`purged`(저장 공간을 비우며 `result`를 지운 때 — 자료를 다시 모으면 됨) |
 | `requests/<ID>` | 화면 + 작업자 | `kind`(collect/voice/sources/render), `status`(queued/working/done/error), `note`, `error`, `sent_to_worker`, `thread_id`(보낸 댓글), 음성 요청이면 `voice`(목소리·속도·쉼) |

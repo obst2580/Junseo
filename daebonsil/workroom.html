@@ -178,6 +178,12 @@ pre.tts { white-space: pre-wrap; background: var(--paper-2); border: 1px solid v
 .plist { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .plist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
 .plist .ttl { font-weight: 600; overflow-wrap: anywhere; }
+.store { display: grid; gap: 8px; }
+.store-bar { height: 10px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); overflow: hidden; }
+.store-bar span { display: block; height: 100%; background: var(--accent); }
+.store-bar.warn span { background: var(--warn); }
+.store-bar.bad span { background: var(--bad); }
+#store-warn { margin: 0 0 4px; }
 .plist .meta { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(16px); background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; max-width: calc(100vw - 32px); }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -208,6 +214,7 @@ footer { font-size: 13px; color: var(--muted); }
     </div>
     <div class="curproj" id="curproj"></div>
   </nav>
+  <div id="store-warn" hidden></div>
 
   <!-- 1. 주제 -->
   <section class="card" id="p-topics" data-panel="topics">
@@ -327,6 +334,7 @@ footer { font-size: 13px; color: var(--muted); }
   <!-- 프로젝트 -->
   <section class="card" id="p-projects" data-panel="projects" hidden>
     <div class="sec-h"><h2>프로젝트</h2><span class="small muted">만든 영상(최근 30개)</span></div>
+    <div id="store" class="store"></div>
     <ul class="plist" id="plist"></ul>
   </section>
 
@@ -448,6 +456,7 @@ function setTab(tab) {
   try { if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab); } catch (e) { /* 무시 */ }
   if (tab === 'voice') renderVoice();
   if (tab === 'sources') renderSources();
+  renderStore();
   window.scrollTo({ top: 0 });
 }
 $$('.tabs[role=tablist] button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
@@ -1327,7 +1336,7 @@ async function onAudio(file) {
       try {
         const up = await assets.upload(await encodeVoice(r.buffer, hq), { type: 'video/webm' });
         audio.asset_id = up.id; audio.asset_bytes = up.sizeBytes; audio.hq = hq;
-      } catch (e) { audio.asset_id = null; upNote = `음성을 올리지 못해 쉼만으로 맞춥니다(${esc(e.message || e.code || '알 수 없음')}).`; }
+      } catch (e) { audio.asset_id = null; upNote = `음성을 올리지 못해 쉼만으로 맞춥니다(${esc(upErr(e))}).`; }
     } else { audio.asset_id = null; upNote = '이 화면에서는 음성을 올릴 수 없어 쉼만으로 맞춥니다(편집 권한이 있는 계정으로 열어 주세요).'; }
     S.project.audio = audio;
     await db.doc(`${COL('projects')}/${S.project.id}`).update({ audio, status: 'voice' });
@@ -1599,7 +1608,8 @@ function renderSources() {
   const oldFin = p.render && va && at(p.render.made_at) && at(p.render.made_at) < va;
   const redo = voiceStale(p) ? '<div class="note warn"><b class="t">대본이 음성을 만든 뒤에 바뀌었습니다</b>3단계에서 음성을 먼저 다시 만들고 자료를 모아 주세요.</div>'
     : oldRes ? `<div class="note warn"><b class="t">음성을 다시 만들었습니다</b>지금 자료는 예전 음성에 맞춘 것이라 <b>[자료 다시 모으기]</b>를 눌러 주세요${oldFin ? ' — 그다음 완성 영상도 다시 만들어 주세요' : ''}.</div>` : '';
-  $('#src-ready').innerHTML = (ready.length ? `<div class="note warn"><ul>${ready.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '') + redo + tall;
+  const purged = p.purged && !p.result ? `<div class="note info"><b class="t">저장 공간을 비우면서 이 프로젝트의 사진·영상 자료를 지웠습니다(${esc(when(p.purged.at))})</b>대본·음성${p.render && p.render.asset_id ? '·완성 영상' : ''}은 그대로입니다. 다시 쓰려면 아래 버튼으로 자료를 다시 모으세요.</div>` : '';
+  $('#src-ready').innerHTML = (ready.length ? `<div class="note warn"><ul>${ready.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '') + redo + purged + tall;
   $('#src-go').disabled = !!ready.length;
   $('#src-go').textContent = p.result ? '자료 다시 모으기' : '자료 모으고 timeline.xml 만들기';
   if (p.request_id) watchRequest('sources', p.request_id); else renderReq();
@@ -1727,7 +1737,7 @@ $('#bgm-file').onchange = async e => {
     await db.doc(BGM_DOC).set({ asset_id: up.id, name: file.name, duration: +buf.duration.toFixed(2), volume: (S.bgm && S.bgm.volume) || 0.22, uploaded_at: new Date().toISOString() });
     if (old && old !== up.id) assets.delete(old).catch(() => {});
     st.textContent = '바꿨습니다. 다음 완성 영상부터 이 음악을 깝니다.';
-  } catch (x) { st.textContent = `올리지 못했습니다(${x.message || x.code || '알 수 없음'})`; }
+  } catch (x) { st.textContent = `올리지 못했습니다(${upErr(x)})`; }
 };
 function folderGuess() { return /Win/i.test(navigator.platform || navigator.userAgent) ? 'C:\\Users\\(사용자)\\Videos\\studio' : '/Users/(사용자)/Movies/studio'; }
 function renderResult() {
@@ -1820,10 +1830,151 @@ function renderProjects() {
   $('#plist').innerHTML = S.projects.length ? S.projects.map(p => {
     const [lab, cls] = statusLabel(p);
     return `<li><div style="min-width:0"><div class="ttl">${esc((p.titles && p.titles[0]) || (p.topics || []).map(t => t.name).join(' + ') || p.id)}</div>
-      <div class="meta">${esc(p.id)} · ${esc(fmtName(p.format))}</div></div>
+      <div class="meta">${esc(p.id)} · ${esc(fmtName(p.format))}${p.purged && !p.result ? ` · 사진 자료 비움(${esc(when(p.purged.at))})` : ''}</div></div>
       <div class="row"><span class="badge ${cls}">${lab}</span><button class="btn small" type="button" data-open="${esc(p.id)}">${S.pid === p.id ? '여는 중' : '열기'}</button></div></li>`;
   }).join('') : '<li><span class="muted">아직 프로젝트가 없습니다. 주제를 고르면 생깁니다.</span></li>';
   $$('[data-open]').forEach(b => b.onclick = () => { selectProject(b.dataset.open); const p = S.projects.find(x => x.id === b.dataset.open); setTab(p && p.result ? 'sources' : p && p.audio ? 'sources' : p && (p.script || '').trim() ? 'voice' : 'script'); });
+}
+
+/* ---------- 저장 공간(제작실 자산: 1GB · 파일 5000개) ---------- */
+// 사진·영상·음성·완성 영상은 모든 채널이 이 제작실 저장소 하나에 쌓는다. 차면 작업자가 자료를 못 올리므로 여기서 비운다:
+// ① 어느 프로젝트·배경음악도 가리키지 않는 파일(2시간 넘은 것만 — 작업자가 막 올리고 아직 적지 않은 파일은 그대로)
+// ② 3일 넘게 손대지 않은 프로젝트의 사진·영상 자료(result: 사진·timeline·자막) — 대본·제목·음성·완성 영상은 남기고,
+//    다시 쓰려면 [자료 다시 모으기]. 그래도 60%를 넘으면 하루 넘은 프로젝트까지 오래된 순으로 더 비운다.
+// 지우기는 사용자가 [비우기]를 누를 때만. 모든 채널 프로젝트를 다 읽지 못하면 아무것도 지우지 않는다.
+const STORE_WARN = 0.85, STORE_GOAL = 0.6, ORPHAN_AGE = 2 * 3600e3, OLD_AGE = 3 * 86400e3, MIN_AGE = 86400e3;
+const store = { usage: null, plan: null, busy: false, msg: '' };
+const MB = b => `${Math.round(b / 1048576).toLocaleString()}MB`;
+const touched = p => Math.max(...[p.created_at, p.result && p.result.made_at, p.audio && p.audio.analyzed_at, p.render && p.render.made_at].map(x => Date.parse(x || '') || 0));
+const resultIds = r => r ? [...(r.files || []).map(f => f && f.id), r.timeline_id, r.srt_id].filter(Boolean) : [];
+const keptIds = p => { const a = p.audio || {}, f = p.render || {}; return [a.asset_id, f.asset_id, f.qa && f.qa.sheet_id, f.en_srt_id, f.bgm]; };
+const storeFull = u => !!u && (u.bytes >= u.maxBytes * STORE_WARN || u.files >= u.maxFiles * STORE_WARN);
+const quotaMsg = '저장 공간이 가득 찼습니다 — 프로젝트 탭에서 [저장 공간 비우기]를 눌러 주세요';
+function upErr(e) { if (e && e.code === 'quota_or_state') { storeUsage(); return quotaMsg; } return (e && (e.message || e.code)) || '알 수 없음'; }
+async function storeUsage() {
+  if (!assets) return;
+  try { store.usage = (await assets.list()).usage; } catch (e) { /* 다음에 */ }
+  renderStore();
+}
+async function storePlan() {
+  const { assets: list, usage } = await assets.list();
+  store.usage = usage;
+  const projects = [], keep = new Set();
+  for (const ch of Object.keys(CHANNELS)) {
+    const col = CHANNELS[ch].prefix + 'projects';
+    (await db.collection(col).limit(1000).get()).docs.forEach(x => projects.push({ col, p: x.data() }));
+    const bgm = await db.doc(ch === 'politics' ? 'config/bgm' : `config/bgm_${ch}`).get();
+    if (bgm.exists) keep.add(bgm.data().asset_id);
+  }
+  projects.forEach(({ p }) => keptIds(p).forEach(id => keep.add(id)));
+  const owners = new Map();  // 자료(result)로 쓰는 프로젝트 수 — 둘 이상이 함께 쓰는 파일은 이번엔 두고 다음에
+  projects.forEach(({ p }) => resultIds(p.result).forEach(id => owners.set(id, (owners.get(id) || 0) + 1)));
+  const size = new Map(list.map(a => [a.id, a.sizeBytes])), now = Date.now();
+  const orphans = list.filter(a => !keep.has(a.id) && !owners.has(a.id) && now - (Date.parse(a.createdAt) || now) > ORPHAN_AGE).map(a => a.id);
+  let bytes = orphans.reduce((n, id) => n + size.get(id), 0), count = orphans.length;
+  const enough = () => usage.bytes - bytes <= usage.maxBytes * STORE_GOAL && usage.files - count <= usage.maxFiles * STORE_GOAL;
+  const cur = S.project && S.project.id, pick = [];
+  const cands = projects.filter(({ p }) => p.result && p.id !== cur && p.status !== 'requested' && now - touched(p) > MIN_AGE)
+    .sort((a, b) => touched(a.p) - touched(b.p));
+  for (const c of cands) {
+    if (now - touched(c.p) <= OLD_AGE && enough()) break;
+    if (await reqBusyFor(c)) continue;  // 작업자가 이 자료로 영상을 만드는 중
+    c.ids = resultIds(c.p.result).filter(id => size.has(id) && !keep.has(id) && owners.get(id) === 1);
+    c.bytes = c.ids.reduce((n, id) => n + size.get(id), 0);
+    pick.push(c); bytes += c.bytes; count += c.ids.length;
+  }
+  return { usage, size, orphans, orphanBytes: orphans.reduce((n, id) => n + size.get(id), 0), pick, bytes, count };
+}
+async function reqBusyFor(c) {
+  const col = c.col.replace(/projects$/, 'requests');
+  for (const rid of [c.p.request_id, c.p.render_request_id, c.p.voice_request_id].filter(Boolean)) {
+    const s = await db.doc(`${col}/${rid}`).get();
+    if (s.exists && ['queued', 'working'].includes(s.data().status)) return true;
+  }
+  return false;
+}
+// 6개씩 지운다(step에 지운 묶음). 잠깐 막힘은 한 번만 다시(빨리 지워 막혔으면 조금 쉬고), 그 밖은 멈추고 그 코드를 돌려준다
+async function deleteIds(ids, step) {
+  for (let i = 0; i < ids.length; i += 6) {
+    const part = ids.slice(i, i + 6);
+    for (let tryNo = 0; ; tryNo++) {
+      const res = await Promise.allSettled(part.map(id => assets.delete(id)));
+      const bad = res.find(x => x.status === 'rejected');
+      if (!bad) break;
+      const code = (bad.reason && bad.reason.code) || 'upstream_error';
+      if (tryNo || !['store_unavailable', 'rate_limited'].includes(code)) return code;
+      await new Promise(ok => setTimeout(ok, code === 'rate_limited' ? 10000 : 1500));
+    }
+    step(part);
+  }
+  return '';
+}
+async function storeRun() {
+  const pl = store.plan;
+  if (!pl || store.busy) return;
+  store.busy = true; store.plan = null; renderStore();
+  let done = 0, freed = 0, purged = 0, fail = '';
+  const prog = () => { const st = $('#store-state'); if (st) st.innerHTML = spinner(`비우는 중… ${done.toLocaleString()} / ${pl.count.toLocaleString()}개`); };
+  const step = part => { done += part.length; freed += part.reduce((n, id) => n + (pl.size.get(id) || 0), 0); prog(); };
+  prog();
+  try {
+    for (const c of pl.pick) {
+      const ref = db.doc(`${c.col}/${c.p.id}`);
+      const snap = await ref.get(), now = snap.exists ? snap.data() : null;
+      // 그새 자료를 다시 모았거나 요청 중이면 그대로 둔다
+      if (!now || !now.result || now.result.made_at !== c.p.result.made_at || now.status === 'requested') { done += c.ids.length; prog(); continue; }
+      // 화면이 지운 파일을 가리키지 않게 문서를 먼저 고친다(지우다 멈추면 남은 파일은 다음에 '안 쓰는 파일'로 지워진다)
+      await ref.update({ result: null, purged: { at: new Date().toISOString(), files: c.ids.length, bytes: c.bytes } });
+      purged++;
+      fail = await deleteIds(c.ids, step);
+      if (fail) break;
+    }
+    if (!fail) fail = await deleteIds(pl.orphans, step);
+  } catch (e) { fail = (e && (e.code || e.message)) || '알 수 없음'; }
+  store.busy = false;
+  store.msg = fail
+    ? `<div class="note warn">${purged ? `프로젝트 ${purged}개 자료를 비우다가 ` : ''}멈췄습니다(${esc(fail)}). ${fail === 'rate_limited' ? '너무 빨리 지워 잠시 막혔습니다 — 1분 뒤에' : '조금 뒤에'} [저장 공간 비우기]를 한 번 더 눌러 주세요. 지운 곳까지는 그대로 비워졌습니다.</div>`
+    : `<div class="note info"><b class="t">비웠습니다 — 약 ${MB(freed)}</b>${purged ? `프로젝트 ${purged}개의 사진·영상 자료를 지웠습니다. 다시 쓰려면 그 프로젝트의 4단계에서 [자료 모으고 timeline.xml 만들기]를 누르면 됩니다.` : ''}</div>`;
+  await storeUsage();
+}
+function renderStore() {
+  const el = $('#store'), warn = $('#store-warn'), u = store.usage;
+  if (!el) return;
+  const full = storeFull(u);
+  warn.hidden = !full || S.tab === 'projects';
+  warn.innerHTML = full ? `<div class="note warn"><b class="t">저장 공간이 거의 찼습니다(${MB(u.bytes)} / ${MB(u.maxBytes)} · 파일 ${u.files.toLocaleString()} / ${u.maxFiles.toLocaleString()}개)</b>다 차면 작업자가 사진·영상을 올리지 못합니다. <button class="btn small" id="store-warn-go" type="button">비울 것 살펴보기</button></div>` : '';
+  if ($('#store-warn-go')) $('#store-warn-go').onclick = () => { setTab('projects'); storeLook(); };
+  if (!assets) { el.innerHTML = ''; return; }
+  const ratio = u ? Math.max(u.bytes / u.maxBytes, u.files / u.maxFiles) : 0;
+  const pl = store.plan;
+  let body = '';
+  if (pl) {
+    const days = pl.pick.map(c => touched(c.p)).filter(Boolean);
+    const span = days.length ? `${when(new Date(Math.min(...days)).toISOString()).replace(/ \d+:\d+$/, '')}~${when(new Date(Math.max(...days)).toISOString()).replace(/ \d+:\d+$/, '')}에 마지막으로 손댄 것` : '';
+    const name = p => (p.titles && p.titles[0]) || (p.topics || []).map(t => t.name).join(' + ') || p.id;
+    body = !pl.count ? '<div class="note info">지울 만한 파일이 없습니다 — 남은 건 하루 안에 손댄 프로젝트와 음성·완성 영상뿐입니다.</div>'
+      : `<div class="note warn"><b class="t">이렇게 비웁니다 — 약 ${MB(pl.bytes)}(파일 ${pl.count.toLocaleString()}개)</b><ul>
+        ${pl.orphans.length ? `<li>어느 프로젝트도 쓰지 않는 파일 ${pl.orphans.length.toLocaleString()}개 · ${MB(pl.orphanBytes)}</li>` : ''}
+        ${pl.pick.length ? `<li>프로젝트 ${pl.pick.length}개의 사진·영상 자료 · ${MB(pl.bytes - pl.orphanBytes)} <span class="muted">(${span})</span>
+          <details><summary class="small">어떤 프로젝트인지 보기</summary><ul class="small">${pl.pick.map(c => `<li>${esc(name(c.p))} <span class="muted">· ${esc(c.p.id)} · ${MB(c.bytes)}</span></li>`).join('')}</ul></details></li>` : ''}
+        </ul><div class="small">남는 것: 대본·제목·해시태그·음성·완성 영상. 자료를 지운 프로젝트를 다시 쓰려면 4단계에서 자료를 다시 모으면 됩니다. 비운 뒤 약 ${MB(Math.max(0, pl.usage.bytes - pl.bytes))} / ${MB(pl.usage.maxBytes)}.</div>
+        <div class="row" style="margin-top:6px"><button class="btn primary" id="store-run" type="button">${MB(pl.bytes)} 비우기</button><button class="btn" id="store-cancel" type="button">취소</button></div></div>`;
+  }
+  el.innerHTML = `<div class="row"><b>저장 공간</b><span class="small">${u ? `${MB(u.bytes)} / ${MB(u.maxBytes)} · 파일 ${u.files.toLocaleString()} / ${u.maxFiles.toLocaleString()}개` : '확인하는 중…'}</span><span class="spacer"></span>
+      <button class="btn small" id="store-look" type="button"${store.busy ? ' disabled' : ''}>저장 공간 비우기</button></div>
+    <div class="store-bar${ratio >= STORE_WARN ? ' bad' : ratio >= STORE_GOAL ? ' warn' : ''}"><span style="width:${Math.min(100, Math.round(ratio * 100))}%"></span></div>
+    <div id="store-state" class="small"></div>${body}${pl ? '' : store.msg}`;
+  $('#store-look').onclick = storeLook;
+  if ($('#store-run')) $('#store-run').onclick = storeRun;
+  if ($('#store-cancel')) $('#store-cancel').onclick = () => { store.plan = null; renderStore(); };
+  if (store.busy) $('#store-state').innerHTML = spinner('비우는 중…');
+}
+async function storeLook() {
+  if (!assets || !db || store.busy) { if (!assets) toast('이 화면에서는 저장 공간을 비울 수 없습니다(편집 권한이 있는 계정으로 열어 주세요)', true); return; }
+  store.msg = ''; renderStore();
+  $('#store-state').innerHTML = spinner('모든 채널 프로젝트를 읽고 지울 것을 고르는 중…');
+  try { store.plan = await storePlan(); } catch (e) { store.plan = null; store.msg = `<div class="note bad">지울 것을 고르지 못했습니다(${esc((e && (e.code || e.message)) || '알 수 없음')}) — 아무것도 지우지 않았습니다.</div>`; }
+  renderStore();
 }
 
 /* ---------- 시작 ---------- */
@@ -1840,6 +1991,7 @@ setTab((location.hash || '').replace('#', '') || 'topics');
   if (!c || typeof c.use !== 'function') { known = true; renderStatus(); return; }
   const [d, s, a, dl, cm] = await Promise.all(['db', 'sample', 'assets', 'downloads', 'comments'].map(n => c.use(n).catch(() => null)));
   db = d; sample = s; assets = a; downloads = dl; comments = cm; known = true;
+  storeUsage();
   await refreshSend();
   if (!db) return;
   db.doc('config/worker').onSnapshot(snap => { if (snap.exists) { S.worker = { ...WORKER, ...snap.data() }; renderStatus(); } }, () => {});
