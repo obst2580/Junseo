@@ -58,6 +58,9 @@ timeline:
 
 shorts:
   style: health                # 널스윤서와 같은 디자인(흰 바탕 위 검정·하늘색 상단 제목, 첫 문장 차트판 손글씨)
+  outro_clip: assets/pet/outro.mp4   # 끝 인사 장면: 집사가 강아지·고양이를 안고 손 흔드는 그림 영상
+  outro_start: 2.0             # 손 흔들기 직전부터
+  outro_top: 0.17              # 위쪽 '하루집사였습니다' 글자는 빼고(자막과 겹침) 얼굴·강아지·고양이가 자막 위에 오게
 
 clustering:
   generic_tokens: [반려동물, 반려견, 반려묘, 강아지, 고양이, 동물, 보호자, 수의사, 동물병원, 펫]
