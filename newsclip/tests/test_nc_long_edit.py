@@ -173,9 +173,26 @@ def test_cards_render_and_fit(tmp_path):
     assert any(p[3] > 200 and min(p[:3]) > 230 for p in px)  # 나머지는 흰 글자
 
 
-def test_opening_hook_fast_cuts_and_speaker_photo(tmp_path):
-    """초반 30초: 첫 문장은 화면 한가운데 큰 글씨(따옴표 안 발언은 손글씨 노랑), 콜드 오픈 장면은 사진을 더 자주 바꾸고,
-    발언 카드 사진은 그 말을 한 사람 이름이 제목에 든 사진만 쓴다."""
+def test_first_sentence_is_plain_subtitles_by_default(tmp_path):
+    """기본(HOOK_CARD 끔): 첫 문장도 센 말만 크게 띄우지 않고 말한 그대로 보통 자막, 강조 색·팝 없이."""
+    assert le.HOOK_CARD is False
+    scenes = _project(tmp_path)
+    lines = [
+        Cue(1, 0.2, 1.8, "오세훈 서울시장이"),
+        Cue(2, 1.8, 3.6, "항소심에서 무죄를 받았습니다!"),
+        *[Cue(k + 3, 4.0 + k * 5.0, 8.5 + k * 5.0, f"자막 {k}번 줄입니다") for k in range(20)],
+    ]
+    edit = le.build(tmp_path, scenes, lines, total=120.0, channel="정치는푸르다")
+    subs = edit.tracks[1]
+    assert not [p for p, _a, _b in subs if p.name.startswith("hook_")]
+    assert [(a, b_) for _p, a, b_ in subs if a < 3.6] == [(0.2, 1.8), (1.8, 3.6)]  # 두 줄 다 보통 자막
+    assert not any(p.stem == "hit" and at < 3.6 for at, p in edit.sfx)
+
+
+def test_opening_hook_fast_cuts_and_speaker_photo(tmp_path, monkeypatch):
+    """초반 30초(HOOK_CARD 켬): 첫 문장은 화면 한가운데 큰 글씨(따옴표 안 발언은 손글씨 노랑), 콜드 오픈 장면은
+    사진을 더 자주 바꾸고, 발언 카드 사진은 그 말을 한 사람 이름이 제목에 든 사진만 쓴다."""
+    monkeypatch.setattr(le, "HOOK_CARD", True)
     scenes = _project(tmp_path)
     extra = tmp_path / "assets" / "s001_2.jpg"
     Image.new("RGB", (1600, 1000), (200, 120, 60)).save(extra)

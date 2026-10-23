@@ -40,6 +40,8 @@ OPEN_SAG = 5.0
 OPEN_CUT_MIN = 1.5
 HOOK_SEC = 4.0  # 이 시각 전에 시작하는 첫 문장 자막이 훅
 HOOK_MIN = 2.5  # 훅 한 줄이 떠 있는 최소 시간(조각으로 넘기지 않고 센 말 하나를 머물게)
+# 첫 문장 센 말을 화면 한가운데 크게 띄울지. 끔: 첫 문장도 말한 그대로 보통 자막으로(강조 색 없이)
+HOOK_CARD = False
 SUB_LINE_LONG = 22  # 가로 자막 한 줄 글자 수(쇼츠보다 넓은 화면 — 줄이 덜 자주 바뀌게)
 FLASH_SEC, FLASH_CHARS = (
     1.0,
@@ -569,15 +571,9 @@ def _hook(
     조각으로 넘기지 않고 가장 센 말 하나(따옴표 안 발언은 손글씨 노랑, 없으면 문장 끝 행위는 빨강, 둘 다 없으면
     첫 줄)를 첫 문장 내내(적어도 HOOK_MIN초) 띄운다. 아래 자막은 그 말이 든 줄만 뺀다.
     반환: (그림 목록, 뺄 자막 줄 번호, 핵심이 뜨는 때)."""
-    from newsclip.shorts_render import _SENT_END, hook_key
+    from newsclip.shorts_render import hook_key
 
-    n = 0
-    for cue in lines:
-        if cue.start >= HOOK_SEC:
-            break
-        n += 1
-        if _SENT_END.search(cue.text.strip()):
-            break
+    n = _first_sentence(lines)
     if not n:
         return [], set(), None
     start, end = lines[0].start, lines[n - 1].end
@@ -591,6 +587,20 @@ def _hook(
     core = _flat(phrase)
     drop = {k for k in range(n) if core and (core in _flat(lines[k].text) or _flat(lines[k].text) in core)}
     return [(art, start, end)], drop, (start if kind != "chunk" else None)
+
+
+def _first_sentence(lines: list) -> int:
+    """첫 문장 자막 줄 수: HOOK_SEC 전에 시작하는 자막부터 문장이 끝나는 자막까지."""
+    from newsclip.shorts_render import _SENT_END
+
+    n = 0
+    for cue in lines:
+        if cue.start >= HOOK_SEC:
+            break
+        n += 1
+        if _SENT_END.search(cue.text.strip()):
+            break
+    return n
 
 
 def _key(*parts: object) -> str:
@@ -708,10 +718,12 @@ def build(
     def covered(t: float) -> bool:
         return any(a <= t < b for _p, a, b in cards)
 
-    # 짧게 스치는 줄은 이웃 줄과 합치고, 훅: 첫 문장의 센 말 한 줄을 화면 한가운데 크게
+    # 짧게 스치는 줄은 이웃 줄과 합치고, 훅(HOOK_CARD): 첫 문장의 센 말 한 줄을 화면 한가운데 크게. 끄면 첫 문장도
+    # 보통 자막 그대로 — 강조 색은 첫 문장이 끝난 뒤부터
     lines = _merge_flashes([c for c in lines if c.end > c.start])
-    hook, drop, key_at = _hook(lines, words, lx)
-    hook_end = hook[0][2] if hook else 0.0
+    hook, drop, key_at = _hook(lines, words, lx) if HOOK_CARD else ([], set(), None)
+    n = _first_sentence(lines)
+    hook_end = hook[0][2] if hook else lines[n - 1].end if n else 0.0
     if key_at is not None:
         pops.append(key_at)
     # 자막: 인용이 두 줄에 걸치면 줄마다 따옴표 짝을 맞추고(앞뒤 문맥으로), 카드에 가린 줄·훅이 띄운 줄은 빼고,
