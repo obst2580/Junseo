@@ -265,6 +265,32 @@ def test_hook_shows_quoted_remark_until_hook_ends(tmp_path):
     assert hook[-1].end == 3.0  # '고 했습니다!'는 따로 띄우지 않고 발언을 훅 끝까지
 
 
+def test_plain_hook_shows_whole_sentence_as_subtitles(tmp_path):
+    """뉴스 채널(hook "plain"): 첫 문장도 핵심어만 크게 띄우지 않고 말한 그대로 보통 자막으로(강조 없이)."""
+    from newsclip.shorts_render import subtitles_for
+    from newsclip.vertical import STYLES
+
+    assert STYLES["default"].hook == "plain" and STYLES["navy_red"].hook == "plain"
+    assert STYLES["health"].hook == "chart"
+    audio = tmp_path / "n.wav"
+    _wav(audio, 4)
+    srt = tmp_path / "s.srt"
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:01,500\n'5·18은 폭동' 발언이\n\n"
+        "2\n00:00:01,500 --> 00:00:03,000\n항소심에서 무죄를 받았습니다!\n\n"
+        "3\n00:00:03,000 --> 00:00:04,000\n둘째 문장\n",
+        encoding="utf-8",
+    )
+    arts, _s, _i, hook = subtitles_for(
+        "대본", audio, (1080, 1920), tmp_path, set(), srt=srt, hook_mode="plain"
+    )
+    assert [a.path.name for a in arts] == ["cue_000.png", "cue_001.png", "cue_002.png"]
+    assert [(a.start, a.end) for a in arts] == [(0.0, 1.5), (1.5, 3.0), (3.0, 4.0)]
+    assert not any(a.intro for a in arts)  # 첫 문장에 강조 자막·강조음 없음
+    assert len({a.height for a in arts[:2]}) == 1 and arts[0].top == arts[2].top  # 보통 자막과 같은 자리·크기
+    assert hook is not None and hook[0].endswith("무죄를 받았습니다!")
+
+
 def test_long_subtitle_goes_to_two_lines(tmp_path):
     from newsclip.render import sub_lines
 

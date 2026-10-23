@@ -761,7 +761,8 @@ def subtitles_for(
 ) -> tuple[list[CueArt], list[tuple[float, float]], AudioInfo, tuple[str, float, float] | None]:
     """대본 + 음성 → 자막 그림 목록(음성 쉼에 맞춘 한 줄씩). words(타입캐스트 낱말 시각)가 있으면 그 시각에 맞춘다.
     hook_mode "chart"(널스윤서)면 첫 문장 자막을 만들지 않는다 — 그동안 화면은 차트판 훅(chart_hook)이 첫 문장을
-    손글씨로 쓴다. sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). emph_sag는 강조 자막 고르기
+    손글씨로 쓴다. "plain"(뉴스 채널)이면 첫 문장도 핵심어만 크게 띄우지 않고 말한 그대로 보통 자막으로 낸다(강조 없이).
+    sub_shift만큼 자막을 아래로 옮긴다(사진 칸이 다른 디자인). emph_sag는 강조 자막 고르기
     (pick_emphasis), quote_pairs면 훅 뒤 자막의 따옴표 짝을 맞춘다(pair_quotes). 마지막 값은 첫 문장 (글, 시작, 끝).
     emphasis(강조 문구 목록, 널스윤서)를 주면 긴 자막 안의 그 문구를 잘라 강조 자막(정치 채널과 같은 효과)으로 띄운다 —
     자막을 문구 앞·문구·뒤로 나눠 그 말이 들리는 때에 차례로. strong은 강조할 센 말(채널마다).
@@ -781,7 +782,9 @@ def subtitles_for(
         hook_n += 1
         if _SENT_END.search(cue.text.strip()):
             break
-    px = fit_sub_px([cue.text for cue in lines[hook_n:]] or [""], size)
+    plain = hook_mode == "plain"
+    first = 0 if plain else hook_n  # 보통 자막으로 그리기 시작하는 자막 번호
+    px = fit_sub_px([cue.text for cue in lines[first:]] or [""], size)
     arts = []
     # 작업자가 강조 문구를 골랐으면 그 문구만 강조한다(센 말 자동 강조는 고른 문구가 없을 때만)
     chosen = [e for e in emphasis or [] if e.strip()]
@@ -810,10 +813,10 @@ def subtitles_for(
         if hook_n
         else None
     )
-    if hook_n and hook_mode != "chart":
+    if hook_n and hook_mode == "flash":
         arts += hook_arts(lines[:hook_n], asset_dir, size, keywords, words)
     for k, cue in enumerate(lines):
-        if k < hook_n:
+        if k < first:
             continue
         if k in split:  # 긴 자막 안 강조 문구: 앞은 보통 자막, 문구는 강조 자막, 뒤는 다시 보통 자막
             for j, (text, a, b, hot) in enumerate(split_emphasis(cue, split[k], words)):
@@ -841,7 +844,7 @@ def subtitles_for(
         from newsclip.render import SUB_TEXT_Y
 
         arts += english_arts(
-            lines, english, list(arts), asset_dir, size, en_font, first=hook_n, sub_top=SUB_TEXT_Y + sub_shift
+            lines, english, list(arts), asset_dir, size, en_font, first=first, sub_top=SUB_TEXT_Y + sub_shift
         )
     return arts, [(cue.start, cue.end) for cue in lines], info, hook
 
