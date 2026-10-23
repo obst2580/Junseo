@@ -865,6 +865,11 @@ async def sources(
         # 롱폼 완성 편집: 유튜브 설명란 챕터(0:00 …)와 무엇을 깔았는지
         **({"chapters": long["edit"].youtube, "long_edit": long["summary"]} if long is not None else {}),
     }
+    # 장면마다 고른 사진 모음(작업자가 한 번에 보고 표·그래픽·딴 사람 사진을 queries.json "drop"으로 뺀다) — 올리지 않음
+    from studio_app.qa import photo_sheet
+
+    sheet = photo_sheet(scenes, proj, out / "photo-sheet.jpg")
+    manifest["photo_sheet"] = str(sheet) if sheet else None
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     return manifest
 

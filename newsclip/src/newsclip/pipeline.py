@@ -56,7 +56,7 @@ class RunReport:
     by_source: dict[str, int] = field(default_factory=dict)
     borrowed: int = 0  # 사진을 못 받아 앞뒤 장면 사진을 이어 쓴 장면 수
     dropped_thumbs: int = 0  # 뺀 유튜브 썸네일 + 받고 보니 영상 썸네일(큰 제목 글씨)이라 뺀 사진 수
-    dropped_docs: int = 0  # 세로 쇼츠에서 받고 보니 문서·표·화면 캡처(흰 바탕 잔글씨)라 뺀 사진 수
+    dropped_docs: int = 0  # 받고 보니 문서·표·화면 캡처(흰 바탕 잔글씨)라 뺀 사진 수(뉴스 채널·세로 쇼츠)
 
 
 def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClient) -> dict[str, Source]:
@@ -452,8 +452,11 @@ async def run_project(
         found = await keep_news_thumbs(client, found, cfg.images.youtube_thumb_channels, report)
         prev_key: str | None = None
         used: dict[str, int] = {}  # 앞 장면들이 이미 고른 자료(같은 사진 되풀이 감점)
+        story = " ".join(sc.text for sc in scenes)  # 사진 제목의 인물이 대본에 있나
+        # 작업자가 사진을 보고 뺀 것(queries.json "drop": 사진 주소 또는 제목 일부) — 다시 돌리면 다음 후보로
+        drop = tuple(str(d) for d in (queries or {}).get("drop") or [] if str(d).strip())
         for sc, cands in zip(scenes, found, strict=True):
-            ranked = rank(sc, cands, cfg, prev_key, used=used)
+            ranked = rank(sc, cands, cfg, prev_key, used=used, story=story, drop=drop)
             for a in ranked:
                 a.attribution_text = attribution_text(a)
             sc.candidates = ranked
@@ -512,7 +515,9 @@ async def run_project(
                     if news and text_heavy(a):  # 큰 제목 글씨를 박은 영상 썸네일은 쓰지 않고 다음 후보로
                         report.dropped_thumbs += 1
                         continue
-                    if size[1] > size[0] and doc_like(a):  # 세로 쇼츠: 문서·표·화면 캡처는 글씨가 안 읽힌다
+                    if (news or size[1] > size[0]) and doc_like(
+                        a
+                    ):  # 문서·표·화면 캡처는 화면에서 글씨가 안 읽힌다
                         report.dropped_docs += 1
                         continue
                     got[a.id] = a

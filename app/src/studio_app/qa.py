@@ -138,6 +138,35 @@ def _white_box(path: Path, probe: Path) -> Path | None:
     return probe
 
 
+def photo_sheet(scenes: list[dict], proj: Path, out: Path) -> Path | None:
+    """자료를 모은 뒤 장면마다 고른 사진 한 장씩(장면 ID·시각) — 롱폼은 완성 영상이 없어 작업자가 이것으로 사진을
+    한 번에 본다(표·그래픽·딴 사람 사진). 그림이 하나도 없으면 None."""
+    from PIL import Image, ImageDraw, ImageOps
+
+    items = [(s, proj / s["chosen"]) for s in scenes if s.get("chosen")]
+    items = [
+        (s, p) for s, p in items if p.exists() and p.suffix.lower() in (".jpg", ".jpeg", ".png", ".webp")
+    ]
+    if not items:
+        return None
+    fh = SHEET_W * 9 // 16
+    rows = -(-len(items) // SHEET_COLS)
+    sheet = Image.new("RGB", (SHEET_COLS * SHEET_W, rows * (fh + 18)), (24, 24, 24))
+    d = ImageDraw.Draw(sheet)
+    for i, (s, p) in enumerate(items):
+        x, y = (i % SHEET_COLS) * SHEET_W, (i // SHEET_COLS) * (fh + 18)
+        try:
+            with Image.open(p) as im:
+                sheet.paste(ImageOps.pad(im.convert("RGB"), (SHEET_W, fh), color=(0, 0, 0)), (x, y + 18))
+        except OSError:
+            continue
+        t = float(s.get("start") or 0)
+        d.text((x + 4, y + 3), f"{s['id']} {int(t // 60)}:{int(t % 60):02d}", fill=(220, 220, 220))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    sheet.save(out, "JPEG", quality=82)
+    return out
+
+
 def contact_sheet(final: Path, out: Path, duration: float, marks: list[tuple[float, float]]) -> Path | None:
     """1초 간격 장면 모음(긴 영상은 간격을 늘려 많아야 96칸). 검수에 걸린 구간(시작, 끝)의 칸은 빨간 테두리."""
     from PIL import Image, ImageDraw

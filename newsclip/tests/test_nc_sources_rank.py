@@ -313,6 +313,47 @@ def test_rank_skips_photos_of_other_people_abroad_and_sns_events():
     assert not any("장면에 없음" in n or "외국" in n for n in notes)
 
 
+def test_rank_skips_strangers_graphics_party_shots_and_dropped():
+    """10/23 오세훈 무죄 영상에서 나온 실수: '김건희 특검' 검색어에 대본에 없는 김건희 여사 사진, 녹취 공개
+    합성 썸네일, '…기자회견 갖는 민주당'(사진은 민주당 사람들)이 뽑혔다. 작업자가 뺀 사진(drop)은 아예 안 쓴다."""
+    from newsclip.rank import title_people
+
+    assert title_people("특검 사무실 향하는 김건희 여사") == ["김건희"]
+    assert title_people("지팡이 짚고 공판 출석하는 명태균 씨") == ["명태균"]
+    assert title_people("동네 아저씨 인터뷰") == []
+
+    def pick(sc, titles, story="", drop=()):
+        assets = [
+            asset(
+                "naver_image",
+                f"https://i/{k}.jpg",
+                width=1600,
+                height=1200,
+                title=t,
+                source_domain="imgnews.naver.net",
+            )
+            for k, t in enumerate(titles)
+        ]
+        return [a.title for a in rank(sc, assets, CFG, story=story, drop=drop)]
+
+    story = "오세훈 서울시장이 2심에서 무죄를 받았습니다. 명태균 씨 진술이 흔들렸고 특검은 상고해야 합니다."
+    tk = scene("s015", 0, 3, text="특검은 상고해서 끝까지 가야 합니다.", query="김건희 특검 사무실")
+    kim = "특검 사무실 향하는 김건희 여사"
+    office = "김건희 특검 사무실 현판"
+    assert pick(tk, [kim, office], story)[0] == office
+    assert pick(tk, [kim, office])[0] == kim  # 대본을 안 주면 예전 그대로
+    ms = scene("s005", 0, 3, text="명태균 씨 진술까지 배척했고,", query="명태균 씨")
+    tape = '민주 "명태균, 유튜버 부탁으로 여의도연구원 인사청탁" 녹취 공개'
+    court = "법정 출석하는 명태균"
+    assert pick(ms, [tape, court], story)[0] == court
+    oh = scene("s033", 0, 3, text="오 시장 한 사람만의 일이 아니라서", query="오세훈 서울시장 기자회견")
+    dem = "오세훈 시장의 정책 변화 촉구 기자회견 갖는 민주당"
+    own = "기자회견 하는 오세훈 서울시장"
+    assert pick(oh, [dem, own], story)[0] == own
+    assert pick(ms, [court, tape], story, drop=("https://i/0.jpg",)) == [tape]
+    assert pick(ms, [court, tape], story, drop=("출석하는 명태균",)) == [tape]
+
+
 def test_watermark_stock_sites_are_never_used():
     """'크라우드픽'처럼 미리보기에 워터마크를 박는 유료 사진 사이트는 채널 설정과 상관없이 뺀다."""
     from newsclip.rank import score_asset

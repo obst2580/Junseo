@@ -109,10 +109,13 @@ def asset_key(a: Asset) -> str:
 
 
 def score_asset(
-    a: Asset, scene: Scene, route: list[str], cfg: ChannelConfig
+    a: Asset, scene: Scene, route: list[str], cfg: ChannelConfig, story: str = "", drop: tuple[str, ...] = ()
 ) -> tuple[float, list[str]] | None:
-    """점수와 근거. 차단 대상이면 None."""
+    """점수와 근거. 차단 대상이면 None. story는 대본 전체(장면 문장을 이은 것) — 사진 제목의 인물이 대본 어디에도
+    없으면 깎는다. drop은 작업자가 사진을 보고 뺀 것(사진 주소 그대로, 또는 사진 제목 일부 4자 이상)."""
     notes: list[str] = []
+    if drop and any(d in (a.url, a.download_url) or (len(d) >= 4 and d in a.title) for d in drop):
+        return None
     if a.media == "video":
         if is_blocked(a.author_or_channel, cfg.videos.blocked_channels):
             return None
@@ -190,6 +193,11 @@ def score_asset(
         if _DOC_RE.search(title) or domain_match(a.source_domain, DOC_HOSTS):
             s -= 25
             notes.append("문서·표 캡처 −25")
+        elif news and _GRAPHIC_RE.search(
+            title
+        ):  # 녹취 공개·그래픽·방송 갈무리: 얼굴 합성·글자판이라 사진이 아니다
+            s -= 25
+            notes.append("그래픽·녹취·캡처 −25")
         year = photo_year(a)
         if year:
             now = now_kst().year
@@ -212,6 +220,19 @@ def score_asset(
         if extra:  # 지지도 기사 합성 사진처럼 장면과 상관없는 얼굴이 섞인 사진
             s -= 8 * len(extra)
             notes.append(f"장면에 없는 인물 {len(extra)}명 −{8 * len(extra)}")
+        # 대본 어디에도 없는 인물: 검색어에 그 이름이 든 기관·사건 이름('김건희 특검')이 섞여 그 사람 사진이 잡힌 것
+        stranger = [
+            p for p in people if story and p not in story and not any(x in story for x in _ALIASES.get(p, ()))
+        ]
+        if stranger:
+            s -= 30
+            notes.append(f"대본에 없는 인물 {stranger[0]} −30")
+        party = _PARTY_END_RE.search(a.title)
+        if (
+            party and party.group(1) not in scene_hay
+        ):  # '…기자회견 갖는 민주당': 사진에 나오는 건 그 당 사람들
+            s -= 20
+            notes.append(f"사진 주인공이 {party.group(1)} −20")
         abroad = [m for m in _FOREIGN_RE.findall(a.title) if m not in scene_hay]
         if abroad:
             s -= 30
@@ -224,6 +245,12 @@ DOC_HOSTS = ["lfind.kr", "googleusercontent.com", "scribd.com", "docslide.net"]
 _DOC_RE = re.compile(
     r"google sheets|google docs|casenote|판결문|판례|서식|양식|\.pdf|\.hwp|\.xlsx?|스프레드시트"
 )
+# 뉴스 사진 제목인데 사진이 아닌 것: 녹취 공개(얼굴 합성 썸네일)·그래픽·카드뉴스·타임라인·방송 화면 갈무리
+_GRAPHIC_RE = re.compile(r"녹취|그래픽|카드뉴스|인포그래픽|타임라인|도표|한눈에|갈무리|캡처|캡쳐|썸네일|합성")
+# 제목 끝이 '…하는/갖는 민주당'이면 사진에 나오는 건 그 당 사람들(제목 앞 인물은 그들이 말한 대상)
+_PARTY_END_RE = re.compile(
+    r"(?:는|은|한|던)\s+(더불어민주당|민주당|국민의힘|조국혁신당|개혁신당|진보당)(?:\s*(?:의원들|지도부|의원단|관계자들))?\s*$"
+)
 _YEAR_RE = re.compile(r"/(20\d\d)/(?:0[1-9]|1[0-2])/")
 MEDIA_WORDS = {"sns", "페이스북", "유튜브", "인스타그램", "트위터", "텔레그램", "블로그", "게시글", "댓글"}
 # 사진 제목의 인물: '추미애 경기도지사', '장동혁 국민의힘 대표', '추미애 27.0%'(지지도), 맨 앞 '李'(대통령 줄임)
@@ -231,6 +258,7 @@ _ROLE = r"(?:대통령|원내대표|대표|의원|지사|시장|장관|총리|�
 _PERSON_RE = re.compile(
     rf"(?<![가-힣])([가-힣]{{2,3}})\s+(?:[가-힣]{{1,8}}(?:당|힘|부|청|원|도|시|회|실|처)\s+)?[가-힣]{{0,6}}?{_ROLE}(?![가-힣])"
     r"|(?<![가-힣])([가-힣]{2,3})\s?\d+(?:\.\d+)?%"
+    r"|(?<![가-힣])([가-힣]{2,3})\s+(?:여사|씨)(?![가-힣])"  # '김건희 여사', '명태균 씨'(띄어 쓴 것만 — '아저씨' 아님)
 )
 _LEADER_RE = re.compile(r"^(?:\[[^\]]*\]\s*)?(李|尹|文)(?=[\s“\"‘'…,])")
 _LEADERS = {"李": "이재명", "尹": "윤석열", "文": "문재인"}
@@ -261,7 +289,7 @@ def title_people(title: str) -> list[str]:
     if m:
         found.append((m.start(1), _LEADERS[m.group(1)]))
     for m in _PERSON_RE.finditer(title):
-        name = m.group(1) or m.group(2)
+        name = m.group(1) or m.group(2) or m.group(3)
         if name not in _NOT_PEOPLE and not name.endswith("당"):
             found.append((m.start(), name))
     out: list[str] = []
@@ -284,13 +312,16 @@ def rank(
     prev_key: str | None = None,
     clip_scorer: Callable[[Asset, Scene], float] | None = None,
     used: dict[str, int] | None = None,
+    story: str = "",
+    drop: tuple[str, ...] = (),
 ) -> list[Asset]:
     """정렬된 후보(차단 제외). 점수·근거는 Asset.score / score_notes에 기록.
-    used: 앞 장면들이 이미 고른 자료 ID와 횟수(같은 사진이 영상 내내 되풀이되지 않게 감점)."""
+    used: 앞 장면들이 이미 고른 자료 ID와 횟수(같은 사진이 영상 내내 되풀이되지 않게 감점).
+    story·drop은 score_asset 참고(대본 전체, 작업자가 뺀 사진)."""
     route = cfg.images.sources or route_for(scene)  # 소재 사이트만 쓰는 채널은 설정 순서가 곧 순위
     scored: list[Asset] = []
     for a in assets:
-        res = score_asset(a, scene, route, cfg)
+        res = score_asset(a, scene, route, cfg, story, drop)
         if res is None:
             continue
         s, notes = res

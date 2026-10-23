@@ -113,3 +113,22 @@ def test_worker_can_drop_a_mismatched_photo(tmp_path):
     assert (
         new[2]["chosen"] == "assets/s006_1.jpg" and new[2]["attribution"] == "출처: b"
     )  # 옆 장면 사진을 출처째
+
+
+def test_photo_sheet_has_one_tile_per_scene(tmp_path):
+    from PIL import Image
+
+    from studio_app.qa import SHEET_COLS, SHEET_W, photo_sheet
+
+    (tmp_path / "assets").mkdir()
+    scenes = []
+    for k in range(10):
+        Image.new("RGB", (1600, 900 if k % 2 else 1600), (k * 20, 80, 120)).save(
+            tmp_path / "assets" / f"s{k:03d}_1.jpg"
+        )
+        scenes.append({"id": f"s{k:03d}", "start": k * 3.0, "chosen": f"assets/s{k:03d}_1.jpg"})
+    scenes.append({"id": "s010", "start": 30.0, "chosen": None})  # 사진 없는 장면은 건너뜀
+    out = photo_sheet(scenes, tmp_path, tmp_path / "sheet.jpg")
+    w, h = Image.open(out).size
+    assert w == SHEET_COLS * SHEET_W and h == 2 * (SHEET_W * 9 // 16 + 18)
+    assert photo_sheet([{"id": "s0", "chosen": None}], tmp_path, tmp_path / "x.jpg") is None
