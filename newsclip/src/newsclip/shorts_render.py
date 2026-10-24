@@ -659,13 +659,25 @@ def draw_like_sticker(text: str, out: Path, font_path: str | None) -> Path:
     return out
 
 
-def like_time(cues: list[CueArt], total: float, hook_end: float = 0.0) -> float:
-    """좋아요 스티커를 띄울 때: 영상 20~70% 사이 첫 강조 자막(핵심 숫자·정보)이 끝난 직후. 없으면 영상 45% 자리."""
+def like_time(
+    cues: list[CueArt], total: float, hook_end: float = 0.0, avoid: list[tuple[float, float]] = ()
+) -> float:
+    """좋아요 스티커를 띄울 때: 영상 20~70% 사이 첫 강조 자막(핵심 숫자·정보)이 끝난 직후. 없으면 영상 45% 자리.
+    avoid(수치 카드가 보이는 구간)와 겹치면 그 뒤로 미룬다 — 스티커가 카드 제목을 가리지 않게."""
     lo, hi = total * LIKE_AT[0], total * LIKE_AT[1]
+
+    def clear(t: float) -> float:
+        for a, b in sorted(avoid):
+            if t < b and t + LIKE_SEC > a:
+                t = b + 0.1
+        return t
+
     for c in sorted(cues, key=lambda c: c.start):
         if c.path.name.startswith("emph_") and lo <= c.end <= hi and c.end >= hook_end:
-            return round(c.end + 0.15, 3)
-    return round(max(hook_end, total * 0.45), 3)
+            t = clear(c.end + 0.15)
+            if t <= hi:
+                return round(t, 3)
+    return round(clear(max(hook_end, total * 0.45)), 3)
 
 
 def outro_from(scenes: list[dict], outro: str) -> int | None:
@@ -984,7 +996,8 @@ def build_plan(
         art = draw_like_sticker(like, asset_dir / "subtitles" / "like.png", like_font)
         lw, lh = Image.open(art).size
         bx = box_of(st) or (0, 0, SIZE[0], SIZE[1])
-        at = like_time(cues, total, hook_end)
+        cards = [(sh.start, sh.end) for sh in shots if is_card(sh.path)]
+        at = like_time(cues, total, hook_end, cards)
         if at + 1.0 < total:
             stickers.append(
                 Overlay(

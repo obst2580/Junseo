@@ -489,3 +489,6 @@ def test_like_sticker(tmp_path):
     ]
     assert like_time(cues, 30.0, hook_end=3.0) == 9.65
     assert like_time(cues[:2], 30.0, hook_end=3.0) == 13.5
+    assert (
+        like_time(cues, 30.0, hook_end=3.0, avoid=[(9.0, 11.0)]) == 11.1
+    )  # 수치 카드가 보이는 동안은 미룬다
