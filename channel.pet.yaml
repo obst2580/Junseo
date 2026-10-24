@@ -1,0 +1,94 @@
+# 반려동물 정보 채널 설정 — STUDIO_CHANNEL=pet(작업자: `workroom --channel pet …`)일 때 channel.yaml 대신 읽는다.
+# 수집한 기사·보도자료는 data-pet/, 작업 폴더는 projects-pet/에 따로 둔다(다른 채널과 섞이지 않게).
+# 널스윤서(channel.health.yaml)와 같은 틀: 기사로 주제를 정하고 30초 세로 쇼츠만 만든다.
+channel:
+  name: 하루집사
+  profile: pet                 # 대본·주제 규칙 묶음(topicradar/prompts.py PET_*)
+  youtube_channel_id: ""
+  stance: "강아지·고양이 보호자를 위한 반려동물 건강·생활 정보 쇼츠 채널. 진행자 하루는 강아지·고양이를 10년 넘게 키운 집사로, 이웃 보호자에게 말하듯 쉽게 풀어 준다. 주제와 사실은 공공기관 발표(농림축산식품부·농림축산검역본부)와 수의 전문지·반려동물 기사로 정하고, 연구 종류를 밝히며 단정하지 않는다. 진단·처방, 사람 약을 먹이라는 말, 사료·영양제·제품 효능 광고는 하지 않는다. 수의사인 척하지 않고 '동물병원·수의사와 상의'를 앞에 둔다. 커뮤니티는 쓰지 않는다."
+  categories: [건강, 질병, 예방접종, 사료·영양, 행동, 노령, 응급, 제도·법, 여행·생활]
+  competitors: []
+  past_titles: []
+  slack_webhook: ""
+
+sources:
+  # 2026-10 점검: 아래 피드는 접속·최근 글 확인. 농식품부·검역본부는 RSS가 막혀 있어(503·404) 네이버 뉴스 검색어로 받는다.
+  rss:
+    - {name: 데일리벳, url: "https://www.dailyvet.co.kr/feed", kind: domestic, category: 건강}
+    - {name: 한국반려동물신문, url: "https://www.pet-news.or.kr/rss/allArticle.xml", kind: domestic, category: 여행·생활}
+  overseas_rss: []
+  # 네이버 뉴스 검색어(검색어당 최신 100건) — 공공기관 발표 + 보호자 관심사
+  naver_queries: [농림축산식품부 반려동물, 농림축산검역본부 반려동물, 반려견 건강, 반려묘 건강, 강아지 질병, 고양이 질병, 노령견, 노령묘, 반려동물 사료, 동물병원 진료비, 반려동물 등록]
+  # 계절 주제표 — 이번 달 검색어만 위 목록에 더해 수집한다(주제 묶기 때 '이달의 계절 주제'로도 넘긴다)
+  season_queries:
+    1: [반려견 겨울 산책, 반려동물 저체온, 반려동물 난방 화상]
+    2: [반려동물 건조 피부, 반려견 겨울 관절]
+    3: [반려견 심장사상충 예방, 반려동물 털갈이, 진드기 반려견]
+    4: [반려견 진드기, 심장사상충 예방, 반려동물 봄 산책]
+    5: [반려견 진드기, 반려동물 피부병, 반려견 산책 화상]
+    6: [반려견 열사병, 반려동물 더위, 반려견 산책 화상]
+    7: [반려견 열사병, 반려동물 여름 휴가, 반려동물 식중독]
+    8: [반려견 열사병, 반려동물 휴가 유기, 반려견 물놀이]
+    9: [반려동물 추석, 반려견 환절기, 반려동물 명절 음식]
+    10: [반려견 환절기, 반려동물 털갈이, 반려견 단풍 산책]
+    11: [반려동물 겨울 준비, 반려견 관절, 반려묘 방광염]
+    12: [반려동물 연말 음식, 반려견 초콜릿, 반려동물 겨울 산책]
+  kogl: []
+
+images:
+  preferred_domains: []
+  blocked_domains: []
+  youtube_thumb_channels: []
+  # 화면 소재는 무료 소재 사이트에서만 자동으로 모은다 — Pexels 세로 영상 먼저, 모자라면 Pixabay 영상(가로는 가운데를 잘라 씀)
+  sources: [pexels_video, pexels_image, pixabay_video, pixabay_image]
+  orientation: portrait
+
+videos:
+  preferred_channels: []
+  blocked_channels: []
+
+budget:
+  google_cse_per_day: 0
+  youtube_search_per_day: 0
+  naver_per_day: 20000
+
+timeline:
+  subtitles: false
+  attribution: false           # 무료 소재(Pexels·Pixabay)는 화면에 출처를 띄우지 않는다 — 출처는 credits.txt·assets.json에
+
+shorts:
+  style: health                # 널스윤서와 같은 디자인(흰 바탕 위 검정·하늘색 상단 제목, 첫 문장 차트판 손글씨)
+  outro_clip: assets/pet/outro.mp4   # 끝 인사 장면: 집사가 강아지·고양이를 안고 손 흔드는 그림 영상
+  outro_start: 2.0             # 손 흔들기 직전부터
+  outro_top: 0.17              # 위쪽 '하루집사였습니다' 글자는 빼고(자막과 겹침) 얼굴·강아지·고양이가 자막 위에 오게
+
+clustering:
+  generic_tokens: [반려동물, 반려견, 반려묘, 강아지, 고양이, 동물, 보호자, 수의사, 동물병원, 펫]
+
+script:
+  tone: 집사 친구형             # 이웃 보호자에게 말하듯 친근하게(topicradar/prompts.py TONES)
+  chars_per_minute: 600        # 다른 채널과 같은 읽는 속도
+  shorts_seconds: 30           # 쇼츠는 30초
+  fixed_hashtags: [반려동물, 강아지, 고양이]
+  outro: ""                    # 가로 영상은 만들지 않는다
+  shorts_outro: 지금까지 하루집사였습니다! 우리 아이 건강을 위해서 영상 오른쪽 하트와 구독 버튼을 눌러주세요!
+  # 영상 설명란에 붙이는 고지(화면 제목·해시태그 칸 아래에서 복사)
+  notice: 이 영상은 일반적인 반려동물 정보이며 수의사의 진단이나 치료를 대신하지 않습니다. 아이에게 증상이 있거나 약을 먹이고 있다면 꼭 동물병원·수의사와 상의하세요.
+
+voice:                         # 목소리는 제작실에서 고른다(비워 두면 [타입캐스트로 음성 만들기] 전에 고르라고 안내)
+  name: ""
+  voice_id: ""
+  model: ssfm-v30
+  tempo: 1.0
+  remove_silence_ms: null
+  read_as: {"119": 일일구, "112": 일일이}
+  per_sentence: true           # 문장마다 읽고, 같은 말을 두 번 읽은 문장은 다시 읽는다
+
+# 반려동물 채널은 커뮤니티를 쓰지 않는다 — 주제·사실 모두 보도자료·기사로.
+communities: []
+
+board:
+  window_hours: 48             # 전문지·보도자료는 하루에 몇 건이라 이틀 치를 본다
+  min_posts: 1
+  size: 20
+  derived_queries: 0

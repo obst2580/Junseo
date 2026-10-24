@@ -1,0 +1,2008 @@
+<title>studio 제작실</title>
+<meta name="description" content="커뮤니티 반응으로 주제를 고르고, 내 Claude로 대본을 쓰고, 음성을 올리면 자료와 프리미어용 timeline.xml까지 받는 제작실.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* 한 기둥 + 위쪽 단계 막대: 주제 → 대본 → 음성 → 자료·XML, 프로젝트 목록은 따로 */
+:root {
+  --bg: #e9eee8; --paper: #fbfcf7; --paper-2: #f1f4ee; --ink: #1c2822; --ink-2: #3f5047; --muted: #69786f;
+  --line: #d0d9cf; --grid: #d3dfd5; --accent: #2c6a4d; --accent-ink: #ffffff; --accent-soft: #d9eadf;
+  --warn: #8f5600; --warn-soft: #f8edd5; --bad: #b0281f; --bad-soft: #f8e1de; --ok: #2c6a4d;
+  --display: "Black Han Sans", "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --body: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --shadow: 0 1px 2px rgba(20, 40, 30, .06), 0 4px 16px rgba(20, 40, 30, .05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101613; --paper: #18201c; --paper-2: #1e2823; --ink: #e2eae4; --ink-2: #b8c6bd; --muted: #8b9a91;
+    --line: #2d3a33; --grid: #263329; --accent: #6cc196; --accent-ink: #0d1a13; --accent-soft: #1f3a2c;
+    --warn: #e7b25a; --warn-soft: #362a14; --bad: #f08a80; --bad-soft: #3a1d1a; --ok: #6cc196;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101613; --paper: #18201c; --paper-2: #1e2823; --ink: #e2eae4; --ink-2: #b8c6bd; --muted: #8b9a91;
+  --line: #2d3a33; --grid: #263329; --accent: #6cc196; --accent-ink: #0d1a13; --accent-soft: #1f3a2c;
+  --warn: #e7b25a; --warn-soft: #362a14; --bad: #f08a80; --bad-soft: #3a1d1a; --ok: #6cc196;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15.5px/1.6 var(--body); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 940px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 120px; display: grid; gap: 16px; }
+a { color: var(--accent); }
+h1, h2, h3 { margin: 0; line-height: 1.3; text-wrap: balance; }
+h2 { font-size: 18px; } h3 { font-size: 15.5px; }
+.muted { color: var(--muted); } .small { font-size: 13.5px; }
+.mono { font-family: var(--mono); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.spacer { flex: 1; }
+.stack { display: grid; gap: 10px; }
+[hidden] { display: none !important; }
+
+header.top { display: grid; gap: 8px; }
+.brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.brand h1 { font-family: var(--display); font-weight: 400; font-size: clamp(30px, 6vw, 40px); letter-spacing: .4px; }
+.brand .by { font-size: 13px; color: var(--muted); }
+.lede { margin: 0; color: var(--ink-2); max-width: 700px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--paper); color: var(--ink-2); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip.ok { background: var(--accent-soft); color: var(--ok); border-color: transparent; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.chip.bad { background: var(--bad-soft); color: var(--bad); border-color: transparent; }
+
+nav.steps { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); padding-block: 8px; display: grid; gap: 6px; }
+.tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.tabs button { font: inherit; font-size: 14px; font-weight: 600; white-space: nowrap; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); border-radius: 10px; padding: 7px 12px; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
+.tabs button .n { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.tabs button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tabs button.on .n { color: var(--accent-ink); opacity: .8; }
+.tabs button.done::after { content: "✓"; font-size: 12px; }
+.tabs button:disabled { opacity: .45; cursor: not-allowed; }
+.curproj { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.curproj b { color: var(--ink); }
+
+section.card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; display: grid; gap: 14px; min-width: 0; }
+section.card > * { min-width: 0; }  /* 가로로 긴 줄(각도 탭 등)이 카드를 넓히지 않게 — 그 줄 안에서 옆으로 밀린다 */
+.sec-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sub { margin: 0; color: var(--ink-2); }
+
+.btn { font: inherit; font-size: 14.5px; font-weight: 600; border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 10px; padding: 8px 14px; cursor: pointer; min-height: 40px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { font-size: 13px; padding: 4px 10px; min-height: 32px; border-radius: 8px; }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:focus-visible, input:focus-visible, textarea:focus-visible, .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+textarea, input[type=text] { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; width: 100%; }
+label.field { display: grid; gap: 4px; font-size: 13.5px; color: var(--ink-2); }
+
+.note { border-radius: 10px; padding: 10px 14px; font-size: 14px; }
+.note.info { background: var(--accent-soft); }
+.note.warn { background: var(--warn-soft); }
+.note.bad { background: var(--bad-soft); }
+.note ul { margin: 4px 0 0; padding-left: 18px; }
+.note b.t { display: block; }
+.thinking { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; color: var(--ink-2); }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--grid); border-top-color: var(--accent); animation: spin 1s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* 주제 */
+.sites { display: flex; flex-wrap: wrap; gap: 6px; }
+.site { font: inherit; font-size: 13px; font-weight: 600; border: 1px solid var(--line); background: var(--paper-2); color: var(--ink-2); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.site.off { opacity: .5; text-decoration: line-through; }
+.site.blocked { cursor: default; background: transparent; color: var(--muted); }
+.tlist { display: grid; }
+.trow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 12px 6px; border-top: 1px solid var(--line); }
+.trow:first-child { border-top: 0; }
+.trow.on { background: var(--accent-soft); border-radius: 10px; }
+.trow input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); }
+.rank { color: var(--accent); font-weight: 800; margin-right: 4px; font-family: var(--mono); }
+.tname { font-weight: 700; }
+.chsel { font-size: 13px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin: 0 10px; }
+.chsel select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; }
+.heat { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stance { margin-top: 4px; }
+.stance .tag { font-size: 11.5px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px; margin-right: 6px; }
+.trow.on .stance .tag { background: var(--paper); }
+ul.points { margin: 3px 0 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); }
+details.ev { margin-top: 4px; font-size: 13.5px; }
+details.ev ul { margin: 4px 0; padding-left: 18px; }
+.badge { font-size: 11.5px; font-weight: 700; border-radius: 999px; padding: 1px 7px; background: var(--paper-2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+.badge.ok { background: var(--accent-soft); color: var(--ok); border-color: transparent; }
+.badge.warn { background: var(--warn-soft); color: var(--warn); border-color: transparent; }
+.bundles { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.bundle { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; background: var(--paper-2); }
+.bundle .names { font-weight: 600; font-size: 14px; }
+.pickbar { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; background: var(--paper); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 12px; box-shadow: 0 6px 24px rgba(0,0,0,.12); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.postlist { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.postlist li { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 10px; font-size: 14px; }
+.postlist .num { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 대본 */
+.plan { display: grid; gap: 6px; font-size: 14px; }
+.plan .item { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.plan .sec { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.script { min-height: 460px; resize: vertical; line-height: 30px; padding: 6px 14px; font-size: 16px; background-color: var(--paper);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 29px, var(--grid) 29px, var(--grid) 30px);
+  background-position: 0 5px; background-attachment: local; }
+.meter { display: flex; gap: 4px 16px; flex-wrap: wrap; font-family: var(--mono); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.meter b { color: var(--ink); font-weight: 500; } .meter b.bad { color: var(--bad); } .meter b.good { color: var(--ok); }
+.checks { margin: 0; padding-left: 18px; font-size: 14px; }
+.checks li.bad { color: var(--bad); }
+.titles { display: grid; gap: 8px; }
+.titles .t { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px; align-items: center; }
+.titles .t span { font-family: var(--mono); color: var(--muted); font-size: 13px; }
+.count { font-family: var(--mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.count.bad { color: var(--bad); }
+
+/* 음성 */
+.drop { border: 2px dashed var(--grid); border-radius: 12px; padding: 18px 16px; text-align: center; background: var(--paper-2); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop input[type=file] { display: none; }
+.wave { width: 100%; height: 72px; display: block; background: var(--paper-2); border-radius: 8px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.fact { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: var(--paper-2); }
+.fact .k { font-size: 12px; color: var(--muted); }
+.fact .v { font-family: var(--mono); font-size: 17px; font-variant-numeric: tabular-nums; }
+pre.tts { white-space: pre-wrap; background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; max-height: 220px; overflow: auto; font: 14px/1.7 var(--body); margin: 0; }
+
+/* 자료 */
+.scenes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.scene { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--paper-2); display: grid; }
+.scene .media { aspect-ratio: 16 / 9; max-width: 100%; background: var(--grid); display: grid; place-items: center; color: var(--muted); font-size: 12px; overflow: hidden; }
+.scene .media img, .scene .media video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scenes.tall { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.scenes.tall .scene .media { aspect-ratio: 9 / 16; }
+.scene .cap { padding: 6px 8px; font-size: 12.5px; display: grid; gap: 2px; min-width: 0; }
+.scene .cap .tc { font-family: var(--mono); color: var(--muted); font-size: 11.5px; }
+.scene .cap .tx { overflow-wrap: anywhere; }
+.scene .vids { margin: 0; padding-left: 16px; overflow-wrap: anywhere; }
+.scene .vids a { color: var(--accent, inherit); }
+.reqbox { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.final video { width: 100%; max-width: 320px; aspect-ratio: 9 / 16; border-radius: 12px; background: #000; display: block; }
+.bgmrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.bgmrow audio { height: 32px; max-width: 100%; }
+.tcbox { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 4px 0 14px; display: grid; gap: 10px; }
+.tcbox .fields { display: flex; gap: 12px; flex-wrap: wrap; }
+.tcbox label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.tcbox input[type=text] { width: 180px; }
+.tcbox input[type=number], .tcbox select { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 7px 8px; width: 120px; }
+.fallback { display: grid; gap: 6px; }
+.fallback textarea { font: 13px/1.5 var(--mono); min-height: 84px; }
+
+/* 프로젝트 */
+.plist { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.plist li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper-2); }
+.plist .ttl { font-weight: 600; overflow-wrap: anywhere; }
+.store { display: grid; gap: 8px; }
+.store-bar { height: 10px; border-radius: 999px; background: var(--paper-2); border: 1px solid var(--line); overflow: hidden; }
+.store-bar span { display: block; height: 100%; background: var(--accent); }
+.store-bar.warn span { background: var(--warn); }
+.store-bar.bad span { background: var(--bad); }
+#store-warn { margin: 0 0 4px; }
+.plist .meta { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(16px); background: var(--ink); color: var(--paper); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 50; max-width: calc(100vw - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.bad { background: var(--bad); color: #fff; }
+footer { font-size: 13px; color: var(--muted); }
+.qa-sheet { display: block; width: 100%; height: auto; margin-top: 8px; border-radius: 8px; }
+@media (max-width: 560px) {
+  section.card { padding: 16px; }
+  .script { min-height: 380px; font-size: 15.5px; }
+  .postlist li { grid-template-columns: 58px minmax(0, 1fr); }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>제작실</h1><label class="chsel">채널 <select id="channel"><option value="politics">정치는푸르다</option><option value="right">자유뉴스365</option><option value="stock">오늘증시 김시연</option><option value="health">널스윤서</option><option value="pet">하루집사</option></select></label><span class="by" id="by"></span></div>
+    <p class="lede" id="lede"></p>
+    <div class="row" id="status"></div>
+  </header>
+
+  <nav class="steps" aria-label="단계">
+    <div class="tabs" role="tablist">
+      <button type="button" data-tab="topics" id="tab-topics"><span class="n">1</span>주제 고르기</button>
+      <button type="button" data-tab="script" id="tab-script"><span class="n">2</span>대본</button>
+      <button type="button" data-tab="voice" id="tab-voice"><span class="n">3</span>음성</button>
+      <button type="button" data-tab="sources" id="tab-sources"><span class="n">4</span>자료·XML</button>
+      <button type="button" data-tab="projects" id="tab-projects">프로젝트</button>
+    </div>
+    <div class="curproj" id="curproj"></div>
+  </nav>
+  <div id="store-warn" hidden></div>
+
+  <!-- 1. 주제 -->
+  <section class="card" id="p-topics" data-panel="topics">
+    <div class="sec-h"><h2>지금 커뮤니티에서 뜨는 주제</h2><span class="spacer"></span>
+      <button class="btn small" id="collect" type="button">새로 모으기</button></div>
+    <div id="raw-meta" class="small muted"></div>
+    <div class="sites" id="sites"></div>
+    <div id="collect-state"></div>
+    <div class="row"><button class="btn primary" id="group" type="button">Claude로 주제 묶기·의견 정리</button><button class="btn" id="group-stop" type="button" hidden>멈추기</button><span class="small muted" id="group-state"></span></div>
+    <div id="group-msg"></div>
+    <div id="topics-empty"></div>
+    <div id="bundles-wrap" hidden><h3>10분 묶음 추천</h3><div class="bundles" id="bundles" style="margin-top:8px"></div></div>
+    <div id="topics-wrap" hidden>
+      <h3>주제 <span class="small muted" id="tcount"></span></h3>
+      <div class="tabs" id="angle-tabs" hidden style="margin:4px 0 8px;flex-wrap:wrap"></div>
+      <div class="row" id="more-row" hidden style="margin:0 0 8px"><button class="btn small" id="more-go" type="button">이 탭 주제 더 찾기</button><span id="more-state" class="small"></span></div>
+      <p class="small muted" style="margin:2px 0 6px" id="pickhint">하나를 고르면 <b>3분 단독</b>이나 <b>세로 쇼츠</b>(1분), 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 커뮤니티 반응이 큰 순이고, 민주당 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.</p>
+      <div class="tlist" id="topics"></div>
+    </div>
+    <div class="pickbar" id="pickbar" hidden>
+      <span class="small" id="pick-sum"></span><span class="spacer"></span>
+      <button class="btn small" id="pick-clear" type="button">선택 해제</button>
+      <button class="btn" id="go-shorts" type="button" hidden>세로 쇼츠 만들기</button>
+      <button class="btn" id="go-short" type="button">3분 단독 만들기</button>
+      <button class="btn primary" id="go-long" type="button">10분 묶음 만들기</button>
+    </div>
+  </section>
+
+  <!-- 2. 대본 -->
+  <section class="card" id="p-script" data-panel="script" hidden>
+    <div class="sec-h"><h2>대본</h2><span class="chip ok" id="fmt-chip"></span><span class="spacer"></span><span class="small muted" id="save-state"></span></div>
+    <div class="plan" id="plan"></div>
+    <label class="field" id="link-field">주제들을 잇는 고리(첫머리에서 던질 한두 문장)<input type="text" id="link" maxlength="200"></label>
+    <div id="risk"></div>
+    <div class="row">
+      <button class="btn primary" id="sc-go" type="button">Claude로 대본 쓰기</button>
+      <button class="btn" id="sc-fix" type="button">점검대로 고쳐 쓰기</button>
+      <button class="btn" id="hd-go" type="button" hidden>챕터 헤더 넣기(말은 그대로)</button>
+      <button class="btn" id="sc-stop" type="button" hidden>멈추기</button>
+      <span class="small muted" id="sc-state"></span>
+    </div>
+    <div id="sc-msg"></div>
+    <textarea class="script" id="script" spellcheck="false" placeholder="여기에 대본이 들어옵니다. 직접 쓰거나 붙여 넣어도 됩니다."></textarea>
+    <div class="meter" id="meter"></div>
+    <ul class="checks" id="checks"></ul>
+    <h3 style="margin-top:6px">제목·썸네일·해시태그</h3>
+    <div class="row"><button class="btn" id="ti-go" type="button">Claude로 제목·썸네일·해시태그 만들기</button><span class="small muted" id="ti-state"></span></div>
+    <div class="titles">
+      <div class="t"><span>1안</span><input type="text" id="t1" maxlength="80"></div>
+      <div class="t"><span>2안</span><input type="text" id="t2" maxlength="80"></div>
+      <div class="t"><span>3안</span><input type="text" id="t3" maxlength="80"></div>
+      <div class="t"><span id="thumb-label">썸네일</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="thumb" maxlength="20"><span class="count" id="thumb-n"></span></div></div>
+      <div class="t"><span>해시태그</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="tags" maxlength="400" spellcheck="false"><button class="btn small" id="tags-copy" type="button">복사</button></div></div>
+      <div class="t" id="pin-row" hidden><span>고정 댓글</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="pin" maxlength="120" title="영상을 올린 뒤 댓글로 달고 고정하세요 — 시청자 의견을 끌어냅니다"><button class="btn small" id="pin-copy" type="button">복사</button></div></div>
+      <div class="t" id="notice-row" hidden><span>설명란 고지</span><div class="row" style="flex-wrap:nowrap"><input type="text" id="notice" readonly title="영상 설명란에 붙이세요(채널 설정 script.notice)"><button class="btn small" id="notice-copy" type="button">복사</button></div></div>
+    </div>
+    <div id="voice-stale"></div>
+    <div class="row" style="justify-content:flex-end"><span class="spacer"></span><button class="btn" id="sc-revoice" type="button" hidden>고친 대본으로 음성 다시 만들기</button><button class="btn primary" id="to-voice" type="button">다음: 음성</button></div>
+  </section>
+
+  <!-- 3. 음성 -->
+  <section class="card" id="p-voice" data-panel="voice" hidden>
+    <div class="sec-h"><h2>음성</h2></div>
+    <div class="tcbox">
+      <div><b>타입캐스트로 바로 만들기</b> <span class="small muted">작업자가 타입캐스트 API로 대본을 읽어 음성을 올립니다. 낱말마다 읽은 시각도 함께 받아 자막·장면을 그 시각에 맞춥니다.</span></div>
+      <div class="fields">
+        <label>목소리<input type="text" id="tc-voice" placeholder="채널 기본 목소리"></label>
+        <label>읽는 속도<input type="number" id="tc-tempo" min="0.5" max="2" step="0.05" value="1"></label>
+        <label>문장 사이 쉼<select id="tc-silence"><option value="">그대로</option><option value="300">짧게</option><option value="150">아주 짧게</option></select></label>
+      </div>
+      <div id="voice-stale2"></div>
+      <div id="audio-reading"></div>
+      <div class="reqbox"><button class="btn primary" id="tc-go" type="button">타입캐스트로 음성 만들기</button><button class="btn" id="to-script" type="button" hidden>대본 고치기</button><span id="tc-state" class="small"></span></div>
+      <div class="fallback" id="tc-fallback" hidden></div>
+    </div>
+    <div class="small muted">직접 만들 때</div>
+    <ol class="small" style="margin:0;padding-left:20px;color:var(--ink-2)">
+      <li><b>[타입캐스트용 복사]</b>를 눌러 타입캐스트에 붙여 넣고 음성(mp3·wav)을 받습니다. 헤더는 빠집니다.</li>
+      <li>받은 파일을 아래에 올리면 작게 압축해(10분에 2MB쯤) 제작실에 올리고, 자료를 모을 때 작업자가 음성을 듣고 자막·장면 시각을 실제로 들린 말에 맞춥니다. 안 올려도 자료는 받을 수 있고, 그때 시각은 대본 길이로 어림합니다.</li>
+    </ol>
+    <div class="row"><button class="btn primary" id="copy-tts" type="button">타입캐스트용 복사</button><span class="small muted" id="tts-n"></span></div>
+    <pre class="tts" id="tts"></pre>
+    <div class="drop" id="drop">
+      <p style="margin:0 0 10px">음성 파일을 끌어다 놓기</p>
+      <label class="btn" for="audio">음성 파일 고르기</label>
+      <input type="file" id="audio" accept="audio/*,.mp3,.wav,.m4a">
+    </div>
+    <div id="audio-state"></div>
+    <canvas class="wave" id="wave" width="900" height="72" hidden></canvas>
+    <div class="facts" id="audio-facts"></div>
+    <div id="audio-play" class="bgmrow"></div>
+    <div class="row"><span class="spacer"></span><button class="btn primary" id="to-sources" type="button">다음: 자료·XML</button></div>
+  </section>
+
+  <!-- 4. 자료·XML -->
+  <section class="card" id="p-sources" data-panel="sources" hidden>
+    <div class="sec-h"><h2>자료·timeline.xml</h2></div>
+    <p class="sub">장면마다 사진·영상을 찾아 받고 프리미어용 timeline.xml을 만듭니다. 클라우드 작업자가 하므로 몇 분 걸립니다.</p>
+    <div id="src-ready"></div>
+    <div class="reqbox"><button class="btn primary" id="src-go" type="button">자료 모으고 timeline.xml 만들기</button><span id="req-state" class="small"></span></div>
+    <div class="fallback" id="fallback" hidden></div>
+    <div id="result" class="stack"></div>
+    <div id="final" class="stack" hidden>
+      <h3>완성 영상(mp4)</h3>
+      <div class="small muted">자료와 음성으로 1080×1920 완성본을 만듭니다 — 훅·강조 자막, 효과음, 컷 편집, 공통 배경음악까지 넣어 유튜브 쇼츠에 바로 올릴 수 있게. 클라우드 작업자가 하므로 3~5분 걸립니다.</div>
+      <div class="bgmrow"><span class="small"><b>배경음악</b></span><span id="final-bgm"></span><label class="btn small" for="bgm-file" id="bgm-label">올리기</label><input type="file" id="bgm-file" accept="audio/*,.mp3,.wav,.m4a" hidden></div>
+      <div id="bgm-state" class="small"></div>
+      <div id="final-notes"></div>
+      <label class="small" id="final-en-row"><input type="checkbox" id="final-en"> 영어 자막 같이 넣기 <span class="muted">— 한국어 자막 아래 작게(작업자가 문장마다 옮김, 1~2분 더 걸림)</span></label>
+      <div class="reqbox"><button class="btn primary" id="final-go" type="button">완성 영상 만들기</button><span id="final-state" class="small"></span></div>
+      <div class="fallback" id="final-fallback" hidden></div>
+      <div id="final-video" class="final"></div>
+      <div id="final-qa"></div>
+    </div>
+  </section>
+
+  <!-- 프로젝트 -->
+  <section class="card" id="p-projects" data-panel="projects" hidden>
+    <div class="sec-h"><h2>프로젝트</h2><span class="small muted">만든 영상(최근 30개)</span></div>
+    <div id="store" class="store"></div>
+    <ul class="plist" id="plist"></ul>
+  </section>
+
+  <footer>사실은 기사에서만, 주장은 커뮤니티 다수 의견에서. 커뮤니티 글은 대본에 그대로 옮기지 않고 글쓴이 정보는 다루지 않습니다. Claude 호출은 보는 사람의 Claude 사용량으로 처리됩니다.</footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+'use strict';
+/* 작업자(클라우드 세션) 기본값 — db의 config/worker가 있으면 그것을 쓴다 */
+const WORKER = /*__WORKER__*/{};
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ls = {
+  get(k, d) { try { const v = localStorage.getItem('workroom:' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('workroom:' + k, JSON.stringify(v)); } catch (e) { /* 저장 못 해도 동작 */ } },
+};
+/* ---------- 채널(정치 / 증시) — 같은 제작실에서 바꿔 쓴다. 수집·주제·프로젝트 데이터는 채널마다 따로 ---------- */
+const CHANNELS = {
+  politics: { name: '정치는푸르다', prefix: '', tags: ['정치', '정치뉴스'], by: 'studio · 커뮤니티 반응으로 고르고, 쓰고, 프리미어까지',
+    lede: '친이재명 시선의 정치 채널 영상을 만듭니다. 커뮤니티 다수 의견으로 진짜 문제가 어디 있는지(국민의힘이든 민주당 안이든) 짚습니다. 주제 고르기와 대본은 <b>내 Claude</b>가, 커뮤니티·뉴스 수집과 사진·영상 자료, 프리미어용 <b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다. 음성만 타입캐스트에서 만들어 올리면 됩니다.' },
+  right: { name: '자유뉴스365', prefix: 'right_', tags: ['정치', '정치뉴스'], by: 'studio · 보수 언론 사설·칼럼으로 고르고, 의견을 세게, 프리미어까지',
+    lede: '국민의힘 지지 중심의 강경 보수 <b>논평</b> 채널 영상을 만듭니다(뉴스 전달이 아니라 의견). 시선은 <b>보수 언론 사설·칼럼</b>(조선·동아·한경·데일리안·펜앤드마이크)에서 가져오고, 사실은 기사로만 씁니다. 부정선거 음모론·5·18 왜곡·계엄 미화·혐오 표현은 쓰지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
+  stock: { name: '오늘증시 김시연', prefix: 'stock_', tags: ['주식', '증시뉴스'], by: 'studio · 증시 기사로 고르고, 숫자부터 빠르게, 프리미어까지',
+    lede: '증시 뉴스 채널의 영상을 만듭니다. 주제·사실·분석 모두 <b>증시 뉴스</b>(국내 마감 시황·종목·금리·환율, 밤사이 미국 증시)로만 만듭니다(커뮤니티는 쓰지 않음). 애널리스트 브리핑처럼 숫자부터 빠르게 — 투자 권유는 하지 않습니다. 대본은 <b>내 Claude</b>가, 수집·자료·<b>timeline.xml</b>은 <b>클라우드 작업자</b>가 맡습니다.' },
+  health: { name: '널스윤서', prefix: 'health_', tags: ['건강', '건강정보'], by: 'studio · 보도자료·건강 기사로 고르고, 친구처럼 쉽게, 쇼츠까지',
+    lede: '40~50대를 위한 건강 정보 <b>세로 쇼츠</b>를 만듭니다. 진행자는 전직 간호사 윤서 — 또래 친구처럼 쉽게 풀어 줍니다. 주제·사실은 <b>공공기관 보도자료·의학 전문지·건강 기사</b>와 이달의 계절 주제로만 정하고(커뮤니티는 쓰지 않음), 근거의 무게(공공기관·진료지침·연구 종류)를 밝힙니다. 진단·처방, 약을 바꾸라는 말, 제품·건강기능식품 효능 광고는 하지 않습니다. 화면은 <b>Pexels·Pixabay 영상·사진을 자동으로</b> 모으고, 숫자는 표·차트 컷으로 지나갑니다.',
+    sh: { kind: '건강 기사·보도자료', order: '\'어라?\' 할 의외성 × 근거 순 · 당뇨·다이어트 먼저', basis: '의외 포인트와 근거 수준(공공기관·진료지침·연구 종류)',
+      hook: "'살 빼려고 굶으면, 오히려 쪄요!'", hint: '\'의외:\' 포인트가 세고 근거(공공기관·대규모 연구)' } },
+  pet: { name: '하루집사', prefix: 'pet_', tags: ['반려동물', '강아지', '고양이'], by: 'studio · 반려동물 기사로 고르고, 이웃 집사처럼 쉽게, 쇼츠까지',
+    lede: '강아지·고양이 보호자를 위한 반려동물 정보 <b>세로 쇼츠</b>를 만듭니다. 진행자는 10년 넘게 강아지·고양이를 키운 집사 하루 — 이웃 보호자처럼 쉽게 풀어 줍니다(수의사가 아님). 주제·사실은 <b>공공기관 발표(농식품부·검역본부)·수의 전문지·반려동물 기사</b>와 이달의 계절 주제로만 정하고(커뮤니티는 쓰지 않음), 연구 종류와 개·고양이 구분을 밝힙니다. 진단·처방, 사람 약을 먹이라는 말, 사료·영양제·용품 효능 광고는 하지 않고 약·치료는 동물병원·수의사와 상의로 맺습니다. 화면은 <b>Pexels·Pixabay 영상·사진을 자동으로</b> 모으고, 숫자는 표·차트 컷으로 지나갑니다.',
+    sh: { kind: '반려동물 기사·보도자료', order: '보호자에게 가깝고 근거 탄탄한 순', basis: '근거 수준(공공기관 발표·연구 종류·개/고양이)',
+      hook: "'이 간식, 강아지한텐 독이에요!'", hint: '근거(공공기관 발표·연구)' } },
+};
+const LOCKED = /*__CHANNEL__*/null;  // 채널 하나만 쓰는 제작실(build.py --channel)이면 그 채널로 고정
+const CH = LOCKED && CHANNELS[LOCKED] ? LOCKED : CHANNELS[ls.get('channel', 'politics')] ? ls.get('channel', 'politics') : 'politics';
+// 배경음악: 채널마다 따로(config/bgm_<채널>, 예: 자유뉴스365는 config/bgm_right). 없으면 공통(config/bgm). 정치는푸르다와
+// 채널 하나만 쓰는 제작실은 config/bgm 그대로
+const BGM_DOC = LOCKED || CH === 'politics' ? 'config/bgm' : `config/bgm_${CH}`;
+const STOCK = CH === 'stock';
+const HEALTH = CH === 'health';  // 건강 채널: 증시처럼 기사로만 주제를 정하고(커뮤니티 없음), 세로 쇼츠만
+const PET = CH === 'pet';  // 반려동물 채널: 건강 채널과 같은 틀(기사로 주제, 30초 세로 쇼츠만)
+const SHORT = HEALTH || PET;  // 30초 세로 쇼츠만 만드는 기사 채널(널스윤서·하루집사)
+const SH = CHANNELS[CH].sh || {};  // 그 채널 화면 문구
+const NEWS = STOCK || SHORT;  // 기사로만 주제를 정하는 채널
+const RIGHT = CH === 'right';  // 보수 채널: 게시판 글 자리에 사설·칼럼이 함께 들어온다
+const COL = n => CHANNELS[CH].prefix + n;  // raw → stock_raw, topics → stock_topics, projects → stock_projects
+const lsk = k => (CH === 'politics' ? k : `${k}:${CH}`);  // 채널마다 따로 기억할 것(열어 둔 프로젝트 등)
+function toast(msg, bad = false) {
+  const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (bad ? ' bad' : '');
+  clearTimeout(toast._t); toast._t = setTimeout(() => { t.className = 'toast'; }, bad ? 5200 : 2400);
+}
+const spinner = txt => `<span class="thinking"><span class="spin"></span>${esc(txt)}</span>`;
+const mmss = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+
+/* ---------- 시각(KST) ---------- */
+function kst(d = new Date()) {
+  const f = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
+  const p = Object.fromEntries(f.formatToParts(d).map(x => [x.type, x.value]));
+  return { y: p.year, mo: p.month, d: p.day, h: p.hour === '24' ? '00' : p.hour, mi: p.minute };
+}
+function isoParts(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(iso || '')); return m ? { y: m[1], mo: m[2], d: m[3], h: m[4], mi: m[5] } : null; }
+function when(iso) { const t = Date.parse(iso); const x = isNaN(t) ? isoParts(iso) : kst(new Date(t)); return x ? `${+x.mo}월 ${+x.d}일 ${x.h}:${x.mi}` : ''; }
+function ago(iso) { const t = Date.parse(iso); if (!t) return ''; const m = Math.round((Date.now() - t) / 60000); return m < 60 ? `${m}분 전` : m < 1440 ? `${Math.round(m / 60)}시간 전` : `${Math.round(m / 1440)}일 전`; }
+
+/* ---------- 상태 ---------- */
+let db = null, sample = null, assets = null, downloads = null, comments = null;
+let known = false;
+const S = {
+  worker: { ...WORKER }, meta: null, posts: [], articles: [], topics: null,
+  projects: [], pid: ls.get(lsk('pid'), null), project: null,
+  picked: [], siteOff: new Set(ls.get(lsk('siteoff'), [])), tab: null, atab: ls.get(lsk('atab'), ''), audioFile: null, bgm: null,
+};
+let ctl = null; // 진행 중인 Claude 호출
+
+const HIDE = new Set(['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed']);
+let claudeOff = false;
+function claudeError(e) {
+  const code = (e && e.code) || 'upstream_error';
+  if (HIDE.has(code)) { claudeOff = true; renderStatus(); }
+  return {
+    not_granted: '이 페이지가 Claude를 쓰도록 허락되지 않았습니다. 페이지 메뉴의 권한에서 허락한 뒤 새로 고침하세요.',
+    sampling_disabled: '이 계정(조직)에서는 페이지가 Claude를 쓸 수 없습니다.',
+    capability_removed: '이 앱 버전에서는 쓸 수 없습니다. 브라우저의 claude.ai에서 열어 주세요.',
+    rate_limited: 'Claude 사용량이 잠시 꽉 찼습니다. 조금 뒤에 다시 눌러 주세요.',
+    session_expired: 'claude.ai 로그인이 끝났습니다. 다시 로그인한 뒤 눌러 주세요.',
+    refused: 'Claude가 이 요청을 거절했습니다. 고른 주제나 문구를 바꿔 다시 시도해 주세요.',
+    empty_completion: 'Claude가 아무것도 쓰지 않았습니다. 다시 시도해 주세요.',
+    invalid_json: 'Claude 답을 읽지 못했습니다(형식이 어긋남). 한 번 더 눌러 주세요.',
+    prompt_too_large: '보낼 내용이 너무 큽니다. 사이트를 몇 개 끄고 다시 시도해 주세요.',
+    upstream_error: 'Claude 연결이 잠깐 끊겼습니다. 다시 눌러 주세요.',
+  }[code] || 'Claude 연결이 잠깐 끊겼습니다. 다시 눌러 주세요.';
+}
+const claudeOk = () => !!sample && !claudeOff;
+
+function renderStatus() {
+  const m = S.meta;
+  const chips = [];
+  chips.push(!known ? '<span class="chip"><span class="dot"></span>연결 확인 중…</span>'
+    : claudeOk() ? '<span class="chip ok"><span class="dot"></span>내 Claude 연결됨</span>'
+    : '<span class="chip warn"><span class="dot"></span>Claude 없이(직접 쓰기)</span>');
+  chips.push(!known ? '' : S.canSend === 'available' ? '<span class="chip ok"><span class="dot"></span>클라우드 작업자 연결</span>'
+    : pollMin() ? `<span class="chip ok" title="작업자가 요청을 ${pollMin()}분마다 확인합니다${esc(pollHours())}"><span class="dot"></span>작업자: ${pollMin()}분마다 확인</span>`
+    : `<span class="chip warn" title="${esc(SEND_WHY[S.canSend] || '')} — 작업 요청은 대화에 붙여 넣는 글로 대신합니다"><span class="dot"></span>작업자: 대화로 요청</span>`);
+  if (m) chips.push(`<span class="chip">수집 ${esc(when(m.collected_at))} · ${esc(ago(m.collected_at))}</span>`);
+  if (known && !db) chips.push('<span class="chip bad"><span class="dot"></span>저장소 없음 — claude.ai에서 열어 주세요</span>');
+  $('#status').innerHTML = chips.join('');
+  ['#group', '#sc-go', '#sc-fix', '#ti-go'].forEach(id => { const b = $(id); if (b) b.hidden = known && !claudeOk(); });
+}
+
+/* ---------- 탭 ---------- */
+function setTab(tab) {
+  if (!S.project && ['script', 'voice', 'sources'].includes(tab)) tab = 'topics';
+  S.tab = tab;
+  $$('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== tab; });
+  $$('.tabs[role=tablist] button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  try { if (location.hash !== '#' + tab) history.replaceState(null, '', '#' + tab); } catch (e) { /* 무시 */ }
+  if (tab === 'voice') renderVoice();
+  if (tab === 'sources') renderSources();
+  renderStore();
+  window.scrollTo({ top: 0 });
+}
+$$('.tabs[role=tablist] button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+function renderTabs() {
+  const p = S.project;
+  $('#tab-script').disabled = !p; $('#tab-voice').disabled = !p; $('#tab-sources').disabled = !p;
+  $('#tab-script').classList.toggle('done', !!(p && p.script && p.script.trim()));
+  $('#tab-voice').classList.toggle('done', !!(p && p.audio));
+  $('#tab-sources').classList.toggle('done', !!(p && p.result));
+  $('#curproj').innerHTML = p
+    ? `<span>지금 프로젝트</span><b>${esc((p.titles && p.titles[0]) || p.topics.map(t => t.name).join(' + '))}</b><span class="badge">${esc(fmtName(p.format))}</span><span class="mono small muted">${esc(p.id)}</span><button class="btn small ghost" id="new-proj" type="button">새 영상</button>`
+    : '<span class="muted">주제를 고르면 새 프로젝트가 생깁니다.</span>';
+  const np = $('#new-proj'); if (np) np.onclick = () => { selectProject(null); setTab('topics'); };
+}
+const fmtName = f => (S.meta && S.meta.formats && S.meta.formats[f] ? S.meta.formats[f].name : ({ long: '10분 묶음', short: '3분 단독', shorts: '세로 쇼츠' }[f] || f));
+const hasFormat = f => !!(S.meta && S.meta.formats && S.meta.formats[f]);
+const isShorts = p => !!(p && p.format === 'shorts');
+// 세로 쇼츠는 1분이라 끝 인사도 짧은 것(channel.yaml script.shorts_outro)
+const outroOf = p => String((S.meta && S.meta.rules && (isShorts(p) ? S.meta.rules.shorts_outro || S.meta.rules.outro : S.meta.rules.outro)) || '').trim();
+// 10분·3분 대본 중간에 프로그램이 넣는 좋아요 부탁(channel.yaml script.like_ask) — 쇼츠에는 없다
+const likeAskOf = p => isShorts(p) ? '' : String((S.meta && S.meta.rules && S.meta.rules.like_ask) || '').trim();
+const thumbMax = p => (S.meta && S.meta.rules && (isShorts(p) ? S.meta.rules.shorts_thumb_max || 14 : S.meta.rules.thumb_max)) || 10;
+
+/* ---------- 수집 데이터 ---------- */
+let rawStamp = null;
+async function loadRaw(meta) {
+  if (!meta || meta.collected_at === rawStamp) return;
+  rawStamp = meta.collected_at;
+  const get = async (k, n) => {
+    const docs = await Promise.all(Array.from({ length: n || 0 }, (_, i) => db.doc(`${COL('raw')}/${k}-${i + 1}`).get()));
+    return docs.flatMap(d => (d.exists ? d.data()[k] || [] : []));
+  };
+  try {
+    const [posts, articles] = await Promise.all([get('posts', meta.post_docs), get('articles', meta.article_docs)]);
+    S.posts = posts; S.articles = articles;
+  } catch (e) { toast('수집 데이터를 읽지 못했습니다. 새로 고침해 주세요.', true); }
+  renderTopics();
+}
+const heatOf = (posts, arts = 0) => {  // arts: 증시 채널은 그 이슈를 다룬 기사 수도 화제성에 넣는다
+  const n = posts.length, c = posts.reduce((a, p) => a + (p.comments || 0), 0), v = posts.reduce((a, p) => a + (p.votes || 0), 0);
+  return { n, c, v, a: arts, score: Math.min(100, Math.round(100 * Math.log1p(arts * 2 + n + c / 20 + v / 10) / Math.log1p(30))) };
+};
+const postWeight = p => 1 + (p.votes || 0) / 10 + (p.comments || 0) / 40;
+const activePosts = () => S.posts.filter(p => !S.siteOff.has(p.site));
+
+function renderSites() {
+  const m = S.meta;
+  if (!m) { $('#sites').innerHTML = ''; return; }
+  $('#sites').innerHTML = Object.entries(m.sites || {}).map(([name, s]) => {
+    if (!s.enabled) return '';
+    if (s.error && !s.posts) return `<span class="site blocked" title="${esc(s.error)}">${esc(name)} 막힘</span>`;
+    return `<button type="button" class="site ${S.siteOff.has(name) ? 'off' : ''}" data-site="${esc(name)}" title="눌러서 주제 묶기에서 빼거나 넣기">${esc(name)} ${s.posts}</button>`;
+  }).join('');
+  $$('[data-site]').forEach(b => b.onclick = () => {
+    const n = b.dataset.site; if (S.siteOff.has(n)) S.siteOff.delete(n); else S.siteOff.add(n);
+    ls.set(lsk('siteoff'), [...S.siteOff]); renderSites(); renderTopics();
+  });
+}
+
+/* ---------- 1. 주제 묶기(Claude) ---------- */
+// 정치는푸르다·자유뉴스365: 주제판을 각도(대통령 방어|보수 방어·상대 비판·당내 비판·정책 해설·사건사고·이슈) 탭으로 나누고,
+// 각도마다 따로 묶어 주제를 더 많이
+const ANGLE_TABS = (CH === 'politics' || RIGHT) && !LOCKED;
+const TAB_ORDER = [RIGHT ? '보수 방어' : '대통령 방어', '상대 비판', '당내 비판', '정책 해설', '사건사고·이슈'];
+// 커뮤니티 글이 없어도 기사 둘 이상이면 주제로 삼는 각도
+const NEWS_OK = ['정책 해설', '사건사고·이슈'];
+const PER_ANGLE = 10;  // 각도 하나에서 한 번에 묶는 주제 수
+function groupPrompt(angle = '', exclude = []) {
+  // 증시는 뉴스만: 커뮤니티 글은 보내지 않는다
+  const m = S.meta, posts = NEWS ? [] : activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, angle ? 160 : 120);
+  const pmap = {}, amap = {};
+  const P = posts.map((p, i) => { const id = 'p' + (i + 1); pmap[id] = p.id; return {
+    id, site: p.site, ...(p.kind ? { kind: p.kind } : {}), title: p.title, comments: p.comments, votes: p.votes,
+    body: (p.body || '').slice(0, p.kind === 'opinion' ? 300 : 150),  // 사설·칼럼은 주장이 본문에 있어 조금 길게
+    top_comments: (p.top_comments || []).slice(0, 3).map(c => ({ text: c.text.slice(0, 100), votes: c.votes })) }; });
+  // 증시는 기사로 주제를 정하므로 요약·매체까지 준다(정치는 제목만). 마감 시황 기사를 앞에, 같은 제목 되풀이는 하나만
+  const A = (STOCK ? stockPick(S.articles, 260) : SHORT ? healthPick(S.articles, 220) : S.articles.slice(0, 260)).map((a, i) => { const id = 'a' + (i + 1); amap[id] = a.id;
+    return NEWS ? { id, source: a.source, ...(a.kind ? { kind: a.kind } : {}), title: a.title, summary: (a.summary || '').slice(0, 120) } : { id, title: a.title }; });
+  const focus = angle ? ['', `이번 작업은 angle이 "${angle}"인 주제만 고른다(다른 angle에 더 맞는 주제는 뺀다 — 다른 각도는 따로 묶는다). `
+    + `topics는 이 angle에서 반응이 큰 순으로 많아야 ${PER_ANGLE}개다(앞의 '많아야 15개'보다 이 줄이 우선). 글이 하나뿐이어도 댓글·공감이 있으면 주제로 남긴다.`
+    + (angle === '정책 해설' ? ` 정책 해설은 ${RIGHT ? '사설·칼럼' : '커뮤니티 글'}이 없어도 이재명 대통령·정부 정책을 다룬 기사가 둘 이상이면 주제로 삼는다(그때 post_ids는 빈 목록).` : '')
+    + (angle === '사건사고·이슈' ? ` 사건사고·이슈는 ${RIGHT ? '사설·칼럼이나 게시판 글' : '커뮤니티 글'}이 없어도 같은 사건을 다룬 기사가 둘 이상이면 주제로 삼는다(그때 post_ids는 빈 목록). ${RIGHT ? '보수 채널이 다룰 만한 것만: 강력 범죄·치안, 재난·안전사고, 전세사기 같은 서민 피해, 공공기관의 부실처럼 법질서와 정부·지자체·공권력의 관리 책임을 따질 수 있는 일.' : '진보 채널이 다룰 만한 것만: 참사·재난·산업재해·안전사고, 갑질·학대·혐오 범죄, 전세사기 같은 서민 피해, 공권력·기업의 잘못처럼 책임과 제도를 따질 수 있는 일.'} 연예인 사생활, 단순 교통사고·개인 다툼, 흥밋거리 범죄는 고르지 않는다. 정치인의 수사·재판은 다른 각도로 두고 여기서는 뺀다.` : '')
+    + (NEWS_OK.includes(angle) ? '' : ` ${RIGHT ? '사설·칼럼' : '커뮤니티 글'}이 적은 날을 위해, 같은 사건을 다룬 기사가 셋 이상인 큰 뉴스는 ${RIGHT ? '사설·칼럼' : '커뮤니티 글'}이 없어도 주제로 삼는다(그때 post_ids는 빈 목록, stance·points는 채널 시선으로 기사 사실에서). ${RIGHT ? '사설·칼럼' : '커뮤니티 글'}이 있는 주제를 먼저 고른다.`)
+    + (exclude.length ? ` 이미 만든 주제와 같은 사건은 다시 만들지 않는다: ${JSON.stringify(exclude)}` : '')] : [];
+  const text = [m.rules.identity, m.rules.group_task, ...focus,
+    '출력: JSON 객체 하나만(설명·코드블록 없이). 형식:',
+    `{"topics":[{"id":"t1","name":"…","category":"…","angle":"${angles()[0]}","post_ids":["p1"],"article_ids":["a3"],"stance":"…","points":["…"],"minority":null,"questions":[]}],"bundles":[{"topic_ids":["t1","t2"],"link":"…"}]}`,
+    ...(SHORT && m.rules.season && m.rules.season.length ? ['', 'season(이달의 계절 주제): ' + JSON.stringify(m.rules.season)] : []),
+    ...(NEWS ? [] : ['', 'posts:', JSON.stringify(P)]), '', 'articles:', JSON.stringify(A)].join('\n');
+  return { text, pmap, amap };
+}
+function healthPick(arts, n) {  // 공공기관 보도자료 먼저, 그다음 최신 순 — 같은 제목 되풀이는 하나만
+  const seen = new Set(), out = [];
+  for (const a of [...arts.filter(x => x.kind === 'press'), ...arts.filter(x => x.kind !== 'press')]) {
+    const k = String(a.title || '').replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g, '').slice(0, 16);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(a);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+const WRAP_RE = /마감|코스피|코스닥|뉴욕증시|나스닥|다우|환율|외국인|순매수|순매도/;
+function stockPick(arts, n) {  // 마감 시황·지수 기사 먼저, 그다음 최신 순 — 제목 앞 16자가 같은 기사(종합·속보 꼬리 무시)는 하나만
+  const seen = new Set(), out = [];
+  for (const a of [...arts.filter(x => WRAP_RE.test(x.title)), ...arts.filter(x => !WRAP_RE.test(x.title))]) {
+    const k = String(a.title || '').replace(/[^\uAC00-\uD7A3A-Za-z0-9]/g, '').replace(/종합|속보|단독/g, '').slice(0, 16);
+    if (!k || seen.has(k)) continue;
+    seen.add(k); out.push(a);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+const ANGLES = ['상대 비판', RIGHT ? '보수 방어' : '대통령 방어', '당내 비판', '정책 해설', '사건사고·이슈'];
+const angles = () => (S.meta && S.meta.rules && Array.isArray(S.meta.rules.angles) && S.meta.rules.angles.length ? S.meta.rules.angles : ANGLES);
+/* 채널 규칙이 바뀌었는지(주제 묶음·대본을 만든 때의 규칙과 지금 규칙 비교) */
+function hashKey(parts) {
+  const t = parts.join('|');
+  let h = 5381; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(36);
+}
+// 주제 묶기·주장 정리 규칙
+function rulesKey() { const r = S.meta && S.meta.rules; return r ? hashKey([r.identity, r.group_task]) : ''; }
+// 대본 쓰기 규칙
+// 쇼츠 규칙은 쇼츠 프로젝트에만 넣는다 — 쇼츠 형식이 더해졌다고 예전 10분·3분 대본이 '규칙이 바뀜'으로 뜨지 않게
+function scriptKey(p = S.project) {
+  const r = S.meta && S.meta.rules; if (!r) return '';
+  const fr = Object.fromEntries(Object.entries(r.format_rules || {}).filter(([k]) => k !== 'shorts' || isShorts(p)));
+  return hashKey([r.identity, r.script_rules, r.structure_rules, r.tone_rules, JSON.stringify(fr)]);
+}
+const angleBadge = a => !a ? '' : `<span class="badge ${a === '당내 비판' ? 'warn' : 'ok'}"${a === '당내 비판' ? ` title="${RIGHT ? '국민의힘 안의 문제 — 보수 지지층 시선으로 짚습니다' : '민주당·범진보 안의 문제 — 친이재명 지지층 시선으로 짚습니다'}"` : ''}>${esc(a)}</span>`;
+const strList = (v, n) => Array.isArray(v) ? v.map(x => String(x || '').trim()).filter(Boolean).slice(0, n) : [];
+async function runGroup() {
+  if (!claudeOk() || ctl || !S.meta) return;
+  if (!(NEWS ? S.articles.length : S.posts.length)) { toast(`수집된 ${NEWS ? '기사' : '글'}가 없습니다. [새로 모으기]를 먼저 눌러 주세요.`, true); return; }
+  ctl = new AbortController();
+  $('#group').disabled = true; $('#group-stop').hidden = false; $('#group-msg').innerHTML = '';
+  $('#group-state').innerHTML = spinner('Claude가 글·댓글을 읽고 주제로 묶는 중… (1~2분)');
+  try {
+    let topics = [], res = null, failed = [];
+    const bundleSrc = [];
+    if (ANGLE_TABS) {
+      // 각도마다 따로(두 개씩 함께) — 한 번에 15개로 묶을 때보다 각도마다 주제가 고르게, 더 많이 나온다
+      let done = 0;
+      const one = async a => {
+        const { text, pmap, amap } = groupPrompt(a);
+        const r = await sample.json(text, { modelTier: 'default', signal: ctl.signal });
+        done++; $('#group-state').innerHTML = spinner(`각도별로 주제를 묶는 중… ${done}/${TAB_ORDER.length} (${esc(a)} 끝)`);
+        return { r, ts: topicsOf(r, pmap, amap, a) };
+      };
+      const outs = [];
+      for (let i = 0; i < TAB_ORDER.length; i += 2) outs.push(...await Promise.allSettled(TAB_ORDER.slice(i, i + 2).map(one)));
+      const bad = outs.find(o => o.status === 'rejected');
+      if (bad && bad.reason && bad.reason.code === 'cancelled') throw bad.reason;
+      failed = TAB_ORDER.filter((a, i) => outs[i].status === 'rejected');
+      for (const o of outs) if (o.status === 'fulfilled') { topics = mergeTopics(topics, o.value.ts); bundleSrc.push(o.value); }
+      if (!topics.length && bad) throw bad.reason;
+    } else {
+      const { text, pmap, amap } = groupPrompt();
+      res = await sample.json(text, { modelTier: 'default', signal: ctl.signal });
+      topics = topicsOf(res, pmap, amap);
+      bundleSrc.push({ r: res, ts: topics });
+    }
+    if (!topics.length) throw { code: 'invalid_json' };
+    // 커뮤니티 반응이 큰 순(당내 비판도 뒤로 미루지 않는다)
+    // 증시는 Claude가 매긴 순서(시장 영향이 큰 순)를 그대로 쓴다
+    if (!NEWS) topics.sort((a, b) => b.heat.score - a.heat.score);
+    topics.forEach((t, i) => { t.id = 'T' + (i + 1); });
+    const bundles = [];
+    for (const { r, ts } of bundleSrc) {
+      const keyToId = Object.fromEntries(ts.filter(t => t.id).map(t => [t.key, t.id]));
+      for (const b of (r && Array.isArray(r.bundles) ? r.bundles : [])) {
+        const ids = [...new Set(strList(b.topic_ids, 3).map(k => keyToId[k]).filter(Boolean))];
+        if (ids.length >= 2 && String(b.link || '').trim()) bundles.push({ topic_ids: ids, link: String(b.link).trim() });
+      }
+    }
+    topics.forEach(t => { delete t.key; });
+    const doc = { made_at: new Date().toISOString(), raw_at: S.meta.collected_at, rules_key: rulesKey(), sites_off: [...S.siteOff], topics, bundles: bundles.slice(0, ANGLE_TABS ? 6 : 3) };
+    S.topics = doc; S.picked = [];
+    renderTopics();
+    try { await db.doc(`${COL('topics')}/current`).set(doc); } catch (e) { toast('주제를 저장하지 못했습니다(화면에는 남아 있음).', true); }
+    $('#group-state').textContent = `주제 ${topics.length}개로 묶었습니다`;
+    if (failed.length) $('#group-msg').innerHTML = `<div class="note warn">${esc(failed.join(', '))} 탭은 묶지 못했습니다 — 그 탭에서 [주제 더 찾기]를 눌러 다시 해 보세요.</div>`;
+  } catch (e) {
+    $('#group-state').textContent = '';
+    if (e && e.code !== 'cancelled') $('#group-msg').innerHTML = `<div class="note warn">${esc(claudeError(e))}</div>`;
+  } finally { ctl = null; $('#group').disabled = false; $('#group-stop').hidden = true; }
+}
+// Claude 결과 → 주제 목록. angle을 주면(각도별 묶기) 그 각도로 붙이고, 정책 해설·사건사고·이슈는 기사만 있어도(둘 이상) 주제
+function topicsOf(res, pmap, amap, angle = '') {
+  const byPost = Object.fromEntries(S.posts.map(p => [p.id, p]));
+  const out = [];
+  for (const t of (res && Array.isArray(res.topics) ? res.topics : [])) {
+    const post_ids = [...new Set(strList(t.post_ids, 40).map(x => pmap[x]).filter(Boolean))];
+    const article_ids = [...new Set(strList(t.article_ids, NEWS ? 8 : 6).map(x => amap[x]).filter(Boolean))];
+    // 각도별 묶기: 정책 해설·사건사고·이슈는 기사 둘, 다른 각도는 기사 셋 이상이면 커뮤니티 글 없이도 주제(큰 뉴스)
+    const policyNews = !!angle && article_ids.length >= (NEWS_OK.includes(angle) ? 2 : 3);
+    // 정치는 커뮤니티 글이 있어야 주제(각도별 묶기에서는 기사 둘·셋 이상이어도), 증시는 기사만 있어도 주제
+    if (!(NEWS ? article_ids.length : post_ids.length || policyNews) || !String(t.name || '').trim() || !String(t.stance || '').trim()) continue;
+    const a = angle || (angles().includes(String(t.angle || '').trim()) ? String(t.angle).trim() : '');
+    out.push({ key: String(t.id || ''), name: String(t.name).trim().slice(0, 40), category: String(t.category || '').trim(), angle: a,
+      post_ids, article_ids, stance: String(t.stance).trim(), points: strList(t.points, 4),
+      minority: String(t.minority || '').trim() || null, questions: strList(t.questions, 2),
+      heat: heatOf(post_ids.map(i => byPost[i]).filter(Boolean), NEWS || !post_ids.length ? article_ids.length : 0) });
+  }
+  return out;
+}
+// 같은 사건이 두 각도에 겹치면 먼저 나온 것만: 이름이 같거나, 커뮤니티 글이 절반 넘게 겹치면 같은 주제로 본다
+function sameTopic(a, b) {
+  if (a.name.replace(/\s/g, '') === b.name.replace(/\s/g, '')) return true;
+  const pa = new Set(a.post_ids), n = b.post_ids.filter(x => pa.has(x)).length;
+  return n > 0 && n * 2 > Math.min(a.post_ids.length, b.post_ids.length);
+}
+function mergeTopics(have, add) {
+  const out = have.slice();
+  for (const t of add) if (!out.some(x => sameTopic(x, t))) out.push(t);
+  return out;
+}
+// 지금 탭 각도의 주제를 더 찾는다(이미 있는 주제는 빼고) — 새 주제는 뒤 번호로 붙인다(고른 주제 번호는 그대로)
+async function runMore(angle) {
+  const T = S.topics;
+  if (!claudeOk() || ctl || !T || !angle) return;
+  ctl = new AbortController();
+  const st = $('#more-state'), btn = $('#more-go');
+  if (btn) btn.disabled = true;
+  if (st) st.innerHTML = spinner(`${esc(angle)} 주제를 더 찾는 중… (1~2분)`);
+  try {
+    const { text, pmap, amap } = groupPrompt(angle, T.topics.map(t => t.name));
+    const res = await sample.json(text, { modelTier: 'default', signal: ctl.signal });
+    const add = topicsOf(res, pmap, amap, angle).filter(t => !T.topics.some(x => sameTopic(x, t)));
+    let n = Math.max(0, ...T.topics.map(t => +String(t.id).slice(1) || 0));
+    add.forEach(t => { delete t.key; t.id = 'T' + (++n); });
+    T.topics = T.topics.concat(add);
+    renderTopics();
+    try { await db.doc(`${COL('topics')}/current`).set(T); } catch (e) { toast('주제를 저장하지 못했습니다(화면에는 남아 있음).', true); }
+    if ($('#more-state')) $('#more-state').textContent = add.length ? `${angle} 주제 ${add.length}개를 더 찾았습니다` : '더 찾을 주제가 없습니다(새 글을 모은 뒤 다시 해 보세요)';
+  } catch (e) {
+    if ($('#more-state')) $('#more-state').textContent = '';
+    if (e && e.code !== 'cancelled') toast(claudeError(e), true);
+  } finally { ctl = null; if ($('#more-go')) $('#more-go').disabled = false; }
+}
+$('#group').onclick = runGroup;
+$('#group-stop').onclick = () => ctl && ctl.abort();
+
+function renderTopics() {
+  renderSites();
+  const m = S.meta;
+  $('#raw-meta').innerHTML = m
+    ? (STOCK ? `최근 24시간 증시 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`
+      : SHORT ? `${SH.kind} <b>${m.articles}</b>건(보도자료 ${S.articles.filter(a => a.kind === 'press').length}건 · 본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}${m.rules && m.rules.season && m.rules.season.length ? ` · 이달의 계절 주제: ${esc(m.rules.season.join(', '))}` : ''}`
+      : `최근 24시간 커뮤니티 글 <b>${activePosts().length}</b>개 · 기사 <b>${m.articles}</b>건(본문 ${m.article_bodies}건) · ${esc(when(m.window[0]))} ~ ${esc(when(m.window[1]))}`)
+    : `아직 모은 ${NEWS ? '기사' : '글'}가 없습니다. <b>[새로 모으기]</b>를 누르면 클라우드 작업자가 ${STOCK ? '증시 뉴스' : SHORT ? SH.kind : '커뮤니티·뉴스'}를 모읍니다.`;
+  const T = S.topics;
+  const fresh = T && m && T.raw_at === m.collected_at;
+  $('#group').textContent = T ? (fresh ? 'Claude로 다시 묶기' : '새 글로 다시 묶기') : 'Claude로 주제 묶기·의견 정리';
+  if (!fresh && !ctl && /^주제 \d+개로 묶었습니다$/.test($('#group-state').textContent)) $('#group-state').textContent = '';
+  if (!T || !T.topics.length) {
+    $('#topics-wrap').hidden = true; $('#bundles-wrap').hidden = true; $('#pickbar').hidden = true;
+    const top = activePosts().slice().sort((a, b) => postWeight(b) - postWeight(a)).slice(0, 8);
+    if (NEWS) { const ar = SHORT ? healthPick(S.articles, 8) : S.articles.slice(0, 8); $('#topics-empty').innerHTML = ar.length ? `<div class="note info"><b class="t">${SHORT ? '최근 ' + SH.kind : '최근 증시 기사'}</b>${SHORT ? `Claude가 기사를 주제로 묶고, 주제마다 핵심과 ${SH.basis}을 정리합니다.` : 'Claude가 기사를 이슈로 묶고, 이슈마다 핵심 숫자와 원인을 정리합니다.'}</div>
+      <ul class="postlist" style="margin-top:8px">${ar.map(a => `<li><span class="num">${esc(when(a.time).split(' ').pop())}</span><span>${esc(a.title)} <span class="small muted">${esc(a.source)}</span></span></li>`).join('')}</ul>` : ''; return; }
+    $('#topics-empty').innerHTML = top.length ? `<div class="note info"><b class="t">반응 큰 글</b>Claude가 이 글들을 주제로 묶고 커뮤니티 의견을 정리합니다.</div>
+      <ul class="postlist" style="margin-top:8px">${top.map(p => `<li><span class="num">댓글 ${p.comments}${p.votes ? `<br>공감 ${p.votes}` : ''}</span><span>${esc(p.title)} <span class="small muted">${esc(p.site)}</span></span></li>`).join('')}</ul>` : '';
+    return;
+  }
+  const oldRules = T.rules_key !== rulesKey();
+  $('#topics-empty').innerHTML = oldRules ? '<div class="note warn"><b class="t">채널 규칙이 바뀌었습니다</b>이 주제 묶음은 바뀌기 전 규칙으로 정리한 것입니다. <b>[Claude로 다시 묶기]</b>를 누르면 지금 채널 규칙으로 다시 정리합니다.</div>'
+    : fresh ? '' : `<div class="note warn">이 주제는 ${esc(when(T.raw_at))} 수집분으로 묶은 것입니다. 새로 모은 글을 반영하려면 <b>[새 글로 다시 묶기]</b>를 누르세요.</div>`;
+  const byId = Object.fromEntries(T.topics.map(t => [t.id, t]));
+  const bl = T.bundles.filter(b => b.topic_ids.every(i => byId[i]));
+  $('#bundles-wrap').hidden = !bl.length;
+  $('#bundles').innerHTML = bl.map((b, i) => `<div class="bundle"><div class="names">${b.topic_ids.map(i2 => esc(byId[i2].name)).join(' <span class="muted">+</span> ')}</div>
+    <div class="small">${esc(b.link)}</div><div><button class="btn small primary" type="button" data-bundle="${i}">이 묶음으로 10분</button></div></div>`).join('');
+  $$('[data-bundle]').forEach(btn => btn.onclick = () => { const b = bl[+btn.dataset.bundle]; S.picked = b.topic_ids.slice(); makeProject('long', b.link); });
+  const postsById = Object.fromEntries(S.posts.map(p => [p.id, p]));
+  const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
+  $('#topics-wrap').hidden = false;
+  $('#tcount').textContent = `${T.topics.length}개 · ${STOCK ? '시장 영향 큰 순' : SHORT ? SH.order : RIGHT ? '사설·칼럼·게시판 반응 순' : '커뮤니티 반응도 순'}`;
+  // 각도 탭(정치는푸르다·자유뉴스365): 전체 · 대통령 방어|보수 방어 · 상대 비판 · 당내 비판 · 정책 해설 · 사건사고·이슈
+  const tab = ANGLE_TABS && (S.atab === '' || TAB_ORDER.includes(S.atab)) ? S.atab : '';
+  $('#angle-tabs').hidden = !ANGLE_TABS;
+  if (ANGLE_TABS) {
+    const cnt = a => T.topics.filter(t => !a || t.angle === a).length;
+    $('#angle-tabs').innerHTML = ['', ...TAB_ORDER].map(a => `<button type="button" data-atab="${esc(a)}" class="${a === tab ? 'on' : ''}">${a ? esc(a) : '전체'} <span class="n">${cnt(a)}</span></button>`).join('');
+    $$('[data-atab]').forEach(b => b.onclick = () => { S.atab = b.dataset.atab; ls.set(lsk('atab'), S.atab); renderTopics(); });
+    $('#more-row').hidden = !tab;
+    $('#more-go').textContent = `${tab} 주제 더 찾기`;
+    $('#more-go').onclick = () => runMore(tab);
+  }
+  const shown = T.topics.filter(t => !tab || t.angle === tab);
+  $('#topics').innerHTML = shown.length ? '' : `<div class="small muted">이 탭 주제가 아직 없습니다. <b>[${esc(tab)} 주제 더 찾기]</b>를 눌러 보세요.</div>`;
+  $('#topics').innerHTML += shown.map((t, i) => {
+    const on = S.picked.includes(t.id), order = S.picked.indexOf(t.id) + 1;
+    const posts = t.post_ids.map(x => postsById[x]).filter(Boolean);
+    const arts = t.article_ids.map(x => artById[x]).filter(Boolean);
+    const sites = [...new Set(posts.map(p => p.site))].join('·');
+    return `<div class="trow ${on ? 'on' : ''}"><input type="checkbox" data-pick="${t.id}" ${on ? 'checked' : ''} aria-label="${esc(t.name)} 고르기">
+      <div style="min-width:0"><div><span class="rank">${i + 1}</span><span class="tname">${esc(t.name)}</span> ${on ? `<span class="badge ok">${order}번째</span>` : ''} ${angleBadge(t.angle)} ${t.category ? `<span class="badge">${esc(t.category)}</span>` : ''}</div>
+      ${NEWS ? `<div class="heat">화제성 ${t.heat.score} · 기사 ${arts.length}건${SHORT && arts.some(a => a.kind === 'press') ? ' · <b>보도자료</b>' : ''} · ${esc([...new Set(arts.map(a => a.source.replace('naver:', '')))].slice(0, 4).join('·'))}</div>` : ''}
+      ${NEWS ? '' : `<div class="heat">반응도 ${t.heat.score} · 글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''}${sites ? ` · ${esc(sites)}` : ''} · ${arts.length ? `기사 ${arts.length}건` : '<span style="color:var(--warn)">기사 없음 — 사실은 #TODO</span>'}</div>`}
+      <div class="stance"><span class="tag">${NEWS ? '핵심' : RIGHT ? '채널 시선' : '커뮤니티 주장'}</span>${esc(t.stance)}</div>
+      ${t.points.length ? `<ul class="points">${t.points.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}
+      ${t.minority ? `<div class="small muted">${STOCK ? '반대 시각·위험' : SHORT ? '한계·주의' : '소수 의견'}: ${esc(t.minority)}</div>` : ''}
+      ${t.questions.length ? `<div class="small muted">궁금해하는 것: ${esc(t.questions.join(' / '))}</div>` : ''}
+      <details class="ev"><summary>근거 보기 · ${NEWS ? '' : `글 ${posts.length} · `}기사 ${arts.length}</summary>
+        <ul>${posts.map(p => `<li>[${esc(p.site)} · 댓글 ${p.comments}${p.votes ? ` · 공감 ${p.votes}` : ''}] ${esc(p.title)}${(p.top_comments || []).slice(0, 2).map(c => `<br><span class="muted">└ [공감 ${c.votes}] ${esc(c.text)}</span>`).join('')}</li>`).join('')}</ul>
+        ${arts.length ? `<ul>${arts.map(a => `<li>[${esc(a.source)} ${esc(when(a.time).split(' ').pop())}]${a.kind === 'press' ? ' <span class="badge ok">보도자료</span>' : ''} <a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a>${a.body ? ' <span class="badge ok">본문</span>' : ''}</li>`).join('')}</ul>` : ''}
+      </details></div></div>`;
+  }).join('');
+  $$('[data-pick]').forEach(c => c.onchange = () => {
+    const id = c.dataset.pick, i = S.picked.indexOf(id);
+    if (c.checked && i < 0) S.picked.push(id); else if (!c.checked && i >= 0) S.picked.splice(i, 1);
+    renderTopics();
+  });
+  const n = S.picked.length;
+  $('#pickbar').hidden = !n;
+  $('#pick-sum').innerHTML = SHORT ? `고른 주제 <b>${n}</b>개${n > 1 ? ' · <span style="color:var(--bad)">쇼츠는 주제 하나</span>' : ''}` : `고른 주제 <b>${n}</b>개${n > 3 ? ' · <span style="color:var(--bad)">10분 묶음은 3개까지</span>' : n === 1 ? ' · 하나 더 고르면 10분 묶음' : ''}`;
+  $('#go-short').disabled = n !== 1; $('#go-long').disabled = n < 2 || n > 3;
+  $('#go-short').hidden = !hasFormat('short'); $('#go-long').hidden = !hasFormat('long');  // 건강 채널은 쇼츠만
+  $('#go-shorts').hidden = !hasFormat('shorts'); $('#go-shorts').disabled = n !== 1;
+}
+$('#pick-clear').onclick = () => { S.picked = []; renderTopics(); };
+$('#go-short').onclick = () => makeProject('short');
+$('#go-shorts').onclick = () => makeProject('shorts');
+$('#go-long').onclick = () => makeProject('long');
+
+/* ---------- 프로젝트 ---------- */
+function shortName(name, n = 20) {
+  let s = String(name || '').replace(/["'“”‘’「」『』\[\]]/g, '').split(/…|\.\.\./)[0].replace(/,/g, '').trim();
+  if ([...s].length <= n) return s;
+  const cut = [...s].slice(0, n).join('');
+  return cut.replace(/\s+\S*$/, '') || cut;
+}
+async function makeProject(fmt, link = '') {
+  if (!db) { toast('저장소를 쓸 수 없는 화면입니다. claude.ai에서 열어 주세요.', true); return; }
+  const spec = S.meta.formats[fmt], T = S.topics;
+  if (!spec) { toast('지금 수집 묶음에 이 형식이 없습니다 — 1 주제 고르기에서 새로 모아 주세요', true); return; }
+  if (S.picked.length < spec.min_topics || S.picked.length > spec.max_topics) { toast(spec.max_topics === 1 ? `${spec.name}는 주제를 하나만 골라 주세요` : `${spec.name}은 주제 ${spec.min_topics}~${spec.max_topics}개를 골라 주세요`, true); return; }
+  const byId = Object.fromEntries(T.topics.map(t => [t.id, t]));
+  const postsById = Object.fromEntries(S.posts.map(p => [p.id, p]));
+  const artById = Object.fromEntries(S.articles.map(a => [a.id, a]));
+  const k = kst();
+  let id = `${k.y}-${k.mo}-${k.d}_${k.h}${k.mi}_${fmt}`, n = 2;
+  while (S.projects.some(p => p.id === id)) id = `${k.y}-${k.mo}-${k.d}_${k.h}${k.mi}-${n++}_${fmt}`;
+  const topics = S.picked.map(tid => {
+    const t = byId[tid];
+    return { name: t.name, heading: shortName(t.name, 20), category: t.category, stance: t.stance, points: t.points, minority: t.minority, questions: t.questions, heat: t.heat,
+      posts: t.post_ids.map(x => postsById[x]).filter(Boolean).sort((a, b) => postWeight(b) - postWeight(a)).slice(0, COMMUNITY_POSTS)
+        .map(p => ({ id: p.id, site: p.site, title: p.title, body: (p.body || '').slice(0, 300), comments: p.comments, votes: p.votes, top_comments: (p.top_comments || []).slice(0, 5) })),
+      articles: t.article_ids.map(x => artById[x]).filter(Boolean).map(a => ({ url: a.url, time: a.time, title: a.title, source: a.source, text: a.body || a.summary || '' })) };
+  });
+  const doc = { id, created_at: new Date().toISOString(), format: fmt, rules_key: rulesKey(), topics, link: fmt === 'long' ? link : '', titles: [], thumb: '', script: '', script_by: '', status: 'script' };
+  try { await db.doc(`${COL('projects')}/${id}`).set(doc); } catch (e) { toast('프로젝트를 저장하지 못했습니다: ' + (e.code || ''), true); return; }
+  S.picked = []; selectProject(id, doc); setTab('script');
+}
+let projUnsub = null;
+function selectProject(id, initial) {
+  if (projUnsub) { projUnsub(); projUnsub = null; }
+  S.pid = id; ls.set(lsk('pid'), id); S.project = initial || null; S.audioFile = null;
+  if (id && db) projUnsub = db.doc(`${COL('projects')}/${id}`).onSnapshot(snap => {
+    if (!snap.exists) { if (S.pid === id) { S.project = null; renderAll(); } return; }
+    const d = snap.data();
+    const mine = S.project;
+    S.project = JSON.parse(JSON.stringify(d));
+    if (mine && pendingSave) Object.assign(S.project, savedFields(mine));
+    renderAll(true);
+  }, () => {});
+  renderAll();
+}
+function renderAll(fromSnap = false) { renderTabs(); renderScript(fromSnap); if (S.tab === 'voice') renderVoice(); if (S.tab === 'sources') renderSources(); renderProjects(); }
+
+/* 저장(대본·제목): 입력이 멈추면 한 번 */
+let pendingSave = false, saveTimer = null;
+const savedFields = p => ({ script: p.script, script_by: p.script_by || '', script_key: p.script_key || '', titles: p.titles, thumb: p.thumb, link: p.link || '', hashtags: p.hashtags || [], pinned_comment: p.pinned_comment || '' });
+function queueSave(fields) {
+  if (!S.project || !db) return;
+  Object.assign(S.project, fields); pendingSave = true;
+  $('#save-state').textContent = '저장 대기…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const p = S.project;
+    try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); $('#save-state').textContent = '저장됨'; }
+    catch (e) { $('#save-state').textContent = '저장 실패 — 다시 고치면 다시 저장합니다'; }
+    finally { pendingSave = false; }
+  }, 1200);
+}
+
+/* ---------- 2. 대본 ---------- */
+// 완성 편집(챕터 카드·목차)을 까는 형식: 헤더가 빠지면 음성·자료 요청을 막는다
+const EDIT_FMT = ['long', 'short'];
+function missingHeads(p) {
+  if (!EDIT_FMT.includes(p.format)) return [];
+  const heads = String(p.script || '').split('\n').map(l => l.trim()).filter(l => l.startsWith('## ')).map(l => l.slice(3).trim()), claimed = new Set();
+  return (p.topics || []).map(t => t.heading || '').filter(want => {
+    const hit = heads.findIndex((h, i) => !claimed.has(i) && (h === want || h.startsWith(want.slice(0, 8)) || want.startsWith(h.slice(0, 8))));
+    if (hit >= 0) claimed.add(hit);
+    return hit < 0;
+  });
+}
+function headGuard(p) {
+  const miss = missingHeads(p);
+  if (!miss.length) return true;
+  toast(`대본에 챕터 헤더가 없습니다(${miss.length}개) — 대본 탭의 [챕터 헤더 넣기]를 먼저 눌러 주세요(말은 그대로, 음성도 그대로 씁니다)`, true);
+  setTab('script');
+  return false;
+}
+function planItems() {
+  const p = S.project, spec = S.meta ? S.meta.formats[p.format] : { minutes: p.format === 'long' ? 10 : 3, lead_weight: 1.3 };
+  const w = p.topics.map((_, i) => (i === 0 && p.topics.length > 1 ? (spec.lead_weight || 1.3) : 1));
+  const tot = w.reduce((a, x) => a + x, 0) || 1;
+  return p.topics.map((t, i) => ({ t, order: i + 1, sec: Math.round(spec.minutes * 60 * w[i] / tot / 5) * 5 }));
+}
+function riskNotes() {
+  const r = S.meta && S.meta.rules && S.meta.rules.risk; if (!r) return [];
+  const out = new Set();
+  for (const { t } of planItems()) {
+    const text = [t.name, ...t.articles.map(a => a.title)].join(' ');
+    if (r.legal_words.some(w => text.includes(w))) out.add(r.legal_note);
+    if (r.poll_words.some(w => text.includes(w))) out.add(r.poll_note);
+  }
+  return [...out];
+}
+// 대본에 넘기는 커뮤니티 이야기(늘어난 분량을 커뮤니티 소식·의견으로 채운다 — 채널의 목소리로)
+const COMMUNITY_POSTS = 10;
+function communityOf(t) {
+  const raw = Object.fromEntries((S.posts || []).map(p => [p.id, p]));
+  const posts = t.posts.map(x => (x.id && raw[x.id]) ? { ...x, body: (raw[x.id].body || '').slice(0, 300), top_comments: (raw[x.id].top_comments || []).slice(0, 5) } : x);
+  return posts.slice(0, COMMUNITY_POSTS).map(x => ({ title: x.title, body: x.body || '', comments: x.comments, votes: x.votes,
+    top_comments: (x.top_comments || []).slice(0, 5).map(c => ({ text: c.text, votes: c.votes })) }));
+}
+function scriptPayload() {
+  const p = S.project, spec = S.meta.formats[p.format];
+  return {
+    format: spec.name, target_chars: spec.target_chars, link: p.format === 'long' ? (p.link || null) : null, risk_notes: riskNotes(),
+    items: planItems().map(({ t, order, sec }) => ({
+      order, heading: t.heading, topic: t.name, category: t.category, est_seconds: sec,
+      opinion: { stance: t.stance, points: t.points, minority: t.minority, questions: t.questions, heat: `글 ${t.heat.n} · 댓글 ${t.heat.c}${t.heat.v ? ` · 공감 ${t.heat.v}` : ''}`,
+        community: communityOf(t) },
+      follow_up: null,
+      articles: t.articles.map(a => ({ url: a.url, time: when(a.time), title: a.title, summary: a.text })),
+    })),
+  };
+}
+function scriptPrompt() {
+  const r = S.meta.rules, f = S.project.format;
+  return [r.identity, r.script_rules, r.structure_rules, r.tone_rules, r.format_rules[f], '', '영상 계획과 근거 기사·커뮤니티 의견:', JSON.stringify(scriptPayload())].join('\n');
+}
+// 채널 마무리 인사(channel.yaml script.outro)는 Claude가 쓰지 않고 대본 끝에 언제나 붙인다
+function withOutro(text, outro) {
+  outro = String(outro || '').trim();
+  if (!outro || String(text || '').includes(outro)) return text;
+  return String(text || '').replace(/\s+$/, '') + '\n\n' + outro + '\n';
+}
+// 대본에 그 말이 들어 있나(줄바꿈·띄어쓰기 차이는 무시 — 좋아요 부탁은 한 줄에 한 문장으로 나뉘어 들어간다)
+const hasLine = (text, line) => String(text || '').split(/\s+/).join(' ').includes(String(line || '').split(/\s+/).join(' ').trim());
+// 좋아요 부탁 한 단락: 주제가 둘 이상이면 둘째 주제 헤더 바로 앞, 하나뿐이면 말하는 글자의 3분의 1쯤 지난 단락 뒤(끝 인사 앞)
+function withLikeAsk(text, ask) {
+  ask = String(ask || '').trim();
+  if (!ask || hasLine(text, ask)) return text;
+  const block = ask.split(/(?<=[.?!])\s+/).filter(Boolean).join('\n');
+  const paras = String(text || '').trim().split(/\n\s*\n/).filter(x => x.trim());
+  const heads = paras.map((x, i) => x.trimStart().startsWith('## ') ? i : -1).filter(i => i >= 0);
+  let at;
+  if (heads.length >= 2) at = heads[1];
+  else {
+    const n = paras.map(x => x.split('\n').filter(l => !l.trim().startsWith('#')).reduce((a, l) => a + l.trim().length, 0));
+    const total = n.reduce((a, b) => a + b, 0); let run = 0; at = paras.length;
+    for (let i = 0; i < n.length; i++) { run += n[i]; if (total && run >= total / 3) { at = i + 1; break; } }
+    at = Math.min(at, Math.max(1, paras.length - 1));
+  }
+  return [...paras.slice(0, at), block, ...paras.slice(at)].join('\n\n') + '\n';
+}
+// 헤더처럼 쓴 줄(# 하나·### 셋, **굵게** 감싼 헤더)이 계획 주제·정리면 '## '로 바로잡는다 — 주석 줄로 지우면 챕터가 사라진다
+function fixHead(ln) {
+  const m = ln.replace(/^\*\*(.*)\*\*$/, '$1').trim().match(/^#{1,6}\s*(.+)$/);
+  if (!m) return null;
+  const h = m[1].replace(/\*\*/g, '').trim(), heads = ((S.project && S.project.topics) || []).map(t => t.heading || '');
+  return h.startsWith('정리') || heads.some(w => w && (h.startsWith(w.slice(0, 8)) || w.startsWith(h.slice(0, 8)))) ? '## ' + h : null;
+}
+function normalize(text) {
+  const t = String(text || '').trim().replace(/^```[a-z]*\s*/i, '').replace(/\s*```$/, '');
+  const out = [];
+  for (let ln of t.split('\n')) {
+    ln = ln.trim();
+    if (!ln.startsWith('## ')) ln = fixHead(ln) || ln;
+    if (ln.startsWith('#') && !ln.startsWith('## ')) continue; // 출처·주석 줄은 대본에 남기지 않는다
+    if (!ln) { if (out.length && out[out.length - 1] !== '') out.push(''); continue; }
+    if (out.length && out[out.length - 1].endsWith(',') && !ln.startsWith('#')) { out[out.length - 1] += ' ' + ln; continue; }  // 쉼표 뒤에서 줄을 바꾸지 않는다
+    out.push(ln);
+  }
+  return out.join('\n').trim() + '\n';
+}
+// 쉼표로 끝난 줄을 다음 줄과 잇기만 한다(주석 줄·빈 줄은 그대로) — 이미 쓴 대본 고치기용
+function joinCommaLines(text) {
+  const out = [];
+  for (const raw of String(text || '').split('\n')) {
+    const ln = raw.trim(), prev = out.length ? out[out.length - 1] : '';
+    if (ln && !ln.startsWith('#') && prev.trim().endsWith(',') && !prev.trim().startsWith('#')) { out[out.length - 1] = prev.replace(/\s+$/, '') + ' ' + ln; continue; }
+    out.push(raw);
+  }
+  return out.join('\n');
+}
+const spokenLines = text => String(text || '').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+// 쇼츠 첫 문장(1~3초 훅)은 25자 안쪽 — 조금 넘는 건 봐준다
+const SHORTS_HOOK_MAX = 32;
+// 이재명 대통령이 주인공인 주제인가(주제 이름·주장에 이름이 있으면) — 쇼츠면 첫 마디를 '이재명'으로
+const aboutLee = p => (p.topics || []).some(t => /이재명/.test(`${t.name || ''} ${t.stance || ''}`));
+const firstSentence = line => (String(line || '').match(/^.*?[.?!…]['"”’」』)\]]*(?=\s|$)/) || [String(line || '')])[0];
+// 쇼츠 끝 질문: 마무리 인사 바로 앞 두 줄 안에서 물음표로 끝나는 문장
+function endQuestion(p) {
+  const spoken = spokenLines(p.script), outro = outroOf(p);
+  const at = outro ? spoken.findIndex(l => l.includes(outro.slice(0, 12))) : -1;
+  const before = spoken.slice(0, at >= 0 ? at : spoken.length).slice(-2);
+  for (const l of before.reverse()) { const q = l.match(/[^.?!…]*\?/g); if (q) return q.join(' ').trim(); }
+  return '';
+}
+function checkScript() {
+  const p = S.project, spec = S.meta.formats[p.format], r = S.meta.rules, text = p.script || '';
+  const lines = text.split('\n').map(l => l.trim()), spoken = spokenLines(text);
+  if (!spoken.length) return [{ bad: true, text: '대본이 비어 있습니다' }];
+  const chars = spoken.reduce((n, l) => n + [...l].length, 0), [lo, hi] = spec.target_chars, out = [];
+  out.push(chars < lo || chars > hi ? { bad: true, text: `글자 수 ${chars.toLocaleString()}자 — 목표 ${lo.toLocaleString()}~${hi.toLocaleString()}자${chars < lo ? `, ${(lo - chars).toLocaleString()}자 더 필요` : `, ${(chars - hi).toLocaleString()}자 넘침`}` } : { bad: false, text: `글자 수 ${chars.toLocaleString()}자 — 목표 안` });
+  const heads = lines.filter(l => l.startsWith('## ')).map(l => l.slice(3).trim()), claimed = new Set();
+  for (const { t } of planItems()) {
+    const want = t.heading, hit = heads.findIndex((h, i) => !claimed.has(i) && (h === want || h.startsWith(want.slice(0, 8)) || want.startsWith(h.slice(0, 8))));
+    if (hit < 0) out.push({ bad: true, text: `헤더 없음: '## ${want}' (장면을 나누는 기준${EDIT_FMT.includes(p.format) ? ' — 없으면 챕터 카드·목차가 빠집니다. [챕터 헤더 넣기]는 말을 그대로 두고 헤더만 넣습니다' : ''})` }); else claimed.add(hit);
+  }
+  if (EDIT_FMT.includes(p.format) && /콜드 오픈/.test(((r.format_rules || {})[p.format]) || '')) {  // 콜드 오픈 첫 문장은 화면 가운데 큰 글씨 훅
+    const first = firstSentence(spoken[0]);
+    if ([...first].length > SHORTS_HOOK_MAX) out.push({ bad: true, text: `첫 문장이 ${[...first].length}자 — 화면 가운데 큰 글씨로 뜨는 훅이라 가장 센 한 방을 25자 안쪽으로` });
+  }
+  // 마무리 '## 정리'는 형식 규칙이 부를 때(10분 묶음, 정치는푸르다 3분 단독)
+  const wrap = /## 정리/.test(((r.format_rules || {})[p.format]) || '');
+  heads.forEach((h, i) => { if (!claimed.has(i) && !(wrap && h.startsWith('정리'))) out.push({ bad: true, text: `계획에 없는 단락: '## ${h}'` }); });
+  if (wrap && !heads.some(h => h.startsWith('정리'))) out.push({ bad: true, text: "마무리 '## 정리' 단락 없음" });
+  const notes = lines.filter(l => l.startsWith('#') && !l.startsWith('## '));
+  if (notes.length) out.push({ bad: true, text: `출처·주석 줄 ${notes.length}개 — 대본에서 빼기` });
+  const facts = p.topics.flatMap(t => t.articles.map(a => a.title + ' ' + a.text)).join(' ');
+  const nums = [...new Set(spoken.flatMap(l => (l.match(/\d[\d,.]*/g) || []).map(x => x.replace(/,/g, '').replace(/\.$/, ''))))]
+    .filter(x => !facts.replace(/,/g, '').includes(x));
+  if (nums.length) out.push({ bad: true, text: `고른 기사에 없는 숫자 ${nums.length}개(${nums.slice(0, 4).join(', ')}) — 지우거나 기사 확인` });
+  // 음성이 잘못 읽는 표기: 숫자 사이 기호('2-3부'를 '이 대 삼 부'로 읽는다)
+  const odd = [...new Set(spoken.flatMap(l => l.match(/\d+\s*[-~/:]\s*\d+[가-힣]?/g) || []))];
+  if (odd.length) out.push({ bad: true, text: `음성이 잘못 읽는 표기 ${odd.length}곳(${odd.slice(0, 3).join(', ')}) — 말로 풀어 쓰기(항소부·서너 명·3분의 1·10시 30분)` });
+  // 날짜: 오늘·앞날 일에 '지난', 올리는 날에 따라 틀려지는 '어제·내일'
+  const today = kst(), dd = +today.d, mm = +today.mo, dateBad = [];
+  for (const l of spoken) {
+    for (const m of l.matchAll(/지난\s*(?:(\d{1,2})월\s*)?(\d{1,2})일/g)) {
+      const mo = m[1] ? +m[1] : mm, d = +m[2];
+      if (mo > mm || (mo === mm && d >= dd)) dateBad.push(m[0]);
+    }
+    for (const m of l.matchAll(/(?:^|[\s,])(어제|그제|그저께|내일|모레)(?=[\s,은는도의에]|$)/g)) dateBad.push(m[1]);
+  }
+  if (dateBad.length) out.push({ bad: true, text: `날짜 표현 ${dateBad.length}곳(${[...new Set(dateBad)].slice(0, 3).join(', ')}) — 오늘·앞날 일엔 '지난'을 빼고, '어제·내일'은 날짜로` });
+  const banned = isShorts(p) ? [] : (r.banned || []).filter(w => spoken.some(l => l.includes(w))); if (banned.length) out.push({ bad: true, text: `금지 표현: ${banned.join(', ')}` });
+  const slang = (r.slang || []).filter(w => spoken.some(l => l.includes(w))); if (slang.length) out.push({ bad: true, text: `비속어: ${slang.join(', ')}` });
+  const joined = spoken.join('').replace(/\s+/g, ''), keys = new Set();
+  for (const t of p.topics) for (const x of t.posts) for (const s of [x.title, ...(x.top_comments || []).map(c => c.text)]) { const k = String(s || '').replace(/\s+/g, ''); if (k.length >= 10) keys.add(k.slice(0, 18)); }
+  const copied = [...keys].filter(k => joined.includes(k)).length;
+  if (copied) out.push({ bad: true, text: `커뮤니티 글·댓글을 그대로 옮긴 곳 ${copied}개 — 채널의 말로 바꾸기` });
+  const commaBreaks = lines.filter((l, i) => l && !l.startsWith('#') && l.endsWith(',') && lines[i + 1] && !lines[i + 1].startsWith('#')).length;
+  if (commaBreaks) out.push({ bad: true, text: `쉼표 뒤에서 줄을 바꾼 곳 ${commaBreaks}개 — 쉼표로 이어지는 말은 한 줄에` });
+  const outro = outroOf(p);
+  if (outro && !text.includes(outro)) out.push({ bad: true, text: `끝에 채널 마무리 인사가 없습니다: '${outro.slice(0, 24)}…'` });
+  const ask = likeAskOf(p);
+  if (ask && !hasLine(text, ask)) out.push({ bad: true, text: `중간에 좋아요 부탁이 없습니다: '${ask.slice(0, 24)}…' — [점검대로 고쳐 쓰기]가 바로 넣습니다` });
+  if (isShorts(p)) {  // 쇼츠는 첫 1~3초(첫 문장)와 첫 10초(첫 두세 문장)가 승부 — 인사·예고로 열지 않는다
+    const head = spoken.slice(0, 3).join(' '), first = firstSentence(spoken[0]);
+    if (/^(안녕|여러분[, ]*안녕|오늘은|이번 영상|이번 시간|지금부터)/.test(spoken[0] || '') || /알아보겠습니다|살펴보겠습니다|준비했습니다/.test(head))
+      out.push({ bad: true, text: '쇼츠 첫 10초가 인사·예고로 시작합니다 — 가장 센 발언·숫자·장면으로 바로 열기' });
+    if (SHORT && /\?\s*$/.test(first))
+      out.push({ bad: true, text: `첫 문장이 질문입니다 — 후킹 멘트로 단정해 경고하기(예: ${SH.hook})` });
+    if ([...first].length > SHORTS_HOOK_MAX)
+      out.push({ bad: true, text: `쇼츠 첫 문장이 ${[...first].length}자 — 1~3초 안에 들리게 가장 강력한 소식 하나를 25자 안쪽으로` });
+    if (!SHORT && !endQuestion(p))  // 널스윤서·하루집사 30초 쇼츠는 끝 질문 없이(댓글 질문은 고정 댓글로)
+      out.push({ bad: true, text: "쇼츠 끝에 시청자 질문이 없습니다 — 마무리 인사 앞에 '[A]일까요, [B]일까요? 여러분 생각을 댓글로 남겨 주세요.'" });
+    if (!SHORT && aboutLee(p) && !String(spoken[0] || '').startsWith('이재명'))
+      out.push({ bad: true, text: "이재명 대통령 사안인데 첫 마디가 '이재명'이 아닙니다 — 첫 문장을 '이재명 대통령이 …'으로" });
+  }
+  if (SHORT) {  // 건강·반려동물: 단정·효능 광고·약 바꾸라는 말(식품표시광고법·의료법, 유튜브 의료 잘못된 정보 정책)
+    const risky = ((r.risk && r.risk.legal_words) || []).filter(w => spoken.some(l => l.includes(w)));
+    if (risky.length) out.push({ bad: true, text: `조심할 말: ${risky.join(', ')} — ${(r.risk && r.risk.legal_note) || '단정·효능 광고 빼기'}` });
+  }
+  const vague = spoken.flatMap(l => (r.vague_words || []).filter(w => l.includes(w)));
+  if (vague.length > (r.vague_max ?? 2)) out.push({ bad: true, text: `뭉뚱그린 말 ${vague.length}번(${[...new Set(vague)].join(', ')}) — 누가 언제 무슨 말·행동을 했는지로 바꾸기` });
+  const todo = lines.filter(l => /^#(TODO|확인)/.test(l)).length; if (todo) out.push({ bad: false, warn: true, text: `확인 주석 ${todo}개(#TODO/#확인) — 녹음 전에 처리` });
+  return out;
+}
+const fmtSec = s => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}분 ${String(s % 60).padStart(2, '0')}초`; };
+function updateMeter() {
+  const p = S.project; if (!p || !S.meta) return;
+  const spec = S.meta.formats[p.format], cpm = (p.audio && p.audio.cpm) || S.meta.chars_per_minute || 300;
+  const spoken = spokenLines(p.script), chars = spoken.reduce((n, l) => n + [...l].length, 0), [lo, hi] = spec.target_chars;
+  $('#meter').innerHTML = `<span>글자 <b class="${chars ? (chars >= lo && chars <= hi ? 'good' : 'bad') : ''}">${chars.toLocaleString()}</b> / ${lo.toLocaleString()}~${hi.toLocaleString()}</span>
+    <span>예상 길이 <b>${fmtSec(chars / cpm * 60)}</b> <span class="muted">(분당 ${cpm}자)</span></span><span>문장 줄 <b>${spoken.length}</b></span>`;
+  const checks = (p.script || '').trim() ? checkScript() : [];
+  $('#checks').innerHTML = checks.map(c => `<li class="${c.bad ? 'bad' : ''}">${c.bad ? '⚠ ' : c.warn ? '· ' : '✓ '}${esc(c.text)}</li>`).join('');
+  $('#sc-fix').disabled = !!ctl || !checks.some(c => c.bad);
+  $('#hd-go').hidden = !(p.script || '').trim() || !missingHeads(p).length;
+  $('#hd-go').disabled = !!ctl || !claudeOk();
+  renderVoiceStale();
+}
+function renderScript(fromSnap) {
+  const p = S.project; if (!p || !S.meta) return;
+  const spec = S.meta.formats[p.format];
+  $('#fmt-chip').textContent = `${spec.name} · ${spec.target_chars[0].toLocaleString()}~${spec.target_chars[1].toLocaleString()}자${spec.vertical ? ' · 세로 1080×1920' : ''}`;
+  $('#thumb-label').textContent = isShorts(p) ? '상단 제목' : '썸네일';
+  $('#thumb').title = isShorts(p) ? `세로 쇼츠는 이 문구가 영상 내내 화면 위쪽에 뜹니다(${RIGHT ? '남색·빨강 띠 두 줄' : SHORT ? '흰 바탕 두 줄, 첫 줄 검정·둘째 줄 하늘색 강조' : '두 줄, 둘째 줄 노랑'})` : '';
+  $('#plan').innerHTML = planItems().map(({ t, order, sec }) => `<div class="item"><span class="rank">${order}</span><b>## ${esc(t.heading)}</b><span class="sec">${sec}초</span><span class="small muted">주장: ${esc(t.stance)}</span>${t.articles.length ? `<span class="badge">기사 ${t.articles.length}</span>` : '<span class="badge warn">기사 없음</span>'}</div>`).join('');
+  $('#link-field').hidden = p.format !== 'long';
+  const ae = document.activeElement;
+  if (ae !== $('#link')) $('#link').value = p.link || '';
+  const ta = $('#script');
+  if (!(fromSnap && (ae === ta || ctl)) && ta.value !== (p.script || '')) ta.value = p.script || '';
+  ['#t1', '#t2', '#t3'].forEach((id, i) => { if (document.activeElement !== $(id)) $(id).value = (p.titles || [])[i] || ''; });
+  if (ae !== $('#thumb')) $('#thumb').value = p.thumb || '';
+  if (ae !== $('#tags')) $('#tags').value = tagLine(p.hashtags);
+  $('#pin-row').hidden = !isShorts(p);
+  const notice = String((S.meta && S.meta.rules && S.meta.rules.notice) || '');
+  $('#notice-row').hidden = !notice; $('#notice').value = notice;
+  if (ae !== $('#pin')) $('#pin').value = p.pinned_comment || '';
+  $('#ti-go').textContent = isShorts(p) ? 'Claude로 제목·상단 제목·해시태그·고정 댓글 만들기' : 'Claude로 제목·썸네일·해시태그 만들기';
+  thumbCount();
+  const risks = riskNotes();
+  const stale = p.rules_key !== rulesKey(), oldScript = !stale && (p.script || '').trim() && p.script_by === 'claude' && p.script_key !== scriptKey();
+  $('#risk').innerHTML = (stale ? '<div class="note warn"><b class="t">이 프로젝트는 바뀌기 전 채널 규칙으로 만들었습니다</b>주제의 주장도 예전 규칙으로 정리된 것이라, <b>1 주제 고르기</b>에서 다시 묶고 새로 만드는 걸 권합니다. 이대로 쓰려면 아래 주장을 확인한 뒤 <b>[Claude로 대본 쓰기]</b>로 다시 쓰세요.</div>'
+    : oldScript ? '<div class="note warn"><b class="t">대본 규칙이 바뀌었습니다</b>이 대본은 바뀌기 전 규칙으로 썼습니다. 이제는 사건마다 누가·언제·어디서·무슨 말을 했는지부터 또렷하게 씁니다. <b>[Claude로 대본 쓰기]</b>로 다시 쓰세요.</div>' : '')
+    + (risks.length ? `<div class="note warn"><b class="t">주의</b><ul>${risks.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '');
+  updateMeter();
+}
+$('#script').addEventListener('input', e => { queueSave({ script: e.target.value, script_by: S.project.script_by || 'manual' }); updateMeter(); });
+$('#link').addEventListener('input', e => queueSave({ link: e.target.value }));
+['#t1', '#t2', '#t3'].forEach((id, i) => $(id).addEventListener('input', e => { const t = (S.project.titles || []).slice(); t[i] = e.target.value; queueSave({ titles: t }); }));
+$('#thumb').addEventListener('input', e => { queueSave({ thumb: e.target.value }); thumbCount(); });
+/* 해시태그: 채널 고정 태그(정치·정치뉴스 등)가 늘 맨 앞. '#'·띄어쓰기 없이 저장하고 '#a #b'로 보여 준다 */
+const fixedTags = () => [...(S.meta && S.meta.rules && Array.isArray(S.meta.rules.fixed_hashtags) && S.meta.rules.fixed_hashtags.length ? S.meta.rules.fixed_hashtags : CHANNELS[CH].tags), ...(isShorts(S.project) ? ['Shorts'] : [])];
+function cleanTags(list) {
+  const out = [];
+  for (const t of [...fixedTags(), ...list]) { const k = String(t || '').replace(/^#+/, '').replace(/\s+/g, '').trim(); if (k && !out.includes(k)) out.push(k); }
+  return out.slice(0, 15);
+}
+const tagLine = tags => cleanTags(tags || []).map(t => '#' + t).join(' ');
+$('#tags').addEventListener('input', e => queueSave({ hashtags: cleanTags(e.target.value.split(/[\s,]+/)) }));
+$('#tags-copy').onclick = () => copyText(tagLine(S.project && S.project.hashtags), '해시태그를');
+$('#pin').addEventListener('input', e => queueSave({ pinned_comment: e.target.value }));
+$('#notice-copy').onclick = () => copyText($('#notice').value, '설명란 고지를');
+$('#pin-copy').onclick = () => copyText((S.project && S.project.pinned_comment) || '', '고정 댓글을');
+function thumbCount() { const n = [...($('#thumb').value || '')].length, max = thumbMax(S.project); const el = $('#thumb-n'); el.textContent = `${n}/${max}`; el.className = 'count' + (n > max ? ' bad' : ''); }
+
+async function runScript(mode) {
+  if (!claudeOk() || ctl) return;
+  const p = S.project, outro = outroOf(p);
+  if (mode === 'fix' && outro && !(p.script || '').includes(outro)) {  // 마무리 인사는 Claude 없이 바로 붙인다
+    p.script = withOutro(p.script, outro); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
+  }
+  if (mode === 'fix' && likeAskOf(p) && !hasLine(p.script, likeAskOf(p))) {  // 좋아요 부탁도 Claude 없이 바로 넣는다
+    p.script = withLikeAsk(p.script, likeAskOf(p)); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
+  }
+  if (mode === 'fix' && joinCommaLines(p.script) !== p.script) {  // 쉼표 뒤 줄바꿈도 Claude 없이 바로 잇는다
+    p.script = joinCommaLines(p.script); $('#script').value = p.script; queueSave({ script: p.script }); updateMeter();
+  }
+  const problems = mode === 'fix' ? checkScript().filter(x => x.bad).map(x => x.text) : [];
+  if (mode === 'fix' && !problems.length) { toast('점검에 걸린 것이 없습니다'); return; }
+  const prompt = mode === 'fix' ? [scriptPrompt(), '', '아래는 지금 대본이다. 점검에서 다음 문제가 나왔다:', ...problems.map(x => '- ' + x),
+    '규칙과 영상 계획을 지키면서 이 문제를 고쳐 대본 전체를 다시 써라. 출력은 대본 텍스트만.', '', '<지금 대본>', p.script, '</지금 대본>'].join('\n') : scriptPrompt();
+  const ta = $('#script'), state = $('#sc-state'), prev = p.script;
+  ctl = new AbortController();
+  ['#sc-go', '#sc-fix', '#ti-go'].forEach(id => { $(id).disabled = true; });
+  $('#sc-stop').hidden = false; $('#sc-msg').innerHTML = ''; ta.readOnly = true;
+  const t0 = Date.now(); let started = false;
+  const tick = setInterval(() => { if (!started) state.innerHTML = spinner(`Claude가 생각하는 중… ${Math.round((Date.now() - t0) / 1000)}초 (첫 글자까지 1~2분)`); }, 1000);
+  state.innerHTML = spinner('Claude가 생각하는 중…');
+  try {
+    const { text, truncated } = await sample(prompt, { modelTier: 'complex', cache: false, signal: ctl.signal,
+      onText: ({ text: whole }) => { if (!started) { started = true; state.textContent = '쓰는 중…'; } ta.value = whole; p.script = whole; updateMeter(); } });
+    p.script = withLikeAsk(withOutro(normalize(text), outroOf(p)), likeAskOf(p)); ta.value = p.script;
+    p.script_key = scriptKey(); queueSave({ script: p.script, script_by: 'claude', script_key: p.script_key });
+    state.textContent = `다 썼습니다 · ${Math.round((Date.now() - t0) / 1000)}초`;
+    if (truncated) $('#sc-msg').innerHTML = '<div class="note warn">대본이 길이 한도에서 잘렸습니다. 뒷부분을 확인하고 [점검대로 고쳐 쓰기]를 눌러 주세요.</div>';
+  } catch (e) {
+    const code = e && e.code;
+    if (e && e.text && code !== 'refused') { p.script = e.text; ta.value = e.text; queueSave({ script: e.text }); }
+    else if (code === 'refused') { p.script = prev; ta.value = prev; }
+    state.textContent = code === 'cancelled' ? '멈췄습니다 — 쓰던 부분은 남겨 둡니다' : '';
+    if (code !== 'cancelled') $('#sc-msg').innerHTML = `<div class="note warn">${esc(claudeError(e))}</div>`;
+  } finally {
+    clearInterval(tick); ctl = null; ta.readOnly = false; $('#sc-stop').hidden = true;
+    ['#sc-go', '#sc-fix', '#ti-go'].forEach(id => { $(id).disabled = false; }); updateMeter();
+  }
+}
+$('#sc-go').onclick = () => { if (S.project.script && S.project.script.trim()) { if ($('#sc-go').dataset.armed !== '1') { $('#sc-go').dataset.armed = '1'; $('#sc-go').textContent = '지금 대본을 지우고 새로 쓰기'; setTimeout(() => { $('#sc-go').dataset.armed = ''; $('#sc-go').textContent = 'Claude로 대본 쓰기'; }, 4000); return; } } $('#sc-go').dataset.armed = ''; $('#sc-go').textContent = 'Claude로 대본 쓰기'; runScript('new'); };
+$('#sc-fix').onclick = () => runScript('fix');
+// 챕터 헤더만 넣기: 말하는 문장은 한 글자도 바꾸지 않는다(이미 만든 음성을 그대로 쓸 수 있게) — 바뀌면 쓰지 않는다
+async function runHeads() {
+  if (!claudeOk() || ctl) return;
+  const p = S.project, r = S.meta.rules, wrap = /## 정리/.test(((r.format_rules || {})[p.format]) || '');
+  const items = planItems().map(({ t, order }) => `${order}. ${t.heading} (주제: ${t.name})`);
+  const prompt = ['아래 대본에 챕터 헤더 줄만 넣어라. 말하는 문장은 한 글자도 바꾸거나 빼거나 더하지 않는다(띄어쓰기·문장부호·줄 순서까지 그대로).',
+    `- 주제마다 그 주제 이야기가 시작되는 줄 바로 앞에 \`## heading — 한 줄 요약\`을 넣는다(heading은 아래 목록 그대로, 요약은 그 단락을 20자 안쪽으로). 첫 헤더 앞(콜드 오픈·목차 문장)에는 헤더를 넣지 않는다.`,
+    ...(wrap ? ['- 마지막에 주제들을 묶어 맺는 단락이 시작되는 줄 바로 앞에 `## 정리 — 한 줄 요약`을 넣는다(채널 끝 인사 줄은 그 단락 안에 그대로).'] : []),
+    '- 헤더 줄 앞뒤는 빈 줄. 출력은 대본 텍스트만(설명·코드블록 없이).', '', '주제(순서대로):', ...items, '', '<대본>', p.script, '</대본>'].join('\n');
+  const flat = t => spokenLines(t).join('').replace(/\s+/g, '');
+  ctl = new AbortController(); $('#hd-go').disabled = true; $('#sc-state').innerHTML = spinner('챕터 헤더를 넣는 중…');
+  try {
+    const { text } = await sample(prompt, { modelTier: 'default', cache: false, signal: ctl.signal });
+    const next = normalize(text);
+    if (flat(next) !== flat(p.script)) throw { code: 'changed' };
+    if (missingHeads({ ...p, script: next }).length) throw { code: 'nohead' };
+    p.script = next; $('#script').value = next; queueSave({ script: next }); updateMeter();
+    $('#sc-state').textContent = '챕터 헤더를 넣었습니다 — 말은 그대로라 음성은 다시 만들지 않아도 됩니다';
+  } catch (e) {
+    $('#sc-state').textContent = '';
+    if (e && e.code === 'changed') toast('Claude가 말하는 문장까지 바꿔서 쓰지 않았습니다 — 한 번 더 눌러 주세요', true);
+    else if (e && e.code === 'nohead') toast('헤더가 다 들어가지 않았습니다 — 한 번 더 눌러 주세요', true);
+    else if (e && e.code !== 'cancelled') toast(claudeError(e), true);
+  } finally { ctl = null; updateMeter(); }
+}
+$('#hd-go').onclick = runHeads;
+$('#sc-stop').onclick = () => ctl && ctl.abort();
+$('#ti-go').onclick = async () => {
+  if (!claudeOk() || ctl) return;
+  const p = S.project, r = S.meta.rules;
+  const payload = { format: fmtName(p.format), items: p.topics.map(t => ({ name: t.name, category: t.category, stance: t.stance, points: t.points, articles: t.articles.slice(0, 4).map(a => a.title) })), bundle_link: p.format === 'long' ? (p.link || null) : null,
+    ...(isShorts(p) ? { script_question: endQuestion(p) } : {}) };
+  const prompt = [r.identity, r.plan_task, isShorts(p) ? `세로 쇼츠다: 제목은 25자 안쪽, 썸네일 문구(thumbnail_text)는 영상 내내 화면 위쪽에 떠 있는 상단 제목으로 ${thumbMax(p)}자 이내 — 첫 3초 훅과 같은 결로 핵심 쟁점을 가장 세게. pinned_comment는 시청자 의견을 묻는 고정 댓글 한 문장(40자 안쪽).` : `썸네일 문구는 ${r.thumb_max || 10}자 이내.`, `해시태그 ${fixedTags().join('·')}는 고정이라 따로 붙인다 — hashtags에는 그 밖의 것만.`, `출력: JSON 객체 하나만. 형식: {"titles":["1안","2안","3안"],"thumbnail_text":"…","hashtags":["태그1","태그2"],"link":null 또는 "한 문장"${isShorts(p) ? ',"pinned_comment":"…"' : ''}}`, '', '영상:', JSON.stringify(payload)].join('\n');
+  ctl = new AbortController(); $('#ti-go').disabled = true; $('#ti-state').innerHTML = spinner('만드는 중…');
+  try {
+    const res = await sample.json(prompt, { modelTier: 'default', signal: ctl.signal });
+    const titles = strList(res && res.titles, 3); if (!titles.length) throw { code: 'invalid_json' };
+    const f = { titles: [titles[0] || '', titles[1] || '', titles[2] || ''], thumb: String((res && res.thumbnail_text) || '').trim() || p.thumb,
+      hashtags: cleanTags(strList(res && res.hashtags, 12)) };
+    if (p.format === 'long' && !p.link && res && res.link) f.link = String(res.link).trim();
+    if (isShorts(p) && res && res.pinned_comment) f.pinned_comment = String(res.pinned_comment).trim();
+    queueSave(f); renderScript(); $('#ti-state').textContent = '만들었습니다 — 고쳐 써도 됩니다';
+  } catch (e) { $('#ti-state').textContent = ''; if (e && e.code !== 'cancelled') toast(claudeError(e), true); }
+  finally { ctl = null; $('#ti-go').disabled = false; }
+};
+$('#to-voice').onclick = () => setTab('voice');
+
+/* ---------- 3. 음성 ---------- */
+const SENT_END = /[.?!…]['"”’」』)\]]*$/;
+function narrationText(script) {
+  const paras = [[]]; let cur = [];
+  for (const raw of String(script || '').split('\n')) {
+    const l = raw.trim();
+    if (l.startsWith('## ') || !l) { if (cur.length) { paras[paras.length - 1].push(cur.join(' ')); cur = []; } if (paras[paras.length - 1].length) paras.push([]); continue; }
+    if (l.startsWith('#')) continue;
+    cur.push(l); if (SENT_END.test(l)) { paras[paras.length - 1].push(cur.join(' ')); cur = []; }
+  }
+  if (cur.length) paras[paras.length - 1].push(cur.join(' '));
+  return paras.filter(p => p.length).map(p => p.join(' ')).join('\n\n');
+}
+function copyText(text, label, box) {
+  const fallback = () => { if (box) { box.hidden = false; const t = box.querySelector('textarea'); if (t) { t.value = text; t.focus(); t.select(); } } toast('자동 복사가 막혔습니다. 보이는 글을 직접 복사해 주세요.', true); };
+  try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => toast(label + ' 복사했습니다'), fallback); else fallback(); } catch (e) { fallback(); }
+}
+$('#copy-tts').onclick = () => copyText(narrationText(S.project.script), '타입캐스트용 대본을');
+async function analyzeAudio(file) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) throw new Error('이 브라우저는 음성 분석을 지원하지 않습니다');
+  const ctx = new Ctx();
+  let audio;
+  try { audio = await ctx.decodeAudioData(await file.arrayBuffer()); } finally { try { ctx.close(); } catch (e) { /* 무시 */ } }
+  const sr = audio.sampleRate, n = audio.length, chs = Array.from({ length: audio.numberOfChannels }, (_, i) => audio.getChannelData(i));
+  // 문장 사이 쉼뿐 아니라 쉼표에서 쉬는 짧은 숨(0.15초~)도 잡는다 — 장면·자막 시각을 더 정확히 맞춘다
+  const thr = Math.pow(10, -35 / 20), hop = Math.max(1, Math.round(sr * 0.01)), minSil = 0.15;
+  const silences = [], peaks = []; let start = null;
+  for (let i = 0; i < n; i += hop) {
+    let peak = 0; const end = Math.min(n, i + hop);
+    for (const c of chs) for (let j = i; j < end; j++) { const v = c[j] < 0 ? -c[j] : c[j]; if (v > peak) peak = v; }
+    peaks.push(peak);
+    const t = i / sr;
+    if (peak < thr) { if (start === null) start = t; }
+    else if (start !== null) { if (t - start >= minSil) silences.push([+start.toFixed(3), +t.toFixed(3)]); start = null; }
+  }
+  const dur = n / sr;
+  if (start !== null && dur - start >= minSil) silences.push([+start.toFixed(3), +dur.toFixed(3)]);
+  return { duration: +dur.toFixed(3), silences, peaks, buffer: audio };
+}
+// 음성 인식용으로 작은 webm(Opus 24kbps, 모노)을 만든다 — 10분에 2MB쯤. 작업자가 받아 실제로 들린 말에 자막을 맞춘다.
+// WebCodecs(AudioEncoder)로 압축하고, WebM 상자는 여기서 직접 짠다(오디오 트랙 하나·클러스터·SimpleBlock만).
+const EB = {
+  id: h => Uint8Array.from(h.match(/../g).map(x => parseInt(x, 16))),
+  size(n) { let len = 1; while (len < 8 && n >= 2 ** (7 * len) - 1) len++; const b = new Uint8Array(len); let v = n; for (let i = len - 1; i >= 0; i--) { b[i] = v % 256; v = Math.floor(v / 256); } b[0] |= 1 << (8 - len); return b; },
+  uint(n) { const out = []; let v = n; do { out.unshift(v % 256); v = Math.floor(v / 256); } while (v > 0); return Uint8Array.from(out); },
+  f64(x) { const b = new Uint8Array(8); new DataView(b.buffer).setFloat64(0, x); return b; },
+  str: t => new TextEncoder().encode(t),
+  cat(parts) { const n = parts.reduce((a, p) => a + p.length, 0), out = new Uint8Array(n); let o = 0; for (const p of parts) { out.set(p, o); o += p.length; } return out; },
+  el(hex, ...kids) { const body = EB.cat(kids.flat()); return EB.cat([EB.id(hex), EB.size(body.length), body]); },
+};
+function opusHead(rate, preSkip) {
+  const b = new Uint8Array(19), v = new DataView(b.buffer);
+  b.set(EB.str('OpusHead')); b[8] = 1; b[9] = 1; v.setUint16(10, preSkip, true); v.setUint32(12, rate, true);
+  return b;
+}
+function muxWebm(chunks, head, durMs) {
+  const track = EB.el('AE', EB.el('D7', EB.uint(1)), EB.el('73C5', EB.uint(1)), EB.el('83', EB.uint(2)), EB.el('86', EB.str('A_OPUS')),
+    EB.el('63A2', head), EB.el('56AA', EB.uint(Math.round(new DataView(head.buffer, head.byteOffset).getUint16(10, true) / 48000 * 1e9))),
+    EB.el('56BB', EB.uint(80000000)), EB.el('E1', EB.el('B5', EB.f64(48000)), EB.el('9F', EB.uint(1))));
+  const clusters = [];
+  for (let i = 0; i < chunks.length;) {
+    const t0 = Math.round(chunks[i].ts / 1000), blocks = [];
+    while (i < chunks.length && Math.round(chunks[i].ts / 1000) - t0 < 5000) {
+      const rel = Math.round(chunks[i].ts / 1000) - t0, hd = Uint8Array.from([0x81, (rel >> 8) & 255, rel & 255, 0x80]);
+      blocks.push(EB.el('A3', hd, chunks[i].data)); i++;
+    }
+    clusters.push(EB.el('1F43B675', EB.el('E7', EB.uint(t0)), ...blocks));
+  }
+  const header = EB.el('1A45DFA3', EB.el('4286', EB.uint(1)), EB.el('42F7', EB.uint(1)), EB.el('42F2', EB.uint(4)), EB.el('42F3', EB.uint(8)),
+    EB.el('4282', EB.str('webm')), EB.el('4287', EB.uint(4)), EB.el('4285', EB.uint(2)));
+  const info = EB.el('1549A966', EB.el('2AD7B1', EB.uint(1000000)), EB.el('4D80', EB.str('studio')), EB.el('5741', EB.str('studio')), EB.el('4489', EB.f64(durMs)));
+  return EB.cat([header, EB.el('18538067', info, EB.el('1654AE6B', track), ...clusters)]);
+}
+// hq: 완성 영상에 그대로 쓸 고음질(48kHz·128kbps, 1분에 1MB쯤) — 쇼츠 음성·배경음악
+async function encodeVoice(buffer, hq = false) {
+  if (typeof AudioEncoder === 'undefined' || typeof OfflineAudioContext === 'undefined') throw new Error('이 브라우저는 음성 압축(WebCodecs)을 지원하지 않습니다 — Chrome이나 Edge에서 올려 주세요');
+  const bitrate = hq ? 128000 : 24000;
+  let rate = 0;
+  for (const r of hq ? [48000] : [16000, 48000]) {
+    const cfg = { codec: 'opus', sampleRate: r, numberOfChannels: 1, bitrate };
+    try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) { rate = r; break; } } catch (e) { /* 다음 */ }
+  }
+  if (!rate) throw new Error('이 브라우저는 Opus 압축을 지원하지 않습니다 — Chrome이나 Edge에서 올려 주세요');
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(buffer.duration * rate)), rate);  // 모노로 섞고 표본율 바꾸기
+  const src = off.createBufferSource(); src.buffer = buffer; src.connect(off.destination); src.start();
+  const pcm = (await off.startRendering()).getChannelData(0);
+  const chunks = []; let head = null, fail = null;
+  const enc = new AudioEncoder({
+    output: (c, meta) => {
+      const data = new Uint8Array(c.byteLength); c.copyTo(data); chunks.push({ ts: c.timestamp, data });
+      const d = meta && meta.decoderConfig && meta.decoderConfig.description;
+      if (d && !head) { const b = d instanceof ArrayBuffer ? new Uint8Array(d) : new Uint8Array(d.buffer, d.byteOffset, d.byteLength); if (new TextDecoder().decode(b.slice(0, 8)) === 'OpusHead') head = b.slice(); }
+    },
+    error: e => { fail = e; },
+  });
+  enc.configure({ codec: 'opus', sampleRate: rate, numberOfChannels: 1, bitrate });
+  const step = rate;  // 1초씩
+  for (let i = 0; i < pcm.length; i += step) {
+    const part = pcm.subarray(i, Math.min(pcm.length, i + step));
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: rate, numberOfFrames: part.length, numberOfChannels: 1, timestamp: Math.round(i / rate * 1e6), data: part });
+    enc.encode(ad); ad.close();
+    if (enc.encodeQueueSize > 50) await new Promise(r => setTimeout(r, 0));
+  }
+  await enc.flush(); enc.close();
+  if (fail) throw fail;
+  if (!chunks.length) throw new Error('압축 결과가 비었습니다');
+  return new Blob([muxWebm(chunks, head || opusHead(rate, 312), buffer.duration * 1000)], { type: 'video/webm' });
+}
+function drawWave(peaks, silences, duration) {
+  const cv = $('#wave'); cv.hidden = false;
+  const w = cv.width = Math.max(300, Math.round(cv.clientWidth * (window.devicePixelRatio || 1))), h = cv.height = 72 * (window.devicePixelRatio || 1);
+  const g = cv.getContext('2d'), css = getComputedStyle(document.documentElement);
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = css.getPropertyValue('--warn-soft').trim() || '#f8edd5';
+  for (const [a, b] of silences) g.fillRect(a / duration * w, 0, Math.max(1, (b - a) / duration * w), h);
+  g.fillStyle = css.getPropertyValue('--accent').trim() || '#2c6a4d';
+  const step = peaks.length / w;
+  for (let x = 0; x < w; x++) { let m = 0; for (let k = Math.floor(x * step); k < Math.floor((x + 1) * step); k++) m = Math.max(m, peaks[k] || 0); const y = Math.min(1, m) * h * 0.46; g.fillRect(x, h / 2 - y, 1, Math.max(1, y * 2)); }
+}
+async function onAudio(file) {
+  if (!file || !S.project) return;
+  $('#audio-state').innerHTML = spinner('음성을 분석하는 중…');
+  try {
+    const r = await analyzeAudio(file);
+    const chars = spokenLines(S.project.script).reduce((n, l) => n + [...l].length, 0);
+    const cpm = r.duration ? Math.round(chars / (r.duration / 60)) : 0;
+    const ext = (file.name.match(/\.[a-z0-9]+$/i) || ['.wav'])[0].toLowerCase();
+    S.audioFile = file;
+    const audio = { name: file.name, ext, size: file.size, duration: r.duration, silences: r.silences, cpm, chars, analyzed_at: new Date().toISOString() };
+    drawWave(r.peaks, r.silences, r.duration);
+    // 자막을 실제로 들린 말에 맞추도록 작은 webm으로 압축해 올린다(작업자가 음성 인식에 쓴다). 실패해도 쉼 분석값은 쓴다.
+    const old = S.project.audio && S.project.audio.asset_id;
+    let upNote = '';
+    if (assets) {
+      // 쇼츠는 완성 영상에 이 음성을 그대로 쓰므로 고음질로 올린다(음성 인식에도 그대로 쓴다)
+      const hq = isShorts(S.project);
+      $('#audio-state').innerHTML = spinner(hq ? '완성 영상용 고음질로 압축해 올리는 중…' : '음성 인식용으로 압축해 올리는 중…');
+      try {
+        const up = await assets.upload(await encodeVoice(r.buffer, hq), { type: 'video/webm' });
+        audio.asset_id = up.id; audio.asset_bytes = up.sizeBytes; audio.hq = hq;
+      } catch (e) { audio.asset_id = null; upNote = `음성을 올리지 못해 쉼만으로 맞춥니다(${esc(upErr(e))}).`; }
+    } else { audio.asset_id = null; upNote = '이 화면에서는 음성을 올릴 수 없어 쉼만으로 맞춥니다(편집 권한이 있는 계정으로 열어 주세요).'; }
+    S.project.audio = audio;
+    await db.doc(`${COL('projects')}/${S.project.id}`).update({ audio, status: 'voice' });
+    if (old && old !== audio.asset_id && assets) assets.delete(old).catch(() => {});
+    $('#audio-state').innerHTML = audio.asset_id
+      ? `<div class="note info">분석 끝 — 쉼 ${r.silences.length}곳. ${audio.hq ? '완성 영상용 고음질' : '음성 인식용'} 파일(${(audio.asset_bytes / 1048576).toFixed(1)}MB)도 올렸습니다. 자료를 모을 때 작업자가 음성을 듣고 자막 시각을 실제 말에 맞춥니다.</div>`
+      : `<div class="note warn">분석 끝 — 쉼 ${r.silences.length}곳. ${upNote}</div>`;
+    renderVoice(); renderTabs();
+  } catch (e) {
+    $('#audio-state').innerHTML = `<div class="note bad">음성을 읽지 못했습니다(${esc(e.message || e.code || '알 수 없음')}). mp3나 wav 파일인지 확인해 주세요.</div>`;
+  }
+}
+$('#audio').addEventListener('change', e => { onAudio(e.target.files[0]); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => onAudio(e.dataTransfer && e.dataTransfer.files[0]));
+function renderVoice() {
+  const p = S.project; if (!p) return;
+  const tts = narrationText(p.script);
+  $('#tts').textContent = tts || '대본이 아직 없습니다.';
+  $('#tts-n').textContent = tts ? `${tts.replace(/\s/g, '').length.toLocaleString()}자(공백 빼고)` : '';
+  $('#copy-tts').disabled = !tts;
+  fillTc(p); $('#tc-go').disabled = !tts;
+  watchRequest('voice', p.voice_request_id || null);
+  renderVoiceStale();
+  const a = p.audio;
+  // 올린 음성(타입캐스트로 만든 것 포함) 바로 듣기 — 바뀔 때만 다시 그려 듣는 중에 끊기지 않게
+  const play = $('#audio-play'), aid = (a && a.asset_id) || '';
+  if (play.dataset.id !== aid) {
+    play.dataset.id = aid;
+    play.innerHTML = aid ? `<span class="small"><b>음성 듣기</b></span><audio controls preload="none" src="/_blob/${esc(aid)}"></audio>` : '';
+  }
+  if (!a) { $('#audio-facts').innerHTML = ''; return; }
+  const target = S.meta ? S.meta.formats[p.format].minutes * 60 : 0;
+  $('#audio-facts').innerHTML = `<div class="fact"><div class="k">파일</div><div class="v" style="font-size:14px;overflow-wrap:anywhere">${esc(a.name)}</div></div>
+    <div class="fact"><div class="k">길이</div><div class="v">${fmtSec(a.duration)}</div></div>
+    <div class="fact"><div class="k">목표 길이</div><div class="v">${fmtSec(target)}</div></div>
+    <div class="fact"><div class="k">실제 분당 글자</div><div class="v">${a.cpm}자</div></div>
+    <div class="fact"><div class="k">문장 사이 쉼</div><div class="v">${a.silences.length}곳</div></div>
+    <div class="fact"><div class="k">음성 인식</div><div class="v" style="font-size:14px">${a.source === 'typecast' ? `타입캐스트 ${esc(a.voice || '')} · 속도 ${esc(String(a.tempo || 1))} — 받은 낱말 시각으로 맞춤` : a.asset_id ? '올림 — 들린 말에 맞춤' : '안 올림 — 쉼만으로 맞춤'}</div></div>`;
+  if (!S.audioFile && !$('#audio-state').innerHTML) $('#audio-state').innerHTML = a.source === 'typecast' ? '<div class="small muted">타입캐스트로 만든 음성입니다. 자료를 모을 때 받은 낱말 시각으로 자막·장면을 맞춥니다.</div>' : a.asset_id ? '<div class="small muted">분석값과 음성 인식용 파일이 저장돼 있습니다.</div>' : '<div class="small muted">분석값은 저장돼 있지만 음성 인식용 파일은 없습니다. 자막을 들린 말에 맞추려면 음성 파일을 다시 올려 주세요.</div>';
+}
+$('#to-sources').onclick = () => setTab('sources');
+
+/* 음성이 지금 대본을 읽은 것인가: 타입캐스트 음성은 받은 낱말(words)을 이으면 읽은 글이 그대로 나온다 — 띄어쓰기·줄바꿈·챕터 헤더는
+   견주지 않는다(헤더만 넣으면 말은 같다). 직접 올린 음성은 올릴 때 센 글자 수로 견준다 */
+const bare = t => String(t || '').replace(/\s+/g, '');
+function voiceStale(p) {
+  if (!p || !p.audio || !(p.script || '').trim()) return false;
+  const a = p.audio;
+  if (a.source === 'typecast' && Array.isArray(a.words) && a.words.length) return bare(a.words.map(w => w[0]).join('')) !== bare(narrationText(p.script));
+  return !!a.chars && a.chars !== spokenLines(p.script).reduce((n, l) => n + [...l].length, 0);
+}
+function renderVoiceStale() {
+  const p = S.project, stale = voiceStale(p), busy = reqBusy(reqWatch.voice.doc);
+  const msg = !stale ? '' : busy ? `<div class="note info">${spinner('고친 대본으로 음성을 다시 만드는 중… 다 되면 자료를 다시 모아 주세요')}</div>` : `<div class="note warn"><b class="t">대본이 음성을 만든 뒤에 바뀌었습니다</b>지금 음성은 예전 대본을 읽은 것입니다. ${p.audio && p.audio.source === 'typecast' ? '<b>[고친 대본으로 음성 다시 만들기]</b>를 누르면 같은 목소리·속도로 다시 읽습니다.' : '음성을 다시 만들어 올려 주세요.'}</div>`;
+  $('#voice-stale').innerHTML = msg; $('#voice-stale2').innerHTML = msg;
+  $('#sc-revoice').hidden = !stale || busy;
+  $('#tc-go').textContent = p && p.audio ? (stale ? '고친 대본으로 음성 다시 만들기' : '음성 다시 만들기') : '타입캐스트로 음성 만들기';
+  $('#to-script').hidden = !(p && p.audio);
+  // 음성 읽기 검수(작업자가 음성을 다시 듣고 대조 — 고칠 수 있는 건 고쳐서 올리고, 남은 것만 여기)
+  const rd = !stale && p && p.audio && p.audio.reading, left = (rd && rd.issues) || [];
+  const KIND = { reading_symbol: '기호를 잘못 읽음', reading_number: '숫자를 잘못 읽음', reading_skip: '건너뛰고 읽음', reading_repeat: '두 번 읽음' };
+  $('#audio-reading').innerHTML = left.length ? `<div class="note warn"><b class="t">음성이 잘못 읽었을 수 있는 곳 ${left.length}곳</b><ul>${left.map(i => `<li><b>${mmss(i.at)}</b> ${esc(KIND[i.kind] || i.kind)} — ${esc(i.word || '')}${i.heard ? ` <span class="muted">(들린 말: ${esc(i.heard)})</span>` : ''}</li>`).join('')}</ul>대본에서 그 표기를 말로 풀어 쓰고 [고친 대본으로 음성 다시 만들기]를 눌러 주세요.</div>`
+    : rd && rd.checked ? '<div class="small muted">음성 읽기 검수: 숫자·기호를 대본대로 읽었고 건너뛴 문장이 없습니다.</div>' : '';
+}
+// 작업자가 맡았거나 맡을 요청(못 보낸 요청은 아직 아무도 안 하므로 빼고)
+const reqBusy = d => !!d && (d.status === 'working' || (d.status === 'queued' && d.sent_to_worker !== false));
+/* 타입캐스트로 음성 만들기: 작업자가 API로 읽어 음성(과 낱말 시각)을 올리고 projects/<ID>.audio에 쓴다 */
+function tcSettings() { const v = ls.get(lsk('tc_voice'), {}); return v && typeof v === 'object' ? v : {}; }
+// 목소리 칸은 프로젝트를 열 때 한 번 채운다 — 타입캐스트로 만든 음성이 있으면 그 목소리·속도·쉼(다시 만들어도 똑같이 읽게),
+// 없으면 지난번에 쓴 값. 그 뒤 사용자가 고친 값은 그대로 둔다
+function fillTc(p) {
+  const el = $('#tc-voice');
+  if (!p || el.dataset.pid === p.id) return;
+  el.dataset.pid = p.id;
+  const a = p.audio && p.audio.source === 'typecast' ? p.audio : null;
+  const v = a ? { name: a.voice, tempo: a.tempo, remove_silence_ms: a.remove_silence_ms } : tcSettings();
+  el.value = v.name || '';
+  $('#tc-tempo').value = v.tempo || 1;
+  $('#tc-silence').value = v.remove_silence_ms == null ? '' : String(v.remove_silence_ms);
+}
+// btn: 누른 버튼(대본 탭의 [고친 대본으로 음성 다시 만들기]도 같은 요청 — 목소리·속도·쉼은 음성 탭 칸의 값)
+async function requestVoice(btn) {
+  const p = S.project;
+  if (!p || !narrationText(p.script)) { toast('대본이 아직 없습니다.', true); return; }
+  if (!headGuard(p)) return;
+  fillTc(p);
+  const tempo = Math.min(2, Math.max(0.5, parseFloat($('#tc-tempo').value) || 1));
+  const sil = $('#tc-silence').value;
+  const voice = { name: $('#tc-voice').value.trim(), tempo, remove_silence_ms: sil === '' ? null : Number(sil) };
+  if (SHORT && !voice.name) { toast(`목소리 이름을 적어 주세요(타입캐스트 목소리 이름 — ${CHANNELS[CH].name}는 기본 목소리 없이 직접 고릅니다).`, true); setTab('voice'); $('#tc-voice').focus(); return; }
+  ls.set(lsk('tc_voice'), voice);
+  // 고친 대본을 먼저 저장 — 작업자는 저장된 대본을 읽는다
+  // 저장이 안 되면 맡기지 않는다(예전 대본을 다시 읽게 된다)
+  if (pendingSave) {
+    clearTimeout(saveTimer);
+    try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); $('#save-state').textContent = '저장됨'; }
+    catch (e) { toast('고친 대본을 저장하지 못했습니다 — 잠시 뒤 다시 눌러 주세요.', true); return; }
+    pendingSave = false;
+  }
+  btn.disabled = true;
+  const r = await requestWork('voice', btn, { voice });
+  btn.disabled = false;
+  if (!r) return;
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ voice_request_id: r.rid }); } catch (e) { /* 무시 */ }
+  watchRequest('voice', r.rid);
+  if (S.tab !== 'voice') setTab('voice');  // 진행 상황(과 못 보냈을 때 붙여 넣을 글)은 음성 탭에 뜬다
+  if (!r.sent) fallbackBox($('#tc-fallback'), r); else { $('#tc-fallback').hidden = true; toast('작업자에게 음성 만들기를 맡겼습니다 — 다 되면 자료도 다시 모아 주세요'); }
+}
+$('#tc-go').onclick = () => requestVoice($('#tc-go'));
+$('#sc-revoice').onclick = () => requestVoice($('#sc-revoice'));
+$('#to-script').onclick = () => { setTab('script'); $('#script').focus(); };
+function renderVoiceReq() {
+  $('#tc-state').innerHTML = reqLabel(reqWatch.voice.doc);
+  if (S.project) renderVoiceStale();
+}
+
+/* ---------- 4. 자료·XML(클라우드 작업자) ---------- */
+const reqWatch = { collect: { id: null, un: null, doc: null }, sources: { id: null, un: null, doc: null }, voice: { id: null, un: null, doc: null }, render: { id: null, un: null, doc: null } };
+const renderSlot = slot => (slot === 'collect' ? renderCollect : slot === 'voice' ? renderVoiceReq : slot === 'render' ? renderFinal : renderReq)();
+function watchRequest(slot, rid) {
+  const w = reqWatch[slot];
+  if (w.id === rid) return;
+  if (w.un) { w.un(); w.un = null; }
+  w.id = rid; w.doc = null;
+  if (!rid || !db) { renderSlot(slot); return; }
+  w.un = db.doc(`requests/${rid}`).onSnapshot(s => { w.doc = s.exists ? { id: rid, ...s.data() } : null; renderSlot(slot); }, () => {});
+}
+function workerMessage(rid, kind, extra = {}) {
+  const w = S.worker || {};
+  return [`[studio 제작실 요청] ${rid} · ${({ collect: '수집', voice: '음성(타입캐스트)', render: '완성 영상(mp4)' })[kind] || '자료·timeline.xml'}`,
+    `아티팩트: ${w.artifact_url || '(제작실)'}`, `요청 문서: requests/${rid}`, CH !== 'politics' ? `채널: ${CH} (channel.${CH}.yaml, 데이터는 ${COL('raw')}·${COL('topics')}·${COL('projects')})` : '',
+    S.project && kind !== 'collect' ? `프로젝트: ${COL('projects')}/${S.project.id}` : '',
+    S.project && kind === 'sources' && isShorts(S.project) ? '형식: 세로 쇼츠(1080×1920 — sources가 format을 보고 세로로 만듦)' : '',
+    kind === 'render' ? `배경음악: ${S.bgmOwn ? BGM_DOC : 'config/bgm'}` : '',
+    kind === 'render' && extra.en_subs ? '영어 자막: 넣음(한국어 자막 아래 작게 — en-lines로 옮겨 render --en)' : '',
+    '처리 절차: 저장소 docs/workroom.md'].filter(Boolean).join('\n');
+}
+// 작업자 깨우기: 이 아티팩트 댓글을 "Claude에게 보내기"로 남기면, 제작실을 지켜보는 작업자 대화가 깨어난다.
+const SEND_WHY = {
+  writers_only: '편집 권한이 있는 계정에서만 보낼 수 있습니다',
+  no_session: '받을 작업자 대화가 지금 없습니다',
+  off: '이 화면에서는 Claude에게 보내기가 꺼져 있습니다',
+  consent_required: '댓글 허용 창에서 [허용]을 눌러야 보낼 수 있습니다',
+  forbidden: '이 화면에서 댓글 쓰기가 꺼져 있습니다',
+  claude_unavailable: '지금은 Claude에게 보낼 수 없습니다',
+  rate_limited: '너무 자주 보냈습니다 — 잠시 뒤 다시',
+  no_comments: '이 화면에서는 댓글 기능을 쓸 수 없습니다',
+};
+async function refreshSend() {
+  let v = 'no_comments';
+  if (comments && typeof comments.canSendToClaude === 'function') { try { v = await comments.canSendToClaude(); } catch (e) { v = (e && e.code) || 'claude_unavailable'; } }
+  S.canSend = v; renderStatus();
+}
+async function requestWork(kind, el, extra = {}) {
+  if (!db) { toast('저장소를 쓸 수 없는 화면입니다.', true); return null; }
+  const k = kst(), rid = `${k.y}${k.mo}${k.d}-${k.h}${k.mi}-${kind}-${Math.random().toString(36).slice(2, 6)}`;
+  const doc = { kind, status: 'queued', created_at: new Date().toISOString(), project: kind === 'collect' ? null : S.project.id, note: '', channel: CH, ...extra };
+  const msg = workerMessage(rid, kind, extra);
+  // 누른 직후에만 보낼 수 있어서, 요청 문서 저장과 보내기를 함께 시작한다(작업자는 깨어난 뒤 문서를 읽는다).
+  let why = 'no_comments', send = null;
+  if (comments && typeof comments.sendToClaude === 'function') {
+    try { why = await comments.canSendToClaude(); } catch (e) { why = (e && e.code) || 'claude_unavailable'; }
+    if (why === 'available') send = comments.anchorFor(el).then(anchor => comments.sendToClaude({ anchor, text: msg }));
+  }
+  const save = db.doc(`requests/${rid}`).set(doc);
+  const [saved, sentR] = await Promise.allSettled([save, send || Promise.reject({ code: why })]);
+  if (saved.status === 'rejected') { toast('요청을 저장하지 못했습니다: ' + ((saved.reason && saved.reason.code) || ''), true); return null; }
+  const sent = sentR.status === 'fulfilled';
+  if (!sent) why = (sentR.reason && sentR.reason.code) || why;
+  try { await db.doc(`requests/${rid}`).update({ sent_to_worker: sent, ...(sent ? { thread_id: sentR.value.threadId } : {}) }); } catch (e) { /* 무시 */ }
+  refreshSend();
+  return { rid, sent, why: sent ? '' : (SEND_WHY[why] || why), msg };
+}
+function fallbackBox(el, r) {
+  const w = S.worker || {};
+  el.hidden = false;
+  el.innerHTML = pollMin() ? `<div class="note info"><b class="t">요청을 남겼습니다 — 작업자가 ${pollMin()}분 안에 가져갑니다${esc(pollHours())}</b>바로 시작하려면 아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으세요.</div>
+    <textarea readonly spellcheck="false">${esc(r.msg)}</textarea><div><button class="btn small" type="button">복사</button></div>` : `<div class="note warn"><b class="t">작업자에게 자동으로 보내지 못했습니다${r.why ? ` — ${esc(r.why)}` : ''}</b>아래 글을 복사해 Claude Code 대화${w.session_url ? `(<a href="${esc(w.session_url)}" target="_blank" rel="noopener">작업자 대화 열기</a>)` : ''}에 붙여 넣으면 처리합니다.</div>
+    <textarea readonly spellcheck="false">${esc(r.msg)}</textarea><div><button class="btn small" type="button">복사</button></div>`;
+  el.querySelector('button').onclick = () => copyText(r.msg, '요청 글을', null);
+}
+$('#collect').onclick = async () => {
+  $('#collect').disabled = true;
+  const r = await requestWork('collect', $('#collect'));
+  $('#collect').disabled = false;
+  if (!r) return;
+  ls.set(lsk('collect_req'), r.rid); watchRequest('collect', r.rid);
+  if (!r.sent) fallbackBox($('#collect-state'), r); else { $('#collect-state').innerHTML = ''; toast('작업자에게 수집을 맡겼습니다'); }
+  renderCollect();
+};
+// 작업자가 요청 문서를 몇 분마다 직접 확인하는 제작실(config/worker의 poll_minutes — 댓글로 깨울 수 없는 클라우드 세션)
+function pollMin() { return Number((S.worker || {}).poll_minutes) || 0; }
+function pollHours() { return (S.worker || {}).poll_hours ? ` · ${(S.worker || {}).poll_hours}` : ''; }
+const reqLabel = r => !r ? '' : r.status === 'queued' ? (r.sent_to_worker === false ? (pollMin() ? `작업자 대기 — ${pollMin()}분 안에 가져갑니다${pollHours()}` : '작업자 대기 — 아래 글을 대화에 보내 주세요') : '작업자에게 보냈습니다 — 곧 시작합니다')
+  : r.status === 'working' ? `작업 중… ${esc(r.note || '')}` : r.status === 'done' ? `끝 · ${esc(r.note || '')}` : `실패: ${esc(r.error || r.note || '알 수 없음')}`;
+function renderCollect() {
+  const r = reqWatch.collect.doc;
+  if (!r) return;
+  const el = $('#collect-state');
+  if (r.status === 'done' || r.status === 'error') { if (r.status === 'done') el.innerHTML = ''; else el.innerHTML = `<div class="note bad">${reqLabel(r)}</div>`; return; }
+  if (r.sent_to_worker === false && !el.querySelector('textarea')) return;
+  if (!el.querySelector('textarea')) el.innerHTML = `<div class="note info">${r.status === 'working' ? spinner('작업자가 모으는 중… ' + (r.note || '')) : esc(reqLabel(r))}</div>`;
+}
+function renderReq() {
+  const r = reqWatch.sources.doc;
+  if (!r || !S.project || r.project !== S.project.id) { $('#req-state').textContent = ''; return; }
+  $('#req-state').innerHTML = r.status === 'working' ? spinner('작업자가 자료를 모으는 중… ' + (r.note || '')) : reqLabel(r);
+  $('#req-state').style.color = r.status === 'error' ? 'var(--bad)' : '';
+}
+// 작업자가 남긴 옛 자산(result.cleanup: 지난번 결과에서 이번에 안 쓰게 된 사진·timeline·자막)을 이 화면이 지운다.
+// 작업자가 하나씩 지우면 수백 번 호출이라 10분 넘게 걸려서, 사용자가 이 프로젝트에서 버튼을 누를 때 여기서 한꺼번에 지운다.
+// 지금 어느 프로젝트(불러온 목록)도 가리키지 않는 ID만 지운다.
+let sweeping = false;
+async function sweepAssets(p) {
+  const r = p && p.result;
+  if (sweeping || !assets || !db || !r || !Array.isArray(r.cleanup) || !r.cleanup.length) return;
+  sweeping = true;
+  try {
+    const keep = new Set();
+    for (const x of [p, ...S.projects]) {
+      const xr = x.result || {};
+      (xr.files || []).forEach(f => keep.add(f.id)); keep.add(xr.timeline_id); keep.add(xr.srt_id); keep.add(x.audio && x.audio.asset_id);
+      keep.add(x.render && x.render.asset_id);
+    }
+    keep.add(S.bgm && S.bgm.asset_id); keep.add(S.bgmCommon && S.bgmCommon.asset_id);
+    const ids = r.cleanup.filter(id => id && !keep.has(id));
+    for (let i = 0; i < ids.length; i += 6) {
+      for (let tryNo = 0; ; tryNo++) {
+        const res = await Promise.allSettled(ids.slice(i, i + 6).map(id => assets.delete(id)));
+        const bad = res.find(x => x.status === 'rejected');
+        if (!bad) break;
+        // 잠깐 막힘(store_unavailable)은 한 번만 다시, 그 밖(권한 등)은 그만두고 다음 버튼 때 다시
+        if (tryNo || !bad.reason || bad.reason.code !== 'store_unavailable') return;
+        await new Promise(ok => setTimeout(ok, 1500));
+      }
+    }
+    await db.doc(`${COL('projects')}/${p.id}`).update({ result: { cleanup: [] } });
+    if (S.project && S.project.id === p.id && S.project.result) S.project.result.cleanup = [];
+  } catch (e) { /* 다음에 다시 */ } finally { sweeping = false; }
+}
+$('#src-go').onclick = async () => {
+  const p = S.project;
+  sweepAssets(p);
+  if (!p.script || !spokenLines(p.script).length) { toast('대본을 먼저 써 주세요', true); return; }
+  if (!headGuard(p)) return;
+  if (isShorts(p) && !String(p.thumb || '').trim()) { toast('상단 제목을 먼저 써 주세요 — 세로 쇼츠는 이 문구가 영상 내내 위쪽에 뜹니다', true); setTab('script'); $('#thumb').focus(); return; }
+  if (pendingSave) { clearTimeout(saveTimer); try { await db.doc(`${COL('projects')}/${p.id}`).update(savedFields(p)); } catch (e) { /* 다음에 */ } pendingSave = false; }
+  $('#src-go').disabled = true;
+  const r = await requestWork('sources', $('#src-go'));
+  $('#src-go').disabled = false;
+  if (!r) return;
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ request_id: r.rid, status: 'requested' }); } catch (e) { /* 무시 */ }
+  watchRequest('sources', r.rid);
+  if (!r.sent) fallbackBox($('#fallback'), r); else { $('#fallback').hidden = true; toast('작업자에게 자료 모으기를 맡겼습니다'); }
+};
+function renderSources() {
+  const p = S.project; if (!p) return;
+  const ready = [];
+  if (!p.script || !spokenLines(p.script).length) ready.push('대본이 아직 없습니다 — 2단계에서 써 주세요');
+  const tall = isShorts(p) ? `<div class="note ${(p.thumb || '').trim() ? 'info' : 'warn'}"><b class="t">세로 쇼츠 — timeline.xml을 세로(1080×1920)로 만듭니다</b>
+      <span class="small">사진은 가운데 칸에 크게, 바탕은 같은 사진을 흐리게 깔고, 위쪽에 상단 제목(${(p.thumb || '').trim() ? `'${esc(p.thumb.trim())}'` : '<b>비어 있음 — 2단계 대본 칸의 상단 제목을 먼저 채워 주세요</b>'})이 영상 내내 뜹니다. 자막.srt는 한 줄 14자 안팎이고, 프리미어에서 사진 칸 바로 아래(화면 4분의 3 높이)에 두면 쇼츠 버튼에 가리지 않습니다.</span></div>` : '';
+  // 음성을 다시 만들었으면 그 전에 모은 자료·완성 영상은 예전 음성에 맞춘 것
+  const at = x => { const t = Date.parse(x || ''); return Number.isNaN(t) ? 0 : t; };
+  const va = p.audio ? at(p.audio.analyzed_at) : 0;
+  const oldRes = p.result && va && at(p.result.made_at) && at(p.result.made_at) < va;
+  const oldFin = p.render && va && at(p.render.made_at) && at(p.render.made_at) < va;
+  const redo = voiceStale(p) ? '<div class="note warn"><b class="t">대본이 음성을 만든 뒤에 바뀌었습니다</b>3단계에서 음성을 먼저 다시 만들고 자료를 모아 주세요.</div>'
+    : oldRes ? `<div class="note warn"><b class="t">음성을 다시 만들었습니다</b>지금 자료는 예전 음성에 맞춘 것이라 <b>[자료 다시 모으기]</b>를 눌러 주세요${oldFin ? ' — 그다음 완성 영상도 다시 만들어 주세요' : ''}.</div>` : '';
+  const purged = p.purged && !p.result ? `<div class="note info"><b class="t">저장 공간을 비우면서 이 프로젝트의 사진·영상 자료를 지웠습니다(${esc(when(p.purged.at))})</b>대본·음성${p.render && p.render.asset_id ? '·완성 영상' : ''}은 그대로입니다. 다시 쓰려면 아래 버튼으로 자료를 다시 모으세요.</div>` : '';
+  $('#src-ready').innerHTML = (ready.length ? `<div class="note warn"><ul>${ready.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '') + redo + purged + tall;
+  $('#src-go').disabled = !!ready.length;
+  $('#src-go').textContent = p.result ? '자료 다시 모으기' : '자료 모으고 timeline.xml 만들기';
+  if (p.request_id) watchRequest('sources', p.request_id); else renderReq();
+  renderResult();
+  if (p.render_request_id) watchRequest('render', p.render_request_id);
+  renderFinal();
+}
+/* ---------- 완성 영상(mp4) — 쇼츠만 ---------- */
+const swept = new Set();  // 이미 지운 지난 완성본
+function renderFinal() {
+  const p = S.project, box = $('#final');
+  if (!box) return;
+  if (!p || !isShorts(p)) { box.hidden = true; return; }
+  box.hidden = false;
+  const a = p.audio || {}, fin = p.render;
+  const bgm = S.bgm;
+  const bgmEl = $('#final-bgm');
+  if (bgmEl.dataset.id !== String((bgm && bgm.asset_id) || '')) {  // 듣는 중에 다시 그려 끊기지 않게, 바뀔 때만
+    bgmEl.dataset.id = (bgm && bgm.asset_id) || '';
+    bgmEl.innerHTML = bgm && bgm.asset_id ? `<audio controls preload="none" src="/_blob/${esc(bgm.asset_id)}"></audio> <span class="small muted">${esc(bgm.name || '')}</span>` : '<span class="small muted">없음 — 배경음악 없이 만듭니다</span>';
+  }
+  $('#bgm-label').textContent = bgm && bgm.asset_id ? '바꾸기' : '올리기';
+  const need = !p.result ? '자료를 먼저 모아 주세요(위 버튼).' : !a.asset_id ? '음성을 먼저 올리거나 타입캐스트로 만들어 주세요(3단계).' : '';
+  const lowq = a.asset_id && a.source !== 'typecast' && !a.hq;
+  $('#final-notes').innerHTML = (need ? `<div class="note warn">${esc(need)}</div>` : '')
+    + (lowq ? '<div class="note warn">이 음성은 음성 인식용 저음질(24kbps)로 올라가 있습니다. 완성 영상 소리를 좋게 하려면 3단계에서 음성 파일을 한 번 더 올려 주세요(쇼츠는 이제 고음질로 올립니다).</div>' : '');
+  const r = reqWatch.render.doc && reqWatch.render.doc.project === p.id ? reqWatch.render.doc : null;
+  const busy = !!r && (r.status === 'queued' || r.status === 'working');
+  $('#final-go').disabled = !!need || busy;
+  $('#final-go').textContent = fin && fin.asset_id ? '완성 영상 다시 만들기' : '완성 영상 만들기';
+  const en = $('#final-en');
+  if (en.dataset.pid !== p.id) { en.dataset.pid = p.id; en.checked = !!p.en_subs; }  // 프로젝트마다 지난 선택
+  en.disabled = busy;
+  $('#final-state').innerHTML = r ? (r.status === 'working' ? spinner('작업자가 영상을 만드는 중… ' + (r.note || '')) : reqLabel(r)) : '';
+  $('#final-state').style.color = r && r.status === 'error' ? 'var(--bad)' : '';
+  const vid = $('#final-video');
+  if (vid.dataset.id !== String((fin && fin.asset_id) || '')) {
+    vid.dataset.id = (fin && fin.asset_id) || '';
+    vid.innerHTML = fin && fin.asset_id ? `<video controls playsinline preload="metadata" src="/_blob/${esc(fin.asset_id)}"></video>
+      <div class="small muted">${fmtSec(fin.duration || 0)} · ${((fin.size || 0) / 1048576).toFixed(1)}MB · ${esc(when(fin.made_at))}${fin.english ? ' · 영어 자막 있음' : ''}</div>
+      <div class="row"><button class="btn" id="final-dl" type="button">mp4 받기</button>${fin.en_srt_id ? '<button class="btn" id="final-en-dl" type="button">영어 자막(srt) 받기</button>' : ''}<span id="final-dl-state" class="small"></span></div>` : '';
+    if (fin && fin.asset_id) $('#final-dl').onclick = () => saveFinal(p, fin);
+    if (fin && fin.en_srt_id) $('#final-en-dl').onclick = () => saveFinal(p, fin, fin.en_srt_id, `${p.id}.en.srt`);
+  }
+  renderQa(fin);
+  // 다시 만들면 작업자가 지난 완성본 ID를 replaced에 남긴다 — 여기서 지운다
+  if (fin && fin.replaced && fin.replaced !== fin.asset_id && assets && db && !swept.has(fin.replaced)) {
+    swept.add(fin.replaced);
+    assets.delete(fin.replaced).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced: null } }).catch(() => {}));
+  }
+  const oldSheet = fin && fin.replaced_sheet, sheet = fin && fin.qa && fin.qa.sheet_id;
+  if (oldSheet && oldSheet !== sheet && assets && db && !swept.has(oldSheet)) {
+    swept.add(oldSheet);
+    assets.delete(oldSheet).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced_sheet: null } }).catch(() => {}));
+  }
+  const oldEn = fin && fin.replaced_en;
+  if (oldEn && oldEn !== fin.en_srt_id && assets && db && !swept.has(oldEn)) {
+    swept.add(oldEn);
+    assets.delete(oldEn).catch(() => {}).finally(() => db.doc(`${COL('projects')}/${p.id}`).update({ render: { replaced_en: null } }).catch(() => {}));
+  }
+}
+// 롱폼 자동 검수(자료를 모을 때): 어색하게 넘어가는 자막은 앞뒤와 이어 다시 나눠 timeline.xml에 넣었다
+function qaLong(q) {
+  const fixed = q.fixed || [], left = q.issues || [];
+  const li = i => `<li><b>${mmss(i.at)}</b> ${esc(i.label)}${i.what ? ` — <span class="muted">${esc(i.what)}</span>` : ''}</li>`;
+  if (left.length) return `<div class="note warn"><b class="t">자막 확인할 곳 ${left.length}곳</b><ul>${left.map(li).join('')}</ul>${fixed.length ? `<div class="small muted">${fixed.length}곳은 고쳐서 넣었습니다.</div>` : ''}</div>`;
+  return `<div class="small muted">자동 검수 통과${fixed.length ? ` — 자막 ${fixed.length}곳 고쳐서 넣었습니다` : ''} (자막 끊김·짧게 스침·긴 줄).</div>`;
+}
+/* 자동 검수: 작업자가 렌더 전후로 스스로 검사해 고칠 수 있는 것(자막 끊김·문서 캡처·워터마크 사진·음량)은 고쳐서 제출한다.
+   화면에는 고친 것과, 고치지 못해 남은 것(있으면)만 — 1초 간격 장면 모음(남은 곳은 빨간 테두리)과 함께 */
+function renderQa(fin) {
+  const box = $('#final-qa'), q = fin && fin.asset_id && fin.qa;
+  const key = q ? JSON.stringify([fin.asset_id, q.sheet_id || '', (q.issues || []).length, (q.fixed || []).length]) : '';
+  if (box.dataset.key === key) return;  // 펼쳐 둔 장면 모음이 다시 그려져 닫히지 않게
+  box.dataset.key = key;
+  if (!q) { box.innerHTML = ''; return; }
+  const issues = q.issues || [], fixed = q.fixed || [];
+  const li = i => `<li><b>${mmss(i.at)}</b> ${esc(i.label)}${i.what ? ` — <span class="muted">${esc(i.what)}</span>` : ''}</li>`;
+  const loud = q.lufs != null ? ` · 음량 ${Number(q.lufs).toFixed(1)} LUFS` : '';
+  const fixNote = fixed.length ? `<details class="small"><summary>제출 전에 ${fixed.length}곳 고쳤습니다</summary><ul>${fixed.map(li).join('')}</ul></details>` : '';
+  const head = q.ok === null ? `<div class="note warn"><b class="t">자동 검수를 못 했습니다</b>${esc(q.error || '')}</div>`
+    : issues.length ? `<div class="note warn"><b class="t">고치지 못한 곳 ${issues.length}곳 — 확인해 주세요</b><ul>${issues.map(li).join('')}</ul>${fixNote}</div>`
+    : `<div class="note info"><b class="t">자동 검수 통과${fixed.length ? ` — ${fixed.length}곳 고쳐서 제출` : ''}</b>자막 끊김·문서 캡처·워터마크 사진·검은 화면·소리 끊김·음량을 봤습니다${esc(loud)}.${fixNote}</div>`;
+  box.innerHTML = head + (q.sheet_id ? `<details${issues.length ? ' open' : ''}><summary class="small">장면 모음(1초 간격${issues.length ? ' — 빨간 칸이 확인할 곳' : ''})</summary><a href="/_blob/${esc(q.sheet_id)}" target="_blank" rel="noopener" title="눌러서 크게 보기"><img class="qa-sheet" src="/_blob/${esc(q.sheet_id)}" alt="완성 영상 1초 간격 장면 모음"></a></details>` : '');
+}
+async function saveFinal(p, fin, id = fin.asset_id, filename = `${p.id}.mp4`) {
+  const st = $('#final-dl-state');
+  if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
+  st.innerHTML = spinner('받는 중…');
+  try {
+    const res = await fetch('/_blob/' + id);
+    if (!res.ok) throw new Error('파일을 받지 못했습니다');
+    await downloads.save({ filename, data: await res.blob() });
+    st.textContent = '저장했습니다.';
+  } catch (e) {
+    const code = e && e.code;
+    st.textContent = code === 'declined' ? '저장을 취소했습니다' : `저장하지 못했습니다(${code || e.message || '알 수 없음'})`;
+  }
+}
+$('#final-go').onclick = async () => {
+  const p = S.project; if (!p) return;
+  $('#final-go').disabled = true;
+  const en_subs = $('#final-en').checked;
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ en_subs }); } catch (e) { /* 무시 */ }
+  const r = await requestWork('render', $('#final-go'), { bgm: S.bgm ? S.bgm.asset_id : null, en_subs });
+  if (!r) { $('#final-go').disabled = false; return; }
+  try { await db.doc(`${COL('projects')}/${p.id}`).update({ render_request_id: r.rid }); } catch (e) { /* 무시 */ }
+  watchRequest('render', r.rid);
+  if (!r.sent) fallbackBox($('#final-fallback'), r); else { $('#final-fallback').hidden = true; toast('작업자에게 완성 영상을 맡겼습니다'); }
+};
+// 배경음악 바꾸기: 고른 음악을 고음질 webm으로 압축해 올리고 config/bgm을 바꾼다(지난 음악 자산은 지움)
+$('#bgm-file').onchange = async e => {
+  const file = e.target.files && e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  const st = $('#bgm-state');
+  if (!assets || !db) { st.textContent = '이 화면에서는 올릴 수 없습니다(편집 권한이 있는 계정으로 열어 주세요).'; return; }
+  st.innerHTML = spinner('배경음악을 압축해 올리는 중…');
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx(); let buf;
+    try { buf = await ctx.decodeAudioData(await file.arrayBuffer()); } finally { try { ctx.close(); } catch (x) { /* 무시 */ } }
+    const up = await assets.upload(await encodeVoice(buf, true), { type: 'video/webm' });
+    // 이 채널 음악만 바꾼다(공통 음악을 쓰던 채널이면 공통 음악은 지우지 않는다)
+    const own = BGM_DOC === 'config/bgm' ? S.bgmCommon : S.bgmOwn, old = own && own.asset_id;
+    await db.doc(BGM_DOC).set({ asset_id: up.id, name: file.name, duration: +buf.duration.toFixed(2), volume: (S.bgm && S.bgm.volume) || 0.22, uploaded_at: new Date().toISOString() });
+    if (old && old !== up.id) assets.delete(old).catch(() => {});
+    st.textContent = '바꿨습니다. 다음 완성 영상부터 이 음악을 깝니다.';
+  } catch (x) { st.textContent = `올리지 못했습니다(${upErr(x)})`; }
+};
+function folderGuess() { return /Win/i.test(navigator.platform || navigator.userAgent) ? 'C:\\Users\\(사용자)\\Videos\\studio' : '/Users/(사용자)/Movies/studio'; }
+function renderResult() {
+  const p = S.project, res = p.result, el = $('#result');
+  if (!res) { el.innerHTML = ''; return; }
+  const byName = Object.fromEntries((res.files || []).map(f => [f.name, f]));
+  const rep = res.report || {};
+  const sc = (res.scenes || []).map(s => {
+    const f = s.chosen && byName[s.chosen];
+    const media = f ? (f.media === 'video' ? `<video src="/_blob/${esc(f.id)}" muted preload="metadata" playsinline></video>` : `<img src="/_blob/${esc(f.id)}" alt="" loading="lazy">`) : '자료 없음';
+    const vids = (s.videos || []).map(v => `<li><a href="${esc(v.url)}" target="_blank" rel="noopener">${esc(v.title || v.url)}</a> <span class="muted">· ${esc(v.channel || '')}${v.start ? ` · ${fmtSec(v.start)}부터` : ''}</span></li>`).join('');
+    return `<div class="scene"><div class="media">${media}</div><div class="cap"><span class="tc">${esc(s.id)} · ${fmtSec(s.start)}~${fmtSec(s.end)}</span><span class="tx">${esc(s.text)}</span>${s.photo_title ? `<span class="small">사진: ${esc(s.photo_title)}</span>` : ''}${s.borrowed ? `<span class="small muted">맞는 사진을 못 받아 ${esc(s.borrowed)} 사진을 이어 씀</span>` : ''}${s.query ? `<span class="small muted">사진 검색어: ${esc(s.query)}</span>` : ''}${s.attribution ? `<span class="small muted">${esc(s.attribution)}</span>` : ''}${vids ? `<span class="small">영상 후보</span><ul class="vids small">${vids}</ul>` : ''}</div></div>`;
+  }).join('');
+  const vidScenes = (res.scenes || []).filter(s => (s.videos || []).length).length;
+  const skipped = Object.entries(rep.skipped_sources || {});
+  const folder = ls.get('folder', '');
+  el.innerHTML = `<div class="note ${rep.with_asset ? 'info' : 'warn'}"><b class="t">장면 ${rep.scenes || 0}개 중 ${rep.with_asset || 0}개에 자료 · ${esc(when(res.made_at))}</b>
+      ${skipped.length ? `<span class="small">못 쓴 검색: ${skipped.map(([k, v]) => esc(k + ' — ' + v)).join(' / ')}</span>` : ''}
+      ${vidScenes ? `<span class="small">유튜브 영상 후보가 있는 장면 ${vidScenes}개 — 클라우드에서는 영상을 받을 수 없어 링크로 남겼습니다(압축 파일의 <span class="mono">영상후보.txt</span>). 쓰려면 직접 받아 그 장면 위에 얹으세요.</span>` : ''}</div>
+    <div class="scenes${res.size && res.size[1] > res.size[0] ? ' tall' : ''}">${sc}</div>
+    ${res.chapters ? `<h3>유튜브 챕터 <button class="btn small" id="chapters-copy" type="button">복사</button></h3>
+      <div class="small muted">설명란에 그대로 붙이면 영상에 챕터가 생깁니다. 챕터가 바뀌는 곳이 중간 광고 자리로도 좋습니다.</div>
+      <pre class="small mono">${esc(res.chapters)}</pre>` : ''}
+    ${(res.credits || []).length ? `<h3>화면 소재 출처 <button class="btn small" id="credits-copy" type="button">복사</button></h3>
+      <div class="small muted">Pexels·Pixabay에서 자동으로 받은 소재(받은 때 · 사이트 · 소재 번호 · 작가 · 주소). 화면에 출처를 띄우지 않으니 설명란에 붙이거나, 저작권 신고에 이의를 제기할 때 쓰세요.</div>
+      <ul class="small mono" style="max-height:160px;overflow:auto">${res.credits.map(c => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
+    <h3>받기</h3>
+    <label class="field">압축을 풀 폴더(이 경로로 timeline.xml을 만들어, 프리미어에서 바로 열립니다)
+      <input type="text" id="folder" value="${esc(folder)}" placeholder="${esc(folderGuess())}"></label>
+    <div class="small muted">압축 파일 안의 <span class="mono">${esc(p.id)}</span> 폴더가 이 폴더 안에 풀리면 됩니다.</div>
+    <div class="small muted">${res.long_edit ? `압축 파일에는 timeline.xml 하나로 완성 편집이 다 들어갑니다 — 사진·출처, 음성, 자막(모란봉), 목차·챕터·발언·끝 화면 카드${res.long_edit.quotes ? `(발언 카드 ${res.long_edit.quotes}장)` : ''}, 효과음${res.long_edit.bgm ? ', 배경음악' : ''}. 프리미어에서 열고 내보내기만 하면 됩니다.${res.long_edit.voice ? '' : ' 음성이 아직 없어 음성 트랙은 빠졌습니다 — 음성을 만든 뒤 자료를 다시 모으세요.'}` : `압축 파일에는 장면별 사진·출처 표시 그림, timeline.xml(사진만, 음성 트랙 없음), 자막.srt(한 줄 ${res.size && res.size[1] > res.size[0] ? '14' : '20'}자 안팎, 프리미어 캡션으로 가져오기), 장면목록.txt, 영상후보.txt가 들어갑니다. 음성은 직접 넣으세요.`}</div>
+    ${res.long_edit && res.long_edit.qa ? qaLong(res.long_edit.qa) : ''}
+    <div class="row"><span class="spacer"></span><button class="btn primary" id="zip" type="button">압축 파일 받기</button></div>
+    <div id="zip-state" class="small"></div>`;
+  $('#folder').addEventListener('input', e => ls.set('folder', e.target.value.trim()));
+  if ($('#credits-copy')) $('#credits-copy').onclick = () => copyText(res.credits.join('\n'), '소재 출처를');
+  if ($('#chapters-copy')) $('#chapters-copy').onclick = () => copyText(res.chapters, '유튜브 챕터를');
+  $('#zip').onclick = makeZip;
+}
+function folderUrl(folder) {
+  let p = folder.replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!p.startsWith('/')) p = '/' + p;
+  return 'file://localhost' + p.split('/').map(seg => encodeURIComponent(seg).replace(/%3A/gi, ':')).join('/');
+}
+async function makeZip() {
+  const p = S.project, res = p.result, st = $('#zip-state');
+  const folder = ($('#folder').value || '').trim();
+  if (!folder || folder.includes('(사용자)')) { toast('압축을 풀 폴더 경로를 적어 주세요', true); $('#folder').focus(); return; }
+  if (!window.JSZip) { st.textContent = '압축 도구를 불러오지 못했습니다. 새로 고침해 주세요.'; return; }
+  st.innerHTML = spinner('파일을 모으는 중…');
+  try {
+    const zip = new JSZip(), root = zip.folder(p.id);
+    const base = folderUrl(folder + '/' + p.id);
+    let xml = await (await fetch('/_blob/' + res.timeline_id)).text();
+    xml = xml.split(res.base_token || 'file://localhost/__STUDIO_BASE__').join(base);
+    root.file('timeline.xml', xml);
+    // 프리미어 캡션용 자막(한 줄 20자 안팎). 한글이 깨지지 않게 UTF-8 BOM을 붙인다.
+    if (res.srt_id) { const r = await fetch('/_blob/' + res.srt_id); if (r.ok) root.file('자막.srt', '\ufeff' + (await r.text()).replace(/^\ufeff/, '')); }
+    root.file('장면목록.txt', `장면별 대사와 사진 — ${p.id}\n(시각은 ${res.timing === 'estimated' ? '대본 길이로 어림한 값' : res.timing === 'voice+asr' ? '음성을 듣고 들린 말에 맞춘 값' : '올린 음성의 쉼에 맞춘 값'})\n\n` + (res.scenes || []).map(s =>
+      `[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)}\n  대사: ${s.text}\n  사진: ${s.chosen || '없음'}${s.attribution ? ` (${s.attribution})` : ''}${s.photo_title ? `\n  사진 제목: ${s.photo_title}` : ''}${s.borrowed ? `\n  (맞는 사진을 못 받아 ${s.borrowed} 사진을 이어 씀)` : ''}${s.query ? `\n  검색어: ${s.query}` : ''}`).join('\n\n') + '\n');
+    const vlines = (res.scenes || []).filter(s => (s.videos || []).length).map(s => [`[${s.id}] ${fmtSec(s.start)}~${fmtSec(s.end)} ${s.text}`,
+      ...s.videos.map(v => `  - ${v.title} (${v.channel}${v.start ? `, ${fmtSec(v.start)}부터` : ''})\n    ${v.url}`)].join('\n'));
+    if (vlines.length) root.file('영상후보.txt', '장면별 유튜브 영상 후보 — 받아서 쓸 때는 출처(채널)를 밝히세요.\n\n' + vlines.join('\n\n') + '\n');
+    let n = 0;
+    const lost = [];  // 못 받은 파일 — 압축에 빠지면 프리미어에서 '오프라인'으로 보인다
+    for (const f of res.files || []) {
+      let r = null;
+      for (let t = 0; t < 2 && !(r && r.ok); t++) { try { r = await fetch('/_blob/' + f.id); } catch (e) { r = null; } }
+      if (!r || !r.ok) { lost.push(f.name); continue; }
+      root.file(f.name, await r.blob()); n++; st.innerHTML = spinner(`파일을 모으는 중… ${n}/${res.files.length}`);
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    if (!downloads) { st.textContent = '이 화면에서는 파일 저장이 안 됩니다. claude.ai에서 열어 주세요.'; return; }
+    await downloads.save({ filename: `${p.id}.zip`, data: blob });
+    sweepAssets(p);
+    st.textContent = res.long_edit
+      ? '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml을 열면 음성·자막·카드·효과음까지 다 깔려 있습니다. 확인하고 내보내기만 하면 됩니다.'
+      : '저장했습니다. 압축을 풀고 프리미어에서 파일 → 가져오기 → timeline.xml(사진이 장면 시각대로 깔림), 자막.srt는 가져와서 캡션 트랙으로, 음성은 직접 얹으세요.';
+    if (lost.length) st.innerHTML = `<div class="note bad"><b class="t">파일 ${lost.length}개를 받지 못해 압축에 빠졌습니다</b>프리미어에서 이 파일들은 '오프라인'으로 보입니다: ${esc(lost.slice(0, 8).join(', '))}${lost.length > 8 ? ' 외' : ''}. [자료 모으고 timeline.xml 만들기]를 다시 눌러 주세요.</div>`;
+    try { await db.doc(`${COL('projects')}/${p.id}`).update({ status: 'done' }); } catch (e) { /* 무시 */ }
+  } catch (e) {
+    const code = e && e.code;
+    st.textContent = code === 'declined' ? '저장을 취소했습니다' : code === 'rejected_extension' || code === 'extension_not_enabled' ? '이 화면에서는 압축 파일 저장이 막혀 있습니다.' : `압축 파일을 만들지 못했습니다(${code || e.message || '알 수 없음'}).`;
+  }
+}
+
+/* ---------- 프로젝트 목록 ---------- */
+const statusLabel = p => p.status === 'done' ? ['받음', 'ok'] : p.result ? ['자료 준비됨', 'ok'] : p.status === 'requested' ? ['자료 요청함', 'warn'] : p.audio ? ['음성 있음', ''] : (p.script || '').trim() ? ['대본 있음', ''] : ['주제만', ''];
+function renderProjects() {
+  $('#plist').innerHTML = S.projects.length ? S.projects.map(p => {
+    const [lab, cls] = statusLabel(p);
+    return `<li><div style="min-width:0"><div class="ttl">${esc((p.titles && p.titles[0]) || (p.topics || []).map(t => t.name).join(' + ') || p.id)}</div>
+      <div class="meta">${esc(p.id)} · ${esc(fmtName(p.format))}${p.purged && !p.result ? ` · 사진 자료 비움(${esc(when(p.purged.at))})` : ''}</div></div>
+      <div class="row"><span class="badge ${cls}">${lab}</span><button class="btn small" type="button" data-open="${esc(p.id)}">${S.pid === p.id ? '여는 중' : '열기'}</button></div></li>`;
+  }).join('') : '<li><span class="muted">아직 프로젝트가 없습니다. 주제를 고르면 생깁니다.</span></li>';
+  $$('[data-open]').forEach(b => b.onclick = () => { selectProject(b.dataset.open); const p = S.projects.find(x => x.id === b.dataset.open); setTab(p && p.result ? 'sources' : p && p.audio ? 'sources' : p && (p.script || '').trim() ? 'voice' : 'script'); });
+}
+
+/* ---------- 저장 공간(제작실 자산: 1GB · 파일 5000개) ---------- */
+// 사진·영상·음성·완성 영상은 모든 채널이 이 제작실 저장소 하나에 쌓는다. 차면 작업자가 자료를 못 올리므로 여기서 비운다:
+// ① 어느 프로젝트·배경음악도 가리키지 않는 파일(2시간 넘은 것만 — 작업자가 막 올리고 아직 적지 않은 파일은 그대로)
+// ② 3일 넘게 손대지 않은 프로젝트의 사진·영상 자료(result: 사진·timeline·자막) — 대본·제목·음성·완성 영상은 남기고,
+//    다시 쓰려면 [자료 다시 모으기]. 그래도 60%를 넘으면 하루 넘은 프로젝트까지 오래된 순으로 더 비운다.
+// 지우기는 사용자가 [비우기]를 누를 때만. 모든 채널 프로젝트를 다 읽지 못하면 아무것도 지우지 않는다.
+const STORE_WARN = 0.85, STORE_GOAL = 0.6, ORPHAN_AGE = 2 * 3600e3, OLD_AGE = 3 * 86400e3, MIN_AGE = 86400e3;
+const store = { usage: null, plan: null, busy: false, msg: '' };
+const MB = b => `${Math.round(b / 1048576).toLocaleString()}MB`;
+const touched = p => Math.max(...[p.created_at, p.result && p.result.made_at, p.audio && p.audio.analyzed_at, p.render && p.render.made_at].map(x => Date.parse(x || '') || 0));
+const resultIds = r => r ? [...(r.files || []).map(f => f && f.id), r.timeline_id, r.srt_id].filter(Boolean) : [];
+const keptIds = p => { const a = p.audio || {}, f = p.render || {}; return [a.asset_id, f.asset_id, f.qa && f.qa.sheet_id, f.en_srt_id, f.bgm]; };
+const storeFull = u => !!u && (u.bytes >= u.maxBytes * STORE_WARN || u.files >= u.maxFiles * STORE_WARN);
+const quotaMsg = '저장 공간이 가득 찼습니다 — 프로젝트 탭에서 [저장 공간 비우기]를 눌러 주세요';
+function upErr(e) { if (e && e.code === 'quota_or_state') { storeUsage(); return quotaMsg; } return (e && (e.message || e.code)) || '알 수 없음'; }
+async function storeUsage() {
+  if (!assets) return;
+  try { store.usage = (await assets.list()).usage; } catch (e) { /* 다음에 */ }
+  renderStore();
+}
+async function storePlan() {
+  const { assets: list, usage } = await assets.list();
+  store.usage = usage;
+  const projects = [], keep = new Set();
+  for (const ch of Object.keys(CHANNELS)) {
+    const col = CHANNELS[ch].prefix + 'projects';
+    (await db.collection(col).limit(1000).get()).docs.forEach(x => projects.push({ col, p: x.data() }));
+    const bgm = await db.doc(ch === 'politics' ? 'config/bgm' : `config/bgm_${ch}`).get();
+    if (bgm.exists) keep.add(bgm.data().asset_id);
+  }
+  projects.forEach(({ p }) => keptIds(p).forEach(id => keep.add(id)));
+  const owners = new Map();  // 자료(result)로 쓰는 프로젝트 수 — 둘 이상이 함께 쓰는 파일은 이번엔 두고 다음에
+  projects.forEach(({ p }) => resultIds(p.result).forEach(id => owners.set(id, (owners.get(id) || 0) + 1)));
+  const size = new Map(list.map(a => [a.id, a.sizeBytes])), now = Date.now();
+  const orphans = list.filter(a => !keep.has(a.id) && !owners.has(a.id) && now - (Date.parse(a.createdAt) || now) > ORPHAN_AGE).map(a => a.id);
+  let bytes = orphans.reduce((n, id) => n + size.get(id), 0), count = orphans.length;
+  const enough = () => usage.bytes - bytes <= usage.maxBytes * STORE_GOAL && usage.files - count <= usage.maxFiles * STORE_GOAL;
+  const cur = S.project && S.project.id, pick = [];
+  const cands = projects.filter(({ p }) => p.result && p.id !== cur && p.status !== 'requested' && now - touched(p) > MIN_AGE)
+    .sort((a, b) => touched(a.p) - touched(b.p));
+  for (const c of cands) {
+    if (now - touched(c.p) <= OLD_AGE && enough()) break;
+    if (await reqBusyFor(c)) continue;  // 작업자가 이 자료로 영상을 만드는 중
+    c.ids = resultIds(c.p.result).filter(id => size.has(id) && !keep.has(id) && owners.get(id) === 1);
+    c.bytes = c.ids.reduce((n, id) => n + size.get(id), 0);
+    pick.push(c); bytes += c.bytes; count += c.ids.length;
+  }
+  return { usage, size, orphans, orphanBytes: orphans.reduce((n, id) => n + size.get(id), 0), pick, bytes, count };
+}
+async function reqBusyFor(c) {
+  const col = c.col.replace(/projects$/, 'requests');
+  for (const rid of [c.p.request_id, c.p.render_request_id, c.p.voice_request_id].filter(Boolean)) {
+    const s = await db.doc(`${col}/${rid}`).get();
+    if (s.exists && ['queued', 'working'].includes(s.data().status)) return true;
+  }
+  return false;
+}
+// 6개씩 지운다(step에 지운 묶음). 잠깐 막힘은 한 번만 다시(빨리 지워 막혔으면 조금 쉬고), 그 밖은 멈추고 그 코드를 돌려준다
+async function deleteIds(ids, step) {
+  for (let i = 0; i < ids.length; i += 6) {
+    const part = ids.slice(i, i + 6);
+    for (let tryNo = 0; ; tryNo++) {
+      const res = await Promise.allSettled(part.map(id => assets.delete(id)));
+      const bad = res.find(x => x.status === 'rejected');
+      if (!bad) break;
+      const code = (bad.reason && bad.reason.code) || 'upstream_error';
+      if (tryNo || !['store_unavailable', 'rate_limited'].includes(code)) return code;
+      await new Promise(ok => setTimeout(ok, code === 'rate_limited' ? 10000 : 1500));
+    }
+    step(part);
+  }
+  return '';
+}
+async function storeRun() {
+  const pl = store.plan;
+  if (!pl || store.busy) return;
+  store.busy = true; store.plan = null; renderStore();
+  let done = 0, freed = 0, purged = 0, fail = '';
+  const prog = () => { const st = $('#store-state'); if (st) st.innerHTML = spinner(`비우는 중… ${done.toLocaleString()} / ${pl.count.toLocaleString()}개`); };
+  const step = part => { done += part.length; freed += part.reduce((n, id) => n + (pl.size.get(id) || 0), 0); prog(); };
+  prog();
+  try {
+    for (const c of pl.pick) {
+      const ref = db.doc(`${c.col}/${c.p.id}`);
+      const snap = await ref.get(), now = snap.exists ? snap.data() : null;
+      // 그새 자료를 다시 모았거나 요청 중이면 그대로 둔다
+      if (!now || !now.result || now.result.made_at !== c.p.result.made_at || now.status === 'requested') { done += c.ids.length; prog(); continue; }
+      // 화면이 지운 파일을 가리키지 않게 문서를 먼저 고친다(지우다 멈추면 남은 파일은 다음에 '안 쓰는 파일'로 지워진다)
+      await ref.update({ result: null, purged: { at: new Date().toISOString(), files: c.ids.length, bytes: c.bytes } });
+      purged++;
+      fail = await deleteIds(c.ids, step);
+      if (fail) break;
+    }
+    if (!fail) fail = await deleteIds(pl.orphans, step);
+  } catch (e) { fail = (e && (e.code || e.message)) || '알 수 없음'; }
+  store.busy = false;
+  store.msg = fail
+    ? `<div class="note warn">${purged ? `프로젝트 ${purged}개 자료를 비우다가 ` : ''}멈췄습니다(${esc(fail)}). ${fail === 'rate_limited' ? '너무 빨리 지워 잠시 막혔습니다 — 1분 뒤에' : '조금 뒤에'} [저장 공간 비우기]를 한 번 더 눌러 주세요. 지운 곳까지는 그대로 비워졌습니다.</div>`
+    : `<div class="note info"><b class="t">비웠습니다 — 약 ${MB(freed)}</b>${purged ? `프로젝트 ${purged}개의 사진·영상 자료를 지웠습니다. 다시 쓰려면 그 프로젝트의 4단계에서 [자료 모으고 timeline.xml 만들기]를 누르면 됩니다.` : ''}</div>`;
+  await storeUsage();
+}
+function renderStore() {
+  const el = $('#store'), warn = $('#store-warn'), u = store.usage;
+  if (!el) return;
+  const full = storeFull(u);
+  warn.hidden = !full || S.tab === 'projects';
+  warn.innerHTML = full ? `<div class="note warn"><b class="t">저장 공간이 거의 찼습니다(${MB(u.bytes)} / ${MB(u.maxBytes)} · 파일 ${u.files.toLocaleString()} / ${u.maxFiles.toLocaleString()}개)</b>다 차면 작업자가 사진·영상을 올리지 못합니다. <button class="btn small" id="store-warn-go" type="button">비울 것 살펴보기</button></div>` : '';
+  if ($('#store-warn-go')) $('#store-warn-go').onclick = () => { setTab('projects'); storeLook(); };
+  if (!assets) { el.innerHTML = ''; return; }
+  const ratio = u ? Math.max(u.bytes / u.maxBytes, u.files / u.maxFiles) : 0;
+  const pl = store.plan;
+  let body = '';
+  if (pl) {
+    const days = pl.pick.map(c => touched(c.p)).filter(Boolean);
+    const span = days.length ? `${when(new Date(Math.min(...days)).toISOString()).replace(/ \d+:\d+$/, '')}~${when(new Date(Math.max(...days)).toISOString()).replace(/ \d+:\d+$/, '')}에 마지막으로 손댄 것` : '';
+    const name = p => (p.titles && p.titles[0]) || (p.topics || []).map(t => t.name).join(' + ') || p.id;
+    body = !pl.count ? '<div class="note info">지울 만한 파일이 없습니다 — 남은 건 하루 안에 손댄 프로젝트와 음성·완성 영상뿐입니다.</div>'
+      : `<div class="note warn"><b class="t">이렇게 비웁니다 — 약 ${MB(pl.bytes)}(파일 ${pl.count.toLocaleString()}개)</b><ul>
+        ${pl.orphans.length ? `<li>어느 프로젝트도 쓰지 않는 파일 ${pl.orphans.length.toLocaleString()}개 · ${MB(pl.orphanBytes)}</li>` : ''}
+        ${pl.pick.length ? `<li>프로젝트 ${pl.pick.length}개의 사진·영상 자료 · ${MB(pl.bytes - pl.orphanBytes)} <span class="muted">(${span})</span>
+          <details><summary class="small">어떤 프로젝트인지 보기</summary><ul class="small">${pl.pick.map(c => `<li>${esc(name(c.p))} <span class="muted">· ${esc(c.p.id)} · ${MB(c.bytes)}</span></li>`).join('')}</ul></details></li>` : ''}
+        </ul><div class="small">남는 것: 대본·제목·해시태그·음성·완성 영상. 자료를 지운 프로젝트를 다시 쓰려면 4단계에서 자료를 다시 모으면 됩니다. 비운 뒤 약 ${MB(Math.max(0, pl.usage.bytes - pl.bytes))} / ${MB(pl.usage.maxBytes)}.</div>
+        <div class="row" style="margin-top:6px"><button class="btn primary" id="store-run" type="button">${MB(pl.bytes)} 비우기</button><button class="btn" id="store-cancel" type="button">취소</button></div></div>`;
+  }
+  el.innerHTML = `<div class="row"><b>저장 공간</b><span class="small">${u ? `${MB(u.bytes)} / ${MB(u.maxBytes)} · 파일 ${u.files.toLocaleString()} / ${u.maxFiles.toLocaleString()}개` : '확인하는 중…'}</span><span class="spacer"></span>
+      <button class="btn small" id="store-look" type="button"${store.busy ? ' disabled' : ''}>저장 공간 비우기</button></div>
+    <div class="store-bar${ratio >= STORE_WARN ? ' bad' : ratio >= STORE_GOAL ? ' warn' : ''}"><span style="width:${Math.min(100, Math.round(ratio * 100))}%"></span></div>
+    <div id="store-state" class="small"></div>${body}${pl ? '' : store.msg}`;
+  $('#store-look').onclick = storeLook;
+  if ($('#store-run')) $('#store-run').onclick = storeRun;
+  if ($('#store-cancel')) $('#store-cancel').onclick = () => { store.plan = null; renderStore(); };
+  if (store.busy) $('#store-state').innerHTML = spinner('비우는 중…');
+}
+async function storeLook() {
+  if (!assets || !db || store.busy) { if (!assets) toast('이 화면에서는 저장 공간을 비울 수 없습니다(편집 권한이 있는 계정으로 열어 주세요)', true); return; }
+  store.msg = ''; renderStore();
+  $('#store-state').innerHTML = spinner('모든 채널 프로젝트를 읽고 지울 것을 고르는 중…');
+  try { store.plan = await storePlan(); } catch (e) { store.plan = null; store.msg = `<div class="note bad">지울 것을 고르지 못했습니다(${esc((e && (e.code || e.message)) || '알 수 없음')}) — 아무것도 지우지 않았습니다.</div>`; }
+  renderStore();
+}
+
+/* ---------- 시작 ---------- */
+renderStatus(); renderTopics(); renderTabs();
+if (RIGHT) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>이나 <b>세로 쇼츠</b>(1분), 이어지는 2~3개를 고르면 <b>10분 묶음</b>입니다. 고른 순서가 영상 순서입니다. 여러 매체가 함께 다룬 순이고, 국민의힘 안의 문제도 <b>당내 비판</b>으로 정면으로 다룹니다.';
+if (SHORT) $('#pickhint').innerHTML = `주제 하나를 고르면 <b>세로 쇼츠</b>(30초)를 만듭니다. <b>보도자료</b> 표시가 있거나 ${SH.hint}가 탄탄한 주제가 좋습니다.`;
+if (STOCK) $('#pickhint').innerHTML = '하나를 고르면 <b>3분 단독</b>, 2~3개를 고르면 <b>10분 시황 브리핑</b>입니다. 고른 순서가 영상 순서입니다. 10분은 <b>시황</b> 이슈를 먼저 고르면 브리핑 흐름이 자연스럽습니다.';
+if (LOCKED) $('.chsel').hidden = true;  // 채널 하나만 쓰는 제작실
+$('#channel').value = CH; $('#by').textContent = CHANNELS[CH].by; $('#lede').innerHTML = CHANNELS[CH].lede;
+$('#channel').onchange = e => { ls.set('channel', e.target.value); location.reload(); };
+setTab((location.hash || '').replace('#', '') || 'topics');
+(async () => {
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function') { known = true; renderStatus(); return; }
+  const [d, s, a, dl, cm] = await Promise.all(['db', 'sample', 'assets', 'downloads', 'comments'].map(n => c.use(n).catch(() => null)));
+  db = d; sample = s; assets = a; downloads = dl; comments = cm; known = true;
+  storeUsage();
+  await refreshSend();
+  if (!db) return;
+  db.doc('config/worker').onSnapshot(snap => { if (snap.exists) { S.worker = { ...WORKER, ...snap.data() }; renderStatus(); } }, () => {});
+  const bgmNow = () => { S.bgm = S.bgmOwn || S.bgmCommon || null; if (S.tab === 'sources') renderFinal(); };
+  db.doc('config/bgm').onSnapshot(snap => { S.bgmCommon = snap.exists ? snap.data() : null; bgmNow(); }, () => {});
+  if (BGM_DOC !== 'config/bgm') db.doc(BGM_DOC).onSnapshot(snap => { S.bgmOwn = snap.exists ? snap.data() : null; bgmNow(); }, () => {});
+  db.doc(`${COL('raw')}/meta`).onSnapshot(snap => { S.meta = snap.exists ? snap.data() : null; renderStatus(); loadRaw(S.meta); renderTopics(); if (S.project) renderScript(); }, () => {});
+  db.doc(`${COL('topics')}/current`).onSnapshot(snap => { if (!ctl) { S.topics = snap.exists ? snap.data() : null; renderTopics(); } }, () => {});
+  db.collection(COL('projects')).orderBy('created_at', 'desc').limit(30).onSnapshot(q => { S.projects = q.docs.map(x => x.data()); renderProjects(); }, () => {});
+  if (S.pid) selectProject(S.pid);
+  const cr = ls.get(lsk('collect_req'), null); if (cr) watchRequest('collect', cr);
+})();
+})();
+</script>

@@ -1,0 +1,69 @@
+# 증시 뉴스 채널 설정 — STUDIO_CHANNEL=stock(작업자: `workroom --channel stock …`)일 때 channel.yaml 대신 읽는다.
+# 수집한 글·기사는 data-stock/, 작업 폴더는 projects-stock/에 따로 둔다(정치 채널과 섞이지 않게).
+channel:
+  name: 오늘증시 김시연
+  profile: stock               # 대본·주제 규칙 묶음(topicradar/prompts.py STOCK_*)
+  youtube_channel_id: ""
+  stance: "증시 뉴스 채널. 증권사 리서치센터 팀장이 브리핑하듯 숫자부터 빠르게 전한다. 주제·사실·분석 모두 기사(국내 증시 마감 시황·업종·종목·금리·환율·정책, 밤사이 미국 증시 마감)로 한다. 커뮤니티는 쓰지 않는다. 정치 평가와 투자 권유(사라·팔라·목표가·수익 보장)는 하지 않는다. 여러 이슈를 묶은 10분 시황 브리핑과 이슈 하나를 빠르게 다루는 3분 영상."
+  categories: [시황, 종목, 업종, 정책거시, 해외, 공모주]
+  competitors: []
+  past_titles: []
+  slack_webhook: ""
+
+sources:
+  # 2026-10 점검: 아래 피드 모두 접속·최근 기사 확인(머니투데이 증권 RSS는 2025-09 이후 멈춰 뺐다). 증시 채널은 뉴스만 쓴다
+  rss:
+    - {name: 연합뉴스 마켓, url: "https://www.yna.co.kr/rss/market.xml", kind: domestic, category: 시황}
+    - {name: 연합뉴스 경제, url: "https://www.yna.co.kr/rss/economy.xml", kind: domestic, category: 정책거시}
+    - {name: 한국경제 증권, url: "https://www.hankyung.com/feed/finance", kind: domestic, category: 종목}
+    - {name: 매일경제 증권, url: "https://www.mk.co.kr/rss/50200011/", kind: domestic, category: 종목}
+    - {name: 서울경제 증권, url: "https://www.sedaily.com/rss/finance", kind: domestic, category: 종목}
+    - {name: 파이낸셜뉴스 증권, url: "https://www.fnnews.com/rss/r20/fn_realnews_stock.xml", kind: domestic, category: 종목}   # 갱신이 느림(점검 때 최신 글이 27시간 전)
+    - {name: 아시아경제 증권, url: "https://www.asiae.co.kr/rss/stock.htm", kind: domestic, category: 종목}
+    - {name: 조선비즈 증권, url: "https://biz.chosun.com/arc/outboundfeeds/rss/category/stock/?outputType=xml", kind: domestic, category: 종목}
+    - {name: 헤럴드경제 금융, url: "https://biz.heraldcorp.com/rss/google/finance", kind: domestic, category: 정책거시}
+    - {name: 뉴시스 경제, url: "https://www.newsis.com/RSS/economy.xml", kind: domestic, category: 정책거시}
+    - {name: 한국경제 경제, url: "https://www.hankyung.com/feed/economy", kind: domestic, category: 정책거시}
+    - {name: 매일경제 경제, url: "https://www.mk.co.kr/rss/30100041/", kind: domestic, category: 정책거시}
+  overseas_rss: []
+  # 네이버 뉴스 검색어(검색어당 최신 100건) — 시황 숫자와 밤사이 미국 증시를 빠짐없이
+  naver_queries: [코스피 마감, 코스닥 마감, 뉴욕증시 마감, 외국인 순매수, 원달러 환율 마감, 기준금리, 반도체주, 2차전지주, 실적 발표 영업이익, 공모주 상장, 공매도, 밸류업]
+  kogl: []
+
+images:
+  preferred_domains: [krx.co.kr, fss.or.kr, bok.or.kr, go.kr]
+  blocked_domains: []
+  # 사진 검색에 섞여 나오는 유튜브 썸네일은 쓰지 않는다(2026-10 사용자 결정 — 큰 제목 글씨 썸네일).
+  # 뉴스 기사에 실린 영상 썸네일(16:9에 큰 글씨)도 받은 뒤 거른다(newsclip.download.text_heavy)
+  youtube_thumb_channels: []
+
+videos:
+  preferred_channels: [한국경제TV, SBS Biz, 매일경제TV, 머니투데이방송, MTN, 연합뉴스경제TV, 서울경제TV, KTV 국민방송]
+  blocked_channels: [KBS News, MBCNEWS, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, TV CHOSUN, 채널A, MBN]   # Content ID 회피
+
+budget:
+  google_cse_per_day: 90
+  youtube_search_per_day: 80
+  naver_per_day: 20000
+
+timeline:
+  subtitles: false
+  attribution: true
+
+clustering:
+  generic_tokens: [코스피, 코스닥, 주가, 증시, 종목, 투자자, 상승, 하락, 마감]
+
+script:
+  tone: 애널리스트형            # 빠르고 또렷한 애널리스트 브리핑(topicradar/prompts.py TONES)
+  chars_per_minute: 600
+  fixed_hashtags: [주식, 증시뉴스]       # 해시태그 고정(맨 앞)
+  outro: 지금까지 오늘증시 김시연이었습니다. 오늘 내용은 투자 권유가 아니며, 투자 판단과 책임은 투자자 본인에게 있습니다. 구독해주시고, 매일 새로운 시장 소식으로 찾아뵙겠습니다.
+
+# 증시 채널은 커뮤니티(주식 게시판)를 쓰지 않는다 — 주제·사실·분석 모두 기사로.
+communities: []
+
+board:
+  window_hours: 24
+  min_posts: 1
+  size: 20
+  derived_queries: 0           # 커뮤니티 화제로 만드는 검색어 없음(뉴스만)

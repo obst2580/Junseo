@@ -1,0 +1,106 @@
+# 건강 정보 채널 설정 — STUDIO_CHANNEL=health(작업자: `workroom --channel health …`)일 때 channel.yaml 대신 읽는다.
+# 수집한 기사·보도자료는 data-health/, 작업 폴더는 projects-health/에 따로 둔다(다른 채널과 섞이지 않게).
+channel:
+  name: 널스윤서
+  profile: health              # 대본·주제 규칙 묶음(topicradar/prompts.py HEALTH_*)
+  youtube_channel_id: ""
+  stance: "40~50대를 위한 건강 정보 쇼츠 채널. 진행자 윤서는 83년생 전직 간호사로, 젊게 살려고 애쓰는 활기찬 또래 친구처럼 건강 소식을 쉽게 풀어 준다. 주제와 사실은 공공기관 보도자료(질병관리청·식약처·보건복지부)와 의학 전문지·건강 기사로 정하고, 근거는 공공기관·학회 진료지침·체계적 문헌고찰을 앞에 둔다. 연구 종류(사람 연구·동물실험)를 밝히고 단정하지 않는다. 질병관리청·WHO 지침과 어긋나는 말, 진단·처방, 약을 끊거나 바꾸라는 말, 제품·건강기능식품 효능 광고는 하지 않는다. 커뮤니티는 쓰지 않는다."
+  categories: [혈압, 혈당, 다이어트, 콜레스테롤, 갱년기, 관절, 수면, 근감소, 간, 감염병, 영양, 생활습관]
+  competitors: []
+  past_titles: []
+  slack_webhook: ""
+
+sources:
+  # 2026-10 점검: 아래 피드 모두 접속·최근 글 확인. 질병관리청은 RSS가 없어(주소 404) 네이버 뉴스 검색어 '질병관리청'으로 받는다.
+  # 공공기관은 kind: press(보도자료) — 화면이 주제 묶기에서 앞에 놓는다
+  rss:
+    - {name: 보건복지부 보도자료, url: "https://www.mohw.go.kr/rss/board.es?mid=a10503000000&bid=0027", kind: press, category: 생활습관}
+    - {name: 식약처 보도자료, url: "https://www.mfds.go.kr/www/rss/brd.do?brdId=ntc0021", kind: press, category: 영양}
+    - {name: 연합뉴스 건강, url: "https://www.yna.co.kr/rss/health.xml", kind: domestic, category: 생활습관}
+    - {name: 코메디닷컴, url: "https://kormedi.com/feed/", kind: domestic, category: 생활습관}
+    - {name: 헬스경향, url: "https://www.k-health.com/rss/allArticle.xml", kind: domestic, category: 생활습관}
+    - {name: 의학신문, url: "https://www.bosa.co.kr/rss/allArticle.xml", kind: domestic, category: 생활습관}
+    - {name: 청년의사, url: "https://www.docdocdoc.co.kr/rss/allArticle.xml", kind: domestic, category: 생활습관}
+    - {name: 의협신문, url: "https://www.doctorsnews.co.kr/rss/allArticle.xml", kind: domestic, category: 생활습관}
+    - {name: 메디컬투데이, url: "https://www.mdtoday.co.kr/rss/allArticle.xml", kind: domestic, category: 생활습관}
+  overseas_rss: []
+  # 네이버 뉴스 검색어(검색어당 최신 100건) — 공공기관 발표 + 40~50대 관심사
+  naver_queries: [질병관리청, 식약처 건강, 고혈압, 혈당 당뇨 전단계, LDL 콜레스테롤, 갱년기, 무릎 관절, 수면 건강, 근감소증, 지방간, 건강검진 결과, 중년 건강, 연구팀 위험 낮아, 코호트 연구 건강, 메타분석 건강, 당뇨 연구 결과, 혈당 스파이크, 다이어트 연구, 체중 감량 연구, 비만 치료제, 뱃살 내장지방]
+  # '연구팀 위험 낮아'부터는 '어라, 이런 게 있었네' 할 새 연구 기사, 그리고 관심이 큰 당뇨·다이어트 기사를 더 받으려는 검색어
+  # 계절 주제표 — 이번 달 검색어만 위 목록에 더해 수집한다(주제 묶기 때 '이달의 계절 주제'로도 넘긴다)
+  season_queries:
+    1: [한파 혈압, 심뇌혈관 겨울, 독감 유행, 낙상 골절]
+    2: [환절기 면역, 노로바이러스, 독감 유행, 겨울 운동]
+    3: [미세먼지 건강, 봄철 알레르기, 춘곤증, 황사 호흡기]
+    4: [꽃가루 알레르기, 미세먼지 건강, 봄철 운동 관절, 진드기 감염]
+    5: [자외선 피부, 식중독 예방, 진드기 감염, 운동 부상]
+    6: [폭염 온열질환, 식중독 예방, 수분 섭취, 자외선 피부]
+    7: [폭염 온열질환, 냉방병, 식중독 예방, 장마 무좀]
+    8: [폭염 온열질환, 열대야 수면, 비브리오 패혈증, 휴가 후 피로]
+    9: [일교차 건강, 환절기 감기, 가을 알레르기, 추석 건강]
+    10: [독감 예방접종, 일교차 혈압, 건강검진 마감, 환절기 면역]
+    11: [독감 유행, 건강검진 마감, 겨울 혈압, 대상포진]
+    12: [한파 혈압, 연말 음주 간, 독감 유행, 낙상 골절]
+  kogl: []
+
+images:
+  preferred_domains: []
+  blocked_domains: []
+  youtube_thumb_channels: []
+  # 화면 소재는 무료 소재 사이트에서만 자동으로 모은다 — Pexels 세로 영상 먼저, 모자라면 Pixabay 영상(가로는 가운데를 잘라 씀)
+  sources: [pexels_video, pexels_image, pixabay_video, pixabay_image]
+  orientation: portrait
+  people_hint: asian           # 사람 장면은 아시아인 영상·사진을 먼저(한국 40~50대 시청자에게 익숙한 얼굴) — 모자라면 원래 검색어로
+
+videos:
+  preferred_channels: []
+  blocked_channels: []
+
+budget:
+  google_cse_per_day: 0
+  youtube_search_per_day: 0
+  naver_per_day: 20000
+  pexels_per_day: 600
+  pixabay_per_day: 3000
+
+timeline:
+  subtitles: false
+  attribution: false           # 무료 소재(Pexels·Pixabay)는 화면에 출처를 띄우지 않는다 — 출처는 credits.txt·assets.json에
+
+shorts:
+  style: health                # 흰 바탕 위 검정·하늘색 상단 제목(newsclip/vertical.py STYLES)
+  outro_clip: assets/health/outro.mp4   # 끝 인사 장면: 윤서가 손 흔들며 인사하는 영상
+  outro_start: 1.5             # 손 흔들기 시작하는 때부터
+  like_sticker: 공감하면 좋아요!   # 영상 중간 핵심 정보 직후 👍 스티커(오른쪽 위, 2.6초)
+  outro_top: 0.19              # 머리가 사진 칸 맨 위에 오게(머리 윗선이 원본 높이의 19~28%) — 오른쪽 아래 생성 표시는 빠짐
+
+clustering:
+  generic_tokens: [건강, 질환, 환자, 치료, 연구, 효과, 증상, 병원, 의사, 결과]
+
+script:
+  tone: 간호사 친구형           # 또래 친구가 설명하듯 친근하고 활기차게(topicradar/prompts.py TONES)
+  chars_per_minute: 600        # 다른 채널과 같은 읽는 속도
+  shorts_seconds: 30           # 쇼츠는 30초 — 끝 인사 몫을 뺀 대본 230~280자(1분 기본보다 훨씬 짧게)
+  fixed_hashtags: [건강, 건강정보]
+  outro: ""                    # 가로 영상은 아직 만들지 않는다
+  shorts_outro: 지금까지 널스윤서였습니다! 더 건강한 삶을 위해서 영상 오른쪽 하트와 구독 버튼을 눌러주세요!
+  # 영상 설명란에 붙이는 고지(화면 제목·해시태그 칸 아래에서 복사)
+  notice: 이 영상은 일반적인 건강 정보이며 진단이나 치료를 대신하지 않습니다. 증상이 있거나 약을 드시는 분은 꼭 의사·약사와 상의하세요.
+
+voice:                         # 목소리는 제작실에서 고른다(비워 두면 [타입캐스트로 음성 만들기] 전에 고르라고 안내)
+  name: ""
+  voice_id: ""
+  model: ssfm-v30
+  tempo: 1.0
+  remove_silence_ms: null
+  read_as: {"119": 일일구, "112": 일일이, "1339": 일삼삼구}   # 긴급전화는 숫자 하나씩(백십구 아님) — 자막은 119 그대로
+  per_sentence: true           # 문장마다 읽고, 같은 말을 두 번 읽은 문장은 다시 읽는다(한 번에 읽히면 '…직후래요'를 두 번 읽었음)
+
+# 건강 채널은 커뮤니티를 쓰지 않는다 — 주제·사실 모두 보도자료·기사로.
+communities: []
+
+board:
+  window_hours: 48             # 보도자료·전문지는 하루에 몇 건이라 이틀 치를 본다
+  min_posts: 1
+  size: 20
+  derived_queries: 0

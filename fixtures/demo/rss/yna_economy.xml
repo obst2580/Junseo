@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>연합뉴스 경제 (시연용 가상 피드)</title>
+    <link>https://news.example-yna.kr/</link>
+    <description>studio 시연 fixture — 실존 기사 아님</description>
+    <item>
+      <title>부동산 PF 부실 우려 재점화…저축은행 연체율 상승</title>
+      <link>https://news.example-yna.kr/article/20261008/8dc2303af0</link>
+      <description>부동산 프로젝트파이낸싱 부실 우려가 다시 커졌다. 저축은행 연체율이 상승했다. 금융당국은 다음 달 점검 결과를 발표한다.</description>
+      <pubDate>Thu, 08 Oct 2026 13:40:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>원·달러 환율 1,440원 넘어…외환당국 구두개입</title>
+      <link>https://news.example-yna.kr/article/20261008/32be09e655</link>
+      <description>원·달러 환율이 8일 1,440원을 넘어섰다. 외환당국은 구두개입에 나섰다. 뉴욕증시 급락이 위험회피 심리를 키웠다.</description>
+      <pubDate>Thu, 08 Oct 2026 09:40:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>한은 기준금리 동결 전망 우세…가계부채 부담</title>
+      <link>https://news.example-yna.kr/article/20261007/1519adb309</link>
+      <description>한국은행이 다음 주 기준금리를 동결할 것이라는 전망이 우세하다. 가계부채 증가세가 금리 인하를 막는 이유로 꼽힌다. 환율 급등도 동결 근거로 거론된다.</description>
+      <pubDate>Wed, 07 Oct 2026 15:50:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>코스피, 외국인 매도에 2,500선 내줘</title>
+      <link>https://news.example-yna.kr/article/20261007/d589644267</link>
+      <description>코스피가 7일 외국인 매도에 밀려 2,500선 아래로 내려갔다. 반도체 업종이 약세를 주도했다. 증권가는 환율 안정 전까지 변동성이 이어질 것으로 본다.</description>
+      <pubDate>Wed, 07 Oct 2026 14:40:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>원·달러 환율 1,430원 돌파…7개월 만에 최고</title>
+      <link>https://news.example-yna.kr/article/20261007/bf028c88b3</link>
+      <description>원·달러 환율이 7일 장중 1,430원을 돌파했다. 미국 국채 금리 상승과 외국인 주식 매도가 겹친 영향이다. 외환당국은 시장 변동성을 점검하고 있다.</description>
+      <pubDate>Wed, 07 Oct 2026 09:10:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>원·달러 환율 1,420원대 마감…수출업계 '불확실성 부담'</title>
+      <link>https://news.example-yna.kr/article/20261006/b93e9ce376</link>
+      <description>원·달러 환율이 6일 1,420원대에서 거래를 마쳤다. 미국 국채 금리 상승이 달러 강세를 이끌었다. 수출업계는 환차익보다 불확실성이 더 크다고 호소했다.</description>
+      <pubDate>Tue, 06 Oct 2026 11:00:00 +0900</pubDate>
+    </item>
+  </channel>
+</rss>

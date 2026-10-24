@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>BBC World (시연용 가상 피드)</title>
+    <link>https://www.example-bbc.co.uk/</link>
+    <description>studio 시연 fixture — 실존 기사 아님</description>
+    <item>
+      <title>House approves stopgap bill, averting government shutdown</title>
+      <link>https://www.example-bbc.co.uk/article/20261007/b101b56671</link>
+      <description>The House of Representatives approved the stopgap funding bill late on Wednesday, averting a shutdown. The border funding dispute now moves to December budget talks.</description>
+      <pubDate>Wed, 07 Oct 2026 14:00:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>Wall Street tumbles as tech sell-off deepens</title>
+      <link>https://www.example-bbc.co.uk/article/20261007/5ae8f2fb00</link>
+      <description>US stocks fell sharply on Wednesday as a sell-off in technology shares deepened. The Nasdaq dropped 2.4 percent, its worst day in months.</description>
+      <pubDate>Wed, 07 Oct 2026 13:10:00 +0000</pubDate>
+    </item>
+    <item>
+      <title>US Senate passes stopgap funding bill hours before shutdown deadline</title>
+      <link>https://www.example-bbc.co.uk/article/20261006/788309bfbe</link>
+      <description>The US Senate approved a short-term funding bill on Tuesday, hours before a government shutdown deadline. The House is expected to vote on the measure on Wednesday.</description>
+      <pubDate>Tue, 06 Oct 2026 13:30:00 +0000</pubDate>
+    </item>
+  </channel>
+</rss>
