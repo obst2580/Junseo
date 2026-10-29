@@ -48,7 +48,9 @@ images:
   blocked_domains: []
   youtube_thumb_channels: []
   # 화면 소재는 무료 소재 사이트에서만 자동으로 모은다 — Pexels 세로 영상 먼저, 모자라면 Pixabay 영상(가로는 가운데를 잘라 씀)
-  sources: [pexels_video, pexels_image, pixabay_video, pixabay_image]
+  # gongu_image: 공유마당(공공누리 1유형·CC BY·기증 자유이용 사진, 한국인 얼굴이 많다) — queries.json 장면에 "ko"(한국어 검색어)를
+  # 적은 장면만 찾는다. 출처 표시가 이용 조건이라 credits(영상 설명란)에 저작권자·이용조건·주소가 남는다
+  sources: [pexels_video, gongu_image, pexels_image, pixabay_video, pixabay_image]
   orientation: portrait
   people_hint: asian           # 사람 장면은 아시아인 영상·사진을 먼저(한국 40~50대 시청자에게 익숙한 얼굴) — 모자라면 원래 검색어로
 

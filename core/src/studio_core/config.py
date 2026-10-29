@@ -141,7 +141,7 @@ class ImagesSection(BaseModel):
     blocked_domains: list[str] = Field(default_factory=list)
     # 사진 검색에 섞여 나오는 유튜브 썸네일(i.ytimg.com)은 이 채널(뉴스 공식 채널) 것만 쓴다. 비우면 썸네일을 안 씀
     youtube_thumb_channels: list[str] = Field(default_factory=list)
-    # 장면 자료를 찾을 곳과 순서(무료 소재 사이트, 건강 채널): pexels_video | pexels_image | pixabay_video |
+    # 장면 자료를 찾을 곳과 순서(무료 소재 사이트, 건강 채널): pexels_video | pexels_image | pixabay_video | gongu_image |
     # pixabay_image. 비우면 기본 경로(구글·네이버 이미지·Wikimedia·유튜브 — 장면 성격별)
     sources: list[str] = Field(default_factory=list)
     orientation: Literal["", "portrait", "landscape"] = (

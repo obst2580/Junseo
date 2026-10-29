@@ -58,6 +58,8 @@ class Scene(BaseModel):
     topic_keywords: list[str] = Field(default_factory=list)
     # 이 장면 화면에 보일 것을 찾는 사진 검색어(대사를 읽은 Claude·편집자가 정함, 비면 키워드로)
     query: str = ""
+    # 한국어 사진 검색어(공유마당처럼 한국어로 찾는 소스 — queries.json 장면의 "ko", 비면 그 소스는 찾지 않는다)
+    query_ko: str = ""
     # 이 장면 주제의 유튜브 검색어(비면 topic_keywords)
     video_query: str = ""
     borrowed: str = ""  # 사진을 못 받아 이어 쓴 장면 ID(빈 화면 방지)

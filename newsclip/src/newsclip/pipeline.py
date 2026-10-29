@@ -21,12 +21,13 @@ from newsclip.download import (
     text_heavy,
 )
 from newsclip.fcpxml import build_xmeml, validate_xmeml
-from newsclip.license_log import STOCK_SOURCES, attribution_text, write_assets_json, write_credits
+from newsclip.license_log import KO_SOURCES, STOCK_SOURCES, attribution_text, write_assets_json, write_credits
 from newsclip.models import Asset, Scene, SceneSet, asset_id
 from newsclip.rank import asset_key, clip_scorer_or_none, rank, route_for
 from newsclip.scenes import build_scenes
 from newsclip.slides import Painter, ensure_fonts, fetch_font
 from newsclip.sources.base import Budget, SearchCache, Source
+from newsclip.sources.gongu import GonguSource
 from newsclip.sources.google_image import GoogleImageSource
 from newsclip.sources.naver_image import NaverImageSource
 from newsclip.sources.pexels import PexelsSource
@@ -59,6 +60,9 @@ class RunReport:
     dropped_docs: int = 0  # 받고 보니 문서·표·화면 캡처(흰 바탕 잔글씨)라 뺀 사진 수(뉴스 채널·세로 쇼츠)
 
 
+GONGU_PER_DAY = 600  # 공유마당 검색(키·한도 없음 — 사이트에 무리 주지 않게 하루 상한)
+
+
 def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClient) -> dict[str, Source]:
     """소스 인스턴스(예산·캐시 공유)."""
     budget = Budget(
@@ -71,14 +75,18 @@ def make_sources(settings: Settings, cfg: ChannelConfig, client: httpx.AsyncClie
     )
     cache = SearchCache(settings.data_dir / "search_cache.json")
     if cfg.images.sources:  # 무료 소재 사이트만(건강 채널) — 설정 순서가 곧 찾는 순서
-        per_day = {"pexels": cfg.budget.pexels_per_day, "pixabay": cfg.budget.pixabay_per_day}
+        per_day = {
+            "pexels": cfg.budget.pexels_per_day,
+            "pixabay": cfg.budget.pixabay_per_day,
+            "gongu": GONGU_PER_DAY,
+        }
         made: dict[str, Source] = {}
         for name in cfg.images.sources:
             site, _, media = name.partition("_")
-            cls = {"pexels": PexelsSource, "pixabay": PixabaySource}.get(site)
+            cls = {"pexels": PexelsSource, "pixabay": PixabaySource, "gongu": GonguSource}.get(site)
             if cls is None or media not in ("image", "video"):
                 raise ValueError(
-                    f"모르는 소재 사이트: {name} (pexels_video·pexels_image·pixabay_video·pixabay_image)"
+                    f"모르는 소재 사이트: {name} (pexels_video·pexels_image·pixabay_video·pixabay_image·gongu_image)"
                 )
             budget.limits[name] = per_day[site]
             made[name] = cls(client, budget, cache, media=media, orientation=cfg.images.orientation)
@@ -111,6 +119,8 @@ def apply_queries(scenes: list[Scene], queries: dict | None) -> None:
             sc.query = q.strip()
             words = [w for w in sc.query.split() if len(w) >= 2]
             sc.keywords_ko = list(dict.fromkeys([*words, *sc.keywords_ko]))[:3]
+        if isinstance(item, dict) and str(item.get("ko") or "").strip():
+            sc.query_ko = str(item["ko"]).strip()
         if isinstance(item, dict) and item.get("other_day"):
             sc.other_day = True
         if video:
@@ -124,6 +134,8 @@ def query_for(scene: Scene, source: str) -> str:
     사진은 주제 대표 말 + 그 장면에만 두드러진 말(장면마다 다른 사진이 나오게)."""
     if source == "wikimedia":
         return " ".join(scene.keywords_en[:2]) or " ".join(scene.keywords_ko[:2])
+    if source in KO_SOURCES:  # 한국어로 찾는 소재 사이트(공유마당) — 작업자가 적은 한국어 검색어만
+        return scene.query_ko
     if source in STOCK_SOURCES:  # 소재 사이트는 영어 검색이 정확하다 — 작업자가 쓴 영어 검색어 그대로
         return scene.query or " ".join(scene.keywords_en[:3]) or " ".join(scene.keywords_ko[:2])
     if source == "youtube_video":
@@ -184,8 +196,8 @@ async def gather_candidates(
                 seen.add(a.id)
                 out.append(a)
 
-    def images() -> int:
-        return sum(1 for a in out if a.media == "image")
+    def images() -> int:  # 공유마당 사진은 더해 주는 후보 — 세지 않아야 Pexels·Pixabay도 찾는다
+        return sum(1 for a in out if a.media == "image" and a.source not in KO_SOURCES)
 
     def enough() -> bool:
         return images() >= want and sum(1 for a in out if a.media == "video") >= want_videos
@@ -195,6 +207,8 @@ async def gather_candidates(
         if enough():
             break
         q = query_for(scene, name)
+        if not q:  # 한국어 검색어가 없는 장면은 공유마당을 찾지 않는다
+            continue
         # 사람 장면은 people_hint(예: asian)를 붙여 먼저 찾고, 모자라면 원래 검색어로 채운다
         hinted = people_query(q, people_hint) if name in STOCK_SOURCES else None
         if hinted:
@@ -210,6 +224,7 @@ async def gather_candidates(
             "youtube_video",
             "wikimedia",
             *STOCK_SOURCES,
+            *KO_SOURCES,
         ):  # 소재 사이트에 한국어 주제어는 헛검색
             continue
         if fallback and fallback != query_for(scene, name) and name not in report.skipped_sources:

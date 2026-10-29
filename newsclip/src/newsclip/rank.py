@@ -16,6 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable
 
+from newsclip.license_log import KO_SOURCES
 from newsclip.models import Asset, Scene
 from newsclip.scenes import PROPER_NOUNS
 from newsclip.sources.youtube_video import is_blocked, normalize_channel
@@ -164,11 +165,13 @@ def score_asset(
     news = not cfg.images.sources  # 뉴스 사진을 찾는 채널(소재 사이트만 쓰는 널스윤서와 따로 간다)
     if a.media == "image" or stock_video:
         title = a.title.lower()
-        if scene.query:  # 작업자가 대사를 읽고 쓴 검색어 — 그 말이 사진 제목에 있어야 그 장면 사진
+        # 공유마당은 한국어 제목이라 작업자가 적은 한국어 검색어와 견준다
+        query = scene.query_ko if a.source in KO_SOURCES else scene.query
+        if query:  # 작업자가 대사를 읽고 쓴 검색어 — 그 말이 사진 제목에 있어야 그 장면 사진
             # 뉴스 채널: SNS·페이스북 같은 말은 사진에 담기지 않는다 — 제목에 글자로만 맞으면 'SNS 중독 좌담회' 같은
             # 딴 행사 사진이 뽑힌다
             skip = MEDIA_WORDS if news else set()
-            words = [w.lower() for w in scene.query.split() if len(w) >= 2 and w.lower() not in skip]
+            words = [w.lower() for w in query.split() if len(w) >= 2 and w.lower() not in skip]
             qh = sum(1 for w in words if w in title)
             if qh:
                 s += min(30, 10 * qh)
@@ -181,7 +184,7 @@ def score_asset(
             elif words:
                 s -= 20
                 notes.append("제목에 검색어 없음 −20")
-            literal = [w for w in scene.query.lower().split() if w in skip and w in title]
+            literal = [w for w in query.lower().split() if w in skip and w in title]
             if literal:  # 제목이 SNS를 다룬 행사·기사(그 사람이 SNS에 쓴 일과 상관없다)
                 s -= 10
                 notes.append(f"'{literal[0]}' 글자만 맞음 −10")
