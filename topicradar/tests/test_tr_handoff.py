@@ -301,9 +301,10 @@ def test_health_profile_rules(monkeypatch):
     assert "건강기능식품" in rules["risk"]["legal_words"] and "완치" in rules["risk"]["legal_words"]
     assert "간호사" in rules["tone_rules"] and rules["shorts_outro"].startswith("지금까지 널스윤서였습니다!")
     assert "진단이나 치료를 대신하지 않습니다" in rules["notice"]
-    assert "독감 예방접종" in rules["season"]  # 10월
-    assert "독감 예방접종" in cfg.sources.queries_now(10) and "질병관리청" in cfg.sources.queries_now(10)
-    assert "독감 예방접종" not in cfg.sources.queries_now(6)
+    assert "건강검진 비만" in rules["season"]  # 10월
+    assert "건강검진 비만" in cfg.sources.queries_now(10) and "비만 치료제" in cfg.sources.queries_now(10)
+    assert "건강검진 비만" not in cfg.sources.queries_now(6)
+    assert "다이어트와 혈당·대사 주제만" in prompts.HEALTH_GROUP_TASK
     base = channel_rules(ChannelConfig())["rules"]
     assert base["notice"] == "" and base["season"] == []
     # 쇼츠 30초: 끝 인사 몫을 뺀 글자 수 — 다른 채널(설정 없음)은 1분 기본 그대로
