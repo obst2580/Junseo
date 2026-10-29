@@ -131,3 +131,20 @@ async def test_two_words_with_no_hit_retry_first_word():
         found = await gongu.GonguSource(c).search("걷기 체중", "broll")
     assert len(route.calls) == 2 and "%EA%B1%B7%EA%B8%B0" in str(route.calls[1].request.url)
     assert found[0].title == "중년 여성 걷기 운동 걷기 건강"  # 상세 키워드를 제목 뒤에
+
+
+def test_rank_pushes_down_old_and_overseas_gongu_photos():
+    sc = scene("s001", 0, 3, query="pharmacy", query_ko="약국")
+    old = asset(
+        "gongu_image", "https://gongu/1.jpg", title="1971년_종로 약국 옛날사진", width=1600, height=1200
+    )
+    abroad = asset(
+        "gongu_image", "https://gongu/2.jpg", title="해외_유럽_스페인_0034 상점 약국", width=1600, height=1200
+    )
+    icon = asset(
+        "gongu_image", "https://gongu/4.jpg", title="아이콘_라인2_의학_10 약국", width=1600, height=1200
+    )
+    now = asset("gongu_image", "https://gongu/3.jpg", title="동네 약국 약사", width=1600, height=1200)
+    ranked = rank(sc, [old, abroad, icon, now], HEALTH)
+    assert ranked[0].url == now.url
+    assert all(any("옛날·해외" in n or "그림" in n for n in a.score_notes) for a in ranked[1:])

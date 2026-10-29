@@ -201,6 +201,14 @@ def score_asset(
         ):  # 녹취 공개·그래픽·방송 갈무리: 얼굴 합성·글자판이라 사진이 아니다
             s -= 25
             notes.append("그래픽·녹취·캡처 −25")
+        if a.source in KO_SOURCES and _OLD_FOREIGN_RE.search(
+            title
+        ):  # 공유마당 태그 검색에 섞이는 옛날·해외 사진
+            s -= 30
+            notes.append("옛날·해외 사진 −30")
+        if a.source in KO_SOURCES and _DRAWING_RE.search(a.title):
+            s -= 25
+            notes.append("그림(아이콘·일러스트) −25")
         year = photo_year(a)
         if year:
             now = now_kst().year
@@ -249,6 +257,10 @@ _DOC_RE = re.compile(
     r"google sheets|google docs|casenote|판결문|판례|서식|양식|\.pdf|\.hwp|\.xlsx?|스프레드시트"
 )
 # 뉴스 사진 제목인데 사진이 아닌 것: 녹취 공개(얼굴 합성 썸네일)·그래픽·카드뉴스·타임라인·방송 화면 갈무리
+# 공유마당: 태그로 찾아서 '약국' 검색에 1971년 종로 흑백사진·스페인 골목이 섞인다(오늘 건강 장면과 안 맞음)
+_OLD_FOREIGN_RE = re.compile(r"옛날사진|흑백|19[0-9]{2}년|해외_|E-영상역사관|문화재|불상|유물")
+# 공유마당 그림(아이콘·일러스트·POP 서식) — 실사 영상·사진 사이에 끼면 튄다
+_DRAWING_RE = re.compile(r"아이콘|일러스트|POP|템플릿|캐릭터|패턴|서식")
 _GRAPHIC_RE = re.compile(r"녹취|그래픽|카드뉴스|인포그래픽|타임라인|도표|한눈에|갈무리|캡처|캡쳐|썸네일|합성")
 # 제목 끝이 '…하는/갖는 민주당'이면 사진에 나오는 건 그 당 사람들(제목 앞 인물은 그들이 말한 대상)
 _PARTY_END_RE = re.compile(
