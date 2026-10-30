@@ -148,3 +148,10 @@ def test_rank_pushes_down_old_and_overseas_gongu_photos():
     ranked = rank(sc, [old, abroad, icon, now], HEALTH)
     assert ranked[0].url == now.url
     assert all(any("옛날·해외" in n or "그림" in n for n in a.score_notes) for a in ranked[1:])
+
+
+def test_drop_ignores_case():
+    sc = scene("s001", 0, 3, query="woman scale")
+    a = asset("pexels_image", "https://p/1.jpg", title="Pregnant woman standing on a scale")
+    b = asset("pexels_image", "https://p/2.jpg", title="woman standing on a scale")
+    assert [x.url for x in rank(sc, [a, b], HEALTH, drop=("pregnant woman",))] == [b.url]

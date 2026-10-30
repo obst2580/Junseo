@@ -115,7 +115,9 @@ def score_asset(
     """점수와 근거. 차단 대상이면 None. story는 대본 전체(장면 문장을 이은 것) — 사진 제목의 인물이 대본 어디에도
     없으면 깎는다. drop은 작업자가 사진을 보고 뺀 것(사진 주소 그대로, 또는 사진 제목 일부 4자 이상)."""
     notes: list[str] = []
-    if drop and any(d in (a.url, a.download_url) or (len(d) >= 4 and d in a.title) for d in drop):
+    if drop and any(
+        d in (a.url, a.download_url) or (len(d) >= 4 and d.lower() in a.title.lower()) for d in drop
+    ):
         return None
     if a.media == "video":
         if is_blocked(a.author_or_channel, cfg.videos.blocked_channels):
