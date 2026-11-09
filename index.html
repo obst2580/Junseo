@@ -148,13 +148,31 @@ header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-cont
 .btn-primary[disabled] { opacity: .4; cursor: not-allowed; }
 .warnbox { font-size: 13px; color: var(--bad); }
 
+/* 답변 아래 상태창 */
+.st-inline { margin-top: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 0 14px; }
+.st-inline summary { cursor: pointer; padding: 9px 0; font-family: var(--f-display); font-size: 16px; color: var(--era); }
+.st-inline[open] { padding-bottom: 12px; }
+.st-inline .hl { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.sc-gauges { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; }
+.sc-g { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 6px; font-size: 12.5px; align-items: baseline; }
+.sc-g .g-bar { grid-column: 1 / -1; }
+.sc-g .v { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
+.sc-g .up, .sc-g .down { font-size: 11px; margin-left: 4px; }
+.sc-g .up { color: var(--good); } .sc-g .down { color: var(--bad); }
+.sc-facts { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; margin-top: 12px; }
+.sc-facts b { font-weight: 500; color: var(--muted); }
+.sc-line { font-size: 12.5px; margin-top: 8px; overflow-wrap: anywhere; line-height: 1.9; }
+.sc-line .lbl { color: var(--muted); margin-right: 4px; }
+.sc-line.threat { color: var(--bad); }
+.st-missing { margin-top: 12px; font-size: 12.5px; color: var(--muted); }
+
 @media (max-width: 900px) {
   .cols { grid-template-columns: minmax(0, 1fr); }
-  .status { position: static; max-height: none; order: -1; }
-  .status.collapsed > :not(.st-head) { display: none; }
+  .status { display: none; }
   .only-narrow { display: inline-block; }
   .presets, .fields { grid-template-columns: 1fr; }
 }
+@media (max-width: 520px) { .sc-gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .g-bar i { transition: none; } }
 </style>
 
@@ -259,8 +277,10 @@ ${G.chronicle.length ? G.chronicle.slice(-60).map(e => "- " + e).join("\n") : "-
 
 [응답 형식 — 반드시 지킬 것]
 1) 먼저 서술: 500~1100자. 필요하면 "### 소제목", **굵게**, 인물 대사는 큰따옴표. 서술 안에 상태창이나 수치 목록을 쓰지 않는다.
-2) 서술이 끝나면 맨 끝에 <state> 와 </state> 사이에 JSON 객체 하나만 쓴다. 다른 텍스트를 붙이지 않는다.
-<state>{"date":"1895년 3월","ruler":"통치자 이름과 칭호","headline":"지금 나라 상황 한 줄","gauges":{"안정도":50,"재정":40,"군사력":55,"산업":30,"민심":45,"국제 위상":60},"facts":[{"k":"국고","v":"…"},{"k":"인구","v":"…"}],"figures":[{"name":"…","role":"…","mood":"충성"}],"relations":[{"nation":"…","status":"중립","note":"…"}],"threats":["…"],"events":["1895년 3월: …"],"options":["…","…","…"],"ending":null}</state>
+2) 서술이 끝나면 맨 끝에 반드시 <state> 와 </state> 사이에 상태창 JSON 객체 하나를 쓴다. 매 응답마다 빠짐없이 쓴다. 코드블록으로 감싸지 않는다.
+${STATE_SPEC}`;
+}
+const STATE_SPEC = `<state>{"date":"1895년 3월","ruler":"통치자 이름과 칭호","headline":"지금 나라 상황 한 줄","gauges":{"안정도":50,"재정":40,"군사력":55,"산업":30,"민심":45,"국제 위상":60},"facts":[{"k":"국고","v":"…"},{"k":"인구","v":"…"}],"figures":[{"name":"…","role":"…","mood":"충성"}],"relations":[{"nation":"…","status":"중립","note":"…"}],"threats":["…"],"events":["1895년 3월: …"],"options":["…","…","…"],"ending":null}</state>
 - gauges: ${GAUGES.join(", ")} 여섯 개, 0~100 정수.
 - facts: 그 시대와 나라에 맞는 핵심 지표 4~8개 (국고, 인구, 상비군, 국내총생산, 철도 길이 등 실제 단위로).
 - figures: 중요 인물 최대 8명. mood는 충성/우호/중립/불만/적대 중 하나.
@@ -269,26 +289,46 @@ ${G.chronicle.length ? G.chronicle.slice(-60).map(e => "- " + e).join("\n") : "-
 - events: 이번 응답에서 일어나 앞으로 기억해야 할 핵심 사건 0~3개. "연도 월: 내용" 형식, 각 60자 이내.
 - options: 플레이어가 다음에 내릴 만한 명령 3~4개, 각 30자 이내.
 - ending: 나라가 멸망·폐위·혁명 등으로 끝나거나 목표를 확실히 이뤘을 때만 {"type":"승리" 또는 "패배","title":"…","text":"200자 이내 후일담"}. 그 밖에는 null.`;
-}
 
 function buildInput(cmd) {
-  const hist = G.turns.slice(-10);
+  const hist = G.turns.slice(-10).map(t => ({ role: t.role, content: t.content }));
   return [{ role: "user", content: rules() }, ...hist, { role: "user", content: "[플레이어] " + cmd }];
 }
 
 /* ───────── 응답 해석 ───────── */
+// 상태창이 시작되는 위치: <state> 태그, "gauges"가 든 코드블록, 또는 맨 끝의 JSON 객체
+function stateStart(text) {
+  const i = text.indexOf("<state");
+  if (i >= 0) return i;
+  const g = text.indexOf('"gauges"');
+  if (g < 0) return -1;
+  const fence = text.lastIndexOf("```", g);
+  const brace = text.lastIndexOf("{", g);
+  return fence >= 0 && fence < brace ? fence : brace;
+}
 function splitReply(text) {
-  const i = text.indexOf("<state>");
-  const narrative = (i >= 0 ? text.slice(0, i) : text).trim();
+  const s = stateStart(text);
+  if (s < 0) return { narrative: text.trim(), state: null };
+  let narrative = text.slice(0, s).replace(/(\n\s*(#+\s*)?(\*\*)?상태창(\*\*)?\s*:?\s*)$/, "").trim();
+  const body = text.slice(s).replace(/<\/?state>/g, "").replace(/```(json)?/g, "");
+  const a = body.indexOf("{"), b = body.lastIndexOf("}");
   let state = null;
-  if (i >= 0) {
-    let body = text.slice(i + 7);
-    const j = body.lastIndexOf("</state>");
-    if (j >= 0) body = body.slice(0, j);
-    const a = body.indexOf("{"), b = body.lastIndexOf("}");
-    if (a >= 0 && b > a) { try { state = JSON.parse(body.slice(a, b + 1)); } catch (e) { state = null; } }
-  }
+  if (a >= 0 && b > a) { try { state = JSON.parse(body.slice(a, b + 1)); } catch (e) { state = null; } }
   return { narrative, state };
+}
+// 답에서 상태창을 못 읽었을 때: 서술을 근거로 상태창만 다시 만든다
+function recoverState(narrative) {
+  const prompt = `대체역사 국가 경영 게임의 상태창을 갱신한다. 아래 직전 상태창과 이번 턴 서술을 읽고, 서술 결과를 반영한 새 상태창 JSON 객체 하나만 출력하라.
+
+[시나리오] ${G.sc.nation} · 시작 ${G.sc.date} · 플레이어 ${G.sc.role}
+[직전 상태창]
+${G.state ? JSON.stringify(G.state) : "없음. 시나리오 시점의 실제 역사에 맞게 새로 만든다."}
+[이번 턴 서술]
+${narrative.slice(0, 6000)}
+
+[형식]
+${STATE_SPEC.replace(/<\/?state>/g, "")}`;
+  return sample.json(prompt, { cache: false });
 }
 function cleanState(s) {
   if (!s || typeof s !== "object") return null;
@@ -337,9 +377,14 @@ function render() {
   $("#title").textContent = sc.nation;
   $("#subtitle").textContent = `${G.state?.ruler || sc.role} · ${G.state?.date || sc.date} · ${REALISM[G.realism].name}`;
   let h = `<div class="intro"><b>${esc(sc.nation)}, ${esc(sc.date)}.</b> ${esc(sc.premise)}<br><b>목표</b> ${esc(sc.goal)}</div>`;
-  G.turns.forEach(t => {
-    if (t.role === "user") { if (!t.hidden) h += `<div class="turn-cmd"><span class="lbl">어명</span>${esc(t.content.replace(/^\[플레이어\]\s*/, ""))}</div>`; }
-    else h += `<article class="turn-gm">${t.date ? `<div class="date">${esc(t.date)}</div>` : ""}${md(t.content)}</article>`;
+  const lastGm = G.turns.map(t => t.role).lastIndexOf("assistant");
+  let prevSt = null;
+  G.turns.forEach((t, i) => {
+    if (t.role === "user") { h += `<div class="turn-cmd"><span class="lbl">어명</span>${esc(t.content.replace(/^\[플레이어\]\s*/, ""))}</div>`; return; }
+    const st = t.st || (i === lastGm ? G.state : null);
+    const card = st ? stCard(st, prevSt, i === lastGm) : `<div class="st-missing">이번 답에서는 상태창을 받지 못했습니다. 다음 어명에서 이어서 갱신됩니다.</div>`;
+    h += `<article class="turn-gm">${t.date ? `<div class="date">${esc(t.date)}</div>` : ""}${md(t.content)}${card}</article>`;
+    if (st) prevSt = st;
   });
   if (G.ended) h += `<article class="turn-gm turn-end"><div class="eyebrow">${esc(G.ended.type)}</div><h3>${esc(G.ended.title)}</h3><p>${esc(G.ended.text)}</p><div class="mrow" style="justify-content:flex-start;margin-top:10px"><button class="btn-primary" data-act="new" type="button">새 시나리오로 시작</button></div></article>`;
   log.innerHTML = h;
@@ -350,6 +395,21 @@ function trend(k) {
   const a = G.state?.gauges?.[k], b = G.prevState?.gauges?.[k];
   if (a == null || b == null || a === b) return "";
   return a > b ? `<span class="up">▲${a - b}</span>` : `<span class="down">▼${b - a}</span>`;
+}
+function stCard(st, prev, open) {
+  const gauges = GAUGES.map(k => {
+    const v = st.gauges[k], p = prev?.gauges?.[k];
+    const d = p == null || p === v ? "" : v > p ? `<span class="up">▲${v - p}</span>` : `<span class="down">▼${p - v}</span>`;
+    return `<div class="sc-g"><span>${k}</span><span class="v">${v}${d}</span><div class="g-bar"><i class="${v < 30 ? "low" : ""}" style="width:${v}%"></i></div></div>`;
+  }).join("");
+  return `<details class="st-inline" ${open ? "open" : ""}><summary>상태창 · ${esc(st.date)}</summary>
+    ${st.headline ? `<p class="hl">${esc(st.ruler)} · ${esc(st.headline)}</p>` : ""}
+    <div class="sc-gauges">${gauges}</div>
+    ${st.facts.length ? `<div class="sc-facts">${st.facts.map(f => `<span><b>${esc(f.k)}</b> ${esc(f.v)}</span>`).join("")}</div>` : ""}
+    ${st.threats.length ? `<div class="sc-line threat"><span class="lbl">위협</span>${st.threats.map(esc).join(" · ")}</div>` : ""}
+    ${st.figures.length ? `<div class="sc-line"><span class="lbl">인물</span>${st.figures.map(f => `${esc(f.name)} <span class="tag ${moodTag(f.mood)}">${esc(f.mood)}</span>`).join(" ")}</div>` : ""}
+    ${st.relations.length ? `<div class="sc-line"><span class="lbl">외교</span>${st.relations.map(r => `${esc(r.nation)} <span class="tag ${relTag(r.status)}">${esc(r.status)}</span>`).join(" ")}</div>` : ""}
+  </details>`;
 }
 const moodTag = m => /충성|우호/.test(m) ? "t-good" : /불만|적대/.test(m) ? "t-bad" : "t-mid";
 const relTag = s => /전쟁/.test(s) ? "t-war" : /동맹|우호/.test(s) ? "t-good" : /긴장|적대/.test(s) ? "t-bad" : "t-mid";
@@ -410,10 +470,17 @@ async function send(cmd) {
   try {
     const { text, truncated } = await sample(input, {
       signal: busy.signal, cache: false,
-      onText: ({ text }) => { const n = splitReply(text).narrative; if (n) pend.innerHTML = md(n); },
+      onText: ({ text }) => {
+        const s = stateStart(text); const n = (s >= 0 ? text.slice(0, s) : text).trim();
+        if (n) pend.innerHTML = md(n) + (s >= 0 ? `<div class="st-missing">상태창을 정리하는 중…</div>` : "");
+      },
     });
     const { narrative, state } = splitReply(text);
-    const cs = cleanState(state);
+    let cs = cleanState(state);
+    if (!cs && narrative) {
+      pend.innerHTML = md(narrative) + `<div class="st-missing">상태창을 정리하는 중…</div>`;
+      try { cs = cleanState(await recoverState(narrative)); } catch (e) { cs = null; }
+    }
     G.undo = snapshot;
     if (cs) {
       G.prevState = G.state; G.state = cs;
@@ -421,7 +488,7 @@ async function send(cmd) {
       if (G.chronicle.length > 200) G.chronicle = G.chronicle.slice(-200);
       if (cs.ending) G.ended = cs.ending;
     }
-    G.turns.push({ role: "assistant", content: narrative || text, date: cs?.date || G.state?.date || "" });
+    G.turns.push({ role: "assistant", content: narrative || text, date: cs?.date || G.state?.date || "", st: cs || null });
     save();
     busy = null; setBusyUI(false); render();
     if (!cs) setHint("이번 답에서 상태창을 읽지 못해 이전 상태창을 유지했습니다.", true);
@@ -496,7 +563,11 @@ document.addEventListener("click", e => {
   if (t.id === "btn-send") { if (busy) busy.abort(); else send($("#cmd").value); return; }
   if (t.id === "btn-undo") return undo();
   if (t.id === "btn-new" || d.act === "new") return showSetup();
-  if (t.id === "btn-status") { $("#status").classList.toggle("collapsed"); return; }
+  if (t.id === "btn-status") {
+    const cards = document.querySelectorAll(".st-inline"); const c = cards[cards.length - 1];
+    if (c) { c.open = true; c.scrollIntoView({ block: "center", behavior: "smooth" }); } else setHint("첫 어명을 내리면 답변 아래에 상태창이 나옵니다.");
+    return;
+  }
   if (d.chip) return send(d.chip);
   if (d.preset) { pick.preset = d.preset; return showSetup(); }
   if (d.real) { pick.realism = d.real; document.querySelectorAll("[data-real]").forEach(b => b.classList.toggle("on", b.dataset.real === pick.realism)); return; }
@@ -508,7 +579,6 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#scrim
 /* ───────── 시작 ───────── */
 (function boot() {
   G = load();
-  if (window.matchMedia("(max-width: 900px)").matches) $("#status").classList.add("collapsed");
   render();
   if (!G) showSetup();
   const use = window.claude?.use;
