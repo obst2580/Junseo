@@ -51,6 +51,14 @@ header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-cont
 .btn-ghost { background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13.5px; }
 .btn-ghost:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
 .btn-ghost[disabled] { opacity: .4; cursor: not-allowed; }
+.sync { font-size: 12px; color: var(--muted); background: transparent; border: 0; padding: 6px 2px; cursor: default; }
+.sync.warn { color: var(--bad); }
+.sync.remote { color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 700; }
+.saves { display: flex; flex-direction: column; gap: 6px; }
+.save-row { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+.save-row:hover { border-color: var(--accent); }
+.save-row b { font-family: var(--f-display); font-weight: 400; font-size: 16px; }
+.save-row span { font-size: 12px; color: var(--muted); }
 .only-narrow { display: none; }
 
 .cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
@@ -186,6 +194,7 @@ header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-cont
       </div>
     </div>
     <div class="top-actions">
+      <button class="sync" id="sync" type="button" tabindex="-1">이 기기에만 저장</button>
       <button class="btn-ghost only-narrow" id="btn-status" type="button">상태창</button>
       <button class="btn-ghost" id="btn-undo" type="button" disabled>한 턴 되돌리기</button>
       <button class="btn-ghost" id="btn-new" type="button">새 시나리오</button>
@@ -240,10 +249,105 @@ let sampleReady = false;
 let busy = null;          // 진행 중인 AbortController
 let pick = { preset: "ru", realism: "balanced" };
 
+const newGid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 function blankGame(sc, realism) {
-  return { sc, realism, turns: [], state: null, prevState: null, chronicle: [], ended: null, undo: null };
+  return { gid: newGid(), updatedAt: Date.now(), sc, realism, turns: [], state: null, prevState: null, chronicle: [], ended: null, undo: null };
 }
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} }
+function save() {
+  if (!G) return;
+  G.updatedAt = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {}
+  cloudSave();
+}
+
+/* ───────── 기기 간 동기화 (계정별 비공개 저장소) ───────── */
+let cloud = null;         // { db, base, synced, lastWrite, remote }
+let saving = Promise.resolve();
+const padT = n => "t" + String(n).padStart(5, "0");
+function setSync(text, kind) { const el = $("#sync"); el.textContent = text; el.classList.toggle("warn", kind === "warn"); el.classList.toggle("remote", kind === "remote"); el.tabIndex = kind === "remote" ? 0 : -1; }
+async function initCloud() {
+  if (!window.claude?.use) return;
+  const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+  if (!db || !user) return;
+  const uid = await user.id();
+  if (!uid) return;
+  try { cloud = { db, base: "data/users/" + uid, synced: 0 }; db.doc(cloud.base + "/current"); }
+  catch (e) { cloud = null; return; }
+  setSync("동기화 확인 중…");
+  try {
+    const cur = await db.doc(cloud.base + "/current").get();
+    const c = cur.exists ? cur.data() : null;
+    const localT = G && G.turns.length ? (G.updatedAt || 0) : -1;
+    if (!c) { if (G) cloudSave(); }
+    else if (G && c.gid === G.gid) {
+      if (localT > (c.updatedAt || 0)) cloudSave();
+      else if (localT < (c.updatedAt || 0)) { if (!busy) await pull(c.gid, true); }
+      else { cloud.gid = G.gid; cloud.synced = G.turns.length; }
+    }
+    else if (localT > (c.updatedAt || 0)) cloudSave();
+    else if (!busy) await pull(c.gid, true);
+    setSync("모든 기기에 저장됨");
+    watchPointer();
+  } catch (e) { cloud = null; setSync("동기화 실패 · 이 기기에만 저장", "warn"); }
+}
+async function pull(gid, announce) {
+  const ref = cloud.db.doc(`${cloud.base}/g_${gid}`);
+  const m = await ref.get();
+  if (!m.exists) return false;
+  const d = m.data();
+  const q = await ref.collection("turns").orderBy("i").limit(1000).get();
+  const n = d.nTurns ?? 1e9;
+  G = { gid, sc: d.sc, realism: d.realism || "balanced", state: d.state ?? null, prevState: d.prevState ?? null, chronicle: d.chronicle || [], ended: d.ended ?? null, updatedAt: d.updatedAt || 0, undo: null,
+    turns: q.docs.map(x => x.data()).filter(t => t.i < n).map(t => ({ role: t.role, content: t.content, date: t.date || "", st: t.st || null })) };
+  cloud.gid = gid; cloud.synced = G.turns.length; cloud.remote = null;
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {}
+  $("#scrim").hidden = true; render();
+  setSync("모든 기기에 저장됨");
+  if (announce) setHint("다른 기기에서 하던 게임을 이어서 불러왔습니다.");
+  return true;
+}
+function cloudSave() {
+  if (!cloud || !G) return;
+  const g = G;
+  saving = saving.then(async () => {
+    setSync("저장 중…");
+    const ref = cloud.db.doc(`${cloud.base}/g_${g.gid}`);
+    if (cloud.gid !== g.gid) { cloud.gid = g.gid; cloud.synced = 0; }
+    const n = g.turns.length;
+    for (let i = Math.min(cloud.synced, n); i < n; i++) {
+      const t = g.turns[i];
+      await ref.collection("turns").doc(padT(i)).set({ i, role: t.role, content: t.content, date: t.date || "", st: t.st || null });
+    }
+    for (let i = n; i < cloud.synced; i++) await ref.collection("turns").doc(padT(i)).delete();
+    await ref.set({ sc: g.sc, realism: g.realism, state: g.state, prevState: g.prevState, chronicle: g.chronicle, ended: g.ended, updatedAt: g.updatedAt, nTurns: n });
+    cloud.lastWrite = g.updatedAt;
+    await cloud.db.doc(cloud.base + "/current").set({ gid: g.gid, updatedAt: g.updatedAt });
+    cloud.synced = n;
+    setSync("모든 기기에 저장됨");
+  }).catch(e => setSync(e?.code === "quota_exceeded" ? "저장 공간이 가득 참 · 이 기기에만 저장" : "동기화 실패 · 이 기기에만 저장", "warn"));
+}
+function watchPointer() {
+  cloud.db.doc(cloud.base + "/current").onSnapshot(s => {
+    if (!s.exists || s.metadata.hasPendingWrites) return;
+    const c = s.data();
+    if ((c.updatedAt || 0) > (G?.updatedAt || 0) && c.updatedAt !== cloud.lastWrite) {
+      cloud.remote = c.gid;
+      setSync("다른 기기의 진행분 불러오기", "remote");
+    }
+  }, () => {});
+}
+async function fillSaves() {
+  const box = $("#saves");
+  if (!box || !cloud) return;
+  try {
+    const q = await cloud.db.collection(cloud.base).get();
+    const games = q.docs.filter(d => d.id.startsWith("g_")).map(d => ({ gid: d.id.slice(2), ...d.data() }))
+      .filter(g => g.nTurns > 0).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 8);
+    if (!games.length || !$("#saves")) return;
+    box.innerHTML = `<div class="eyebrow">저장된 게임 · 모든 기기</div><div class="saves">${games.map(g =>
+      `<button type="button" class="save-row" data-load="${esc(g.gid)}"><b>${esc(g.sc?.nation || "")}</b><span>${esc(g.state?.date || g.sc?.date || "")} · ${Math.floor(g.nTurns / 2)}턴 · ${new Date(g.updatedAt || 0).toLocaleString("ko-KR")} 저장${G && G.gid === g.gid ? " · 지금 게임" : ""}</span></button>`).join("")}</div>`;
+  } catch (e) {}
+}
 function load() { try { const v = localStorage.getItem(SAVE_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 
 /* ───────── 프롬프트 ───────── */
@@ -525,7 +629,7 @@ function undo() {
 function showSetup() {
   const p = PRESETS.find(x => x.id === pick.preset);
   const custom = pick.preset === "custom";
-  $("#modal").innerHTML = `<div class="eyebrow">새 시나리오</div><h3>어느 나라의 운명을 쥘 것인가</h3>
+  $("#modal").innerHTML = `<div id="saves"></div><div class="eyebrow">새 시나리오</div><h3>어느 나라의 운명을 쥘 것인가</h3>
     <p>시대와 나라를 고르면 AI 사관이 그 시점의 실제 역사에서 이야기를 시작합니다. 명령은 채팅으로 자유롭게 내리면 됩니다.</p>
     <div class="presets">${PRESETS.map(x => `<button type="button" class="preset ${x.id === pick.preset ? "on" : ""}" data-preset="${x.id}"><span class="yr">${x.date}</span><b>${x.nation}</b><span>${esc(x.role)}</span></button>`).join("")}
       <button type="button" class="preset ${custom ? "on" : ""}" data-preset="custom"><span class="yr">직접 입력</span><b>나만의 대체역사</b><span>나라, 시점, 분기점을 직접 정한다</span></button></div>
@@ -540,6 +644,7 @@ function showSetup() {
     ${sampleReady ? "" : `<div class="warnbox">AI 사관은 claude.ai에서 이 페이지를 열었을 때만 응답합니다. 처음 어명을 내릴 때 Claude 사용 허용을 묻습니다.</div>`}
     <div class="mrow">${G ? `<button class="btn-ghost" type="button" data-act="close">닫기</button>` : ""}<button class="btn-primary" type="button" data-act="start">이 나라로 시작</button></div>`;
   $("#scrim").hidden = false;
+  fillSaves();
 }
 function startFromForm() {
   const v = id => ($("#" + id).value || "").trim();
@@ -573,12 +678,15 @@ document.addEventListener("click", e => {
   if (d.real) { pick.realism = d.real; document.querySelectorAll("[data-real]").forEach(b => b.classList.toggle("on", b.dataset.real === pick.realism)); return; }
   if (d.act === "close") { $("#scrim").hidden = true; return; }
   if (d.act === "start") return startFromForm();
+  if (d.load && cloud && !busy) { pull(d.load, true).then(ok => { if (ok) save(); }); return; }
+  if (t.id === "sync" && cloud?.remote && !busy) { pull(cloud.remote, true); return; }
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#scrim").hidden && G) $("#scrim").hidden = true; });
 
 /* ───────── 시작 ───────── */
 (function boot() {
   G = load();
+  if (G && !G.gid) { G.gid = newGid(); G.updatedAt = G.turns?.length ? Date.now() : 0; try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} }
   render();
   if (!G) showSetup();
   const use = window.claude?.use;
@@ -589,6 +697,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#scrim
       render();
       if (!$("#scrim").hidden && !G) showSetup();
     }).catch(() => { setHint("AI 사관을 불러오지 못했습니다.", true); });
+    initCloud().catch(() => setSync("동기화 실패 · 이 기기에만 저장", "warn"));
   } else {
     setHint("AI 사관은 claude.ai에서 이 페이지를 열었을 때만 응답합니다.", true);
   }
