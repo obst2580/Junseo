@@ -54,6 +54,10 @@ header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-cont
 .sync { font-size: 12px; color: var(--muted); background: transparent; border: 0; padding: 6px 2px; cursor: default; }
 .sync.warn { color: var(--bad); }
 .sync.remote { color: var(--accent-ink); background: var(--accent); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 700; }
+.xfer { border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; display: block; }
+.xfer summary { cursor: pointer; padding: 8px 0; font-size: 13.5px; }
+.xfer[open] { padding-bottom: 12px; }
+.xfer[open] > * + * { margin-top: 8px; }
 .saves { display: flex; flex-direction: column; gap: 6px; }
 .save-row { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
 .save-row:hover { border-color: var(--accent); }
@@ -268,14 +272,28 @@ function setSync(text, kind) { const el = $("#sync"); el.textContent = text; el.
 async function initCloud() {
   if (!window.claude?.use) return;
   const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
-  if (!db || !user) return;
-  const uid = await user.id();
-  if (!uid) return;
-  try { cloud = { db, base: "data/users/" + uid, synced: 0 }; db.doc(cloud.base + "/current"); }
-  catch (e) { cloud = null; return; }
+  if (!db) { setSync("이 기기에만 저장 (저장소 연결 안 됨)", "warn"); return; }
+  const owner = user ? await user.isOwner() : false;
+  const uid = user ? await user.id() : null;
+  // 소유자는 기기와 상관없이 같은 곳(owner/)에 저장한다. 이 링크는 소유자만 열 수 있다.
+  const legacy = uid ? "data/users/" + uid : null;
+  const base = owner ? "owner" : legacy;
+  if (!base) { setSync("이 기기에만 저장 (로그인 정보 없음)", "warn"); return; }
+  try { cloud = { db, base, synced: 0 }; db.doc(base + "/current"); }
+  catch (e) { cloud = null; setSync("이 기기에만 저장 (저장 경로 오류)", "warn"); return; }
   setSync("동기화 확인 중…");
   try {
-    const cur = await db.doc(cloud.base + "/current").get();
+    let cur = await db.doc(cloud.base + "/current").get();
+    // 이전 버전이 계정별 경로에 저장한 게임이 있으면 옮겨 온다
+    if (!cur.exists && owner && legacy) {
+      try {
+        const old = await db.doc(legacy + "/current").get();
+        if (old.exists && (!G || !G.turns.length || (old.data().updatedAt || 0) > (G.updatedAt || 0))) {
+          if (await pull(old.data().gid, true, legacy)) { cloud.synced = 0; cloud.gid = null; cloudSave(); }
+          setSync("모든 기기에 저장됨"); watchPointer(); return;
+        }
+      } catch (e) {}
+    }
     const c = cur.exists ? cur.data() : null;
     const localT = G && G.turns.length ? (G.updatedAt || 0) : -1;
     if (!c) { if (G) cloudSave(); }
@@ -288,10 +306,10 @@ async function initCloud() {
     else if (!busy) await pull(c.gid, true);
     setSync("모든 기기에 저장됨");
     watchPointer();
-  } catch (e) { cloud = null; setSync("동기화 실패 · 이 기기에만 저장", "warn"); }
+  } catch (e) { cloud = null; setSync(`동기화 실패 (${e?.code || "오류"}) · 이 기기에만 저장`, "warn"); }
 }
-async function pull(gid, announce) {
-  const ref = cloud.db.doc(`${cloud.base}/g_${gid}`);
+async function pull(gid, announce, from) {
+  const ref = cloud.db.doc(`${from || cloud.base}/g_${gid}`);
   const m = await ref.get();
   if (!m.exists) return false;
   const d = m.data();
@@ -324,7 +342,7 @@ function cloudSave() {
     await cloud.db.doc(cloud.base + "/current").set({ gid: g.gid, updatedAt: g.updatedAt });
     cloud.synced = n;
     setSync("모든 기기에 저장됨");
-  }).catch(e => setSync(e?.code === "quota_exceeded" ? "저장 공간이 가득 참 · 이 기기에만 저장" : "동기화 실패 · 이 기기에만 저장", "warn"));
+  }).catch(e => setSync(e?.code === "quota_exceeded" ? "저장 공간이 가득 참 · 이 기기에만 저장" : `동기화 실패 (${e?.code || "오류"}) · 이 기기에만 저장`, "warn"));
 }
 function watchPointer() {
   cloud.db.doc(cloud.base + "/current").onSnapshot(s => {
@@ -335,6 +353,26 @@ function watchPointer() {
       setSync("다른 기기의 진행분 불러오기", "remote");
     }
   }, () => {});
+}
+function exportCode() {
+  const g = { ...G, undo: null };
+  const code = "WJ1:" + btoa(unescape(encodeURIComponent(JSON.stringify(g))));
+  const box = $("#f-code"); box.value = code;
+  const msg = t => { $("#xfer-msg").textContent = t; };
+  try {
+    navigator.clipboard.writeText(code).then(() => msg("복사했습니다. 다른 기기에서 붙여 넣으세요."), () => { box.select(); msg("자동 복사가 막혀 있습니다. 칸의 코드를 직접 복사하세요."); });
+  } catch (e) { box.select(); msg("칸의 코드를 직접 복사하세요."); }
+}
+function importCode() {
+  const msg = t => { $("#xfer-msg").textContent = t; };
+  const raw = ($("#f-code").value || "").trim().replace(/^WJ1:/, "");
+  if (!raw) return msg("저장 코드를 먼저 붙여 넣으세요.");
+  let g;
+  try { g = JSON.parse(decodeURIComponent(escape(atob(raw.replace(/\s+/g, ""))))); } catch (e) { return msg("코드를 읽지 못했습니다. 처음부터 끝까지 빠짐없이 붙여 넣었는지 확인하세요."); }
+  if (!g || !g.sc || !Array.isArray(g.turns)) return msg("왕조 연대기 저장 코드가 아닙니다.");
+  G = { ...g, gid: g.gid || newGid(), undo: null };
+  save(); $("#scrim").hidden = true; render();
+  setHint("저장 코드로 게임을 불러왔습니다.");
 }
 async function fillSaves() {
   const box = $("#saves");
@@ -629,7 +667,14 @@ function undo() {
 function showSetup() {
   const p = PRESETS.find(x => x.id === pick.preset);
   const custom = pick.preset === "custom";
-  $("#modal").innerHTML = `<div id="saves"></div><div class="eyebrow">새 시나리오</div><h3>어느 나라의 운명을 쥘 것인가</h3>
+  $("#modal").innerHTML = `<div id="saves"></div>
+    <details class="xfer"><summary>저장 코드로 옮기기</summary>
+      <p>동기화가 안 될 때 쓰는 방법입니다. 하던 기기에서 ‘코드 복사’를 누르고, 다른 기기에서 아래 칸에 붙여 넣은 뒤 ‘코드로 불러오기’를 누르세요.</p>
+      <div class="field"><label for="f-code">저장 코드</label><textarea id="f-code" placeholder="여기에 저장 코드를 붙여 넣으세요"></textarea></div>
+      <div class="mrow"><button class="btn-ghost" type="button" data-act="export" ${G && G.turns.length ? "" : "disabled"}>지금 게임 코드 복사</button><button class="btn-ghost" type="button" data-act="import">코드로 불러오기</button></div>
+      <div class="hint" id="xfer-msg"></div>
+    </details>
+    <div class="eyebrow">새 시나리오</div><h3>어느 나라의 운명을 쥘 것인가</h3>
     <p>시대와 나라를 고르면 AI 사관이 그 시점의 실제 역사에서 이야기를 시작합니다. 명령은 채팅으로 자유롭게 내리면 됩니다.</p>
     <div class="presets">${PRESETS.map(x => `<button type="button" class="preset ${x.id === pick.preset ? "on" : ""}" data-preset="${x.id}"><span class="yr">${x.date}</span><b>${x.nation}</b><span>${esc(x.role)}</span></button>`).join("")}
       <button type="button" class="preset ${custom ? "on" : ""}" data-preset="custom"><span class="yr">직접 입력</span><b>나만의 대체역사</b><span>나라, 시점, 분기점을 직접 정한다</span></button></div>
@@ -678,6 +723,8 @@ document.addEventListener("click", e => {
   if (d.real) { pick.realism = d.real; document.querySelectorAll("[data-real]").forEach(b => b.classList.toggle("on", b.dataset.real === pick.realism)); return; }
   if (d.act === "close") { $("#scrim").hidden = true; return; }
   if (d.act === "start") return startFromForm();
+  if (d.act === "export") return exportCode();
+  if (d.act === "import") return importCode();
   if (d.load && cloud && !busy) { pull(d.load, true).then(ok => { if (ok) save(); }); return; }
   if (t.id === "sync" && cloud?.remote && !busy) { pull(cloud.remote, true); return; }
 });
