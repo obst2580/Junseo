@@ -10,20 +10,10 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Song+Myung&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
-/* Layout: 사관이 쓰는 실록 — 위에는 국력 장부, 가운데 세 단(국정 · 연대기 · 주변국), 아래에 붉은 인장 같은 '한 해를 마친다' 버튼 */
+/* Layout: 왼쪽은 사관이 써 내려가는 실록(대화), 오른쪽은 늘 펼쳐 둔 국정 상태창. 아래에 어명을 적는 붓 자리. */
 :root {
-  --bg: #e7ebe4;          /* 옅은 청자빛 한지 */
-  --panel: #f4f6f1;
-  --sunk: #dde3da;
-  --ink: #1c2420;
-  --muted: #5e6b63;
-  --line: #c4cdc3;
-  --accent: #2b3f91;      /* 쪽빛 */
-  --accent-ink: #ffffff;
-  --seal: #b8321f;        /* 인주 */
-  --good: #2c7a4b;
-  --bad: #b8321f;
-  --era: #7a5a12;
+  --bg: #e7ebe4; --panel: #f4f6f1; --sunk: #dde3da; --ink: #1c2420; --muted: #5e6b63; --line: #c4cdc3;
+  --accent: #2b3f91; --accent-ink: #ffffff; --seal: #b8321f; --good: #2c7a4b; --bad: #b8321f; --era: #7a5a12;
   --shadow: 0 1px 0 rgba(28,36,32,.06), 0 6px 18px -10px rgba(28,36,32,.25);
   --f-display: "Song Myung", "Nanum Myeongjo", "AppleMyungjo", serif;
   --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
@@ -31,758 +21,508 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #11151c; --panel: #181e27; --sunk: #0d1117; --ink: #e4e7e0; --muted: #98a39c;
-    --line: #2a3340; --accent: #93a6f2; --accent-ink: #0f1424; --seal: #e0654f;
-    --good: #6cc68f; --bad: #ef7a64; --era: #e0b65a;
-    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 22px -12px rgba(0,0,0,.7);
-    color-scheme: dark;
+    --bg: #11151c; --panel: #181e27; --sunk: #0d1117; --ink: #e4e7e0; --muted: #98a39c; --line: #2a3340;
+    --accent: #93a6f2; --accent-ink: #0f1424; --seal: #e0654f; --good: #6cc68f; --bad: #ef7a64; --era: #e0b65a;
+    --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 22px -12px rgba(0,0,0,.7); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #11151c; --panel: #181e27; --sunk: #0d1117; --ink: #e4e7e0; --muted: #98a39c;
-  --line: #2a3340; --accent: #93a6f2; --accent-ink: #0f1424; --seal: #e0654f;
-  --good: #6cc68f; --bad: #ef7a64; --era: #e0b65a;
-  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 22px -12px rgba(0,0,0,.7);
-  color-scheme: dark;
+  --bg: #11151c; --panel: #181e27; --sunk: #0d1117; --ink: #e4e7e0; --muted: #98a39c; --line: #2a3340;
+  --accent: #93a6f2; --accent-ink: #0f1424; --seal: #e0654f; --good: #6cc68f; --bad: #ef7a64; --era: #e0b65a;
+  --shadow: 0 1px 0 rgba(0,0,0,.3), 0 8px 22px -12px rgba(0,0,0,.7); color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { min-height: 100%; }
+[hidden] { display: none !important; }
 body {
-  margin: 0; background: var(--bg); color: var(--ink);
-  font-family: var(--f-body); font-size: 14px; line-height: 1.55;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 0 96px;
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.7;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 190px;
 }
-button { font: inherit; color: inherit; }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.num { font-family: var(--f-num); font-variant-numeric: tabular-nums; }
-.wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+button, textarea, input { font: inherit; color: inherit; }
+button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 
-/* 머리 */
-header.top {
-  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 20px;
-  padding-block: 20px 4px; border-bottom: 1px solid var(--line);
-}
+header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px 20px; padding-block: 20px 10px; border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: flex-end; gap: 14px; min-width: 0; }
-.seal {
-  width: 46px; height: 46px; flex: none; border: 2px solid var(--seal); color: var(--seal);
-  display: grid; place-items: center; font-family: var(--f-display); font-size: 15px; line-height: 1.05;
-  text-align: center; border-radius: 4px; transform: rotate(-4deg); padding: 2px;
-}
-.brand h1 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: clamp(24px, 4vw, 34px); line-height: 1.1; text-wrap: balance; }
+.seal { width: 46px; height: 46px; flex: none; border: 2px solid var(--seal); color: var(--seal); display: grid; place-items: center; font-family: var(--f-display); font-size: 15px; line-height: 1.05; text-align: center; border-radius: 4px; transform: rotate(-4deg); }
+.brand h1 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: clamp(22px, 4vw, 32px); line-height: 1.15; text-wrap: balance; }
 .brand .sub { color: var(--muted); font-size: 13px; }
 .top-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.btn-ghost { background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; }
-.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-ghost { background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13.5px; }
+.btn-ghost:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
+.btn-ghost[disabled] { opacity: .4; cursor: not-allowed; }
+.only-narrow { display: none; }
 
-/* 국력 장부 */
-.ledger { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.res { background: var(--panel); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.res .k { font-size: 11px; letter-spacing: .08em; color: var(--muted); }
-.res .v { font-family: var(--f-num); font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.2; }
-.res .d { font-family: var(--f-num); font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.d.up { color: var(--good); } .d.down { color: var(--bad); }
-.res.warn .v { color: var(--bad); }
-.meter { height: 4px; background: var(--sunk); border-radius: 2px; overflow: hidden; margin-top: 4px; }
-.meter > i { display: block; height: 100%; background: var(--accent); }
-.meter.mood > i { background: var(--good); }
-.meter.mood.low > i { background: var(--bad); }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
 
-/* 시대 띠 */
-.eras { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.era-track { display: flex; gap: 4px; flex: 1 1 420px; min-width: 0; }
-.era-step { flex: 1; min-width: 0; padding: 6px 8px; border-radius: 6px; background: var(--sunk); color: var(--muted); font-size: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.era-step.done { background: color-mix(in srgb, var(--era) 18%, var(--panel)); color: var(--era); }
-.era-step.now { background: var(--era); color: var(--panel); font-weight: 700; }
-.era-info { font-size: 12.5px; color: var(--muted); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-.btn-era { background: var(--era); color: var(--panel); border: 0; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 700; }
-.btn-era[disabled] { opacity: .35; cursor: not-allowed; }
+/* 실록 */
+.log { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.turn-cmd { align-self: flex-end; max-width: min(560px, 88%); background: var(--accent); color: var(--accent-ink); padding: 9px 14px; border-radius: 12px 12px 2px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.turn-cmd .lbl { display: block; font-size: 11px; letter-spacing: .1em; opacity: .75; }
+.turn-gm { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; box-shadow: var(--shadow); min-width: 0; overflow-wrap: anywhere; }
+.turn-gm .date { font-family: var(--f-display); color: var(--era); font-size: 17px; margin-bottom: 6px; }
+.turn-gm p { margin: 0 0 .8em; max-width: 68ch; }
+.turn-gm p:last-child { margin-bottom: 0; }
+.turn-gm h4 { margin: 1em 0 .4em; font-family: var(--f-display); font-weight: 400; font-size: 19px; }
+.turn-gm h4:first-child { margin-top: 0; }
+.turn-gm blockquote { margin: 0 0 .8em; padding: 4px 0 4px 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.turn-gm ul { margin: 0 0 .8em; padding-left: 20px; }
+.turn-gm.pending .think { color: var(--muted); font-style: italic; }
+.turn-gm .note { margin-top: 10px; font-size: 12.5px; color: var(--bad); }
+.turn-end { border-color: var(--era); }
+.turn-end h3 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 400; font-size: 26px; color: var(--era); }
+.intro { background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; padding: 16px 18px; color: var(--muted); font-size: 14px; }
+.intro b { color: var(--ink); }
 
-/* 세 단 */
-.cols { display: grid; grid-template-columns: 300px minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 12px; min-width: 0; box-shadow: var(--shadow); }
-.panel h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.panel h2 small { font-family: var(--f-body); font-size: 12px; color: var(--muted); }
-.group-label { font-size: 11px; letter-spacing: .1em; color: var(--muted); }
+/* 상태창 */
+.status { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 16px; display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 210px); overflow-y: auto; min-width: 0; }
+.status h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 21px; line-height: 1.25; }
+.status .when { font-family: var(--f-num); font-size: 12.5px; color: var(--era); }
+.status .headline { font-size: 13.5px; color: var(--muted); }
+.sec-label { font-size: 11px; letter-spacing: .12em; color: var(--muted); border-top: 1px solid var(--line); padding-top: 10px; }
+.gauges { display: flex; flex-direction: column; gap: 7px; }
+.g-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) 54px; gap: 8px; align-items: center; font-size: 13px; }
+.g-bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.g-bar i { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .5s ease; }
+.g-bar i.low { background: var(--bad); }
+.g-val { font-family: var(--f-num); font-variant-numeric: tabular-nums; text-align: right; font-size: 12.5px; white-space: nowrap; }
+.g-val .up { color: var(--good); } .g-val .down { color: var(--bad); }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fact { background: var(--bg); border-radius: 6px; padding: 6px 9px; min-width: 0; }
+.fact .k { display: block; font-size: 11px; color: var(--muted); }
+.fact .v { display: block; font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.list li { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.list li > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.list small { color: var(--muted); display: block; font-size: 11.5px; }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; flex: none; }
+.t-good { color: var(--good); } .t-bad { color: var(--bad); } .t-mid { color: var(--muted); }
+.t-war { color: var(--panel); background: var(--seal); border-color: var(--seal); }
+.threats li { justify-content: flex-start; color: var(--bad); }
+.chron { font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; margin: 0; padding-left: 16px; }
+.empty-status { color: var(--muted); font-size: 13.5px; }
 
-.acts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.act {
-  text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
-  cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0;
+/* 어명 입력 */
+.composer {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: color-mix(in srgb, var(--panel) 95%, transparent); backdrop-filter: blur(6px);
+  border-top: 1px solid var(--line); padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.act:hover:not([disabled]) { border-color: var(--accent); }
-.act b { font-weight: 700; font-size: 14px; }
-.act span { font-size: 11.5px; color: var(--muted); }
-.act[disabled] { opacity: .45; cursor: not-allowed; }
-.act.wide { grid-column: 1 / -1; }
-.act.gold { border-color: var(--era); }
+.composer-in { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.chip { flex: none; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; }
+.chip:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
+.chip.time { border-color: var(--era); color: var(--era); }
+.chip[disabled] { opacity: .45; cursor: not-allowed; }
+.row-in { display: flex; gap: 8px; align-items: flex-end; }
+.row-in textarea { flex: 1; min-width: 0; resize: none; min-height: 46px; max-height: 160px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); line-height: 1.5; }
+.btn-send { background: var(--seal); color: #fff; border: 0; border-radius: 10px; padding: 0 18px; height: 46px; cursor: pointer; font-family: var(--f-display); font-size: 18px; flex: none; }
+.btn-send[disabled] { opacity: .45; cursor: not-allowed; }
+.btn-stop { background: var(--ink); color: var(--bg); }
+.hint { font-size: 11.5px; color: var(--muted); }
+
+/* 모달 */
+.scrim { position: fixed; inset: 0; z-index: 50; background: rgba(10,14,12,.55); display: grid; place-items: center; padding: 16px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
+.modal { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; width: min(680px, 100%); padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); }
+.modal h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 26px; line-height: 1.2; }
+.modal p { margin: 0; color: var(--muted); font-size: 14px; }
+.eyebrow { font-size: 11.5px; letter-spacing: .12em; color: var(--muted); }
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.preset { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.preset.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.preset b { font-family: var(--f-display); font-weight: 400; font-size: 17px; }
+.preset .yr { font-family: var(--f-num); font-size: 11.5px; color: var(--era); }
+.preset span { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.full { grid-column: 1 / -1; }
+.field label { font-size: 12px; color: var(--muted); }
+.field input, .field textarea { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; line-height: 1.5; }
+.field textarea { resize: vertical; min-height: 64px; }
 .seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .seg button { border: 0; background: var(--bg); padding: 7px 4px; cursor: pointer; font-size: 13px; }
 .seg button + button { border-left: 1px solid var(--line); }
 .seg button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
-.bld-list { display: flex; flex-wrap: wrap; gap: 6px; }
-.bld-chip { font-size: 12px; padding: 3px 8px; border-radius: 99px; background: var(--sunk); color: var(--muted); }
-.bld-chip b { color: var(--ink); font-family: var(--f-num); }
-
-/* 연대기 */
-.chron { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 62vh; overflow-y: auto; }
-.chron li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
-.chron li:last-child { border-bottom: 0; }
-.chron .y { font-family: var(--f-num); font-size: 12px; color: var(--muted); padding-top: 2px; }
-.chron .t { min-width: 0; overflow-wrap: anywhere; }
-.chron li.good .t { color: var(--good); }
-.chron li.bad .t { color: var(--bad); }
-.chron li.war .t { color: var(--seal); font-weight: 500; }
-.chron li.era .t { font-family: var(--f-display); font-size: 17px; color: var(--era); }
-.chron li.year-mark { border-bottom: 0; padding-bottom: 0; }
-
-/* 주변국 */
-.nb { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: var(--bg); }
-.nb.dead { opacity: .55; }
-.nb-head { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
-.nb-name { font-family: var(--f-display); font-size: 17px; line-height: 1.2; }
-.nb-ruler { font-size: 12px; color: var(--muted); }
-.pill { font-size: 11.5px; padding: 2px 8px; border-radius: 99px; white-space: nowrap; border: 1px solid currentColor; }
-.pill.peace { color: var(--muted); }
-.pill.ally { color: var(--good); }
-.pill.war { color: var(--panel); background: var(--seal); border-color: var(--seal); }
-.pill.dead { color: var(--muted); }
-.nb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-size: 12px; color: var(--muted); }
-.nb-stats b { display: block; font-family: var(--f-num); color: var(--ink); font-size: 14px; font-weight: 500; }
-.rel { height: 6px; border-radius: 3px; background: var(--sunk); position: relative; }
-.rel::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--line); }
-.rel > i { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
-.nb-acts { display: flex; flex-wrap: wrap; gap: 6px; }
-.mini { font-size: 12px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
-.mini:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
-.mini.danger { color: var(--seal); border-color: color-mix(in srgb, var(--seal) 50%, var(--line)); }
-.mini[disabled] { opacity: .4; cursor: not-allowed; }
-
-/* 하단 바 */
-.bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
-  background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(6px);
-  border-top: 1px solid var(--line);
-  padding-top: 10px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-}
-.bar-in { max-width: 1240px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.ap { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.ap i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent); display: inline-block; }
-.ap i.on { background: var(--accent); }
-.btn-end {
-  background: var(--seal); color: #fff; border: 0; border-radius: 8px; padding: 11px 20px; cursor: pointer;
-  font-family: var(--f-display); font-size: 18px; letter-spacing: .04em;
-}
-.btn-end:hover { filter: brightness(1.08); }
-
-/* 모달 */
-.scrim { position: fixed; inset: 0; z-index: 50; background: rgba(10,14,12,.55); display: grid; place-items: center; padding: 16px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); overflow-y: auto; }
-.modal { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; width: min(560px, 100%); padding: 22px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); }
-.modal h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 26px; line-height: 1.2; text-wrap: balance; }
-.modal .eyebrow { font-size: 11.5px; letter-spacing: .12em; color: var(--muted); }
-.modal p { margin: 0; max-width: 62ch; }
-.choices { display: flex; flex-direction: column; gap: 8px; }
-.choice { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 11px 13px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-.choice:hover:not([disabled]) { border-color: var(--accent); }
-.choice b { font-weight: 700; }
-.choice span { font-size: 12.5px; color: var(--muted); }
-.choice[disabled] { opacity: .45; cursor: not-allowed; }
-.btn-primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 11px 18px; cursor: pointer; font-weight: 700; font-size: 15px; }
+.mrow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer; font-weight: 700; }
 .btn-primary[disabled] { opacity: .4; cursor: not-allowed; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field label { font-size: 12px; color: var(--muted); }
-.field input { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font: inherit; color: var(--ink); }
-.traits { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.trait { text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-.trait.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.trait b { font-family: var(--f-display); font-weight: 400; font-size: 16px; }
-.trait span { font-size: 12px; color: var(--muted); }
-.row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.help h4 { margin: 4px 0 0; font-size: 14px; }
-.help ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
-.statgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.statgrid div { background: var(--bg); border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--muted); }
-.statgrid b { display: block; color: var(--ink); font-family: var(--f-num); font-size: 16px; font-weight: 500; }
+.warnbox { font-size: 13px; color: var(--bad); }
 
-.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60; background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; max-width: calc(100% - 32px); }
-
-@media (max-width: 1080px) {
-  .cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .cols .p-chron { grid-column: 1 / -1; order: 3; }
-  .ledger { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .cols { grid-template-columns: minmax(0, 1fr); }
-  .ledger { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .ledger .res:last-child { grid-column: span 2; }
-  .traits { grid-template-columns: 1fr; }
-  .btn-end { font-size: 16px; padding: 10px 14px; }
-  .chron { max-height: none; }
+  .status { position: static; max-height: none; order: -1; }
+  .status.collapsed > :not(.st-head) { display: none; }
+  .only-narrow { display: inline-block; }
+  .presets, .fields { grid-template-columns: 1fr; }
 }
-@media (prefers-reduced-motion: no-preference) {
-  .chron li.fresh { animation: inkin .6s ease-out; }
-  @keyframes inkin { from { opacity: .2; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
-}
+@media (prefers-reduced-motion: reduce) { .g-bar i { transition: none; } }
 </style>
 
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <div class="seal" id="seal" aria-hidden="true">王朝<br>實錄</div>
+      <div class="seal" aria-hidden="true">王朝<br>實錄</div>
       <div>
         <h1 id="title">왕조 연대기</h1>
-        <div class="sub" id="subtitle">작은 부족에서 세계를 이끄는 나라까지</div>
+        <div class="sub" id="subtitle">어명을 내리면 AI 사관이 역사를 써 내려가는 대체역사 국가 경영</div>
       </div>
     </div>
     <div class="top-actions">
-      <button class="btn-ghost" id="btn-help" type="button">규칙</button>
-      <button class="btn-ghost" id="btn-new" type="button">새 왕조</button>
+      <button class="btn-ghost only-narrow" id="btn-status" type="button">상태창</button>
+      <button class="btn-ghost" id="btn-undo" type="button" disabled>한 턴 되돌리기</button>
+      <button class="btn-ghost" id="btn-new" type="button">새 시나리오</button>
     </div>
   </header>
 
-  <section class="ledger" id="ledger" aria-label="국력"></section>
-
-  <section class="eras" id="eras" aria-label="시대"></section>
-
   <main class="cols">
-    <section class="panel p-gov" id="gov"></section>
-    <section class="panel p-chron">
-      <h2>연대기 <small id="chron-meta"></small></h2>
-      <ol class="chron" id="chron"></ol>
-    </section>
-    <section class="panel p-nb" id="nbs"></section>
+    <section class="log" id="log" aria-live="polite"></section>
+    <aside class="status" id="status" aria-label="상태창"></aside>
   </main>
 </div>
 
-<div class="bar">
-  <div class="bar-in">
-    <div class="ap" id="ap"></div>
-    <button class="btn-end" id="btn-end" type="button">한 해를 마친다</button>
+<div class="composer">
+  <div class="composer-in">
+    <div class="chips" id="chips"></div>
+    <div class="row-in">
+      <label for="cmd" class="hint" hidden>어명</label>
+      <textarea id="cmd" rows="1" placeholder="어명을 적으십시오. 예: 재무대신을 불러 철도 건설 예산을 보고하게 하라"></textarea>
+      <button class="btn-send" id="btn-send" type="button">어명</button>
+    </div>
+    <div class="hint" id="hint">Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 게임 밖 요청은 (OOC: …)로 적으세요.</div>
   </div>
 </div>
 
 <div class="scrim" id="scrim" hidden><div class="modal" id="modal" role="dialog" aria-modal="true"></div></div>
-<div class="toast" id="toast" hidden></div>
 
 <script>
 "use strict";
-/* ───────── 기본 도구 ───────── */
 const $ = s => document.querySelector(s);
-const rnd = (a, b) => a + Math.random() * (b - a);
-const ri = (a, b) => Math.floor(rnd(a, b + 1));
-const pick = a => a[Math.floor(Math.random() * a.length)];
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const r1 = v => Math.round(v * 10) / 10;
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const sgn = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v);
-const SAVE_KEY = "dynasty-chronicle-v1";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const SAVE_KEY = "dynasty-ai-v1";
+const GAUGES = ["안정도", "재정", "군사력", "산업", "민심", "국제 위상"];
 
-/* ───────── 설정 데이터 ───────── */
-const ERAS = [
-  { name: "부족 시대", need: 0,   mult: 1.0, intro: "불씨를 지키던 부족이 처음으로 깃발을 세웠다." },
-  { name: "고대",     need: 30,  mult: 1.3, intro: "문자가 생기고 성읍이 들어섰다. 이제 법과 제도가 나라를 다스린다." },
-  { name: "중세",     need: 90,  mult: 1.7, intro: "성곽과 기사, 그리고 신앙의 시대가 열렸다." },
-  { name: "르네상스", need: 180, mult: 2.2, intro: "인쇄된 책과 먼바다의 항로가 세상을 넓혔다." },
-  { name: "산업 시대", need: 320, mult: 2.9, intro: "증기기관이 들판을 울린다. 도시는 밤에도 잠들지 않는다." },
-  { name: "근대",     need: 500, mult: 3.8, intro: "철도와 전신이 나라를 하나로 묶었다. 온 세계가 이 나라를 주목한다." },
+const PRESETS = [
+  { id: "ru", nation: "러시아 제국", date: "1894년 11월", role: "황제 니콜라이 2세", premise: "아버지 알렉산드르 3세가 갑자기 세상을 떠나 스물여섯의 니콜라이가 제위에 올랐다. 산업은 서유럽에 뒤처졌고 혁명 세력이 지하에서 자라며, 극동에서는 일본이 떠오르고 있다.", goal: "혁명과 패전을 피하고 제국을 근대 강국으로 만든다" },
+  { id: "jo", nation: "조선", date: "1863년 12월", role: "국왕 (어린 고종, 흥선대원군 섭정)", premise: "열두 살 어린 왕이 즉위하고 흥선대원군이 섭정을 맡았다. 서양 함선이 해안에 나타나고 청은 흔들리며 세도 정치의 폐단이 쌓여 있다.", goal: "외세의 침탈을 막고 자주적인 근대화를 이룬다" },
+  { id: "kr", nation: "대한제국", date: "1897년 10월", role: "황제 고종 (광무제)", premise: "환구단에서 황제 즉위식을 올리고 국호를 대한으로 고쳤다. 러시아와 일본이 한반도를 두고 맞서고 있다.", goal: "열강 사이에서 독립을 지키고 광무개혁을 완수한다" },
+  { id: "by", nation: "동로마 제국", date: "1449년 1월", role: "황제 콘스탄티노스 11세", premise: "제국은 콘스탄티노폴리스와 펠로폰네소스 일부만 남았다. 오스만에서는 야심 찬 젊은 왕자가 즉위를 기다리고 있다.", goal: "수도를 지키고 제국을 되살린다" },
+  { id: "fr", nation: "프랑스 왕국", date: "1789년 5월", role: "국왕 루이 16세", premise: "재정 파탄 끝에 175년 만에 삼부회가 소집되었다. 빵값은 치솟고 제3신분은 분노하고 있다.", goal: "혁명을 막거나 이끌어 왕국을 살린다" },
+  { id: "cn", nation: "청", date: "1898년 6월", role: "광서제", premise: "청일전쟁 패배 뒤 젊은 황제가 변법 개혁을 선포하려 한다. 서태후와 보수파가 지켜보고 있다.", goal: "변법을 성공시키고 열강의 분할을 막는다" },
 ];
-const TRAITS = {
-  agri:     { name: "농경의 나라", desc: "농장마다 식량 +2 · 시작 식량 +30", apply: s => { s.food += 30; } },
-  commerce: { name: "상업의 나라", desc: "금 수입 +20% · 시작 금 +40",       apply: s => { s.gold += 40; } },
-  martial:  { name: "상무의 나라", desc: "징병할 때 군사 +1 · 시작 군사 +5",  apply: s => { s.mil += 5; } },
-  scholar:  { name: "학문의 나라", desc: "기술 +2/년 · 시작 기술 +10",       apply: s => { s.tech += 10; } },
+const REALISM = {
+  strict: { name: "엄격한 고증", text: "역사적 현실성을 엄격히 따진다. 무리한 명령은 반발·실패·부작용을 낳고, 개혁은 시간과 돈이 많이 든다." },
+  balanced: { name: "균형", text: "현실성을 지키되 플레이어의 좋은 판단은 확실히 보상한다." },
+  heroic: { name: "영웅담", text: "플레이어에게 다소 관대하다. 대담한 결단이 성공할 여지가 크다. 그래도 위기는 계속 찾아온다." },
 };
-const BUILDINGS = {
-  farm:     { name: "농장", base: 30,  era: 0, desc: "식량 +5/년" },
-  market:   { name: "시장", base: 40,  era: 0, desc: "금 +4/년 (시대 배율)" },
-  barracks: { name: "병영", base: 45,  era: 0, desc: "징병 +1, 군 유지비 −10%" },
-  temple:   { name: "신전", base: 35,  era: 0, desc: "민심 +1/년" },
-  school:   { name: "학당", base: 50,  era: 1, desc: "기술 +3/년" },
-  wall:     { name: "성벽", base: 60,  era: 2, desc: "방어력 +15%" },
-  port:     { name: "항구", base: 80,  era: 3, desc: "금 +8, 식량 +3/년" },
-  factory:  { name: "공장", base: 120, era: 4, desc: "금 +10, 기술 +4, 민심 −1/년" },
-};
-const PERS = {
-  hostile:  { name: "호전적", base: -25 },
-  neutral:  { name: "중립적", base: 0 },
-  peaceful: { name: "온건한", base: 20 },
-  merchant: { name: "상업적", base: 10 },
-};
-const TAX = { low: { name: "감세", m: 0.6, mood: 3 }, normal: { name: "보통", m: 1, mood: 0 }, high: { name: "중세", m: 1.5, mood: -4 } };
-const SYL = ["가", "라", "온", "벨", "카", "도", "무", "세", "하", "린", "아", "로", "타", "미", "소", "바", "누", "에", "르", "진", "사", "키"];
-const SUF = ["왕국", "제국", "공국", "연맹", "칸국", "부족 연합"];
-const TITLES = ["왕", "여왕", "칸", "대공", "황제", "족장"];
 
 /* ───────── 상태 ───────── */
-let S = null;
-let shownEventKey = null;
+let G = null;            // 저장되는 게임
+let sample = null;        // Claude 호출 함수
+let sampleReady = false;
+let busy = null;          // 진행 중인 AbortController
+let pick = { preset: "ru", realism: "balanced" };
 
-function genNeighbors() {
-  const used = new Set();
-  const ps = ["hostile", "neutral", "peaceful", "merchant", pick(["hostile", "neutral"])];
-  return ps.slice(0, 4).map((p, i) => {
-    let name;
-    do { name = pick(SYL) + pick(SYL) + (Math.random() < 0.4 ? pick(SYL) : ""); } while (used.has(name));
-    used.add(name);
-    return {
-      id: i, name: name + " " + pick(SUF), ruler: pick(SYL) + pick(SYL) + " " + pick(TITLES),
-      pers: p, power: r1(rnd(5, 11)), land: ri(4, 7), relation: PERS[p].base + ri(-10, 10),
-      status: "peace", warTurns: 0, alive: true,
-    };
-  });
+function blankGame(sc, realism) {
+  return { sc, realism, turns: [], state: null, prevState: null, chronicle: [], ended: null, undo: null };
 }
-
-function newGame(nation, ruler, trait) {
-  S = {
-    nation, ruler, trait, year: 1, era: 0,
-    gold: 60, food: 40, pop: 10, mil: 6, mood: 60, tech: 0, land: 5,
-    tax: "normal", ap: 3, maxAp: 3,
-    b: { farm: 0, market: 0, barracks: 0, temple: 0, school: 0, wall: 0, port: 0, factory: 0 },
-    neighbors: genNeighbors(), log: [], event: null, over: null, onceDone: {}, stats: { wins: 0, losses: 0, annexed: 0 },
-  };
-  TRAITS[trait].apply(S);
-  log(`${S.ruler}, ${S.nation}을(를) 세우다. ${ERAS[0].intro}`, "era");
-  log(`주변에는 ${S.neighbors.map(n => n.name).join(", ")}이(가) 자리 잡고 있다.`);
-  shownEventKey = null;
-  save(); render();
-}
-
-function log(t, k = "info") { S.log.unshift({ y: S.year, t, k, f: 1 }); if (S.log.length > 300) S.log.length = 300; }
-function mood(d) { S.mood = clamp(Math.round(S.mood + d), 0, 100); }
-function nb(id) { return S.neighbors.find(n => n.id === id); }
-function alive() { return S.neighbors.filter(n => n.alive); }
-function eraMult() { return ERAS[S.era].mult; }
-function myStr() { return r1(S.mil * eraMult()); }
-function allyHelp() { return r1(alive().filter(n => n.status === "ally").reduce((a, n) => a + n.power * 0.3, 0)); }
-function bCount() { return Object.values(S.b).reduce((a, c) => a + c, 0); }
-function bCost(k) { return Math.round(BUILDINGS[k].base * (1 + 0.6 * S.b[k]) * (1 + S.era * 0.1)); }
-function normalize() {
-  S.gold = r1(Math.max(0, S.gold)); S.food = r1(Math.max(0, S.food)); S.tech = r1(Math.max(0, S.tech));
-  S.mil = Math.max(0, Math.round(S.mil)); S.pop = r1(Math.max(0, S.pop)); S.mood = clamp(Math.round(S.mood), 0, 100);
-  S.neighbors.forEach(n => { n.relation = clamp(Math.round(n.relation), -100, 100); n.power = r1(Math.max(1, n.power)); });
-}
-
-/* ───────── 경제 ───────── */
-function income() {
-  const b = S.b, m = eraMult();
-  let gold = S.pop * 0.8 * TAX[S.tax].m + (b.market * 4 + b.port * 8 + b.factory * 10) * m;
-  if (S.trait === "commerce") gold *= 1.2;
-  gold += alive().filter(n => n.status === "ally").length * 3;
-  gold -= S.mil * 0.4 * (1 - Math.min(0.5, b.barracks * 0.1)) + bCount() * 0.5;
-  const food = 4 + S.land * 1.5 + (b.farm * (5 + (S.trait === "agri" ? 2 : 0)) + b.port * 3) * (1 + S.era * 0.15) - S.pop * 0.8 - S.mil * 0.3;
-  const tech = (1 + S.pop * 0.1 + b.school * 3 + b.factory * 4 + (S.trait === "scholar" ? 2 : 0)) * (1 + S.era * 0.1);
-  const wars = alive().filter(n => n.status === "war").length;
-  const md = TAX[S.tax].mood + b.temple - b.factory - wars * 2 + (S.mood > 70 ? -1 : S.mood < 40 ? 1 : 0);
-  return { gold: r1(gold), food: r1(food), tech: r1(tech), mood: md, popCap: S.land * 3 + 5 + S.era * 2 };
-}
-
-/* ───────── 행동 ───────── */
-const ACTS = {
-  develop: { name: "영토 개척", cost: () => ({ gold: 20 + S.land * 3 }), ok: () => S.land < 8 + S.era * 4, why: "개척할 땅이 없습니다. 정복으로 넓히세요.",
-    run: () => { S.land++; log(`변경의 황무지를 개척했다. 영토가 ${S.land}이(가) 되었다.`, "good"); } },
-  recruit: { name: "징병", cost: () => ({ gold: 12, food: 4 }), ok: () => S.pop >= 2, why: "인구가 너무 적습니다.",
-    run: () => { const g = 3 + S.b.barracks + (S.trait === "martial" ? 1 : 0); S.mil += g; S.pop = r1(S.pop - 0.5); log(`장정을 모아 군사 ${g}을(를) 길렀다.`); } },
-  research: { name: "학문 장려", cost: () => ({ gold: 15 + S.era * 5 }), ok: () => true,
-    run: () => { const g = r1((6 + S.b.school * 2) * (1 + S.era * 0.2)); S.tech += g; log(`학자들을 후원하여 기술 ${g}을(를) 쌓았다.`); } },
-  festival: { name: "축제", cost: () => ({ gold: 20 + S.era * 10 }), ok: () => true,
-    run: () => { mood(12); log("도성에서 큰 축제를 열었다. 백성들이 왕의 이름을 외쳤다.", "good"); } },
-  expo: { name: "만국 박람회", cost: () => ({ gold: 300 }), ok: () => S.era === 5, why: "근대에 들어서야 열 수 있습니다.",
-    run: () => { S.over = { win: true, title: "문명의 정점", text: `${S.nation}이(가) 만국 박람회를 열었다. 세계 각국의 사절이 도성에 모여 이 나라의 학문과 산업에 경탄했다. 사관은 이 해를 왕조의 황금기로 기록했다.` }; log("만국 박람회 개최. 세계가 이 나라를 우러러보았다.", "era"); } },
-};
-function canPay(c) { return (c.gold || 0) <= S.gold && (c.food || 0) <= S.food; }
-function costText(c) { return [c.gold ? `금 ${c.gold}` : "", c.food ? `식량 ${c.food}` : ""].filter(Boolean).join(" · "); }
-function doAct(k) {
-  const a = ACTS[k]; const c = a.cost();
-  if (S.over || S.ap < 1) return toast("행동력이 없습니다. 한 해를 마치세요.");
-  if (!a.ok()) return toast(a.why);
-  if (!canPay(c)) return toast("재물이 부족합니다.");
-  S.gold -= c.gold || 0; S.food -= c.food || 0; S.ap--;
-  a.run(); after();
-}
-function build(k) {
-  const c = bCost(k);
-  if (S.ap < 1 || S.gold < c || BUILDINGS[k].era > S.era) return;
-  S.gold -= c; S.ap--; S.b[k]++;
-  log(`${BUILDINGS[k].name}을(를) 세웠다. (${BUILDINGS[k].desc})`, "good");
-  closeModal(); after();
-}
-function setTax(t) { if (S.over) return; S.tax = t; save(); render(); }
-function advanceEra() {
-  if (S.era >= ERAS.length - 1 || S.tech < ERAS[S.era + 1].need) return;
-  S.era++; S.maxAp = 3 + Math.floor(S.era / 2); mood(5);
-  log(`${ERAS[S.era].name}에 들어서다. ${ERAS[S.era].intro}`, "era");
-  toast(`${ERAS[S.era].name}의 막이 올랐다`);
-  after();
-}
-
-/* 외교 */
-const giftCost = () => 20 + S.era * 10;
-function dip(kind, id) {
-  const n = nb(id); if (!n || !n.alive || S.over) return;
-  if (kind === "war") {
-    n.status = "war"; n.warTurns = 0; n.relation -= 60;
-    alive().forEach(o => { if (o !== n) o.relation -= 8; });
-    log(`${n.name}에 선전포고했다. 이웃 나라들이 경계하기 시작했다.`, "war");
-    return after();
-  }
-  if (S.ap < 1) return toast("행동력이 없습니다.");
-  if (kind === "gift") {
-    if (S.gold < giftCost()) return toast("금이 부족합니다.");
-    S.gold -= giftCost(); S.ap--; const g = n.pers === "merchant" ? 25 : n.pers === "hostile" ? 10 : 15;
-    n.relation += g; log(`${n.name}에 예물을 보냈다. 관계 +${g}.`);
-  } else if (kind === "ally") {
-    if (n.relation < 60 || n.status !== "peace") return;
-    S.ap--; n.status = "ally"; n.relation += 5;
-    log(`${n.name}와(과) 동맹을 맺었다. 교역로가 열리고 유사시 원군을 보낸다.`, "good");
-  } else if (kind === "attack") {
-    if (n.status !== "war") return;
-    S.ap--; attack(n);
-  } else if (kind === "peace") {
-    if (n.status !== "war") return;
-    S.ap--;
-    const ch = 0.25 + (myStr() > n.power ? 0.35 : 0) + (n.warTurns > 3 ? 0.15 : 0);
-    if (Math.random() < ch) { n.status = "peace"; n.relation = Math.max(n.relation, -15); n.warTurns = 0; log(`${n.name}와(과) 화친을 맺었다. 국경에 다시 평화가 찾아왔다.`, "good"); }
-    else log(`${n.name}이(가) 화친 제의를 거절했다.`, "bad");
-  }
-  after();
-}
-function attack(n) {
-  const me = myStr() * rnd(0.75, 1.25), them = n.power * rnd(0.75, 1.25) * 1.1;
-  if (me > them) {
-    const take = Math.min(n.land, me > them * 1.6 ? 2 : 1);
-    const loss = Math.ceil(S.mil * 0.15), loot = Math.round(10 + take * 8 * (1 + S.era * 0.3));
-    n.land -= take; S.land += take; n.power *= 0.7; S.mil -= loss; S.gold += loot; S.pop += take * 0.8;
-    S.stats.wins++;
-    log(`${n.name}을(를) 쳐서 이겼다. 땅 ${take}을(를) 빼앗고 금 ${loot}을(를) 거두었다. (아군 손실 ${loss})`, "war");
-    if (n.land <= 0) {
-      n.alive = false; n.status = "dead"; S.stats.annexed++; mood(5); S.pop += 2;
-      log(`${n.name}의 ${n.ruler}이(가) 항복했다. 그 땅과 백성이 모두 ${S.nation}에 편입되었다.`, "era");
-    }
-  } else {
-    const loss = Math.ceil(S.mil * 0.3);
-    S.mil -= loss; mood(-5); n.power *= 0.92; S.stats.losses++;
-    log(`${n.name} 원정이 실패했다. 군사 ${loss}을(를) 잃고 패잔병이 돌아왔다.`, "bad");
-  }
-}
-function defend(n) {
-  const me = (myStr() + allyHelp()) * (1 + S.b.wall * 0.15) * rnd(0.75, 1.25), them = n.power * rnd(0.75, 1.25);
-  if (me >= them) {
-    n.power *= 0.8; S.mil -= Math.ceil(S.mil * 0.1); mood(3);
-    log(`${n.name}의 침공을 막아냈다.${allyHelp() ? " 동맹군이 함께 싸웠다." : ""}`, "good");
-  } else {
-    S.land--; n.land++; S.pop = r1(Math.max(0.5, S.pop - 1)); S.mil -= Math.ceil(S.mil * 0.25); mood(-6);
-    const lost = Math.round(S.gold * 0.15); S.gold -= lost; n.power *= 0.9;
-    log(`${n.name}에 국경이 뚫렸다. 땅 1과 금 ${lost}을(를) 빼앗겼다.`, "war");
-  }
-}
-
-/* ───────── 한 해의 흐름 ───────── */
-function endTurn() {
-  if (!S || S.over || S.event) return;
-  const inc = income();
-  S.gold += inc.gold; S.food += inc.food; S.tech += inc.tech; mood(inc.mood);
-  if (S.gold < 0) { S.gold = 0; const d = Math.ceil(S.mil * 0.15); S.mil -= d; mood(-5); log(`국고가 바닥나 병사 ${d}이(가) 탈영했다.`, "bad"); }
-  if (S.food < 0) { S.food = 0; S.pop = r1(S.pop * 0.92); mood(-10); log("흉년으로 곡식이 떨어졌다. 굶주린 백성이 늘어난다.", "bad"); }
-  else if (inc.food > 0 && S.pop < inc.popCap) S.pop = r1(Math.min(inc.popCap, S.pop + Math.max(0.2, S.pop * 0.04 + inc.food * 0.02)));
-  else if (S.pop > inc.popCap) S.pop = r1(S.pop - (S.pop - inc.popCap) * 0.3);
-  if (S.mood < 20 && Math.random() < 0.35) { const g = Math.round(S.gold * 0.1); S.gold -= g; log(`각지에서 민란이 일어났다. 관아가 불타 금 ${g}을(를) 잃었다.`, "bad"); }
-
-  for (const n of alive()) {
-    n.power += rnd(0.3, 0.9) * (1 + S.era * 0.3 + S.year / 150);
-    if (Math.random() < 0.06) n.land++;
-    const base = PERS[n.pers].base;
-    n.relation += n.relation < base ? 1 : n.relation > base ? -1 : 0;
-    if (n.status === "ally" && n.relation < 20) { n.status = "peace"; log(`${n.name}와(과)의 동맹이 깨졌다.`, "bad"); }
-    if (n.status === "peace") {
-      const stronger = n.power > myStr() * 1.2;
-      if ((n.relation < -30 && Math.random() < 0.15 + (stronger ? 0.15 : 0)) || (n.pers === "hostile" && stronger && n.relation < 0 && Math.random() < 0.06)) {
-        n.status = "war"; n.warTurns = 0; n.relation = Math.min(n.relation, -40);
-        log(`${n.name}의 ${n.ruler}이(가) 선전포고했다!`, "war");
-      }
-    } else if (n.status === "war") {
-      n.warTurns++;
-      if (Math.random() < 0.45) defend(n);
-      else if (!S.event && n.warTurns > 3 && n.power < myStr() && Math.random() < 0.3) S.event = { id: "peaceOffer", p: n.id };
-    }
-  }
-  S.year++; S.maxAp = 3 + Math.floor(S.era / 2); S.ap = S.maxAp;
-  normalize(); checkEnd();
-  if (!S.over && !S.event && Math.random() < 0.55) rollEvent();
-  if (!S.over && S.era < ERAS.length - 1 && S.tech >= ERAS[S.era + 1].need) toast(`${ERAS[S.era + 1].name}로 나아갈 준비가 되었습니다`);
-  save(); render();
-}
-function after() { normalize(); checkEnd(); save(); render(); }
-function checkEnd() {
-  if (S.over) return;
-  if (S.land <= 0) S.over = { win: false, title: "왕조의 몰락", text: `마지막 성이 함락되었다. ${S.ruler}은(는) 포로가 되었고 ${S.nation}의 이름은 이웃 나라의 연대기에 한 줄로만 남았다.` };
-  else if (S.mood <= 0) S.over = { win: false, title: "민중의 봉기", text: `분노한 백성이 궁궐 문을 부수었다. ${S.ruler}은(는) 쫓겨나고 새 세력이 나라를 차지했다.` };
-  else if (S.pop < 1) S.over = { win: false, title: "텅 빈 나라", text: "굶주림과 전쟁으로 백성이 모두 흩어졌다. 왕관을 받쳐 줄 사람이 남지 않았다." };
-  else if (alive().length === 0) S.over = { win: true, title: "천하 통일", text: `모든 이웃 나라가 ${S.nation}의 깃발 아래 하나가 되었다. ${S.ruler}의 이름은 통일 군주로 기록되었다.` };
-  if (S.over) log(S.over.title + ". " + S.over.text, S.over.win ? "era" : "war");
-}
-
-/* ───────── 사건 ───────── */
-const randNb = () => { const a = alive().filter(n => n.status !== "war"); return a.length ? pick(a).id : null; };
-const EVENTS = {
-  harvest: { make: () => ({ t: "풍년", d: `올해 ${S.nation}의 들판이 황금빛으로 물들었다. 창고가 넘칠 지경이다.`, c: [
-    { l: "곡식을 비축한다", h: "식량 +25", f: () => { S.food += 25; return "곡창이 가득 찼다."; } },
-    { l: "추수 잔치를 연다", h: "식량 +10 · 민심 +8", f: () => { S.food += 10; mood(8); return "백성들이 밤새 노래했다."; } } ] }) },
-  plague: { make: () => ({ t: "역병", d: "남쪽 마을에서 열병이 번지고 있다. 의원들은 손을 쓸 수 없다고 고한다.", c: [
-    { l: "마을을 봉쇄하고 의원을 보낸다", h: "금 −25 · 인구 −0.5", r: () => S.gold >= 25, f: () => { S.gold -= 25; S.pop -= 0.5; return "봉쇄 덕분에 병이 더 퍼지지 않았다."; } },
-    { l: "하늘에 제사를 올린다", h: "인구 −1 · 민심 +2", f: () => { S.pop -= 1; mood(2); return "제사 뒤에 병이 잦아들었지만 희생이 컸다."; } },
-    { l: "그대로 둔다", h: "인구 −2 · 민심 −8", f: () => { S.pop -= 2; mood(-8); return "역병이 온 나라를 휩쓸었다."; } } ] }) },
-  scholar: { make: () => ({ t: "떠돌이 학자", d: "먼 나라에서 온 학자가 궁 앞에서 벼슬을 청한다. 별의 운행과 수의 이치를 안다고 한다.", c: [
-    { l: "높은 녹봉으로 등용한다", h: "금 −25 · 기술 +15", r: () => S.gold >= 25, f: () => { S.gold -= 25; S.tech += 15; return "학자가 새 역법을 바쳤다."; } },
-    { l: "돌려보낸다", h: "변화 없음", f: () => "학자는 이웃 나라로 떠났다." } ] }) },
-  caravan: { make: () => ({ t: "대상단", d: "비단과 향신료를 실은 대상단이 국경에 도착했다.", c: [
-    { l: "자유롭게 교역하게 한다", h: "금 +30 · 민심 +2", f: () => { S.gold += 30; mood(2); return "장터가 북적였다."; } },
-    { l: "무거운 관세를 매긴다", h: "금 +50 · 이웃 관계 −5", f: () => { S.gold += 50; alive().forEach(n => n.relation -= 5); return "국고는 찼지만 상인들 사이에 원성이 퍼졌다."; } } ] }) },
-  nobles: { make: () => ({ t: "귀족의 반발", d: "지방 귀족들이 왕권 강화에 반대하며 연판장을 올렸다.", c: [
-    { l: "특권을 일부 돌려준다", h: "금 −20 · 민심 +5", r: () => S.gold >= 20, f: () => { S.gold -= 20; mood(5); return "귀족들이 물러났다."; } },
-    { l: "주동자를 처벌한다", h: "군사 −2 · 민심 −6 · 금 +15", f: () => { S.mil -= 2; mood(-6); S.gold += 15; return "몰수한 재산이 국고로 들어왔지만 민심이 흉흉하다."; } } ] }) },
-  locust: { make: () => ({ t: "메뚜기 떼", d: "하늘을 뒤덮은 메뚜기 떼가 곡창 지대로 내려앉았다.", c: [
-    { l: "관군을 풀어 불을 놓는다", h: "금 −20 · 식량 −10%", r: () => S.gold >= 20, f: () => { S.gold -= 20; S.food *= 0.9; return "피해를 줄였다."; } },
-    { l: "어쩔 수 없다", h: "식량 −30%", f: () => { S.food *= 0.7; return "들판이 앙상하게 남았다."; } } ] }) },
-  general: { make: () => ({ t: "장군의 건의", d: "늙은 장군이 군사 조련을 새로 해야 한다고 건의했다.", c: [
-    { l: "조련 비용을 댄다", h: "금 −20 · 군사 +4", r: () => S.gold >= 20, f: () => { S.gold -= 20; S.mil += 4; return "군기가 바로 섰다."; } },
-    { l: "지금은 때가 아니다", h: "민심 −1", f: () => { mood(-1); return "장군은 말없이 물러났다."; } } ] }) },
-  comet: { make: () => ({ t: "혜성 출현", d: "꼬리가 긴 별이 밤하늘을 가로질렀다. 백성들이 술렁인다.", c: [
-    { l: "길조라고 선포한다", h: "민심 +6", f: () => { mood(6); return "백성들이 안심했다."; } },
-    { l: "학자들에게 관측하게 한다", h: "기술 +8", f: () => { S.tech += 8; return "천문 기록이 쌓였다."; } } ] }) },
-  envoy: { p: randNb, make: id => { const n = nb(id); return { t: "사절단", d: `${n.name}에서 사절단이 왔다. ${n.ruler}의 친서를 품고 있다.`, c: [
-    { l: "성대하게 환대한다", h: "금 −15 · 관계 +20", r: () => S.gold >= 15, f: () => { S.gold -= 15; n.relation += 20; return `${n.name}과(와)의 사이가 가까워졌다.`; } },
-    { l: "냉담하게 돌려보낸다", h: "관계 −15 · 민심 +2", f: () => { n.relation -= 15; mood(2); return "사절은 굳은 얼굴로 돌아갔다."; } } ] }; } },
-  border: { p: randNb, make: id => { const n = nb(id); return { t: "국경 분쟁", d: `${n.name}의 목동들이 국경을 넘어 우리 목초지를 차지했다.`, c: [
-    { l: "목초지를 양보한다", h: "관계 +10 · 민심 −3", f: () => { n.relation += 10; mood(-3); return "분쟁은 가라앉았다."; } },
-    { l: "군사를 보내 몰아낸다", h: "관계 −20 · 민심 +3", f: () => { n.relation -= 20; mood(3); return "목동들이 쫓겨갔다. 이웃의 원한이 쌓였다."; } } ] }; } },
-  unrest: { cond: () => S.mood < 35, w: 3, make: () => ({ t: "민심 이반", d: "저잣거리에 왕을 비방하는 벽서가 나붙었다.", c: [
-    { l: "세금을 낮춘다", h: "세율 감세 · 민심 +8", f: () => { S.tax = "low"; mood(8); return "백성들의 원성이 누그러졌다."; } },
-    { l: "곳간을 열어 나눈다", h: "식량 −20 · 민심 +10", r: () => S.food >= 20, f: () => { S.food -= 20; mood(10); return "구휼미를 받은 백성들이 눈물을 흘렸다."; } },
-    { l: "벽서를 쓴 자를 잡아들인다", h: "군사 −2 · 민심 +3", f: () => { S.mil -= 2; mood(3); return "소란은 잠잠해졌지만 불씨는 남았다."; } } ] }) },
-  goldmine: { era: 1, make: () => ({ t: "금광 발견", d: "산골 마을에서 금맥이 발견되었다.", c: [
-    { l: "백성을 동원해 캐낸다", h: "금 +55 · 민심 −3", f: () => { S.gold += 55; mood(-3); return "금이 쏟아졌다."; } },
-    { l: "마을 사람들에게 맡긴다", h: "금 +15 · 민심 +4", f: () => { S.gold += 15; mood(4); return "마을이 부유해졌다."; } } ] }) },
-  flood: { make: () => ({ t: "대홍수", d: "장마가 길어져 큰 강이 범람할 기세다.", c: [
-    { l: "제방을 쌓는다", h: "금 −30", r: () => S.gold >= 30, f: () => { S.gold -= 30; return "제방이 물길을 막았다."; } },
-    { l: "하늘의 뜻에 맡긴다", h: "식량 −20 · 인구 −1", f: () => { S.food -= 20; S.pop -= 1; return "물이 마을을 쓸고 지나갔다."; } } ] }) },
-  heresy: { era: 2, make: () => ({ t: "새로운 교리", d: "옛 신앙과 다른 가르침을 전하는 무리가 늘고 있다.", c: [
-    { l: "관용한다", h: "기술 +10 · 민심 −3", f: () => { S.tech += 10; mood(-3); return "새로운 사상이 학문을 자극했다."; } },
-    { l: "금지한다", h: "민심 +3", f: () => { mood(3); return "옛 질서가 유지되었다."; } } ] }) },
-  mercenary: { era: 1, make: () => ({ t: "용병단", d: "이름난 용병 대장이 부하들을 이끌고 일자리를 찾아왔다.", c: [
-    { l: "고용한다", h: "금 −35 · 군사 +6", r: () => S.gold >= 35, f: () => { S.gold -= 35; S.mil += 6; return "용병들이 깃발 아래 섰다."; } },
-    { l: "돌려보낸다", h: "변화 없음", f: () => "용병단은 다른 주인을 찾아 떠났다." } ] }) },
-  refugees: { make: () => ({ t: "난민 행렬", d: "전란을 피한 이웃 나라 백성들이 국경에 몰려들었다.", c: [
-    { l: "받아들인다", h: "인구 +1.5 · 식량 −15 · 민심 −2", r: () => S.food >= 15, f: () => { S.pop += 1.5; S.food -= 15; mood(-2); return "새 백성들이 마을을 일구기 시작했다."; } },
-    { l: "국경을 닫는다", h: "민심 −2", f: () => { mood(-2); return "난민들은 다른 길로 흩어졌다."; } } ] }) },
-  succession: { make: () => ({ t: "세자 책봉", d: `${S.ruler}의 후계를 두고 조정이 둘로 갈렸다.`, c: [
-    { l: "장자를 세운다", h: "민심 +4", f: () => { mood(4); return "전통을 따른 결정에 조정이 안정되었다."; } },
-    { l: "가장 총명한 자식을 세운다", h: "기술 +6 · 민심 −4", f: () => { S.tech += 6; mood(-4); return "반발이 있었지만 총명한 세자가 학문을 일으켰다."; } } ] }) },
-  navigator: { era: 3, make: () => ({ t: "항해가의 제안", d: "한 항해가가 서쪽 바다 끝에 새 땅이 있다며 배와 자금을 청한다.", c: [
-    { l: "선단을 후원한다", h: "금 −60 · 성공하면 큰 보상", r: () => S.gold >= 60, f: () => { S.gold -= 60; if (Math.random() < 0.6) { S.gold += 150; S.land += 2; return "선단이 금과 새 땅의 지도를 싣고 돌아왔다! 금 +150, 영토 +2"; } return "선단은 돌아오지 않았다."; } },
-    { l: "허황된 꿈이다", h: "변화 없음", f: () => "항해가는 이웃 나라 궁정으로 향했다." } ] }) },
-  printing: { era: 3, once: 1, make: () => ({ t: "활자 인쇄", d: "장인들이 금속 활자로 책을 찍어내는 법을 완성했다.", c: [
-    { l: "나라에서 인쇄소를 세운다", h: "금 −40 · 기술 +30 · 민심 +3", r: () => S.gold >= 40, f: () => { S.gold -= 40; S.tech += 30; mood(3); return "책이 저잣거리까지 퍼졌다."; } },
-    { l: "장인들에게 맡긴다", h: "기술 +12", f: () => { S.tech += 12; return "책은 천천히 퍼져 나갔다."; } } ] }) },
-  strike: { era: 4, make: () => ({ t: "노동자 파업", d: "공장 노동자들이 임금 인상을 요구하며 일손을 놓았다.", c: [
-    { l: "임금을 올려준다", h: "금 −40 · 민심 +6", r: () => S.gold >= 40, f: () => { S.gold -= 40; mood(6); return "공장이 다시 돌아갔다."; } },
-    { l: "강경하게 해산시킨다", h: "민심 −10 · 금 +10", f: () => { mood(-10); S.gold += 10; return "파업은 끝났지만 원한이 깊어졌다."; } } ] }) },
-  railway: { era: 4, once: 1, make: () => ({ t: "철도 부설", d: "기술자들이 도성에서 국경까지 철길을 놓자고 건의했다.", c: [
-    { l: "국가 사업으로 추진한다", h: "금 −80 · 식량 +40 · 금 시설 1개 추가(시장)", r: () => S.gold >= 80, f: () => { S.gold -= 80; S.food += 40; S.b.market++; return "기차가 곡식과 물자를 실어 날랐다."; } },
-    { l: "아직 이르다", h: "변화 없음", f: () => "계획은 서랍 속에 들어갔다." } ] }) },
-  revolution: { era: 5, make: () => ({ t: "개혁 요구", d: "신문마다 의회를 세우라는 논설이 실린다.", c: [
-    { l: "헌법을 반포한다", h: "금 −50 · 민심 +12", r: () => S.gold >= 50, f: () => { S.gold -= 50; mood(12); return "새 헌법 아래 나라가 하나로 뭉쳤다."; } },
-    { l: "언론을 탄압한다", h: "민심 −12 · 군사 −2", f: () => { mood(-12); S.mil -= 2; return "거리에 침묵이 내려앉았다."; } } ] }) },
-  peaceOffer: { special: 1, make: id => { const n = nb(id); return { t: "화친 제의", d: `오랜 전쟁에 지친 ${n.name}이(가) 사신을 보내 화친을 청했다. 배상금도 내겠다고 한다.`, c: [
-    { l: "배상금을 받고 화친한다", h: "금 +30 · 전쟁 종료", f: () => { S.gold += 30; n.status = "peace"; n.warTurns = 0; n.relation = -10; return `${n.name}과(와)의 전쟁이 끝났다.`; } },
-    { l: "끝까지 싸운다", h: "전쟁 계속 · 민심 −2", f: () => { mood(-2); return "사신은 빈손으로 돌아갔다."; } } ] }; } },
-};
-function rollEvent() {
-  const pool = [];
-  for (const [id, e] of Object.entries(EVENTS)) {
-    if (e.special || (e.era || 0) > S.era || (e.cond && !e.cond()) || (e.once && S.onceDone[id])) continue;
-    for (let i = 0; i < (e.w || 1); i++) pool.push(id);
-  }
-  const id = pick(pool); const e = EVENTS[id];
-  const p = e.p ? e.p() : null;
-  if (e.p && p === null) return;
-  S.event = { id, p };
-}
-function chooseEvent(i) {
-  const e = EVENTS[S.event.id]; const ev = e.make(S.event.p); const c = ev.c[i];
-  if (!c || (c.r && !c.r())) return;
-  const res = c.f();
-  if (e.once) S.onceDone[S.event.id] = 1;
-  log(`[${ev.t}] ${c.l}. ${res}`, "info");
-  S.event = null; shownEventKey = null;
-  normalize(); checkEnd(); save();
-  openModal(`<div class="eyebrow">건국 ${S.year}년 · ${esc(ev.t)}</div><h3>${esc(c.l)}</h3><p>${esc(res)}</p><div class="row"><button class="btn-primary" data-m="close" type="button">계속</button></div>`);
-  render(true);
-}
-
-/* ───────── 저장 ───────── */
-function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+function save() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) {} }
 function load() { try { const v = localStorage.getItem(SAVE_KEY); return v ? JSON.parse(v) : null; } catch (e) { return null; } }
 
-/* ───────── 화면 ───────── */
-function openModal(html) { $("#modal").innerHTML = html; $("#scrim").hidden = false; const f = $("#modal").querySelector("button:not([disabled]), input"); if (f) f.focus({ preventScroll: true }); }
-function closeModal() { $("#scrim").hidden = true; $("#modal").innerHTML = ""; render(); }
-let toastT;
-function toast(t) { const el = $("#toast"); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { el.hidden = true; }, 2400); }
+/* ───────── 프롬프트 ───────── */
+function rules() {
+  const sc = G.sc, st = G.state;
+  return `너는 텍스트 대체역사 국가 경영 시뮬레이션의 게임 마스터이자 사관(史官)이다. 한국어로만 쓴다.
 
-function render(keepModal) {
-  if (!S) return;
-  const inc = income();
-  document.title = `${S.nation} · 왕조 연대기`;
-  $("#title").textContent = S.nation;
-  $("#subtitle").textContent = `${S.ruler} · ${TRAITS[S.trait].name} · 건국 ${S.year}년 · ${ERAS[S.era].name}`;
+[시나리오]
+- 국가: ${sc.nation}
+- 시작 시점: ${sc.date}
+- 플레이어의 역할: ${sc.role}
+- 배경과 분기점: ${sc.premise}
+- 플레이어의 목표: ${sc.goal}
+- 난이도: ${REALISM[G.realism].name}. ${REALISM[G.realism].text}
 
-  const dCls = v => v > 0 ? "up" : v < 0 ? "down" : "";
-  const res = [
-    ["금", S.gold, `<span class="d ${dCls(inc.gold)}">${sgn(inc.gold)}/년</span>`, S.gold < 10],
-    ["식량", S.food, `<span class="d ${dCls(inc.food)}">${sgn(inc.food)}/년</span>`, inc.food < 0 && S.food + inc.food < 0],
-    ["인구", S.pop + "만", `<span class="d">상한 ${inc.popCap}만</span>`, false],
-    ["군사", S.mil, `<span class="d">전투력 ${myStr()}</span>`, false],
-    ["민심", S.mood, `<div class="meter mood ${S.mood < 30 ? "low" : ""}"><i style="width:${S.mood}%"></i></div>`, S.mood < 30],
-    ["기술", S.tech, `<span class="d up">+${inc.tech}/년</span>`, false],
-    ["영토", S.land, `<span class="d">개척 한도 ${8 + S.era * 4}</span>`, false],
-  ];
-  $("#ledger").innerHTML = res.map(([k, v, d, w]) => `<div class="res ${w ? "warn" : ""}"><span class="k">${k}</span><span class="v">${v}</span>${d}</div>`).join("");
+[진행 원칙]
+1. 플레이어 메시지는 통치자의 명령·발언·행동이다. 그 결과를 실제 역사 지식에 근거해 인과적으로 서술한다. 분기 이후에는 나비효과를 반영해 역사가 달라질 수 있다.
+2. 플레이어의 행동이나 대사를 대신 정하지 않는다. 결정이 필요한 순간에서 멈추고 신하나 인물의 보고·건의로 다음 선택을 기다린다.
+3. 시간은 명령 내용에 맞게 흐른다. 보통 한 번에 며칠~몇 달. 플레이어가 "시간을 넘긴다"고 하면 그 기간 동안 일어난 일을 요약해 보고한다.
+4. 실존 인물과 다른 나라는 각자의 이익과 성격대로 움직인다. 반대파, 외국의 개입, 재해, 음모 같은 위기를 적절히 만든다. 모든 것이 플레이어 뜻대로 되지는 않는다.
+5. 수치는 서서히 변한다. 한 턴에 게이지가 10 넘게 움직이는 일은 큰 사건 때뿐이다.
+6. 신하·장군·외교관 같은 인물의 대사를 넣어 생생하게 쓴다.
+7. (OOC: …) 로 시작하는 말은 게임 밖 요청이다. 서술을 멈추고 그 요청에 답하거나 반영한다.
+8. 아래 [현재 상태창]과 [연대기]는 지금까지의 사실이다. 이와 모순되지 않게 이어 간다.
 
-  const next = ERAS[S.era + 1];
-  $("#eras").innerHTML = `<div class="era-track">${ERAS.map((e, i) => `<div class="era-step ${i < S.era ? "done" : i === S.era ? "now" : ""}" title="${e.name}">${e.name}</div>`).join("")}</div>
-    <div class="era-info">${next ? `다음 시대까지 기술 <span class="num">${S.tech} / ${next.need}</span> <button class="btn-era" data-a="era" type="button" ${S.tech >= next.need && !S.over ? "" : "disabled"}>${next.name}로</button>` : "마지막 시대에 이르렀다"}</div>`;
+[현재 상태창]
+${st ? JSON.stringify(st) : "아직 없음. 첫 응답에서 시작 시점의 실제 역사에 맞게 만든다."}
 
-  const actBtn = (k, wide) => {
-    const a = ACTS[k], c = a.cost(), ok = !S.over && S.ap >= 1 && a.ok() && canPay(c);
-    return `<button class="act ${wide ? "wide" : ""} ${k === "expo" ? "gold" : ""}" data-a="${k}" type="button" ${ok ? "" : "disabled"} title="${a.ok() ? "" : esc(a.why || "")}"><b>${a.name}</b><span>${costText(c)}</span></button>`;
+[연대기 — 지금까지의 주요 사건]
+${G.chronicle.length ? G.chronicle.slice(-60).map(e => "- " + e).join("\n") : "- 아직 없음"}
+
+[응답 형식 — 반드시 지킬 것]
+1) 먼저 서술: 500~1100자. 필요하면 "### 소제목", **굵게**, 인물 대사는 큰따옴표. 서술 안에 상태창이나 수치 목록을 쓰지 않는다.
+2) 서술이 끝나면 맨 끝에 <state> 와 </state> 사이에 JSON 객체 하나만 쓴다. 다른 텍스트를 붙이지 않는다.
+<state>{"date":"1895년 3월","ruler":"통치자 이름과 칭호","headline":"지금 나라 상황 한 줄","gauges":{"안정도":50,"재정":40,"군사력":55,"산업":30,"민심":45,"국제 위상":60},"facts":[{"k":"국고","v":"…"},{"k":"인구","v":"…"}],"figures":[{"name":"…","role":"…","mood":"충성"}],"relations":[{"nation":"…","status":"중립","note":"…"}],"threats":["…"],"events":["1895년 3월: …"],"options":["…","…","…"],"ending":null}</state>
+- gauges: ${GAUGES.join(", ")} 여섯 개, 0~100 정수.
+- facts: 그 시대와 나라에 맞는 핵심 지표 4~8개 (국고, 인구, 상비군, 국내총생산, 철도 길이 등 실제 단위로).
+- figures: 중요 인물 최대 8명. mood는 충성/우호/중립/불만/적대 중 하나.
+- relations: 주요 국가 최대 8개. status는 동맹/우호/중립/긴장/적대/전쟁 중 하나.
+- threats: 지금 나라를 위협하는 것 최대 4개.
+- events: 이번 응답에서 일어나 앞으로 기억해야 할 핵심 사건 0~3개. "연도 월: 내용" 형식, 각 60자 이내.
+- options: 플레이어가 다음에 내릴 만한 명령 3~4개, 각 30자 이내.
+- ending: 나라가 멸망·폐위·혁명 등으로 끝나거나 목표를 확실히 이뤘을 때만 {"type":"승리" 또는 "패배","title":"…","text":"200자 이내 후일담"}. 그 밖에는 null.`;
+}
+
+function buildInput(cmd) {
+  const hist = G.turns.slice(-10);
+  return [{ role: "user", content: rules() }, ...hist, { role: "user", content: "[플레이어] " + cmd }];
+}
+
+/* ───────── 응답 해석 ───────── */
+function splitReply(text) {
+  const i = text.indexOf("<state>");
+  const narrative = (i >= 0 ? text.slice(0, i) : text).trim();
+  let state = null;
+  if (i >= 0) {
+    let body = text.slice(i + 7);
+    const j = body.lastIndexOf("</state>");
+    if (j >= 0) body = body.slice(0, j);
+    const a = body.indexOf("{"), b = body.lastIndexOf("}");
+    if (a >= 0 && b > a) { try { state = JSON.parse(body.slice(a, b + 1)); } catch (e) { state = null; } }
+  }
+  return { narrative, state };
+}
+function cleanState(s) {
+  if (!s || typeof s !== "object") return null;
+  const g = {};
+  for (const k of GAUGES) { const v = Number(s.gauges?.[k]); g[k] = Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : (G.state?.gauges?.[k] ?? 50); }
+  const arr = (x, n) => Array.isArray(x) ? x.slice(0, n) : [];
+  return {
+    date: String(s.date || G.state?.date || G.sc.date), ruler: String(s.ruler || G.state?.ruler || G.sc.role), headline: String(s.headline || ""),
+    gauges: g,
+    facts: arr(s.facts, 8).map(f => ({ k: String(f?.k ?? ""), v: String(f?.v ?? "") })).filter(f => f.k),
+    figures: arr(s.figures, 8).map(f => ({ name: String(f?.name ?? ""), role: String(f?.role ?? ""), mood: String(f?.mood ?? "중립") })).filter(f => f.name),
+    relations: arr(s.relations, 8).map(r => ({ nation: String(r?.nation ?? ""), status: String(r?.status ?? "중립"), note: String(r?.note ?? "") })).filter(r => r.nation),
+    threats: arr(s.threats, 4).map(String),
+    options: arr(s.options, 4).map(String).filter(Boolean),
+    events: arr(s.events, 3).map(String).filter(Boolean),
+    ending: s.ending && typeof s.ending === "object" && s.ending.title ? { type: String(s.ending.type || ""), title: String(s.ending.title), text: String(s.ending.text || "") } : null,
   };
-  const blds = Object.entries(S.b).filter(([, v]) => v > 0).map(([k, v]) => `<span class="bld-chip">${BUILDINGS[k].name} <b>${v}</b></span>`).join("") || `<span class="bld-chip">아직 세운 건물이 없다</span>`;
-  $("#gov").innerHTML = `<h2>국정 <small>행동력 ${S.ap}/${S.maxAp}</small></h2>
-    <div class="acts">${actBtn("develop")}${actBtn("recruit")}${actBtn("research")}${actBtn("festival")}
-      <button class="act wide" data-a="build" type="button" ${S.over || S.ap < 1 ? "disabled" : ""}><b>건설</b><span>농장 · 시장 · 병영 · 신전 외</span></button>
-      ${S.era === 5 ? actBtn("expo", true) : ""}</div>
-    <div class="group-label">세율 (행동력 소모 없음)</div>
-    <div class="seg">${Object.entries(TAX).map(([k, t]) => `<button type="button" data-tax="${k}" class="${S.tax === k ? "on" : ""}">${t.name}</button>`).join("")}</div>
-    <div class="group-label">세운 건물</div>
-    <div class="bld-list">${blds}</div>`;
+}
 
-  $("#nbs").innerHTML = `<h2>주변국 <small>${alive().length}개국</small></h2>` + S.neighbors.map(n => {
-    const rel = n.relation, w = Math.abs(rel) / 2, left = rel >= 0 ? 50 : 50 - w;
-    const relLabel = rel < -30 ? "적대" : rel < 0 ? "냉랭" : rel < 50 ? "우호" : "친밀";
-    const st = !n.alive ? ["dead", "합병됨"] : n.status === "war" ? ["war", "전쟁 중"] : n.status === "ally" ? ["ally", "동맹"] : ["peace", "평화"];
-    const dis = S.over || S.ap < 1;
-    let acts = "";
-    if (n.alive) {
-      if (n.status === "war") acts = `<button class="mini danger" data-d="attack" data-id="${n.id}" type="button" ${dis ? "disabled" : ""}>진격 (전투력 ${myStr()} 대 ${r1(n.power)})</button><button class="mini" data-d="peace" data-id="${n.id}" type="button" ${dis ? "disabled" : ""}>화친 요청</button>`;
-      else {
-        acts = `<button class="mini" data-d="gift" data-id="${n.id}" type="button" ${dis || S.gold < giftCost() ? "disabled" : ""}>예물 (금 ${giftCost()})</button>`;
-        if (n.status === "peace") acts += `<button class="mini" data-d="ally" data-id="${n.id}" type="button" ${dis || n.relation < 60 ? "disabled" : ""} title="관계 60 이상 필요">동맹 제안</button>`;
-        acts += `<button class="mini danger" data-d="war" data-id="${n.id}" type="button" ${S.over ? "disabled" : ""}>선전포고</button>`;
-      }
+/* 아주 작은 마크다운 */
+function md(src) {
+  const lines = esc(src).split(/\n/);
+  let html = "", para = [], list = [];
+  const inline = t => t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const flushP = () => { if (para.length) { html += `<p>${inline(para.join("<br>"))}</p>`; para = []; } };
+  const flushL = () => { if (list.length) { html += `<ul>${list.map(x => `<li>${inline(x)}</li>`).join("")}</ul>`; list = []; } };
+  for (const raw of lines) {
+    const l = raw.trim();
+    if (!l) { flushP(); flushL(); continue; }
+    let m;
+    if ((m = l.match(/^#{1,4}\s+(.*)$/))) { flushP(); flushL(); html += `<h4>${inline(m[1])}</h4>`; }
+    else if ((m = l.match(/^[-*•]\s+(.*)$/))) { flushP(); list.push(m[1]); }
+    else if ((m = l.match(/^&gt;\s?(.*)$/))) { flushP(); flushL(); html += `<blockquote>${inline(m[1])}</blockquote>`; }
+    else if (/^-{3,}$/.test(l)) { flushP(); flushL(); }
+    else { flushL(); para.push(l); }
+  }
+  flushP(); flushL();
+  return html;
+}
+
+/* ───────── 화면 ───────── */
+function render() {
+  const log = $("#log");
+  if (!G) { log.innerHTML = ""; renderStatus(); renderChips(); return; }
+  const sc = G.sc;
+  $("#title").textContent = sc.nation;
+  $("#subtitle").textContent = `${G.state?.ruler || sc.role} · ${G.state?.date || sc.date} · ${REALISM[G.realism].name}`;
+  let h = `<div class="intro"><b>${esc(sc.nation)}, ${esc(sc.date)}.</b> ${esc(sc.premise)}<br><b>목표</b> ${esc(sc.goal)}</div>`;
+  G.turns.forEach(t => {
+    if (t.role === "user") { if (!t.hidden) h += `<div class="turn-cmd"><span class="lbl">어명</span>${esc(t.content.replace(/^\[플레이어\]\s*/, ""))}</div>`; }
+    else h += `<article class="turn-gm">${t.date ? `<div class="date">${esc(t.date)}</div>` : ""}${md(t.content)}</article>`;
+  });
+  if (G.ended) h += `<article class="turn-gm turn-end"><div class="eyebrow">${esc(G.ended.type)}</div><h3>${esc(G.ended.title)}</h3><p>${esc(G.ended.text)}</p><div class="mrow" style="justify-content:flex-start;margin-top:10px"><button class="btn-primary" data-act="new" type="button">새 시나리오로 시작</button></div></article>`;
+  log.innerHTML = h;
+  renderStatus(); renderChips();
+  $("#btn-undo").disabled = !G.undo || !!busy;
+}
+function trend(k) {
+  const a = G.state?.gauges?.[k], b = G.prevState?.gauges?.[k];
+  if (a == null || b == null || a === b) return "";
+  return a > b ? `<span class="up">▲${a - b}</span>` : `<span class="down">▼${b - a}</span>`;
+}
+const moodTag = m => /충성|우호/.test(m) ? "t-good" : /불만|적대/.test(m) ? "t-bad" : "t-mid";
+const relTag = s => /전쟁/.test(s) ? "t-war" : /동맹|우호/.test(s) ? "t-good" : /긴장|적대/.test(s) ? "t-bad" : "t-mid";
+function renderStatus() {
+  const el = $("#status"), st = G?.state;
+  const collapsed = el.classList.contains("collapsed");
+  if (!st) {
+    el.innerHTML = `<div class="st-head"><h2>상태창</h2></div><div class="empty-status">첫 어명을 내리면 국가 현황이 여기에 기록됩니다. 아래 ‘즉위한다’를 누르거나 원하는 명령을 적어 보세요.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="st-head"><div class="when">${esc(st.date)}</div><h2>${esc(G.sc.nation)}</h2><div class="headline">${esc(st.ruler)}${st.headline ? " · " + esc(st.headline) : ""}</div></div>
+    <div class="gauges">${GAUGES.map(k => { const v = st.gauges[k]; return `<div class="g-row"><span>${k}</span><div class="g-bar"><i class="${v < 30 ? "low" : ""}" style="width:${v}%"></i></div><span class="g-val">${v} ${trend(k)}</span></div>`; }).join("")}</div>
+    ${st.facts.length ? `<div class="sec-label">국정 지표</div><div class="facts">${st.facts.map(f => `<div class="fact"><span class="k">${esc(f.k)}</span><span class="v">${esc(f.v)}</span></div>`).join("")}</div>` : ""}
+    ${st.threats.length ? `<div class="sec-label">위협</div><ul class="list threats">${st.threats.map(t => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+    ${st.figures.length ? `<div class="sec-label">주요 인물</div><ul class="list">${st.figures.map(f => `<li><span>${esc(f.name)}<small>${esc(f.role)}</small></span><span class="tag ${moodTag(f.mood)}">${esc(f.mood)}</span></li>`).join("")}</ul>` : ""}
+    ${st.relations.length ? `<div class="sec-label">외교</div><ul class="list">${st.relations.map(r => `<li><span>${esc(r.nation)}${r.note ? `<small>${esc(r.note)}</small>` : ""}</span><span class="tag ${relTag(r.status)}">${esc(r.status)}</span></li>`).join("")}</ul>` : ""}
+    ${G.chronicle.length ? `<div class="sec-label">연대기 (최근 ${Math.min(8, G.chronicle.length)}건 / 전체 ${G.chronicle.length}건)</div><ol class="chron">${G.chronicle.slice(-8).reverse().map(c => `<li>${esc(c)}</li>`).join("")}</ol>` : ""}`;
+  if (collapsed) el.classList.add("collapsed");
+}
+function renderChips() {
+  const c = $("#chips");
+  if (!G) { c.innerHTML = ""; return; }
+  const dis = busy || G.ended || !sampleReady ? "disabled" : "";
+  let opts = [];
+  if (!G.turns.length) opts = ["즉위한다. 조정의 현황을 보고받는다"];
+  else opts = [...(G.state?.options || []), "한 달을 보낸다", "1년을 넘기며 결과를 보고받는다"];
+  c.innerHTML = opts.map((o, i) => `<button class="chip ${/넘기|보낸다/.test(o) && i >= (G.state?.options?.length || 0) ? "time" : ""}" type="button" data-chip="${esc(o)}" title="${esc(o)}" ${dis}>${esc(o)}</button>`).join("");
+  $("#btn-send").disabled = !!G.ended || !sampleReady;
+  if (busy) { $("#btn-send").disabled = false; }
+}
+
+/* ───────── 전송 ───────── */
+const ERR = {
+  not_granted: "이 페이지가 Claude를 쓰도록 허용되지 않았습니다. 허용해야 사관이 이야기를 이어 갈 수 있습니다.",
+  sampling_disabled: "이 계정에서는 Claude를 쓸 수 없습니다.",
+  rate_limited: "요청이 너무 많거나 사용량 한도에 닿았습니다. 잠시 뒤에 다시 보내 주세요.",
+  session_expired: "로그인이 만료되었습니다. 다시 로그인한 뒤 보내 주세요.",
+  refused: "사관이 이 명령을 서술하지 않았습니다. 표현을 바꿔 다시 내려 주세요.",
+  prompt_too_large: "기록이 너무 길어졌습니다. 새 시나리오로 시작하거나 되돌려 주세요.",
+  empty_completion: "답이 비어 있습니다. 다시 보내 주세요.",
+};
+async function send(cmd) {
+  cmd = (cmd || "").trim();
+  if (!cmd || busy || !G || G.ended) return;
+  if (!sampleReady) { setHint("AI 사관은 claude.ai에서 이 페이지를 열었을 때만 응답합니다.", true); return; }
+  const input = buildInput(cmd);
+  const snapshot = JSON.stringify({ turns: G.turns, state: G.state, prevState: G.prevState, chronicle: G.chronicle, ended: G.ended });
+  G.turns.push({ role: "user", content: "[플레이어] " + cmd });
+  $("#cmd").value = ""; autoGrow();
+  render();
+  const pend = document.createElement("article");
+  pend.className = "turn-gm pending";
+  pend.innerHTML = `<div class="think">사관이 붓을 드는 중…</div>`;
+  $("#log").appendChild(pend);
+  pend.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  busy = new AbortController();
+  setBusyUI(true);
+  try {
+    const { text, truncated } = await sample(input, {
+      signal: busy.signal, cache: false,
+      onText: ({ text }) => { const n = splitReply(text).narrative; if (n) pend.innerHTML = md(n); },
+    });
+    const { narrative, state } = splitReply(text);
+    const cs = cleanState(state);
+    G.undo = snapshot;
+    if (cs) {
+      G.prevState = G.state; G.state = cs;
+      cs.events.forEach(e => G.chronicle.push(e));
+      if (G.chronicle.length > 200) G.chronicle = G.chronicle.slice(-200);
+      if (cs.ending) G.ended = cs.ending;
     }
-    return `<div class="nb ${n.alive ? "" : "dead"}">
-      <div class="nb-head"><div><div class="nb-name">${esc(n.name)}</div><div class="nb-ruler">${esc(n.ruler)} · ${PERS[n.pers].name}</div></div><span class="pill ${st[0]}">${st[1]}</span></div>
-      ${n.alive ? `<div class="nb-stats"><div>국력<b>${r1(n.power)}</b></div><div>영토<b>${n.land}</b></div><div>관계<b>${rel > 0 ? "+" : ""}${rel}</b></div></div>
-      <div class="rel" title="${relLabel}"><i style="left:${left}%;width:${w}%;background:${rel >= 0 ? "var(--good)" : "var(--bad)"}"></i></div>
-      <div class="nb-acts">${acts}</div>` : ""}
-    </div>`;
-  }).join("");
-
-  let lastY = null;
-  $("#chron").innerHTML = S.log.slice(0, 120).map(e => {
-    const y = e.y !== lastY ? `${e.y}년` : ""; lastY = e.y;
-    const h = `<li class="${e.k} ${e.f ? "fresh" : ""}"><span class="y">${y}</span><span class="t">${esc(e.t)}</span></li>`;
-    e.f = 0; return h;
-  }).join("");
-  $("#chron-meta").textContent = `기록 ${S.log.length}건`;
-
-  $("#ap").innerHTML = `행동력 ${Array.from({ length: S.maxAp }, (_, i) => `<i class="${i < S.ap ? "on" : ""}"></i>`).join("")}`;
-  $("#btn-end").disabled = !!S.over;
-  $("#btn-end").textContent = S.over ? "기록이 끝났다" : "한 해를 마친다";
-
-  if (keepModal) return;
-  if (S.over && shownEventKey !== "over") { shownEventKey = "over"; showOver(); }
-  else if (!S.over && S.event && shownEventKey !== S.event.id + ":" + S.event.p) { shownEventKey = S.event.id + ":" + S.event.p; showEvent(); }
+    G.turns.push({ role: "assistant", content: narrative || text, date: cs?.date || G.state?.date || "" });
+    save();
+    busy = null; setBusyUI(false); render();
+    if (!cs) setHint("이번 답에서 상태창을 읽지 못해 이전 상태창을 유지했습니다.", true);
+    else if (truncated) setHint("답이 길이 제한에서 잘렸습니다.", true);
+    else setHint();
+    const last = $("#log").lastElementChild; if (last) last.scrollIntoView({ block: "start", behavior: "smooth" });
+  } catch (e) {
+    busy = null; setBusyUI(false);
+    // 실패한 어명은 되돌리고 입력창에 다시 넣는다
+    const snap = JSON.parse(snapshot); Object.assign(G, snap);
+    render();
+    if (e?.code !== "cancelled") { $("#cmd").value = cmd; autoGrow(); setHint(ERR[e?.code] || "연결이 끊겼습니다. 다시 보내 주세요.", true); }
+    else { $("#cmd").value = cmd; setHint("멈췄습니다."); }
+  }
+}
+function setBusyUI(on) {
+  const b = $("#btn-send");
+  b.textContent = on ? "멈춤" : "어명"; b.classList.toggle("btn-stop", on);
+  $("#btn-undo").disabled = on || !G?.undo;
+  $("#btn-new").disabled = on;
+  renderChips();
+}
+function setHint(t, warn) { const h = $("#hint"); h.textContent = t || "Enter로 보내고 Shift+Enter로 줄을 바꿉니다. 게임 밖 요청은 (OOC: …)로 적으세요."; h.style.color = warn ? "var(--bad)" : ""; }
+function undo() {
+  if (!G?.undo || busy) return;
+  const snap = JSON.parse(G.undo);
+  const lastCmd = [...G.turns].reverse().find(t => t.role === "user");
+  Object.assign(G, snap); G.undo = null; save(); render();
+  if (lastCmd) { $("#cmd").value = lastCmd.content.replace(/^\[플레이어\]\s*/, ""); autoGrow(); }
+  setHint("한 턴을 되돌렸습니다. 어명을 고쳐 다시 내릴 수 있습니다.");
 }
 
-function showEvent() {
-  const ev = EVENTS[S.event.id].make(S.event.p);
-  openModal(`<div class="eyebrow">건국 ${S.year}년 · 사건</div><h3>${esc(ev.t)}</h3><p>${esc(ev.d)}</p>
-    <div class="choices">${ev.c.map((c, i) => `<button class="choice" data-ev="${i}" type="button" ${c.r && !c.r() ? "disabled" : ""}><b>${esc(c.l)}</b><span>${esc(c.h)}${c.r && !c.r() ? " · 재물 부족" : ""}</span></button>`).join("")}</div>`);
-}
-function showOver() {
-  const o = S.over;
-  openModal(`<div class="eyebrow">${o.win ? "승리" : "패배"} · 건국 ${S.year}년 · ${ERAS[S.era].name}</div><h3>${esc(o.title)}</h3><p>${esc(o.text)}</p>
-    <div class="statgrid"><div>통치 기간<b>${S.year}년</b></div><div>최종 영토<b>${S.land}</b></div><div>인구<b>${S.pop}만</b></div><div>전투 승리<b>${S.stats.wins}</b></div><div>합병한 나라<b>${S.stats.annexed}</b></div><div>기술<b>${S.tech}</b></div></div>
-    <div class="row"><button class="btn-ghost" data-m="close" type="button">연대기 보기</button><button class="btn-primary" data-m="setup" type="button">새 왕조를 연다</button></div>`);
-}
-let setupTrait = "agri";
+/* ───────── 시나리오 선택 ───────── */
 function showSetup() {
-  const hasSave = S && !S.over;
-  openModal(`<div class="eyebrow">새 왕조</div><h3>나라를 세운다</h3>
-    <p>작은 부족에서 시작해 여섯 시대를 거치며 나라를 키운다. 이웃 나라를 모두 합병하거나, 근대에 이르러 만국 박람회를 열면 승리한다.</p>
-    <div class="field"><label for="in-nation">나라 이름</label><input id="in-nation" maxlength="14" value="새벽 왕국"></div>
-    <div class="field"><label for="in-ruler">군주 이름</label><input id="in-ruler" maxlength="14" value="태조 한빛"></div>
-    <div class="field"><label>나라의 기풍</label><div class="traits">${Object.entries(TRAITS).map(([k, t]) => `<button type="button" class="trait ${k === setupTrait ? "on" : ""}" data-trait="${k}"><b>${t.name}</b><span>${t.desc}</span></button>`).join("")}</div></div>
-    <div class="row">${hasSave ? `<button class="btn-ghost" data-m="close" type="button">이어서 하기</button>` : ""}<button class="btn-primary" data-m="start" type="button">건국한다</button></div>`);
+  const p = PRESETS.find(x => x.id === pick.preset);
+  const custom = pick.preset === "custom";
+  $("#modal").innerHTML = `<div class="eyebrow">새 시나리오</div><h3>어느 나라의 운명을 쥘 것인가</h3>
+    <p>시대와 나라를 고르면 AI 사관이 그 시점의 실제 역사에서 이야기를 시작합니다. 명령은 채팅으로 자유롭게 내리면 됩니다.</p>
+    <div class="presets">${PRESETS.map(x => `<button type="button" class="preset ${x.id === pick.preset ? "on" : ""}" data-preset="${x.id}"><span class="yr">${x.date}</span><b>${x.nation}</b><span>${esc(x.role)}</span></button>`).join("")}
+      <button type="button" class="preset ${custom ? "on" : ""}" data-preset="custom"><span class="yr">직접 입력</span><b>나만의 대체역사</b><span>나라, 시점, 분기점을 직접 정한다</span></button></div>
+    <div class="fields">
+      <div class="field"><label for="f-nation">국가</label><input id="f-nation" value="${esc(custom ? "" : p.nation)}" placeholder="예: 고려"></div>
+      <div class="field"><label for="f-date">시작 시점</label><input id="f-date" value="${esc(custom ? "" : p.date)}" placeholder="예: 1231년 8월"></div>
+      <div class="field full"><label for="f-role">플레이어의 역할</label><input id="f-role" value="${esc(custom ? "" : p.role)}" placeholder="예: 국왕 고종 / 무신 집정 최우"></div>
+      <div class="field full"><label for="f-premise">배경과 분기점</label><textarea id="f-premise" placeholder="예: 몽골의 1차 침입 직전. 강화 천도를 하지 않았다면?">${esc(custom ? "" : p.premise)}</textarea></div>
+      <div class="field full"><label for="f-goal">목표</label><input id="f-goal" value="${esc(custom ? "" : p.goal)}" placeholder="예: 몽골을 물리치고 왕권을 되찾는다"></div>
+      <div class="field full"><label>난이도</label><div class="seg">${Object.entries(REALISM).map(([k, r]) => `<button type="button" data-real="${k}" class="${pick.realism === k ? "on" : ""}">${r.name}</button>`).join("")}</div></div>
+    </div>
+    ${sampleReady ? "" : `<div class="warnbox">AI 사관은 claude.ai에서 이 페이지를 열었을 때만 응답합니다. 처음 어명을 내릴 때 Claude 사용 허용을 묻습니다.</div>`}
+    <div class="mrow">${G ? `<button class="btn-ghost" type="button" data-act="close">닫기</button>` : ""}<button class="btn-primary" type="button" data-act="start">이 나라로 시작</button></div>`;
+  $("#scrim").hidden = false;
 }
-function showHelp() {
-  openModal(`<div class="eyebrow">규칙</div><h3>왕조를 다스리는 법</h3><div class="help">
-    <h4>한 해의 흐름</h4><ul><li>해마다 행동력(시대가 오를수록 늘어남)만큼 국정·외교 명령을 내린다.</li><li>‘한 해를 마친다’를 누르면 세금·수확·연구가 정산되고 이웃 나라가 움직이며 사건이 일어난다.</li></ul>
-    <h4>국력</h4><ul><li>식량이 모자라면 기근, 금이 모자라면 탈영이 일어난다.</li><li>인구는 영토에 비례한 상한까지 늘어난다. 영토는 개척하거나 정복해서 넓힌다.</li><li>민심이 0이 되면 봉기로 왕조가 무너진다. 세율과 신전, 축제로 다스린다.</li></ul>
-    <h4>시대</h4><ul><li>기술이 쌓이면 다음 시대로 나아간다. 시대마다 군사력과 시설 효율이 커지고 새 건물이 열린다.</li></ul>
-    <h4>외교와 전쟁</h4><ul><li>예물로 관계를 높이고, 관계 60 이상이면 동맹을 맺는다. 동맹국은 교역 수입을 주고 방어전에 원군을 보낸다.</li><li>관계가 −30 아래로 떨어지면 이웃이 쳐들어올 수 있다. 성벽이 방어를 돕는다.</li></ul>
-    <h4>승리와 패배</h4><ul><li>승리: 모든 이웃 합병(천하 통일) 또는 근대에 만국 박람회 개최(문명의 정점).</li><li>패배: 영토 상실, 민중 봉기, 인구 소멸.</li></ul>
-    </div><div class="row"><button class="btn-primary" data-m="close" type="button">닫기</button></div>`);
-}
-function showBuild() {
-  if (S.over || S.ap < 1) return;
-  openModal(`<div class="eyebrow">건설 · 행동력 1</div><h3>무엇을 세울까</h3><div class="choices">${Object.entries(BUILDINGS).map(([k, b]) => {
-    const locked = b.era > S.era, c = bCost(k), ok = !locked && S.gold >= c;
-    return `<button class="choice" data-b="${k}" type="button" ${ok ? "" : "disabled"}><b>${b.name} <span class="num">(${S.b[k]})</span></b><span>${locked ? ERAS[b.era].name + "에 열림" : `금 ${c} · ${b.desc}`}</span></button>`;
-  }).join("")}</div><div class="row"><button class="btn-ghost" data-m="close" type="button">그만둔다</button></div>`);
+function startFromForm() {
+  const v = id => ($("#" + id).value || "").trim();
+  const sc = { nation: v("f-nation"), date: v("f-date"), role: v("f-role"), premise: v("f-premise") || "실제 역사 그대로 시작한다.", goal: v("f-goal") || "나라를 번영시킨다" };
+  if (!sc.nation || !sc.date || !sc.role) { const w = $("#modal .warnbox") || Object.assign(document.createElement("div"), { className: "warnbox" }); w.textContent = "국가, 시작 시점, 역할을 채워 주세요."; $("#modal .mrow").before(w); return; }
+  G = blankGame(sc, pick.realism); save();
+  $("#scrim").hidden = true; render(); setHint();
+  window.scrollTo({ top: 0 });
+  $("#cmd").focus();
 }
 
 /* ───────── 입력 ───────── */
+function autoGrow() { const t = $("#cmd"); t.style.height = "auto"; t.style.height = Math.min(160, t.scrollHeight) + "px"; }
+$("#cmd").addEventListener("input", autoGrow);
+$("#cmd").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); if (!busy) send($("#cmd").value); }
+});
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t || t.disabled) return;
   const d = t.dataset;
-  if (d.a === "build") return showBuild();
-  if (d.a === "era") return advanceEra();
-  if (d.a) return doAct(d.a);
-  if (d.tax) return setTax(d.tax);
-  if (d.d) return dip(d.d, +d.id);
-  if (d.b) return build(d.b);
-  if (d.ev !== undefined) return chooseEvent(+d.ev);
-  if (d.trait) { setupTrait = d.trait; document.querySelectorAll(".trait").forEach(b => b.classList.toggle("on", b.dataset.trait === setupTrait)); return; }
-  if (d.m === "close") { closeModal(); return; }
-  if (d.m === "setup") return showSetup();
-  if (d.m === "start") {
-    const nation = ($("#in-nation").value || "").trim() || "새벽 왕국", ruler = ($("#in-ruler").value || "").trim() || "태조 한빛";
-    closeModal(); newGame(nation, ruler, setupTrait); return;
-  }
-  if (t.id === "btn-end") return endTurn();
-  if (t.id === "btn-new") return showSetup();
-  if (t.id === "btn-help") return showHelp();
+  if (t.id === "btn-send") { if (busy) busy.abort(); else send($("#cmd").value); return; }
+  if (t.id === "btn-undo") return undo();
+  if (t.id === "btn-new" || d.act === "new") return showSetup();
+  if (t.id === "btn-status") { $("#status").classList.toggle("collapsed"); return; }
+  if (d.chip) return send(d.chip);
+  if (d.preset) { pick.preset = d.preset; return showSetup(); }
+  if (d.real) { pick.realism = d.real; document.querySelectorAll("[data-real]").forEach(b => b.classList.toggle("on", b.dataset.real === pick.realism)); return; }
+  if (d.act === "close") { $("#scrim").hidden = true; return; }
+  if (d.act === "start") return startFromForm();
 });
-$("#scrim").addEventListener("click", e => { if (e.target.id === "scrim" && S && !S.event && !S.over && $("#modal").querySelector("[data-m=close]")) closeModal(); });
-document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && !$("#scrim").hidden && $("#modal").querySelector("[data-m=close]") && !(S && S.event)) closeModal();
-});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("#scrim").hidden && G) $("#scrim").hidden = true; });
 
 /* ───────── 시작 ───────── */
-function start(data) {
-  const saved = (data && data.S) || load();
-  if (saved && saved.nation) { S = saved; render(); if (!S.event && !S.over) {} }
-  else {
-    newGame("새벽 왕국", "태조 한빛", "agri");
-    showSetup();
+(function boot() {
+  G = load();
+  if (window.matchMedia("(max-width: 900px)").matches) $("#status").classList.add("collapsed");
+  render();
+  if (!G) showSetup();
+  const use = window.claude?.use;
+  if (use) {
+    window.claude.use("sample").then(fn => {
+      sample = fn; sampleReady = !!fn;
+      if (!fn) setHint("이 화면에서는 AI 사관을 부를 수 없습니다. claude.ai에서 열어 주세요.", true);
+      render();
+      if (!$("#scrim").hidden && !G) showSetup();
+    }).catch(() => { setHint("AI 사관을 불러오지 못했습니다.", true); });
+  } else {
+    setHint("AI 사관은 claude.ai에서 이 페이지를 열었을 때만 응답합니다.", true);
   }
-}
-window.claude?.hot?.snapshot?.(() => ({ S }));
-window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+})();
 </script>
 <!-- END-CONTENT -->
 </html>
