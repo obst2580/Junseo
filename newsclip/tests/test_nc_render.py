@@ -546,3 +546,13 @@ def test_wide_photo_sits_on_box_top_for_news_styles():
         frame = compose_photo(wide, (1080, 1920), name)
         r, g, b = frame.getpixel((540, y0 + 4))
         assert (r > 150 and g < 100) is top, name
+
+
+def test_story_style_black_top_white_yellow_title():
+    """하루집사 사연형 디자인: 검은 띠 위 흰·노랑 상단 제목, 사진 칸은 널스윤서와 같고 첫 문장은 차트판 대신 크게."""
+    from newsclip.vertical import HEALTH_BOX, style_of
+
+    st = style_of("story")
+    assert st.name == "story" and st.top_bg == (0, 0, 0) and st.under_bg == (0, 0, 0)
+    assert st.text_colors[0] == (255, 255, 255) and st.text_colors[1][:2] == (255, 222)
+    assert st.box == HEALTH_BOX and st.hook == "flash"

@@ -42,10 +42,14 @@ unset STUDIO_FIXTURES
 
 제작실 하나에서 채널을 바꿔 씁니다. 요청 문서에 `channel`이 있으면(예: `"stock"`, `"right"`, `"health"`) 그 채널입니다.
 널스윤서(건강)는 채널을 고정한 **따로 만든 제작실**(`uv run python daebonsil/build.py --channel=health`, 작업자는 `daebonsil/worker.health.json`)에서도 씁니다.
-하루집사(반려동물, `channel: "pet"`)는 널스윤서와 같은 틀(기사로 주제, 30초 세로 쇼츠만, 첫 문장 차트판 손글씨)이고, 따로 만든 제작실
+하루집사(반려동물, `channel: "pet"`)는 널스윤서와 같은 틀(기사로 주제, 30초 세로 쇼츠만)이고, 따로 만든 제작실
 (`uv run python daebonsil/build.py --channel=pet`, 작업자는 `daebonsil/worker.pet.json`)에서 씁니다. 설정 `channel.pet.yaml`, 아티팩트 데이터
 `pet_raw/…`·`pet_topics/current`·`pet_projects/<ID>`, 로컬 폴더 `data-pet/`·`projects-pet/`, 작업자 명령 `… workroom --channel pet …`.
 아래 널스윤서 절차가 그대로 적용됩니다(대본 규칙은 `topicradar/prompts.py` `PET_*`).
+다만 하루집사는 사연형입니다(2026-11, 참고 쇼츠 "주인 대신 총 맞은 개, 2년 뒤 생긴 일?!"): 기사로 확인되는 실제 강아지·고양이
+사연을 먼저 다루고(주제 angle `사연`), 제목은 궁금증형("…, 2년 뒤 생긴 일?!"), 화면 디자인은 `shorts.style: story`(검은 띠 위
+흰·노랑 상단 제목, 첫 문장은 차트판 대신 사진 위에 크게 — `hook`·`emphasis`는 쓰이지 않으니 queries.json에 넣지 않아도 됩니다).
+사연 화면 소재도 영어 검색어로 찾되, 다친 모습·학대 장면·피는 고르지 않습니다(구조·회복·지금 모습 위주).
 
 | | 정치는푸르다(기본, `channel: "politics"` 또는 없음) | 자유뉴스365(`channel: "right"`) | 오늘증시 김시연(`channel: "stock"`) | 널스윤서(`channel: "health"`) |
 |---|---|---|---|---|

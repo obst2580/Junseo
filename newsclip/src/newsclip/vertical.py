@@ -155,6 +155,27 @@ STYLES: dict[str, Style] = {
         hook="chart",
         peak=0.85,  # 소리 최고점: AAC로 줄인 뒤에도 깨지지 않게(뉴스 채널과 같은 값)
     ),
+    # 하루집사(반려동물 사연 쇼츠): 위쪽은 검은 띠에 흰 글씨, 둘째 줄은 노란 강조 글씨(매머드빵, 흐린 그림자).
+    # 사진 칸·자막 자리는 널스윤서와 같고, 바탕은 검정. 첫 문장은 차트판 대신 사진 위에 크게
+    "story": Style(
+        "story",
+        font_local="210MammothPpang-R.TTF",
+        top_bg=(0, 0, 0),
+        top_until=HEALTH_BOX[1],
+        text_colors=((255, 255, 255), (255, 222, 64)),
+        head_box=(40, 40, 1040, 400),
+        head_px=132,
+        head_line=1.16,
+        stroke=0.0,
+        shadow=0.85,
+        fill_box=True,
+        box=HEALTH_BOX,
+        under_bg=(0, 0, 0),
+        photo_fade=260,
+        sub_shift=HEALTH_BOX[3] - BOX[3],
+        hook="flash",
+        peak=0.85,
+    ),
 }
 
 

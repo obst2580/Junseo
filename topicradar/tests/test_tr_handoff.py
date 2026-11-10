@@ -329,7 +329,8 @@ def test_pet_profile_rules(monkeypatch):
     cfg = load_channel(Settings(root=root))
     assert cfg.channel.profile == "pet" and cfg.channel.name == "하루집사"
     assert cfg.communities == [] and cfg.images.sources[0] == "pexels_video"
-    assert cfg.shorts.style == "health"  # 널스윤서와 같은 디자인(첫 문장 차트판 손글씨)
+    assert cfg.shorts.style == "story"  # 사연형 디자인(검은 띠 위 흰·노랑 제목, 첫 문장은 사진 위에 크게)
+    assert cfg.sources.naver_queries[0] == "반려견 사연" and "사연" in cfg.channel.categories
     r = channel_rules(cfg)
     assert list(r["formats"]) == ["shorts"]
     rules = r["rules"]
@@ -345,6 +346,10 @@ def test_pet_profile_rules(monkeypatch):
         and "간호" not in shorts
         and "질병관리청" not in shorts
         and "동물병원·수의사와 상의" in shorts
+        and "차트판" not in shorts  # 사연형 디자인은 차트판 훅을 쓰지 않는다
+        and "angle이 '사연'" in shorts
+        and "결말을 미리 말하지 않는다" in shorts
     )
+    assert r["rules"]["angles"][0] == "사연" and "생긴 일?!" in rules["plan_task"]
     lo, hi = r["formats"]["shorts"]["target_chars"]
     assert 200 <= lo < hi <= 290
