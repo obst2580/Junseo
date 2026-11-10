@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>정부 보도자료(가상) (시연용 가상 피드)</title>
+    <link>https://press.example.go.kr/</link>
+    <description>studio 시연 fixture — 실존 기사 아님</description>
+    <item>
+      <title>고용노동부, 플랫폼노동자 기본법 시행령 준비 TF 출범</title>
+      <link>https://press.example.go.kr/article/20261010/05962d1e0c</link>
+      <description>고용노동부가 플랫폼노동자 기본법 시행령 준비 TF를 출범했다. TF에는 노사 대표와 전문가가 참여한다. 시행령은 내년 3월까지 마련된다.</description>
+      <pubDate>Sat, 10 Oct 2026 10:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>국방부, 북한 탄도미사일 분석 결과 발표…"신형 고체연료"</title>
+      <link>https://press.example.go.kr/article/20261008/37d78024ef</link>
+      <description>국방부가 북한이 발사한 탄도미사일이 신형 고체연료 미사일로 분석됐다고 발표했다. 한미 정보당국이 공동으로 분석했다. 국방부는 대응 태세를 강화하기로 했다.</description>
+      <pubDate>Thu, 08 Oct 2026 04:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>한국은행, 외환시장 점검회의…"환율 변동성 경계"</title>
+      <link>https://press.example.go.kr/article/20261008/16ed96d662</link>
+      <description>한국은행이 외환시장 점검회의를 열고 환율 변동성을 경계한다고 밝혔다. 환율이 1,430원을 넘은 데 따른 조치다. 필요하면 시장 안정 조치를 하겠다고 했다.</description>
+      <pubDate>Thu, 08 Oct 2026 01:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>기획재정부, 올해 세수 결손 전망 발표…법인세 감소 영향</title>
+      <link>https://press.example.go.kr/article/20261008/d786df93c1</link>
+      <description>기획재정부가 올해 국세 수입이 예산보다 부족할 것이라는 재추계 결과를 발표했다. 법인세 감소가 주된 원인이다. 정부는 기금 여유분을 활용해 대응할 방침이다.</description>
+      <pubDate>Thu, 08 Oct 2026 00:10:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>고용노동부, 플랫폼 종사자 산재보험 적용 확대 시행령 입법예고</title>
+      <link>https://press.example.go.kr/article/20261007/bbbf07670d</link>
+      <description>고용노동부가 플랫폼 종사자의 산재보험 적용을 넓히는 시행령 개정안을 입법예고했다. 배달·대리운전 등 플랫폼 종사자가 대상이다. 플랫폼 종사자 산재 사고가 늘어난 것이 개정 배경이다. 플랫폼노동자 기본법이 통과되면 적용 범위가 더 넓어진다.</description>
+      <pubDate>Wed, 07 Oct 2026 00:30:00 +0900</pubDate>
+    </item>
+  </channel>
+</rss>

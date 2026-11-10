@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>newsclip 검토</title>
+<style>
+  :root { --bg:#f6f6f4; --card:#fff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e2e2e0; --accent:#2457d6; --warn:#b4471b; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141416; --card:#1e1e21; --ink:#ececec; --muted:#9a9aa0; --line:#2f2f33; --accent:#7aa2ff; --warn:#ff9466; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  header { position:sticky; top:0; z-index:2; display:flex; gap:12px; align-items:center; padding:12px 20px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; flex:1; }
+  button { font:inherit; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 12px; cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  main { max-width:1180px; margin:0 auto; padding:16px; display:grid; gap:12px; }
+  .scene { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .scene.skipped { opacity:.5; }
+  .meta { display:flex; gap:10px; flex-wrap:wrap; color:var(--muted); font-size:13px; }
+  .meta b { color:var(--ink); }
+  .text { margin:6px 0 10px; }
+  .cands { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:10px; }
+  .cand { border:2px solid transparent; border-radius:10px; padding:6px; background:var(--bg); cursor:pointer; }
+  .cand.chosen { border-color:var(--accent); }
+  .cand img, .cand video { width:100%; aspect-ratio:16/9; object-fit:cover; border-radius:6px; background:#000; display:block; }
+  .cand .src { font-size:12px; color:var(--muted); margin-top:4px; word-break:break-all; }
+  .cand .score { font-size:12px; }
+  .row { display:flex; gap:6px; align-items:center; margin-top:4px; font-size:12px; }
+  .row input { width:70px; }
+  .none { color:var(--warn); font-size:13px; }
+  #status { font-size:13px; color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">newsclip 검토</h1>
+  <span id="status"></span>
+  <button class="primary" id="save">저장 + XML 재생성</button>
+</header>
+<main id="list"></main>
+<script>
+const list = document.getElementById('list');
+const statusEl = document.getElementById('status');
+const fmt = s => { const m = Math.floor(s / 60), r = (s % 60).toFixed(1); return `${m}:${r.padStart(4, '0')}`; };
+async function api(path, body) {
+  const res = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+function card(sc) {
+  const el = document.createElement('section');
+  el.className = 'scene' + (sc.skipped ? ' skipped' : '');
+  const chosenId = sc.chosen ? sc.chosen.id : null;
+  const top = sc.candidates.filter(c => c.preview).slice(0, 3);
+  el.innerHTML = `
+    <div class="meta"><b>${sc.id}</b><span>${fmt(sc.start_sec)} – ${fmt(sc.end_sec)}</span><span>주제: ${sc.topic}</span><span>${sc.kind}</span><span>키워드: ${sc.keywords_ko.join(', ')} / ${sc.keywords_en.join(', ')}</span></div>
+    <div class="text">${sc.text}</div>
+    <div class="cands"></div>
+    <div class="row"><label><input type="checkbox" ${sc.skipped ? 'checked' : ''}> 건너뛰기(XML에 마커만)</label></div>`;
+  const wrap = el.querySelector('.cands');
+  if (!top.length) wrap.innerHTML = `<div class="none">자료 없음: ${sc.keywords_ko.join(', ')}</div>`;
+  top.forEach(c => {
+    const d = document.createElement('div');
+    d.className = 'cand' + (c.id === chosenId ? ' chosen' : '');
+    const media = c.media === 'video'
+      ? `<video src="${c.preview}" muted preload="metadata" controls></video>`
+      : `<img src="${c.preview}" loading="lazy" alt="">`;
+    const clip = c.media === 'video'
+      ? `<div class="row">시작 초 <input type="number" step="1" min="0" value="${c.clip_start_sec ?? 0}"> <a href="${c.url}&t=${Math.floor(c.clip_start_sec || 0)}s" target="_blank">원본</a></div>` : '';
+    d.innerHTML = `${media}<div class="score">${c.score.toFixed(0)}점 · ${c.source}</div><div class="src">${c.attribution_text}</div>${clip}`;
+    d.addEventListener('click', async ev => {
+      if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'A' || ev.target.tagName === 'VIDEO') return;
+      await api(`/api/scenes/${sc.id}/choose`, { asset_id: c.id });
+      wrap.querySelectorAll('.cand').forEach(x => x.classList.remove('chosen'));
+      d.classList.add('chosen');
+      statusEl.textContent = `${sc.id} 선택 변경 (저장 전)`;
+    });
+    const inp = d.querySelector('input');
+    if (inp) inp.addEventListener('change', async () => {
+      await api(`/api/scenes/${sc.id}/clip_start`, { asset_id: c.id, sec: Number(inp.value) });
+      statusEl.textContent = `${sc.id} 시작 초 ${inp.value}s (저장 시 구간 재다운로드)`;
+    });
+    wrap.appendChild(d);
+  });
+  el.querySelector('.row input[type=checkbox]').addEventListener('change', async ev => {
+    await api(`/api/scenes/${sc.id}/skip`, { skipped: ev.target.checked });
+    el.classList.toggle('skipped', ev.target.checked);
+  });
+  return el;
+}
+async function load() {
+  const data = await api('/api/scenes');
+  document.getElementById('title').textContent = `newsclip 검토 — ${data.project} (${data.scenes.length}장면)`;
+  list.replaceChildren(...data.scenes.map(card));
+}
+document.getElementById('save').addEventListener('click', async () => {
+  statusEl.textContent = '저장 중…';
+  const r = await api('/api/save', {});
+  statusEl.textContent = r.ok ? '저장 완료 · timeline.xml 재생성(검사 통과)' : '검사 실패: ' + r.errors.join('; ');
+});
+load().catch(e => { statusEl.textContent = '불러오기 실패: ' + e.message; });
+</script>
+</body>
+</html>
