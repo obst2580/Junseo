@@ -861,8 +861,14 @@ function crime(D, kind) {
 async function loadCop() {
   if (copTpl) return copTpl; if (!copLoading) copLoading = person('police').then(t => { t.holder.visible = false; copTpl = t; return t; }); return copLoading;
 }
+function dupMat(m) {   // node-material clone() drops maps and colours here: copy by hand
+  const n = new THREE.MeshStandardNodeMaterial();
+  for (const k of ['name', 'map', 'normalMap', 'normalScale', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'roughness', 'metalness', 'opacity', 'transparent', 'alphaTest',
+    'side', 'vertexColors', 'depthWrite', 'envMapIntensity', 'emissiveIntensity', 'opacityNode', 'colorNode', 'lightsNode']) if (m[k] !== undefined && m[k] !== null) n[k] = m[k];
+  n.color.copy(m.color); n.emissive.copy(m.emissive); return n;
+}
 function newCop() {
-  const m = SkeletonUtils.clone(copTpl.model); m.traverse(o => { if (o.isMesh) o.material = o.material.clone(); });   // own materials: the hit flash is per officer
+  const m = SkeletonUtils.clone(copTpl.model); m.traverse(o => { if (o.isMesh) o.material = dupMat(o.material); });   // own materials: the hit flash is per officer
   const c = rig(m, copTpl); arm(c, 'police'); c.cop = true; return c;
 }
 function spawnSpot() {   // out of sight: behind the camera's side of the player, 30–40 m out, on open ground
