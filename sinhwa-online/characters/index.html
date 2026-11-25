@@ -1,0 +1,246 @@
+<title>신화2리 주민 명부</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a village resident register — each person is a record card with an ID-photo box, read top to bottom; two cards per row on wide screens, one on phones. */
+:root{
+  --paper:#eef0ea; --card:#f9faf6; --ink:#1c241f; --mute:#5d6a61; --rule:#c9d0c6; --stamp:#c3322b; --field:#e5e9e1;
+  --f-display:"Black Han Sans","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--paper:#151a17;--card:#1c221e;--ink:#e6ebe4;--mute:#9aa89e;--rule:#333d36;--stamp:#e0574e;--field:#242b26;color-scheme:dark}}
+:root[data-theme="dark"]{--paper:#151a17;--card:#1c221e;--ink:#e6ebe4;--mute:#9aa89e;--rule:#333d36;--stamp:#e0574e;--field:#242b26;color-scheme:dark}
+body{background:var(--paper);color:var(--ink);font:15px/1.6 var(--f-body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 56px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+header{display:grid;grid-template-columns:1fr auto;gap:16px;align-items:end;border-bottom:3px double var(--ink);padding-bottom:16px}
+header h1{margin:0;font:400 clamp(34px,6vw,54px)/1.05 var(--f-display);letter-spacing:.01em;text-wrap:balance}
+header p{margin:6px 0 0;color:var(--mute);max-width:62ch}
+.meta{font:500 12px/1.7 var(--f-mono);color:var(--mute);text-align:right;white-space:nowrap}
+.stamp{display:inline-block;border:2.5px solid var(--stamp);color:var(--stamp);font:400 18px var(--f-display);padding:2px 10px;border-radius:4px;transform:rotate(-6deg);margin-top:6px;letter-spacing:.1em}
+h2{margin:0 0 4px;font:400 26px/1.2 var(--f-display);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+h2 small{font:500 12px var(--f-mono);color:var(--mute);letter-spacing:.06em}
+.lead{margin:0 0 16px;color:var(--mute);max-width:70ch}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,520px),1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:3px;display:grid;grid-template-columns:132px 1fr;gap:0;min-width:0}
+.photo{border-right:1px solid var(--rule);padding:12px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.photo svg{width:108px;height:140px;background:var(--field);border:1px solid var(--rule)}
+.photo .no{font:500 11px var(--f-mono);color:var(--mute)}
+.sw{display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
+.sw i{width:16px;height:16px;border-radius:2px;border:1px solid var(--rule);display:block}
+.body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.name{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.name b{font:400 24px/1.1 var(--f-display)}
+.name span{font:500 12px var(--f-mono);color:var(--mute)}
+.role{font-weight:600;font-size:13.5px}
+dl{margin:0;display:grid;grid-template-columns:76px 1fr;gap:4px 10px;font-size:13.5px}
+dt{color:var(--mute);font-size:12px;padding-top:2px}
+dd{margin:0;min-width:0}
+.quote{border-left:3px solid var(--stamp);padding:2px 0 2px 10px;font-size:13.5px;color:var(--ink)}
+.quote p{margin:0}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border:1px solid var(--rule)}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font:500 12px var(--f-mono);color:var(--mute);background:var(--field);letter-spacing:.04em}
+.scroll{overflow-x:auto}
+.ambient{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,250px),1fr));gap:10px}
+.amb{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:10px 12px;display:grid;grid-template-columns:52px 1fr;gap:10px;align-items:start}
+.amb svg{width:52px;height:68px;background:var(--field);border:1px solid var(--rule)}
+.amb b{display:block;font-size:14px}
+.amb p{margin:2px 0 0;font-size:13px;color:var(--mute)}
+.rules{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:10px;margin:0;padding:0;list-style:none}
+.rules li{background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:10px 12px;font-size:14px}
+.rules li b{display:block;margin-bottom:2px}
+@media (max-width:560px){.card{grid-template-columns:1fr}.photo{border-right:0;border-bottom:1px solid var(--rule);flex-direction:row;justify-content:flex-start}.photo .sw{justify-content:flex-start}header{grid-template-columns:1fr}.meta{text-align:left}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>신화2리 주민 명부</h1>
+      <p>신화리 온라인의 플레이어와 NPC 외형 설정집입니다. 비율은 사실적으로, 얼굴과 옷차림은 GTA처럼 약간 과장합니다. 증명사진 칸의 인물은 색과 실루엣을 보여주는 약식 도안입니다.</p>
+    </div>
+    <div class="meta">작성 · 신화2리 이장 오만복<br>관리번호 · 연무-신화2-0001<br><span class="stamp">대외비</span></div>
+  </header>
+
+  <section>
+    <h2>전입자 <small>PLAYER · 플레이어가 꾸미는 주인공</small></h2>
+    <p class="lead">닉네임은 입장 화면에서 정하고, 나머지는 마을회관 전입신고서에서 고릅니다. 시작 복장은 전입 사유에 따라 정해지고, 마을 장비는 평판과 돈으로 하나씩 풀립니다.</p>
+    <div class="grid" id="playerGrid"></div>
+    <div class="scroll" style="margin-top:16px"><table>
+      <thead><tr><th>전입신고서 항목</th><th>꾸미기 범위</th></tr></thead>
+      <tbody>
+        <tr><td>증명사진 · 얼굴</td><td>얼굴형 8종, 피부톤 6단계, 주름·점·흉터, 눈썹·눈매, 수염(덥수룩, 깔끔, 없음)</td></tr>
+        <tr><td>증명사진 · 머리</td><td>짧은 머리, 장발 묶음, 파마, 대머리, 탈색, 가르마 / 머리색 8종 (뿌리 염색 빠짐 옵션)</td></tr>
+        <tr><td>체형</td><td>마른 · 보통 · 건장 · 배 나옴, 키 3단계, 나이대 20대~60대</td></tr>
+        <tr><td>마을 장비 (해금)</td><td>밀짚모자, 목장갑, 고무장화, 팔토시, 몸빼바지, 마을 이름 자수 점퍼, 방수 앞치마, 챙 넓은 농사 모자</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <h2>주요 인물 <small>NPC · 의뢰인과 마을 실세</small></h2>
+    <p class="lead">한 사람당 대표색 하나를 정해서 멀리서도 누군지 알아보게 합니다. 옷은 새것이 없습니다. 무릎이 나오고, 흙이 묻고, 색이 바랬습니다.</p>
+    <div class="grid" id="npcGrid"></div>
+  </section>
+
+  <section>
+    <h2>마을 사람들 <small>AMBIENT · 배경 인물과 동물</small></h2>
+    <p class="lead">길에서 마주치는 사람들입니다. 같은 얼굴이 반복되지 않도록 체형, 옷 색, 소품을 섞어서 만듭니다.</p>
+    <div class="ambient" id="ambGrid"></div>
+  </section>
+
+  <section>
+    <h2>제작 원칙 <small>3D 작업 기준</small></h2>
+    <ul class="rules">
+      <li><b>비율은 사실적으로</b>7~7.5등신. 얼굴만 GTA처럼 특징을 약간 과장합니다 (이장의 처진 볼, 최 실장의 각진 턱).</li>
+      <li><b>새 옷 금지</b>늘어난 무릎, 바랜 어깨, 흙 묻은 장화. 재질 테스트의 풍화 셰이더를 옷에도 씁니다.</li>
+      <li><b>실존 브랜드·인물 금지</b>로고는 전부 가상 브랜드로 만듭니다. 실제 인물을 닮게 만들지 않습니다.</li>
+      <li><b>대표색 하나</b>인물마다 대표색 1개와 중성색만 씁니다. 원색은 소품에만 씁니다.</li>
+      <li><b>몸 하나, 옷 갈아입히기</b>남녀 기본 몸 각 1종에 옷 파츠를 바꿔 끼웁니다. 걷기·뛰기·타기 동작을 모두가 공유합니다.</li>
+      <li><b>풍자의 방향</b>웃음의 대상은 돈과 권력과 허세입니다. 할머니, 어르신, 계절근로자는 애정 있게 그립니다.</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+// Simplified ID-photo figure drawn from a few colour/shape parameters (a colour + silhouette guide, not final art).
+function figure(p, w = 108, h = 140) {
+  const s = w / 108, g = [];
+  if (p.dog) {   // 백구: a Jindo dog silhouette instead of a person
+    const c = '#efe9dc', d = '#d9cfbd';
+    return `<svg viewBox="0 0 108 140" width="${w}" height="${h}" role="img" aria-label="백구"><ellipse cx="54" cy="100" rx="30" ry="15" fill="${c}"/><rect x="30" y="104" width="7" height="26" fill="${c}"/><rect x="40" y="106" width="7" height="24" fill="${d}"/><rect x="64" y="106" width="7" height="24" fill="${d}"/><rect x="73" y="104" width="7" height="26" fill="${c}"/><path d="M82 92 Q100 76 92 64 Q96 80 80 90 Z" fill="${c}"/><ellipse cx="34" cy="80" rx="15" ry="13" fill="${c}"/><path d="M22 72 L24 56 L32 68 Z M38 68 L44 54 L46 70 Z" fill="${c}"/><ellipse cx="22" cy="86" rx="7" ry="5" fill="${d}"/><circle cx="17" cy="85" r="2.2" fill="#222"/><circle cx="30" cy="77" r="1.8" fill="#222"/></svg>`;
+  }
+  const sk = p.skin || '#d9a77f', hair = p.hair || '#1e1a17';
+  const sh = (d, f) => g.push(`<path d="${d}" fill="${f}"/>`);
+  // body / top
+  const wide = p.build === 'big' ? 8 : p.build === 'thin' ? -6 : 0, stoop = p.stoop ? 6 : 0;
+  sh(`M${22 - wide} 140 L${28 - wide} ${92 + stoop} Q54 ${80 + stoop} ${80 + wide} ${92 + stoop} L${86 + wide} 140 Z`, p.top);
+  if (p.vest) sh(`M${34 - wide / 2} 140 L${38 - wide / 2} ${94 + stoop} L50 ${104 + stoop} L50 140 Z M${74 + wide / 2} 140 L${70 + wide / 2} ${94 + stoop} L58 ${104 + stoop} L58 140 Z`, p.vest);
+  if (p.tie) sh(`M52 ${96 + stoop} L56 ${96 + stoop} L58 ${126 + stoop} L54 ${132 + stoop} L50 ${126 + stoop} Z`, p.tie);
+  if (p.collar) sh(`M44 ${88 + stoop} L54 ${100 + stoop} L64 ${88 + stoop} L60 ${86 + stoop} L54 ${94 + stoop} L48 ${86 + stoop} Z`, p.collar);
+  if (p.hood) sh(`M34 ${92 + stoop} Q54 ${76 + stoop} 74 ${92 + stoop} Q54 ${102 + stoop} 34 ${92 + stoop} Z`, p.hood);
+  // neck + head
+  sh(`M48 ${74 + stoop} L60 ${74 + stoop} L60 ${88 + stoop} L48 ${88 + stoop} Z`, sk);
+  const hy = 52 + stoop;
+  g.push(`<ellipse cx="54" cy="${hy}" rx="${p.round ? 19 : 17}" ry="22" fill="${sk}"/>`);
+  // hair styles
+  const hs = p.hairStyle || 'short';
+  if (hs === 'short') sh(`M37 ${hy - 4} Q38 ${hy - 26} 54 ${hy - 25} Q70 ${hy - 26} 71 ${hy - 4} Q66 ${hy - 16} 54 ${hy - 15} Q42 ${hy - 16} 37 ${hy - 4} Z`, hair);
+  if (hs === 'part') sh(`M36 ${hy - 2} Q36 ${hy - 27} 56 ${hy - 25} Q72 ${hy - 25} 72 ${hy - 4} Q68 ${hy - 18} 46 ${hy - 16} Q40 ${hy - 12} 36 ${hy - 2} Z`, hair);
+  if (hs === 'perm') { for (let i = 0; i < 11; i++) { const a = Math.PI * (1.05 + i * .09); g.push(`<circle cx="${54 + Math.cos(a) * 18}" cy="${hy - 6 + Math.sin(a) * 18}" r="6.5" fill="${hair}"/>`); } }
+  if (hs === 'buzz') sh(`M38 ${hy - 6} Q40 ${hy - 24} 54 ${hy - 23} Q68 ${hy - 24} 70 ${hy - 6} Q62 ${hy - 14} 54 ${hy - 14} Q46 ${hy - 14} 38 ${hy - 6} Z`, hair);
+  if (hs === 'long') sh(`M35 ${hy + 18} Q32 ${hy - 26} 54 ${hy - 25} Q76 ${hy - 26} 73 ${hy + 18} L68 ${hy + 18} Q70 ${hy - 10} 54 ${hy - 14} Q38 ${hy - 10} 40 ${hy + 18} Z`, hair);
+  // hats
+  if (p.hat === 'cap') { sh(`M36 ${hy - 10} Q38 ${hy - 30} 54 ${hy - 30} Q70 ${hy - 30} 72 ${hy - 10} Z`, p.hatColor); sh(`M54 ${hy - 12} L82 ${hy - 9} L82 ${hy - 6} L54 ${hy - 7} Z`, p.hatColor); }
+  if (p.hat === 'sun') { sh(`M30 ${hy - 8} Q54 ${hy - 18} 78 ${hy - 8} L80 ${hy - 4} Q54 ${hy - 12} 28 ${hy - 4} Z`, p.hatColor); sh(`M38 ${hy - 10} Q40 ${hy - 26} 54 ${hy - 26} Q68 ${hy - 26} 70 ${hy - 10} Z`, p.hatColor); sh(`M34 ${hy - 4} L36 ${hy + 22} L42 ${hy + 22} L40 ${hy} Z M74 ${hy - 4} L72 ${hy + 22} L66 ${hy + 22} L68 ${hy} Z`, p.hatColor); }
+  if (p.hat === 'straw') { sh(`M22 ${hy - 10} Q54 ${hy - 22} 86 ${hy - 10} Q54 ${hy - 2} 22 ${hy - 10} Z`, p.hatColor); sh(`M40 ${hy - 12} Q42 ${hy - 30} 54 ${hy - 30} Q66 ${hy - 30} 68 ${hy - 12} Z`, p.hatColor); }
+  if (p.hat === 'police') { sh(`M36 ${hy - 12} L38 ${hy - 28} L70 ${hy - 28} L72 ${hy - 12} Z`, p.hatColor); sh(`M34 ${hy - 13} L74 ${hy - 13} L76 ${hy - 8} L32 ${hy - 8} Z`, '#1d1d1d'); }
+  if (p.glasses) g.push(`<rect x="41" y="${hy - 4}" width="11" height="7" rx="2" fill="${p.glasses}" opacity=".85"/><rect x="56" y="${hy - 4}" width="11" height="7" rx="2" fill="${p.glasses}" opacity=".85"/><rect x="52" y="${hy - 2}" width="4" height="1.5" fill="${p.glasses}"/>`);
+  if (p.mask) sh(`M42 ${hy + 4} Q54 ${hy + 2} 66 ${hy + 4} L64 ${hy + 16} Q54 ${hy + 20} 44 ${hy + 16} Z`, p.mask);
+  if (p.beard) sh(`M40 ${hy + 6} Q54 ${hy + 30} 68 ${hy + 6} Q64 ${hy + 18} 54 ${hy + 19} Q44 ${hy + 18} 40 ${hy + 6} Z`, p.beard);
+  if (p.prop) g.push(p.prop);
+  return `<svg viewBox="0 0 108 140" width="${w}" height="${h}" role="img" aria-label="${p.label || ''}">${g.join('')}</svg>`;
+}
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const PLAYER = [
+  { no: '전입 사유 1', name: '사업 실패', age: '시작 복장', role: '구겨진 남색 정장, 반쯤 풀린 넥타이, 바퀴 하나 빠진 캐리어',
+    f: { top: '#2d3550', tie: '#7a2f2f', collar: '#e9e6dc', hair: '#211d1a', hairStyle: 'part', label: '사업 실패 전입자' },
+    sw: ['#2d3550', '#7a2f2f', '#e9e6dc'], look: '정장 바지 무릎에 흙. 구두 대신 마을에서 산 고무장화로 바꿔 신게 된다.', npc: '최 실장이 "대표님" 소리로 접근한다. 빚 독촉 문자가 수시로 온다.' },
+  { no: '전입 사유 2', name: '퇴사', age: '시작 복장', role: '형광 등산 바람막이, 등산 바지, 등산 스틱 풀세트',
+    f: { top: '#2f8f84', collar: '#f0d23c', hair: '#3a3632', hairStyle: 'short', hat: 'cap', hatColor: '#3d4a4a', label: '퇴사 전입자' },
+    sw: ['#2f8f84', '#f0d23c', '#3d4a4a'], look: '전국 어디서나 통하는 중년 등산복 차림. 마을 사람들이 산 타러 온 줄 안다.', npc: '할머니가 "놀러 왔냐" 하며 일을 더 시킨다. 체력 능력치 보너스.' },
+  { no: '전입 사유 3', name: '코인 손실', age: '시작 복장', role: '회색 후드티, 무릎 나온 트레이닝복, 줄무늬 슬리퍼',
+    f: { top: '#7d8086', hood: '#6b6e74', hair: '#151312', hairStyle: 'long', glasses: '#202428', label: '코인 손실 전입자' },
+    sw: ['#7d8086', '#2b2e33', '#c9c4b8'], look: '휴대폰 화면은 늘 빨간 차트. 슬리퍼로 논두렁을 걷다 미끄러진다.', npc: '민석이 "새 투자 기회"를 들고 찾아온다. 도박성 미니게임 해금.' },
+  { no: '전입 사유 4', name: '유튜브 각', age: '시작 복장', role: '가상 브랜드 로고 티셔츠, 짐벌, 무선 마이크',
+    f: { top: '#e0663a', hair: '#c9a35e', hairStyle: 'short', glasses: '#2a2a2a', label: '유튜버 전입자', prop: '<rect x="80" y="96" width="5" height="30" fill="#222"/><rect x="76" y="88" width="13" height="9" rx="2" fill="#333"/>' },
+    sw: ['#e0663a', '#c9a35e', '#2a2a2a'], look: '탈색 머리, 짐벌을 들고 다니며 아무 데나 찍는다.', npc: '팜보이 제이슨이 경쟁 유튜버로 인식한다. 사고 현장을 찍으면 조회수 보상.' },
+  { no: '전입 사유 5', name: '기타 (묻지 마세요)', age: '시작 복장', role: '검은 모자, 마스크, 선글라스, 검은 롱패딩',
+    f: { top: '#1c1d20', hair: '#121212', hat: 'cap', hatColor: '#1a1a1a', mask: '#2a2b2e', glasses: '#111', label: '사연 있는 전입자' },
+    sw: ['#1c1d20', '#2a2b2e', '#5a5c60'], look: '한여름에도 롱패딩. 얼굴을 끝까지 안 보여준다.', npc: '김 순경이 수상하게 본다. 시작부터 수배 직전 상태, 대신 고물상이 먼저 열린다.' },
+];
+
+const NPC = [
+  { no: '주민 01', name: '오만복', age: '61세 · 이장 (3선)', role: '첫 일거리를 주는 사람, 마을 확성기 방송 담당',
+    f: { top: '#273a66', collar: '#d7d3c6', hair: '#141414', hairStyle: 'part', round: true, build: 'big', label: '오만복 이장' },
+    sw: ['#273a66', '#b8962e', '#7d7a72'],
+    look: '마을 이름을 수놓은 남색 점퍼, 회색 양복바지, 배가 나와 점퍼 지퍼가 반쯤만 잠긴다. 검게 염색했지만 뿌리가 하얗다. 손목에 과하게 번쩍이는 금장 시계.',
+    props: '휴대폰 두 대 (폴더폰은 군청용, 스마트폰은 사적인 용도), 마을회관 앰프 마이크, 서류철',
+    move: '전화 받을 때 고개를 숙이고 손으로 입을 가린다. 걸을 때 뒷짐.',
+    lines: ['아아, 마을 주민 여러분께 알려드립니다.', '그건 내가 군청에 잘 얘기해 놨어. 걱정 마.'] },
+  { no: '주민 02', name: '박순례', age: '78세 · 딸기 농가', role: '마을 편 의뢰인, 마을의 진짜 실세',
+    f: { top: '#d07a8f', vest: '#7a3a4a', hair: '#cfcac0', hairStyle: 'perm', hat: 'sun', hatColor: '#e8d6a8', stoop: true, build: 'thin', label: '박순례 할머니' },
+    sw: ['#d07a8f', '#7a3a4a', '#4c6b3c'],
+    look: '꽃무늬 몸빼바지, 분홍 조끼, 목 가리개가 달린 챙 넓은 농사 모자, 팔토시, 고무장화. 허리가 굽었고 작지만 걸음이 빠르다.',
+    props: '호미, 딸기 바구니, 허리춤의 휴대용 라디오',
+    move: '허리에 손 얹고 서 있기. 화가 나면 호미로 땅을 탁 친다.',
+    lines: ['밥은 먹었냐.', '빌려주는 거여. 이자는 막걸리 두 병.'] },
+  { no: '외지인 01', name: '최 실장', age: '45세 · 그린밸류 F&B', role: '브로커 편 의뢰인, 보수가 크다',
+    f: { top: '#5a5e63', collar: '#f3f3f0', tie: '#1d3c6b', hair: '#0f0f10', hairStyle: 'part', glasses: '#1b1b1b', label: '최 실장' },
+    sw: ['#5a5e63', '#1d3c6b', '#4a3a28'],
+    look: '몸에 딱 맞는 회색 정장에 흙 묻은 고무장화. 머리는 포마드로 넘겼고, 시골에서도 선글라스를 벗지 않는다. 각진 턱.',
+    props: '클립보드에 낀 매입 계약서, 검은 SUV 차 키, 손 소독제',
+    move: '악수하고 바로 손 소독. 장화에 흙이 묻을 때마다 인상을 쓴다.',
+    lines: ['상생하자는 거죠, 상생.', '어르신, 이 가격이면 손해 보시는 거 아니에요.'] },
+  { no: '귀향민 1기', name: '민석', age: '36세 · 마을 상생 매니저', role: '양쪽 정보를 파는 이중 스파이, 배신 미션',
+    f: { top: '#8c8f62', hood: '#7b7e55', hair: '#1a1714', hairStyle: 'short', glasses: '#2b2b2b', beard: '#3a332b', label: '민석' },
+    sw: ['#8c8f62', '#c9c3b2', '#2b2b2b'],
+    look: '망한 스타트업 "베리체인" 로고가 바랜 후드티, 노트북 가방, 무선 이어폰. 면도를 대충 해서 수염이 지저분하다. 장화는 아직 새것.',
+    props: '태블릿 (피치덱이 아직 들어 있다), 보조배터리',
+    move: '말할 때 손가락으로 허공에 그래프를 그린다. 누가 오면 태블릿을 뒤집는다.',
+    lines: ['이건 딸기가 아니라 플랫폼이에요.', '형님한테만 말씀드리는 건데요.'] },
+  { no: '파출소', name: '김 순경', age: '29세 · 연무 파출소', role: '수배 1단계, 늘 한 박자 늦게 도착',
+    f: { top: '#3c4f6b', vest: '#d4e04a', hair: '#151515', hairStyle: 'short', hat: 'police', hatColor: '#2f3f58', label: '김 순경' },
+    sw: ['#3c4f6b', '#d4e04a', '#c9c9c4'],
+    look: '근무복 위에 형광 조끼, 자전거 바지 집게. 땀에 젖은 이마, 늘 숨이 차 있다. 마을 경찰차는 정비소에 가 있다.',
+    props: '호루라기, 자전거, 수첩 (적힌 건 전부 할머니들 민원)',
+    move: '호루라기를 불고 나서 숨을 고른다. 자전거를 뺏기면 걸어서 쫓아온다.',
+    lines: ['거기 서세요! 잠깐만, 잠깐만요…', '전입하셨어요? 사고 치지 마세요.'] },
+  { no: '주민 02-2', name: '신화슈퍼 사장님', age: '55세 · 구멍가게', role: '정보상, 정보 값은 막걸리',
+    f: { top: '#b04a5a', vest: '#3a6b6a', hair: '#2a1d19', hairStyle: 'perm', round: true, label: '신화슈퍼 사장님' },
+    sw: ['#3a6b6a', '#b04a5a', '#e8e2d4'],
+    look: '진하게 볶은 파마머리, 체크무늬 앞치마, 무릎 담요. 계산대 앞 플라스틱 의자에서 TV 드라마를 본다.',
+    props: '파리채, 리모컨, 계산대 위 막걸리 박스',
+    move: '손님이 와도 TV에서 눈을 안 뗀다. 비밀 얘기는 파리채로 입을 가리고.',
+    lines: ['그 얘기 들었어? 아랫말 김씨네…', '외상은 이장님 앞으로 달아놓을게.'] },
+  { no: '주민 05', name: '박 상사(예)', age: '58세 · 충성고물상', role: '총기 공급처, 훈련소 보급관 출신',
+    f: { top: '#4f5a3a', hair: '#2a2a2a', hairStyle: 'buzz', build: 'big', label: '박 상사' },
+    sw: ['#4f5a3a', '#6e5a3c', '#2c2c2c'],
+    look: '각진 스포츠머리, 사제 군용 야상, 전투화, 기름 묻은 고물상 앞치마. 제대한 지 오래인데 자세는 아직 차렷.',
+    props: '무전기 (어디에도 연결 안 됨), 장부, "폐기 처분" 도장',
+    move: '대답할 때 습관적으로 경례. 물건을 넘길 때 주변을 두 번 확인한다.',
+    lines: ['충성! 고철 들어왔습니다.', '서류상으로는 폐기된 물건이야.'] },
+];
+
+const AMB = [
+  { n: '평상 어르신들', d: '마을회관 앞 평상에서 화투를 친다. 모자와 지팡이 색만 바꿔 여러 명으로.', f: { top: '#6b6a5e', hair: '#bdbab2', hairStyle: 'short', hat: 'cap', hatColor: '#8a3a32', stoop: true } },
+  { n: '아랫말 농부', d: '밀짚모자, 목장갑, 고무장화. 경운기를 몰고 지나간다.', f: { top: '#5b7a4a', hair: '#2a2622', hat: 'straw', hatColor: '#d9c27a' } },
+  { n: '계절근로자', d: '하우스에서 딸기를 따는 외국인 근로자. 작업복과 챙 모자, 쉬는 시간엔 영상통화.', f: { top: '#3f6c8a', skin: '#a77a55', hair: '#151515', hat: 'cap', hatColor: '#c7bfa8' } },
+  { n: '면회객 가족', d: '수료식 날 몰려온다. 꽃다발과 "OO아 고생했다" 플래카드, 두 손 가득 치킨.', f: { top: '#e3b14a', hair: '#3a2a22', hairStyle: 'long' } },
+  { n: '그린밸류 직원', d: '형광 조끼와 안전모, 냉동탑차 운전. 최 실장 앞에서만 부지런하다.', f: { top: '#4a4f56', vest: '#e6e13c', hair: '#1a1a1a', hat: 'cap', hatColor: '#f2f2ee' } },
+  { n: '군청 공무원', d: '보조금 실사 담당. 군청 점퍼와 디지털카메라. 사진 세 장 찍고 바로 떠난다.', f: { top: '#2f5a8a', hair: '#1a1a1a', hairStyle: 'part', glasses: '#333' } },
+  { n: '택배 기사', d: '시골길을 미친 속도로 달리는 탑차. 택배 절도 미션의 피해자.', f: { top: '#3a3a3a', hair: '#121212', hat: 'cap', hatColor: '#2b2b2b' } },
+  { n: '팜보이 제이슨', d: '구독자 4천의 귀농 유튜버. 모든 사건을 라이브로 내보낸다.', f: { top: '#79c4a0', hair: '#d8c07a', hairStyle: 'short', glasses: '#222' } },
+  { n: '백구 (진돗개)', d: 'NPC 집을 지키는 개. 짖으면 주인과 이웃이 깬다. 쓰다듬기 가능.', f: { dog: true } },
+];
+
+function card(c) {
+  return `<article class="card">
+    <div class="photo">${figure(c.f)}<span class="no">${esc(c.no)}</span><div class="sw">${c.sw.map(x => `<i style="background:${x}" title="${x}"></i>`).join('')}</div></div>
+    <div class="body">
+      <div class="name"><b>${esc(c.name)}</b><span>${esc(c.age)}</span></div>
+      <div class="role">${esc(c.role)}</div>
+      <dl>
+        <dt>외형</dt><dd>${esc(c.look)}</dd>
+        ${c.props ? `<dt>소품</dt><dd>${esc(c.props)}</dd>` : ''}
+        ${c.move ? `<dt>동작·버릇</dt><dd>${esc(c.move)}</dd>` : ''}
+        ${c.npc ? `<dt>NPC 반응</dt><dd>${esc(c.npc)}</dd>` : ''}
+      </dl>
+      ${c.lines ? `<div class="quote">${c.lines.map(l => `<p>“${esc(l)}”</p>`).join('')}</div>` : ''}
+    </div></article>`;
+}
+document.getElementById('playerGrid').innerHTML = PLAYER.map(card).join('');
+document.getElementById('npcGrid').innerHTML = NPC.map(card).join('');
+document.getElementById('ambGrid').innerHTML = AMB.map(a => `<div class="amb">${figure(a.f, 52, 68)}<div><b>${esc(a.n)}</b><p>${esc(a.d)}</p></div></div>`).join('');
+</script>

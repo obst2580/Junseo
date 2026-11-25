@@ -1,0 +1,478 @@
+<title>신화리 재질 테스트 2</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed 3D viewport; compact control card top-left; loading veil with progress. Single dark look over the scene. */
+:root{
+  --panel:rgba(14,18,16,.84); --line:#38423a; --ink:#f2f4ec; --mute:#a9b2a2; --accent:#e8424f; --ok:#8fcf6a;
+  --f-display:"Black Han Sans","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:#1b211d;color:var(--ink);font-family:var(--f-body)}
+#view{position:fixed;inset:0}
+#view canvas{display:block;width:100%;height:100%}
+.card{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));width:min(330px,calc(100vw - 28px));box-sizing:border-box;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:12px;backdrop-filter:blur(6px)}
+.card h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:26px;line-height:1.05}
+.card h1 span{color:var(--accent)}
+.card p{margin:3px 0 0;font-size:12.5px;line-height:1.5;color:var(--mute)}
+.grp{display:flex;flex-direction:column;gap:6px}
+.lbl{font-size:11px;letter-spacing:.12em;color:var(--mute)}
+.seg{display:flex;flex-wrap:wrap;gap:5px}
+.seg button{flex:1 1 auto;min-width:0;background:#1d241f;border:1px solid var(--line);color:var(--ink);border-radius:4px;padding:7px 9px;font:600 13px var(--f-body);cursor:pointer;white-space:nowrap}
+.seg button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg button:focus-visible{outline:2px solid var(--ok);outline-offset:2px}
+#stats{font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--mute)}
+#hint{position:fixed;left:calc(14px + env(safe-area-inset-left,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));font-size:12px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 10px;max-width:calc(100vw - 28px);box-sizing:border-box}
+#veil{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#1b211d;transition:opacity .5s;z-index:5}
+#veil b{font-family:var(--f-display);font-weight:400;font-size:26px}
+#bar{width:min(320px,70vw);height:6px;background:#2b342d;border-radius:3px;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+#veil small{color:var(--mute);font-size:12.5px}
+</style>
+
+<div id="view"></div>
+<div id="veil"><b>신화2리 불러오는 중…</b><div id="bar"><i></i></div><small id="vmsg">텍스처와 구운 조명을 내려받고 있습니다 (약 30MB)</small></div>
+<div class="card">
+  <div>
+    <h1>신화리 <span>재질 테스트 2</span></h1>
+    <p>블렌더에서 조명을 구운 버전에 실사 소품·덤불(Poly Haven CC0), 잎 카드 나무, 풀밭, 흙·자갈 섞인 바닥을 더했습니다. 배치는 위성사진 근사치입니다.</p>
+  </div>
+  <div class="grp"><span class="lbl">카메라</span>
+    <div class="seg" id="segCam"><button data-v="hall" aria-pressed="true">마을회관</button><button data-v="eye" aria-pressed="false">눈높이</button><button data-v="yard" aria-pressed="false">마당</button><button data-v="house" aria-pressed="false">하우스</button><button data-v="ware" aria-pressed="false">창고</button><button data-v="village" aria-pressed="false">마을</button><button data-v="aerial" aria-pressed="false">전경</button></div></div>
+  <div class="grp"><span class="lbl">보기 방식</span>
+    <div class="seg" id="segMode"><button data-v="orbit" aria-pressed="true">둘러보기</button><button data-v="walk" aria-pressed="false">걸어보기 (WASD)</button></div></div>
+  <div class="grp"><span class="lbl">비교</span>
+    <div class="seg" id="segLm"><button data-v="on" aria-pressed="true">구운 조명</button><button data-v="off" aria-pressed="false">조명 끄기</button></div>
+    <div class="seg" id="segPost"><button data-v="on" aria-pressed="true">후처리 켜기</button><button data-v="off" aria-pressed="false">후처리 끄기</button></div></div>
+  <div id="stats"></div>
+</div>
+<div id="hint">드래그 회전 · 휠 확대 · 우클릭 드래그 이동</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const $ = s => document.querySelector(s);
+const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.AgXToneMapping;   // flatter, photographic response (ACES reads as 'CG')
+renderer.toneMappingExposure = 1.15;
+$('#view').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.2, 3000);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = .08; controls.maxPolarAngle = Math.PI * .495; controls.minDistance = 2; controls.maxDistance = 700;
+
+/* ---------- loading progress ---------- */
+const manager = new THREE.LoadingManager();
+manager.onProgress = (_, done, total) => { $('#bar i').style.width = (done / total * 100).toFixed(0) + '%'; };
+manager.onError = url => { $('#vmsg').textContent = '불러오지 못한 파일이 있습니다: ' + url.split('/').pop(); };
+
+/* ---------- sky ---------- */
+const bake = await (await fetch('bake.json')).json();
+const pmrem = new THREE.PMREMGenerator(renderer);
+// the .hdr panorama ships base64-wrapped in JSON (binary files aren't served beside the page)
+const hdrJson = await (await fetch('sky_env.json')).json();
+const hdrBytes = Uint8Array.from(atob(hdrJson.data), c => c.charCodeAt(0));
+const hd = new RGBELoader().parse(hdrBytes.buffer);
+const hdr = new THREE.DataTexture(hd.data, hd.width, hd.height, THREE.RGBAFormat, hd.type);
+hdr.flipY = true; hdr.minFilter = hdr.magFilter = THREE.LinearFilter; hdr.generateMipmaps = false;
+hdr.colorSpace = THREE.LinearSRGBColorSpace; hdr.needsUpdate = true;
+hdr.mapping = THREE.EquirectangularReflectionMapping;
+scene.environment = pmrem.fromEquirectangular(hdr).texture;
+const bg = await new THREE.TextureLoader(manager).loadAsync('sky_bg.jpg');
+bg.mapping = THREE.EquirectangularReflectionMapping; bg.colorSpace = THREE.SRGBColorSpace;
+scene.background = bg;
+scene.fog = new THREE.FogExp2(new THREE.Color('#c3cfd6'), 0.0012);
+
+/* ---------- baked scene ---------- */
+const texLoader = new THREE.TextureLoader(manager);
+const maxAniso = renderer.capabilities.getMaxAnisotropy();
+async function lightmap(url) {
+  const t = await texLoader.loadAsync(url);
+  t.flipY = false; t.channel = 1; t.colorSpace = THREE.SRGBColorSpace;   // stored as (L/LMAX)^(1/2.2)
+  t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
+  return t;
+}
+const LM = { ground: await lightmap('lm_ground.jpg'), build: await lightmap('lm_build.jpg') };
+const LM_INTENSITY = bake.lmax * Math.PI;
+// props/foliage carry baked lighting in vertex colours (L / LMAX): a 1x1 white "lightmap" turns them into irradiance
+const ONE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); ONE.needsUpdate = true; ONE.channel = 1;
+let vcCheck = [0, 0];
+// Assemble a GLB in memory from the glTF JSON + base64 buffer: the viewer's security policy blocks data: URLs,
+// and .bin/.glb files aren't served beside the page. Textures still load by relative URL.
+async function loadScene() {
+  const [jsonText, head] = await Promise.all([fetch('scene.json').then(r => r.text()), fetch('scene_bin.json').then(r => r.json())]);
+  const parts = await Promise.all(Array.from({ length: head.parts }, (_, i) => fetch(`scene_bin${i}.json`).then(r => r.json())));
+  const bin = Uint8Array.from(atob(parts.map(p => p.data).join('')), c => c.charCodeAt(0));
+  const enc = new TextEncoder();
+  let jb = enc.encode(jsonText); const jpad = (4 - jb.length % 4) % 4;
+  const jsonChunk = new Uint8Array(jb.length + jpad); jsonChunk.set(jb); jsonChunk.fill(0x20, jb.length);
+  const bpad = (4 - bin.length % 4) % 4; const binChunk = new Uint8Array(bin.length + bpad); binChunk.set(bin);
+  const total = 12 + 8 + jsonChunk.length + 8 + binChunk.length;
+  const glb = new ArrayBuffer(total), dv = new DataView(glb), u8 = new Uint8Array(glb);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
+  dv.setUint32(12, jsonChunk.length, true); dv.setUint32(16, 0x4E4F534A, true); u8.set(jsonChunk, 20);
+  const o = 20 + jsonChunk.length;
+  dv.setUint32(o, binChunk.length, true); dv.setUint32(o + 4, 0x004E4942, true); u8.set(binChunk, o + 8);
+  const gl = new GLTFLoader(manager); gl.setDRACOLoader(new DRACOLoader(manager).setDecoderPath('./draco/'));
+  return gl.parseAsync(glb, './');
+}
+const gltf = await loadScene();
+const root = gltf.scene; scene.add(root);
+const lmMats = [];
+let tris = 0;
+root.traverse(o => {
+  if (!o.isMesh) return;
+  tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3;
+  let p = o, tag = null; while (p) { if (p.userData && p.userData.lm) { tag = p.userData.lm; break; } p = p.parent; }
+  if (tag === 'vc') {
+    o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone();   // never share with lightmapped meshes
+    const g = o.geometry; if (!g.attributes.uv1) g.setAttribute('uv1', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+    const c = g.attributes.color; if (c) { for (let i = 0; i < c.count; i += 7) { vcCheck[0] += c.getX(i); vcCheck[1]++; } }
+  }
+  const mats = Array.isArray(o.material) ? o.material : [o.material];
+  for (const m of mats) {
+    if (tag === 'vc') {
+      m.vertexColors = !!o.geometry.attributes.color; m.lightMap = ONE; m.lightMapIntensity = LM_INTENSITY;
+      m.envMapIntensity = (m.roughness < .35 || m.metalness > .5) ? .6 : .05; m.userData.envOn = m.envMapIntensity;
+      lmMats.push(m);
+    }
+    // cut-out foliage/grilles: alpha-test instead of sorting-prone blending (glass & film stay transparent)
+    if ((m.transparent || m.alphaTest > 0) && m.map && !/glass|paper|film/.test(m.name)) {
+      m.transparent = false; m.alphaTest = .5; m.depthWrite = true; m.side = THREE.DoubleSide; o.castShadow = false;
+    }
+    for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (m[k]) m[k].anisotropy = maxAniso;
+    if (tag && tag !== 'vc') {
+      m.lightMap = LM[tag]; m.lightMapIntensity = LM_INTENSITY;
+      // baked lighting already includes sky light: keep image-based light only for reflections on shiny surfaces
+      m.envMapIntensity = (m.roughness < .35 || m.metalness > .3) ? .9 : .08;
+      lmMats.push(m);
+      // per-material look tweaks that don't need a re-bake (albedo / reflectance only)
+      if (m.name === 'glass') { m.color.set('#5a6873'); m.metalness = .75; m.roughness = .05; m.envMapIntensity = 1.25; }
+      if (m.name === 'g_joint') m.color.set('#6d675e');
+      if (['g_yard', 'yard_b', 'g_lane', 'lane_b'].includes(m.name)) m.color.setScalar(.8);
+      if (m.name === 'g_ground') m.color.setRGB(.92, .9, .82);
+      m.userData.envOn = m.envMapIntensity;
+    } else {
+      m.envMapIntensity = 1.0;
+      if (m.name === 'film') { m.transparent = true; m.opacity = .38; m.depthWrite = false; m.side = THREE.DoubleSide; o.renderOrder = 2; }
+    }
+  }
+});
+// unbaked outer ground continues to the horizon, lit by the average edge value of the ground bake
+{
+  let gm = null; root.traverse(o => { if (o.isMesh && !gm) { const mm = Array.isArray(o.material) ? o.material : [o.material]; gm = mm.find(m => m.name === 'g_ground') || null; } });
+  const e = bake.stats.ground_edge;
+  const one = new THREE.DataTexture(new Uint8Array([...e.map(v => Math.round(Math.pow(Math.min(1, v / bake.lmax), 1 / 2.2) * 255)), 255]), 1, 1);
+  one.colorSpace = THREE.SRGBColorSpace; one.needsUpdate = true;
+  const mat = gm ? gm.clone() : new THREE.MeshStandardMaterial({ color: '#7c7a52' });
+  mat.lightMap = one; mat.lightMapIntensity = LM_INTENSITY; mat.envMapIntensity = .08;
+  if (mat.map) { mat.map = mat.map.clone(); mat.map.wrapS = mat.map.wrapT = THREE.RepeatWrapping; mat.map.repeat.set(4000 / 7, 4000 / 7); mat.map.needsUpdate = true; }
+  if (mat.normalMap) { mat.normalMap = mat.normalMap.clone(); mat.normalMap.repeat.set(4000 / 7, 4000 / 7); mat.normalMap.wrapS = mat.normalMap.wrapT = THREE.RepeatWrapping; mat.normalMap.needsUpdate = true; }
+  if (mat.roughnessMap) { mat.roughnessMap = mat.roughnessMap.clone(); mat.roughnessMap.repeat.set(4000 / 7, 4000 / 7); mat.roughnessMap.wrapS = mat.roughnessMap.wrapT = THREE.RepeatWrapping; mat.roughnessMap.needsUpdate = true; }
+  const g = new THREE.PlaneGeometry(4000, 4000); g.rotateX(-Math.PI / 2);
+  // second uv set (all zeros) so the 1x1 lightmap applies
+  g.setAttribute('uv1', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+  mat.onBeforeCompile = sh => {
+    sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.30, .28, .11), smoothstep(40., 300., length(vViewPosition)) * .8);`);
+  };
+  mat.customProgramCacheKey = () => 'outer-ground';
+  const outer = new THREE.Mesh(g, mat); outer.position.y = -0.03; scene.add(outer);
+  lmMats.push(mat);
+}
+
+/* ---------- ground blending: dirt + gravel mixed in by a painted mask (in lightmap space) ---------- */
+const findMat = n => { let r = null; root.traverse(o => { if (o.isMesh && !r) { for (const m of [].concat(o.material)) if (m.name === n) r = m; } }); return r; };
+const gGround = findMat('g_ground'), gPaddy = findMat('g_paddy');
+const maskTex = await texLoader.loadAsync('groundmask.png'); maskTex.flipY = false; maskTex.colorSpace = THREE.NoColorSpace;
+const gravelTex = await texLoader.loadAsync('gravel.jpg'); gravelTex.colorSpace = THREE.SRGBColorSpace; gravelTex.wrapS = gravelTex.wrapT = THREE.RepeatWrapping; gravelTex.anisotropy = maxAniso;
+if (gGround && gPaddy) {
+  gGround.onBeforeCompile = sh => {
+    sh.uniforms.maskMap = { value: maskTex }; sh.uniforms.dirtMap = { value: gPaddy.map }; sh.uniforms.gravelMap = { value: gravelTex };
+    sh.fragmentShader = 'uniform sampler2D maskMap, dirtMap, gravelMap;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      vec3 msk = texture2D(maskMap, vLightMapUv).rgb;
+      float nz = texture2D(dirtMap, vMapUv * .13).g;                       // break up the mask edge with texture detail
+      float d = smoothstep(.15, .85, msk.r + (nz - .5) * .5);
+      float g = smoothstep(.2, .8, msk.g + (nz - .5) * .4);
+      diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(dirtMap, vMapUv * 1.4).rgb * .92, d);
+      diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(gravelMap, vMapUv * 2.3).rgb * .85, g);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.30, .28, .11), smoothstep(70., 320., length(vViewPosition)) * .75);`);
+  };
+  gGround.customProgramCacheKey = () => 'ground-blend';
+  gGround.needsUpdate = true;
+}
+
+/* ---------- weathering: break the brand-new CG look with world-space grime ---------- */
+function noiseTexture(n = 256) {
+  // tiling value-noise fbm, built once on a canvas
+  const c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), img = g.createImageData(n, n);
+  const grid = (sz) => { const a = new Float32Array(sz * sz); for (let i = 0; i < a.length; i++) a[i] = Math.random(); return a; };
+  const oct = [4, 8, 16, 32, 64].map(sz => ({ sz, a: grid(sz) }));
+  const sm = t => t * t * (3 - 2 * t);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    let v = 0, amp = .5, tot = 0;
+    for (const { sz, a } of oct) {
+      const fx = x / n * sz, fy = y / n * sz, ix = Math.floor(fx), iy = Math.floor(fy), tx = sm(fx - ix), ty = sm(fy - iy);
+      const at = (u, w) => a[((w % sz + sz) % sz) * sz + ((u % sz + sz) % sz)];
+      v += amp * ((at(ix, iy) * (1 - tx) + at(ix + 1, iy) * tx) * (1 - ty) + (at(ix, iy + 1) * (1 - tx) + at(ix + 1, iy + 1) * tx) * ty); tot += amp; amp *= .55;
+    }
+    const k = (y * n + x) * 4, val = Math.round(v / tot * 255); img.data[k] = img.data[k + 1] = img.data[k + 2] = val; img.data[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.NoColorSpace; return t;
+}
+const NOISE = noiseTexture();
+const WEATHER = {
+  wall:  ['plaster', 'plaster2', 'block', 'panel_grey', 'panel_blue', 'panel_white', 'tile', 'pole'],
+  roof:  ['roof_blue', 'roof_green', 'roof_red', 'roof_orange'],
+  flat:  ['g_yard', 'yard_b', 'g_lane', 'lane_b', 'g_asphalt'],
+};
+function weather(m, kind) {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = sh => {
+    sh.uniforms.noiseMap = { value: NOISE };
+    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vWPos = (modelMatrix * vec4(transformed, 1.)).xyz;');
+    let body = '';
+    if (kind === 'wall') body = `
+      float n1 = texture2D(noiseMap, vWPos.xz * .045 + vWPos.y * .01).r;                 // per-building variation
+      float splash = (1. - smoothstep(.15, .9 + n1 * .5, vWPos.y)) * (.55 + .45 * texture2D(noiseMap, vec2(vWPos.x + vWPos.z, vWPos.y) * .7).r);
+      float streak = texture2D(noiseMap, vec2((vWPos.x - vWPos.z) * 1.6, vWPos.y * .06)).r;   // rain runs, stretched vertically
+      streak = smoothstep(.55, .85, streak) * smoothstep(.3, 2.2, vWPos.y) * .5;
+      vec3 grime = vec3(.30, .26, .20);
+      diffuseColor.rgb *= mix(.82, 1.06, n1);
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * grime * 1.6, clamp(splash * .55 + streak, 0., .75));`;
+    if (kind === 'roof') body = `
+      float n1 = texture2D(noiseMap, vWPos.xz * .03).r, n2 = texture2D(noiseMap, vWPos.xz * .4 + 3.1).r;
+      float l = dot(diffuseColor.rgb, vec3(.3, .59, .11));
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l) * vec3(1.02, 1., .97), .32 + n1 * .25);            // sun-faded paint
+      float rust = smoothstep(.62, .82, n2) * (.35 + .65 * n1);
+      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(.33, .17, .08), rust * .55);
+      diffuseColor.rgb *= mix(.8, 1.05, n1);`;
+    if (kind === 'flat') body = `
+      float n1 = texture2D(noiseMap, vWPos.xz * .06).r, n2 = texture2D(noiseMap, vWPos.xz * .5 + 7.3).r;
+      float stain = smoothstep(.6, .85, n2) * .45 + smoothstep(.55, .9, n1) * .25;                     // oil / water stains
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(.55, .52, .48), stain);
+      diffuseColor.rgb *= mix(.86, 1.04, n1);`;
+    sh.fragmentShader = 'uniform sampler2D noiseMap; varying vec3 vWPos;\n' + sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>' + body);
+    if (prev) prev(sh);
+  };
+  const key = m.customProgramCacheKey ? m.customProgramCacheKey() : '';
+  m.customProgramCacheKey = () => key + '|w-' + kind;
+  m.needsUpdate = true;
+}
+root.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) {
+  if (m.userData.weathered) continue;
+  for (const kind in WEATHER) if (WEATHER[kind].includes(m.name)) { weather(m, kind); m.userData.weathered = true; }
+} });
+
+/* ---------- grass: individual blades (GPU instanced), a 64 m field that wraps around the camera ---------- */
+// Each blade is real geometry (5 triangles). Positions wrap around the camera in the vertex shader, density and
+// lighting come from the ground mask and the baked ground lightmap, so the field costs nothing on the CPU.
+const grassUniforms = { time: { value: 0 }, camPos: { value: new THREE.Vector3() } };
+{
+  const S = 72, COUNT = 700000;
+  const lmTex = await texLoader.loadAsync('lm_ground.jpg'); lmTex.flipY = false; lmTex.colorSpace = THREE.NoColorSpace;
+  const base = new THREE.InstancedBufferGeometry();
+  // blade cross-section: x in [-.5,.5] (scaled by width), y = height fraction t
+  const ts = [0, .3, .58, .82], P = [];
+  for (const t of ts) { const w = 1 - t * .85; P.push(-.5 * w, t, 0, .5 * w, t, 0); }
+  P.push(0, 1, 0);
+  const idx = [];
+  for (let i = 0; i < ts.length - 1; i++) { const a0 = i * 2; idx.push(a0, a0 + 1, a0 + 3, a0, a0 + 3, a0 + 2); }
+  const last = (ts.length - 1) * 2; idx.push(last, last + 1, last + 2);
+  base.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); base.setIndex(idx);
+  const off = new Float32Array(COUNT * 4);
+  for (let i = 0; i < COUNT; i++) { off[i * 4] = Math.random() * S; off[i * 4 + 1] = Math.random() * S; off[i * 4 + 2] = Math.random(); off[i * 4 + 3] = Math.random(); }
+  base.setAttribute('iOff', new THREE.InstancedBufferAttribute(off, 4));
+  base.instanceCount = COUNT;
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide, fog: true,
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { time: { value: 0 }, camPos: { value: new THREE.Vector3() }, S: { value: S },
+      maskMap: { value: null }, lmMap: { value: null }, lmax: { value: bake.lmax } }]),
+    vertexShader: `
+      attribute vec4 iOff; uniform float time, S, lmax; uniform vec3 camPos; uniform sampler2D maskMap, lmMap;
+      varying vec3 vLight; varying float vT; varying float vDry;
+      #include <fog_pars_vertex>
+      void main() {
+        vec2 p = camPos.xz + mod(iOff.xy - camPos.xz + S * .5, S) - S * .5;          // wrap the patch around the camera
+        vec2 muv = (p + 180.) / 360.;
+        float dens = texture2D(maskMap, muv).b;
+        float dist = length(p - camPos.xz);
+        // far blades: fewer but wider, so the meadow reaches further at the same cost
+        float lod = smoothstep(9., 30., dist);
+        float keep = step(iOff.z, pow(dens, 1.4) * mix(1., .4, lod)) * (1. - smoothstep(S * .36, S * .49, dist));
+        float h = mix(.28, .72, fract(iOff.w * 7.13)) * keep;
+        float w = mix(.035, .07, fract(iOff.z * 13.7)) * mix(1., 2.3, lod) * step(.001, keep);
+        float ang = iOff.w * 6.2832;
+        vec2 dir = vec2(cos(ang), sin(ang)), side = vec2(-dir.y, dir.x);
+        float t = position.y;
+        float wind = sin(time * 1.7 + p.x * .21 + p.y * .17) * .5 + sin(time * 3.3 + p.x * .9) * .2;
+        float bend = (fract(iOff.z * 31.1) * .5 + .15 + wind * .35) * t * t * h;
+        vec3 wp = vec3(p.x, 0., p.y) + vec3(side.x, 0., side.y) * position.x * w + vec3(dir.x, 0., dir.y) * bend + vec3(0., t * h, 0.);
+        vec3 L = lmax * pow(texture2D(lmMap, muv).rgb, vec3(2.2));
+        vLight = L; vT = t; vDry = step(.74, fract(iOff.w * 3.71)) * fract(iOff.z * 5.3);
+        vec4 mvPosition = viewMatrix * vec4(wp, 1.);
+        gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader: `
+      varying vec3 vLight; varying float vT; varying float vDry;
+      #include <common>
+      #include <fog_pars_fragment>
+      void main() {
+        vec3 root = vec3(.035, .06, .018), tip = vec3(.22, .32, .07), dry = vec3(.42, .36, .16);
+        vec3 col = mix(root, mix(tip, dry, vDry), smoothstep(0., 1., vT));
+        col *= vLight * (.55 + .6 * vT);                                             // ambient-occluded roots, sunlit tips
+        gl_FragColor = vec4(col, 1.);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <fog_fragment>
+      }`,
+  });
+  mat.uniforms.maskMap.value = maskTex; mat.uniforms.lmMap.value = lmTex;
+  grassUniforms.time = mat.uniforms.time; grassUniforms.camPos = mat.uniforms.camPos;
+  const grass = new THREE.Mesh(base, mat); grass.frustumCulled = false; scene.add(grass);
+  window.__grass = COUNT; window.__vc = vcCheck[1] ? vcCheck[0] / vcCheck[1] : -1;
+}
+
+/* ---------- post-processing ---------- */
+const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { type: THREE.HalfFloatType, samples: 4 });
+const composer = new EffectComposer(renderer, rt);
+composer.setPixelRatio(renderer.getPixelRatio());
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, innerWidth, innerHeight);
+gtao.blendIntensity = .55; gtao.updateGtaoMaterial({ radius: .6, distanceExponent: 1.5, thickness: 1, scale: 1 });
+composer.addPass(gtao);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), .06, .4, .95);
+composer.addPass(bloom);
+const grade = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, contrast: { value: 1.08 }, saturation: { value: .9 }, warmth: { value: .015 }, vignette: { value: 0 }, grain: { value: .018 }, seed: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float contrast, saturation, warmth, vignette, grain, seed; varying vec2 vUv;
+    void main(){ vec4 c = texture2D(tDiffuse, vUv);
+      float l = dot(c.rgb, vec3(.2126,.7152,.0722));
+      c.rgb = mix(vec3(l), c.rgb, saturation);
+      c.rgb = (c.rgb - .18) * contrast + .18;
+      c.rgb *= vec3(1. + warmth, 1., 1. - warmth);
+      float d = distance(vUv, vec2(.5)); c.rgb *= 1. - vignette * smoothstep(.35, .85, d);
+      float gr = fract(sin(dot(vUv * 1000. + seed, vec2(12.9898, 78.233))) * 43758.5453) - .5;   // fine film grain
+      c.rgb += gr * grain * (.35 + c.rgb);
+      gl_FragColor = c; }`
+});
+composer.addPass(grade);
+composer.addPass(new OutputPass());
+let usePost = true;
+
+/* ---------- cameras ---------- */
+const CAMS = {
+  hall:   { p: [14, 9, 34], t: [-3, 2.4, 2] },
+  eye:    { p: [3.5, 1.65, 24], t: [-3, 2.2, 4] },
+  yard:   { p: [-24, 4, 22], t: [-6, 1.5, 12] },
+  house:  { p: [36, 6, 46], t: [26, 2, 80] },
+  ware:   { p: [-20, 8, 12], t: [-50, 3, -16] },
+  village:{ p: [8, 14, -2], t: [36, 2, -40] },
+  aerial: { p: [130, 150, 170], t: [10, 0, 20] },
+};
+let camAnim = null;
+function setCam(name, instant) {
+  const c = CAMS[name], p = new THREE.Vector3(...c.p), t = new THREE.Vector3(...c.t);
+  if (instant) { camera.position.copy(p); controls.target.copy(t); controls.update(); return; }
+  camAnim = { p0: camera.position.clone(), t0: controls.target.clone(), p, t, k: 0 };
+}
+function seg(id, fn) { const box = $(id); box.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; for (const x of box.children) x.setAttribute('aria-pressed', x === b); fn(b.dataset.v); }); }
+seg('#segCam', v => { if (walk) { for (const b of $('#segMode').children) b.setAttribute('aria-pressed', b.dataset.v === 'orbit'); setMode('orbit'); } setCam(v); });
+// "조명 끄기" shows the same materials lit only by the sky image, i.e. what the scene looks like without the bake
+seg('#segLm', v => {
+  for (const m of lmMats) {
+    m.lightMapIntensity = v === 'on' ? LM_INTENSITY : 0;
+    m.envMapIntensity = v === 'on' ? (m.userData.envOn ?? .08) : 1;
+  }
+});
+seg('#segPost', v => { usePost = v === 'on'; });
+
+/* ---------- walk mode: eye height 1.65 m, WASD + mouse drag to look ---------- */
+let walk = false, yaw = 0, pitch = 0, dragging = false, lx = 0, ly = 0;
+const keys = new Set();
+addEventListener('keydown', e => { if (walk) { keys.add(e.code); if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault(); } });
+addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('blur', () => keys.clear());
+renderer.domElement.addEventListener('pointerdown', e => { if (!walk) return; dragging = true; lx = e.clientX; ly = e.clientY; renderer.domElement.setPointerCapture(e.pointerId); });
+renderer.domElement.addEventListener('pointermove', e => { if (!walk || !dragging) return; yaw -= (e.clientX - lx) * .004; pitch = Math.max(-1.3, Math.min(1.3, pitch - (e.clientY - ly) * .004)); lx = e.clientX; ly = e.clientY; });
+renderer.domElement.addEventListener('pointerup', () => dragging = false);
+function setMode(v) {
+  walk = v === 'walk'; controls.enabled = !walk; camAnim = null;
+  if (walk) {
+    const d = new THREE.Vector3().subVectors(controls.target, camera.position); yaw = Math.atan2(-d.x, -d.z); pitch = 0;
+    camera.position.y = 1.65;
+    $('#hint').textContent = 'W A S D 이동 · Shift 달리기 · 드래그로 둘러보기';
+  } else {
+    const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)); controls.target.copy(camera.position).addScaledVector(f, 8); controls.target.y = 1.4;
+    $('#hint').textContent = '드래그 회전 · 휠 확대 · 우클릭 드래그 이동';
+  }
+}
+seg('#segMode', setMode);
+function walkStep(dt) {
+  const sp = (keys.has('ShiftLeft') || keys.has('ShiftRight') ? 9 : 4) * dt;
+  const f = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), r = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  if (keys.has('KeyW') || keys.has('ArrowUp')) camera.position.addScaledVector(f, sp);
+  if (keys.has('KeyS') || keys.has('ArrowDown')) camera.position.addScaledVector(f, -sp);
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) camera.position.addScaledVector(r, -sp);
+  if (keys.has('KeyD') || keys.has('ArrowRight')) camera.position.addScaledVector(r, sp);
+  camera.position.y = 1.65;
+  camera.rotation.set(pitch, yaw, 0, 'YXZ');
+}
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  composer.setSize(innerWidth, innerHeight); gtao.setSize(innerWidth, innerHeight);
+});
+
+/* ---------- run ---------- */
+setCam('hall', true);
+$('#stats').textContent = `삼각형 ${Math.round(tris / 1000)}k · 풀잎 ${Math.round(window.__grass / 1000)}k`;
+// adaptive quality: if the frame rate stays low, step down resolution -> AO -> grass -> bloom
+let quality = 0, slowFor = 0;
+const QUALITY_NAMES = ['최고', '높음', '보통', '낮음', '최저'];
+function stepDown() {
+  quality++;
+  if (quality === 1) { renderer.setPixelRatio(1); composer.setPixelRatio(1); composer.setSize(innerWidth, innerHeight); }
+  if (quality === 2) gtao.enabled = false;
+  if (quality === 3) { const gm = scene.children.find(o => o.geometry && o.geometry.isInstancedBufferGeometry); if (gm) gm.geometry.instanceCount = 300000; }
+  if (quality === 4) { bloom.enabled = false; const gm = scene.children.find(o => o.geometry && o.geometry.isInstancedBufferGeometry); if (gm) gm.geometry.instanceCount = 140000; }
+}
+let frames = 0, t0 = performance.now(), lastT = performance.now();
+renderer.setAnimationLoop(() => {
+  const nowT = performance.now(), dt = Math.min(.05, (nowT - lastT) / 1000); lastT = nowT;
+  if (walk) walkStep(dt);
+  if (camAnim) {
+    camAnim.k = Math.min(1, camAnim.k + .025); const e = camAnim.k < .5 ? 2 * camAnim.k * camAnim.k : 1 - Math.pow(-2 * camAnim.k + 2, 2) / 2;
+    camera.position.lerpVectors(camAnim.p0, camAnim.p, e); controls.target.lerpVectors(camAnim.t0, camAnim.t, e);
+    if (camAnim.k >= 1) camAnim = null;
+  }
+  if (!walk) controls.update();
+  grade.uniforms.seed.value = (performance.now() % 1000) / 10;
+  grassUniforms.time.value = performance.now() / 1000; grassUniforms.camPos.value.copy(camera.position);
+  if (usePost) composer.render(); else renderer.render(scene, camera);
+  frames++; const now = performance.now();
+  if (now - t0 > 1000) {
+    const fps = frames * 1000 / (now - t0);
+    if (fps < 42 && quality < 4 && !document.hidden && !navigator.webdriver) { if (++slowFor >= 3) { stepDown(); slowFor = 0; } } else slowFor = 0;
+    $('#stats').textContent = `${Math.round(fps)} fps · 화질 ${QUALITY_NAMES[quality]}`; frames = 0; t0 = now; }
+});
+$('#veil').style.opacity = 0; setTimeout(() => $('#veil').remove(), 600);
+window.__look = { setCam, scene, renderer };
+</script>

@@ -1,0 +1,130 @@
+<title>신화리 인물 시제품</title>
+<style>
+html,body{height:100%;margin:0;overflow:hidden;background:#1b1f1c;color:#eef0e8;font-family:"IBM Plex Sans KR",system-ui,sans-serif}
+#v{position:fixed;inset:0}#v canvas{display:block;width:100%;height:100%}
+#info{position:fixed;left:14px;top:14px;background:rgba(14,18,16,.82);border:1px solid #38423a;border-radius:6px;padding:10px 12px;font-size:13px;max-width:320px}
+</style>
+<div id="v"></div><div id="info">불러오는 중…</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+const MODEL = new URLSearchParams(location.search).get('m') || 'ijang/ijang.gltf';
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(innerWidth, innerHeight);
+r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.1; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('v').appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#2a302c');
+const cam = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, .05, 100);
+const ctl = new OrbitControls(cam, r.domElement); ctl.target.set(0, 1.55, 0); cam.position.set(.35, 1.62, 1.25); ctl.update();
+const hdrJson = await (await fetch('../lookdev2/sky_env.json')).json();
+const bytes = Uint8Array.from(atob(hdrJson.data), c => c.charCodeAt(0));
+const hd = new RGBELoader().parse(bytes.buffer);
+const hdr = new THREE.DataTexture(hd.data, hd.width, hd.height, THREE.RGBAFormat, hd.type); hdr.flipY = true; hdr.minFilter = hdr.magFilter = THREE.LinearFilter; hdr.generateMipmaps = false; hdr.needsUpdate = true; hdr.mapping = THREE.EquirectangularReflectionMapping;
+scene.environment = new THREE.PMREMGenerator(r).fromEquirectangular(hdr).texture; scene.environmentIntensity = .7;
+const key = new THREE.DirectionalLight('#fff1de', 2.6); key.position.set(2, 3, 2.5); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0002; key.shadow.normalBias = .02;
+Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.5, bottom: -.5, near: .5, far: 10 }); scene.add(key);
+const rim = new THREE.DirectionalLight('#bcd2ff', 1.2); rim.position.set(-2, 2.2, -2.5); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(3, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#3a3f3a', roughness: .9 })); floor.receiveShadow = true; scene.add(floor);
+const g = await new GLTFLoader().loadAsync(MODEL);
+const texLoader = new THREE.TextureLoader(), pendingAdds = [], skinMats = [];
+const base = MODEL.slice(0, MODEL.lastIndexOf('/') + 1);
+const NORMALS = { 'Human.male_worksuit01': base + 'tex/male_worksuit01_normal.png', 'Human.shoes01': base + 'tex/shoes01_normal.png' };
+// fine pore normal map generated on a canvas (tiling)
+const PORES = (() => { const n = 256, c = document.createElement('canvas'); c.width = c.height = n; const x = c.getContext('2d'), h = new Float32Array(n * n);
+  for (let k = 0; k < 2200; k++) { const px = Math.random() * n, py = Math.random() * n, r = .8 + Math.random() * 1.6; for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) { const d = Math.hypot(dx, dy) / r; if (d < 1) { const ix = ((px + dx | 0) + n) % n, iy = ((py + dy | 0) + n) % n; h[iy * n + ix] -= (1 - d) * .8; } } }
+  for (let k = 0; k < n * n; k++) h[k] += (Math.random() - .5) * .25;
+  const img = x.createImageData(n, n);
+  for (let y = 0; y < n; y++) for (let X = 0; X < n; X++) { const H = (a, b) => h[((b + n) % n) * n + ((a + n) % n)]; const dx = H(X + 1, y) - H(X - 1, y), dy = H(X, y + 1) - H(X, y - 1); const l = Math.hypot(dx, dy, 1); const i = (y * n + X) * 4; img.data[i] = (-dx / l * .5 + .5) * 255; img.data[i + 1] = (dy / l * .5 + .5) * 255; img.data[i + 2] = (1 / l * .5 + .5) * 255; img.data[i + 3] = 255; }
+  x.putImageData(img, 0, 0); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.NoColorSpace; return t; })();
+let tris = 0;
+const bones = [];
+g.scene.traverse(o => {
+  if (o.isBone) bones.push(o.name);
+  if (!o.isMesh) return; o.castShadow = o.receiveShadow = true; tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+  const mats = [].concat(o.material);
+  for (let i = 0; i < mats.length; i++) {
+    const m = mats[i];
+    if (m.map) m.map.anisotropy = 8;
+    const hair = /short|long|bob|braid|ponytail|hair|eyebrow|eyelash/i.test(m.name), eye = /high-poly|low-poly|eye/i.test(m.name);
+    if (hair) {
+      // two-pass hair: solid core with alpha test, then a soft blended fringe drawn after it
+      m.transparent = false; m.depthWrite = true; m.alphaTest = .5; m.side = THREE.DoubleSide;
+      const brow = /eyebrow|eyelash/i.test(m.name); m.roughness = brow ? .95 : .62; m.envMapIntensity = brow ? 0 : .55;   // brows are matte
+      if (brow) { m.specularIntensity = .1; if (/eyebrow/i.test(m.name)) m.color.setRGB(2.3, 2.1, 1.95); }   // dark texture: lift to grey-brown, no sky sheen
+      const soft = m.clone(); soft.alphaTest = 0; soft.transparent = true; soft.depthWrite = false;
+      const fringe = o.clone(); fringe.material = soft; fringe.renderOrder = 2; fringe.castShadow = false; pendingAdds.push([o.parent, fringe]);
+    } else if (eye) { m.transparent = false; m.depthWrite = true; m.alphaTest = .5; m.roughness = .05; }
+    else {
+      m.transparent = false; m.alphaTest = 0; m.opacity = 1; m.depthWrite = true;
+      const nm = NORMALS[m.name]; if (nm) { m.normalMap = texLoader.load(nm); m.normalMap.flipY = false; m.normalMap.colorSpace = THREE.NoColorSpace; }
+      if (m.name.endsWith('.body')) skinMats.push([o, i, m]);
+    }
+  }
+});
+for (const [p, f] of pendingAdds) p.add(f);
+// skin: physically based with a soft sheen and fine pore detail instead of plastic
+for (const [o, i, m] of skinMats) {
+  const sk = new THREE.MeshPhysicalMaterial({ map: m.map, roughness: .52, sheen: .35, sheenRoughness: .5, sheenColor: new THREE.Color('#ffb8a0'),
+    clearcoat: .06, clearcoatRoughness: .45, normalMap: PORES, normalScale: new THREE.Vector2(.35, .35) });
+  sk.normalMap.wrapS = sk.normalMap.wrapT = THREE.RepeatWrapping; sk.normalMap.repeat.set(28, 28);
+  if (Array.isArray(o.material)) o.material[i] = sk; else o.material = sk;
+}
+scene.add(g.scene); g.scene.updateMatrixWorld(true);
+const bone = n => { let r = null; g.scene.traverse(o => { if (o.isBone && o.name === n) r = o; }); return r; };
+const wp = o => o.getWorldPosition(new THREE.Vector3());
+// face the camera: forward = heel -> toe direction
+{ const f = wp(bone('ball_l')).sub(wp(bone('foot_l'))); f.y = 0; f.normalize();
+  g.scene.rotation.y = Math.atan2(f.x, f.z) * -1 + 0; g.scene.updateMatrixWorld(true);
+  const f2 = wp(bone('ball_l')).sub(wp(bone('foot_l'))); if (f2.z < 0) { g.scene.rotation.y += Math.PI; g.scene.updateMatrixWorld(true); } }
+// relax arms: rotate each upper arm about the body's forward axis, picking the sign that lowers the hand
+function lowerArm(side, ang) {
+  const ua = bone('upperarm_' + side), hand = bone('hand_' + side); if (!ua) return;
+  const fwd = new THREE.Vector3(0, 0, 1);
+  const tryRot = sgn => { const q0 = ua.quaternion.clone(); const pq = ua.parent.getWorldQuaternion(new THREE.Quaternion());
+    const qw = new THREE.Quaternion().setFromAxisAngle(fwd, sgn * ang);
+    ua.quaternion.copy(pq.clone().invert().multiply(qw).multiply(pq).multiply(q0)); g.scene.updateMatrixWorld(true);
+    const y = wp(hand).y; ua.quaternion.copy(q0); g.scene.updateMatrixWorld(true); return y; };
+  const s = tryRot(1) < tryRot(-1) ? 1 : -1;
+  const pq = ua.parent.getWorldQuaternion(new THREE.Quaternion());
+  ua.quaternion.copy(pq.clone().invert().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, s * ang)).multiply(pq).multiply(ua.quaternion));
+  g.scene.updateMatrixWorld(true);
+}
+lowerArm('l', .72); lowerArm('r', .72);
+// straighten the elbow (rest pose has it bent forward), then turn the palm toward the thigh
+const rotWorld = (b, q) => { const pq = b.parent.getWorldQuaternion(new THREE.Quaternion()); b.quaternion.copy(pq.clone().invert().multiply(q).multiply(pq).multiply(b.quaternion)); g.scene.updateMatrixWorld(true); };
+function settleForearm(side) {
+  const ua = bone('upperarm_' + side), la = bone('lowerarm_' + side), hand = bone('hand_' + side), th = bone('thumb_01_' + side), mid = bone('middle_01_' + side); if (!la || !hand) return;
+  const up = wp(la).sub(wp(ua)).normalize(), fo = wp(hand).sub(wp(la)).normalize();
+  const target = fo.clone().lerp(up, .8).normalize();
+  rotWorld(la, new THREE.Quaternion().setFromUnitVectors(fo, target));
+  if (!th || !mid) return;
+  const axis = wp(hand).sub(wp(la)).normalize(), q0 = la.quaternion.clone(); let best = 0, bestS = -1e9;
+  for (let a = -1.6; a <= 1.6001; a += .1) { la.quaternion.copy(q0); rotWorld(la, new THREE.Quaternion().setFromAxisAngle(axis, a));
+    const s = wp(th).z - wp(mid).z - Math.abs(a) * .002; if (s > bestS) { bestS = s; best = a; } }
+  la.quaternion.copy(q0); rotWorld(la, new THREE.Quaternion().setFromAxisAngle(axis, best));
+}
+settleForearm('l'); settleForearm('r');
+// relaxed hands: curl each finger joint a little toward the palm (pick the bend direction that moves the tip toward the wrist)
+function curlFingers(side) {
+  for (const f of ['index', 'middle', 'ring', 'pinky']) for (const j of ['01', '02', '03']) {
+    const b = bone(`${f}_${j}_${side}`), tip = bone(`${f}_03_${side}`), wrist = bone('hand_' + side); if (!b || !tip) continue;
+    const amt = j === '01' ? .22 : .32, d0 = wp(tip).distanceTo(wp(wrist));
+    const q0 = b.quaternion.clone(); let best = null, bestD = d0;
+    for (const ax of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)]) for (const sg of [1, -1]) {
+      b.quaternion.copy(q0).multiply(new THREE.Quaternion().setFromAxisAngle(ax, sg * amt)); g.scene.updateMatrixWorld(true);
+      const d = wp(tip).distanceTo(wp(wrist)); if (d < bestD) { bestD = d; best = b.quaternion.clone(); }
+    }
+    b.quaternion.copy(best || q0); g.scene.updateMatrixWorld(true);
+  }
+}
+curlFingers('l'); curlFingers('r');
+const headPos = wp(bone('head'));
+window.__head = [headPos.x, headPos.y, headPos.z];
+console.log('BONES', bones.slice(0, 40).join(','));
+document.getElementById('info').textContent = `${MODEL} · 삼각형 ${Math.round(tris / 1000)}k`;
+window.__sceneRoot = scene; window.__view = { cam, ctl, ready: true };
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+r.setAnimationLoop(() => { ctl.update(); r.render(scene, cam); });
+</script>
