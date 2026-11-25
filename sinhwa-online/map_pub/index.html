@@ -100,9 +100,11 @@ function heightAt(x, y) {   // game coords (x east, y north)
 const V = (x, y, z) => new THREE.Vector3(x, z, -y);   // game -> three
 const B = W.bounds;
 // baked village (Blender lightmaps, lookdev quality) replaces the procedural world inside its region
-const VB = await fetch('village/bake.json').then(x => x.ok ? x.json() : null).catch(() => null);
-const VREG = VB ? VB.region : [1e9, 1e9, -1e9, -1e9];
-const inV = (x, y, m = 0) => x > VREG[0] + m && x < VREG[2] - m && y > VREG[1] + m && y < VREG[3] - m;
+const REGION_DIRS = ['village', 'town', 'camp'];   // 신화리 / 연무읍 / 훈련소 (each loads when the player comes near)
+const VBS = (await Promise.all(REGION_DIRS.map(d => fetch(d + '/bake.json').then(x => x.ok ? x.json() : null).catch(() => null))))
+  .map((b, i) => b && { ...b, dir: REGION_DIRS[i] }).filter(Boolean);
+const inR = (r, x, y, m = 0) => x > r[0] + m && x < r[2] - m && y > r[1] + m && y < r[3] - m;
+const inV = (x, y, m = 0) => VBS.some(b => inR(b.region, x, y, m));
 function clipRuns(list) {   // polylines outside the village, each run reaching one point into it so the joins meet
   const out = [];
   for (const L of list) {
@@ -158,10 +160,10 @@ const terrain = (() => {
     Object.assign(sh.uniforms, { splat: { value: SPLAT }, tPaddy: { value: paddy }, tDirt: { value: dirt }, tGravel: { value: gravel }, tConc: { value: conc }, noiseMap: { value: NOISE },
       gb: { value: new THREE.Vector4(W.ground.x0, W.ground.y1, W.ground.w * W.ground.res, W.ground.h * W.ground.res) } });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.)).xyz;');
-    sh.uniforms.vreg = { value: new THREE.Vector4(...VREG) };
-    sh.fragmentShader = 'uniform sampler2D splat, tPaddy, tDirt, tGravel, tConc, noiseMap; uniform vec4 gb, vreg; varying vec3 vWP;\n' + sh.fragmentShader
+    sh.uniforms.vreg = { value: [0, 1, 2].map(i => VBS[i] ? new THREE.Vector4(...VBS[i].region) : new THREE.Vector4(1e9, 1e9, -1e9, -1e9)) };
+    sh.fragmentShader = 'uniform sampler2D splat, tPaddy, tDirt, tGravel, tConc, noiseMap; uniform vec4 gb; uniform vec4 vreg[3]; varying vec3 vWP;\n' + sh.fragmentShader
       .replace('#include <map_fragment>', `
-      if (vWP.x > vreg.x && vWP.x < vreg.z && -vWP.z > vreg.y && -vWP.z < vreg.w) discard;   // the baked village ground is drawn there
+      for (int i = 0; i < 3; i++) if (vWP.x > vreg[i].x && vWP.x < vreg[i].z && -vWP.z > vreg[i].y && -vWP.z < vreg[i].w) discard;   // baked ground is drawn there
       vec2 wuv = vWP.xz / 7.;
       vec2 suv = vec2((vWP.x - gb.x) / gb.z, (-vWP.z - gb.y) / -gb.w);
       float n1 = texture2D(noiseMap, vWP.xz * .004).r, n2 = texture2D(noiseMap, vWP.xz * .05).r;
@@ -566,17 +568,17 @@ const glbFrom = (jsonText, b64) => { const bin = Uint8Array.from(atob(b64), c =>
   dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true); dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true); u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20);
   dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl); return buf; };
 // ---------------------------------------------------------------- baked village (Blender Cycles lightmaps; see blender/build_village.py)
-if (VB) {
-  say('마을 불러오는 중…');
+async function loadRegion(VB) {
+  const dir = VB.dir + '/';
   const vt = new THREE.TextureLoader();
-  const lmTex = async u => { const t = await vt.loadAsync('village/' + u); t.flipY = false; t.channel = 1; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+  const lmTex = async u => { const t = await vt.loadAsync(dir + u); t.flipY = false; t.channel = 1; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
   const LMV = { ground: await lmTex('lm_ground.jpg'), build: await lmTex('lm_build.jpg') }, LI = VB.lmax * Math.PI;
   const ONE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); ONE.needsUpdate = true; ONE.channel = 1;
-  const [jt, head] = await Promise.all([fetch('village/scene.json').then(x => x.text()), fetch('village/scene_bin.json').then(x => x.json())]);
-  const parts = await Promise.all(Array.from({ length: head.parts }, (_, i) => fetch(`village/scene_bin${i}.json`).then(x => x.json())));
+  const [jt, head] = await Promise.all([fetch(dir + 'scene.json').then(x => x.text()), fetch(dir + 'scene_bin.json').then(x => x.json())]);
+  const parts = await Promise.all(Array.from({ length: head.parts }, (_, i) => fetch(dir + `scene_bin${i}.json`).then(x => x.json())));
   const gl = new GLTFLoader(); gl.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
-  const vg = await gl.parseAsync(glbFrom(jt, parts.map(q => q.data).join('')), 'village/');
-  const mask = await vt.loadAsync('village/groundmask.png'); mask.flipY = false; mask.colorSpace = THREE.NoColorSpace;
+  const vg = await gl.parseAsync(glbFrom(jt, parts.map(q => q.data).join('')), dir + '');
+  const mask = await vt.loadAsync(dir + 'groundmask.png'); mask.flipY = false; mask.colorSpace = THREE.NoColorSpace;
   const paddyT = await vt.loadAsync('village/paddy.jpg'); paddyT.colorSpace = THREE.SRGBColorSpace; paddyT.wrapS = paddyT.wrapT = THREE.RepeatWrapping; paddyT.anisotropy = maxAniso;
   const gravelT = tex('gravel.jpg');
   // the bake already holds sun + sky light: switch realtime direct light and ambient off on these surfaces, keep reflections
@@ -616,8 +618,17 @@ if (VB) {
       else if (m.name === 'film') { m.transparent = true; m.opacity = .38; m.depthWrite = false; m.side = THREE.DoubleSide; o.renderOrder = 2; m.userData.csm = true; }
     }
   });
-  scene.add(vg.scene); window.__village = vg.scene;
+  scene.add(vg.scene); (window.__regions = window.__regions || {})[VB.dir] = vg.scene;
 }
+// a baked region loads once the player (or camera) comes within 450 m of it; the one around the start is awaited
+const regionState = {};
+function wantRegions(x, y, wait) {
+  const jobs = [];
+  for (const b of VBS) { const r = b.region, dx = Math.max(r[0] - x, 0, x - r[2]), dy = Math.max(r[1] - y, 0, y - r[3]);
+    if (Math.hypot(dx, dy) < 450 && !regionState[b.dir]) { regionState[b.dir] = 'loading'; jobs.push(loadRegion(b).then(() => regionState[b.dir] = 'ready').catch(e => { console.warn(e); regionState[b.dir] = 'fail'; })); } }
+  return wait ? Promise.all(jobs) : null;
+}
+say('마을 불러오는 중…'); await wantRegions(0, 0, true);
 let P = null;
 try {
   const base = 'npc/minseok/';
@@ -694,7 +705,7 @@ addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListen
 { const s = $('stick'), knob = s.querySelector('i'); let id = null; const move = e => { const rc = s.getBoundingClientRect(); let x = (e.clientX - rc.left - 60) / 50, y = (e.clientY - rc.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
   s.addEventListener('pointerdown', e => { id = e.pointerId; s.setPointerCapture(id); move(e); }); s.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); }); s.addEventListener('pointerup', () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; }); }
 function btns(host, items, on) { host.replaceChildren(...items.map(([v, label]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v; b.textContent = label; b.addEventListener('click', () => { on(v); b.blur(); }); return b; })); }
-function placeAt(x, y) { if (!P) return; [P.x, P.y] = collide(x, y); P.speed = 0; const t = V(P.x, P.y, heightAt(P.x, P.y) + 1.3); ctl.target.copy(t); cam.position.copy(t).add(new THREE.Vector3(4, 3, 6)); setMode('walk'); }
+function placeAt(x, y) { wantRegions(x, y); if (!P) return; [P.x, P.y] = collide(x, y); P.speed = 0; const t = V(P.x, P.y, heightAt(P.x, P.y) + 1.3); ctl.target.copy(t); cam.position.copy(t).add(new THREE.Vector3(4, 3, 6)); setMode('walk'); }
 const PLACES = W.landmarks.map(l => [l.id, l.name.replace('육군훈련소 ', '훈련소 ').replace('신화2리 ', '')]);
 btns($('places'), PLACES, id => { const l = W.landmarks.find(q => q.id === id); placeAt(l.p[0] + 8, l.p[1] - 12); });
 function setMode(m) { mode = m; $('views').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === m)));
@@ -704,6 +715,7 @@ btns($('views'), [['walk', '걷기'], ['sky', '하늘 보기']], setMode);
 // ---------------------------------------------------------------- loop
 const clock = new THREE.Clock(); let frames = 0, ft0 = performance.now(), fps = 60, quality = 0;
 function step(dt) {
+  step.t = (step.t || 0) + dt; if (step.t > 1) { step.t = 0; const c = P && mode === 'walk' ? [P.x, P.y] : [ctl.target.x, -ctl.target.z]; wantRegions(c[0], c[1]); }
   if (P && mode === 'walk') {
     const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
     const mag = Math.min(1, Math.hypot(ix, iz)), moving = mag > .1, want = moving ? (keys.has('shift') ? 3.0 : 1.0) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
@@ -748,5 +760,5 @@ scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) chain
   const t = ctl.target.clone(), hall = V(0, 2, heightAt(0, 2) + 3), dir = t.clone().sub(hall).setY(0).normalize();
   cam.position.copy(t).addScaledVector(dir, 9).add(new THREE.Vector3(0, 3.2, 0)); P && (P.yaw = Math.atan2(-dir.x, -dir.z)); ctl.update(); }
 $('load').hidden = true;
-window.__RC = THREE.Raycaster; window.__map = { cam, ctl, setMode, placeAt, scene, heightAt, get P() { return P; }, step, keys };
+window.__RC = THREE.Raycaster; window.__map = { regionState, cam, ctl, setMode, placeAt, scene, heightAt, get P() { return P; }, step, keys };
 </script>

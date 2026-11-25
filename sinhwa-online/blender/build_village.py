@@ -89,6 +89,13 @@ def alpha_from_color(m):
     try: m.blend_method = 'CLIP'
     except Exception: pass
 M = {
+  'fac_shop': mat('fac_shop', color_file=os.path.join(D, 'facade_shop.jpg'), rough=.7, tile=0),
+  'fac_villa': mat('fac_villa', color_file=os.path.join(D, 'facade_villa.jpg'), rough=.85, tile=0),
+  'fac_barracks': mat('fac_barracks', color_file=os.path.join(D, 'facade_barracks.jpg'), rough=.85, tile=0),
+  'fac_civic': mat('fac_civic', color_file=os.path.join(D, 'facade_civic.jpg'), rough=.6, tile=0),
+  'storefront': mat('storefront', color_file=os.path.join(D, 'storefront.jpg'), rough=.15, tile=0),
+  'signs': mat('signs', color_file=os.path.join(D, 'signs.png'), rough=.5, tile=0),
+  'roof_flat': mat('roof_flat', color_file=os.path.join(D, 'roof_flat.jpg'), rough=.8, tile=0),
   # ground group
   'g_ground':  mat('g_ground', asset='Ground037', tile=7, normal_strength=.8),
   'g_paddy':   mat('g_paddy', asset='Ground109', tile=5),
@@ -258,9 +265,10 @@ GRILLE = [False]
 # ---------------------------------------------------------------- CC0 assets (Poly Haven) + procedural props
 PH = os.path.join(TEX, 'ph')
 TEMPL = {}
-DECIMATE = {'shrub_02': .06, 'shrub_04': .07, 'shrub_03': .2, 'weed_plant_02': .2, 'exterior_aircon_unit': .22,
-            'korean_public_payphone_01': .15, 'plastic_crate_02': .5, 'compost_bags': .35, 'rusted_spade_01': .3, 'small_lpg_tank': .35,
-            'plastic_monobloc_chair_01': .6, 'security_camera_01': .4, 'korean_fire_extinguisher_01': .4, 'covered_car': .5, 'utility_box_01': .6}
+DECIMATE = {'shrub_02': .06, 'shrub_04': .07, 'shrub_03': .2, 'weed_plant_02': .2, 'exterior_aircon_unit': .08,
+            'korean_public_payphone_01': .15, 'plastic_crate_02': .15, 'compost_bags': .15, 'rusted_spade_01': .3, 'small_lpg_tank': .04,
+            'plastic_monobloc_chair_01': .12, 'security_camera_01': .4, 'korean_fire_extinguisher_01': .4, 'covered_car': .5, 'utility_box_01': .08,
+            'planter_pot_clay': .05, 'plastic_jerrycan': .08, 'cement_bag': .2, 'old_tyre': .1, 'trashbag': .2}   # small clutter: ~1-3k verts each
 def template(aid):
     if aid in TEMPL: return TEMPL[aid]
     before = set(bpy.data.objects)
@@ -488,6 +496,10 @@ yard_v = []
 for gx in range(-20, 14, 4):
     for gz in range(5, 21, 4):
         o = quad_flat(f'slab_{gx}_{gz}', gx + .03, min(gx + 4, 14) - .03, gz + .03, min(gz + 4, 21) - .03, 0.05, M['g_yard'], GROUND); o.data.transform(T)
+if not inreg(HX, HY):   # the approved hall model belongs to 신화리 only
+    gone = [o for o in bpy.data.objects if o not in before]
+    for L_ in (GROUND, BUILD, NOLM, PROPS): L_[:] = [o for o in L_ if o not in gone]
+    for o in gone: bpy.data.objects.remove(o, do_unlink=True)
 # ---------------------------------------------------------------- houses
 HOUSE_ANCHORS = []
 def house(name, x, z, rot, w, d, roof_m, wall=False, gate_m=None, h=3.1):
@@ -670,6 +682,69 @@ def tiller(x, z, rot):
         wh = bpy.context.active_object; wh.data.transform(wh.matrix_basis); wh.matrix_basis = Matrix()
         wh.data.materials.append(M['tire']); bpy.context.collection.objects.unlink(wh); link(wh, BUILD); o.append(wh)
     place(o, x, z, rot)
+# ---------------------------------------------------------------- town blocks (상가 / 빌라 / 관공서 / 생활관): facade textures, one bay x one floor per tile
+SIGN_N, SIGN_COLS, SIGN_ROWS = 40, 4, 10
+CIVIC_SIGN = {'연무읍사무소': 32, '연무지구대': 33, '연무하나로마트': 34, '연무대고속터미널': 35, '우체국': 36, '보건지소': 37, '초등학교': 38, '교회': 39}
+def uv_quad(o, uvs):
+    me = o.data
+    if not me.uv_layers: me.uv_layers.new(name='UVMap')
+    for poly, quv in zip(me.polygons, uvs):
+        for li, uv_ in zip(poly.loop_indices, quv): me.uv_layers[0].data[li].uv = uv_
+    o['keepuv'] = True
+def wall_quads(name, L, Dp, y0, y1, m, floor_h=3.2, bay=3.6, front_only=False):
+    """Four outer walls (box sides, local frame: x along L, three-z across Dp) with UVs in bays x floors."""
+    hx, hz = L / 2, Dp / 2; sides = [((-hx, hz), (hx, hz), L), ((hx, hz), (hx, -hz), Dp), ((hx, -hz), (-hx, -hz), L), ((-hx, -hz), (-hx, hz), Dp)]
+    if front_only: sides = sides[:1]
+    v, f, uvs = [], [], []
+    for (a, b, ln) in sides:
+        pa, pb = P(*a), P(*b); k = len(v)
+        v += [(pa[0], pa[1], y0), (pb[0], pb[1], y0), (pb[0], pb[1], y1), (pa[0], pa[1], y1)]; f.append((k, k + 1, k + 2, k + 3))
+        nb = max(1, round(ln / bay)); v0, v1 = y0 / floor_h, y1 / floor_h
+        uvs.append([(0, v0), (nb, v0), (nb, v1), (0, v1)])
+    o = mesh_obj(name, v, f, [m], BUILD); uv_quad(o, uvs); return o
+def flat_roof(name, L, Dp, h, objs):
+    o = mesh_obj(name, [(*P(-L/2, Dp/2), h), (*P(L/2, Dp/2), h), (*P(L/2, -Dp/2), h), (*P(-L/2, -Dp/2), h)], [(0, 3, 2, 1)][::-1] and [(0, 1, 2, 3)], [M['roof_flat']], BUILD)
+    if o.data.polygons[0].normal.z < 0: o.data.flip_normals()
+    uv_quad(o, [[(0, 0), (L / 8, 0), (L / 8, Dp / 8), (0, Dp / 8)]]); objs.append(o)
+    for (a, b, c, d) in [(-L/2, L/2, Dp/2 - .2, Dp/2), (-L/2, L/2, -Dp/2, -Dp/2 + .2), (-L/2, -L/2 + .2, -Dp/2, Dp/2), (L/2 - .2, L/2, -Dp/2, Dp/2)]:
+        objs.append(box(name + '_par', a, b, c, d, h, h + .9, M['yard_b'], BUILD))   # parapet
+def town_block(name, x, z, rot, L, Dp, floors, kind, sign=None):
+    objs = []; fh = 3.2; h = fh * floors
+    fac = {'shop': M['fac_shop'], 'villa': M['fac_villa'], 'barracks': M['fac_barracks'], 'civic': M['fac_civic']}[kind]
+    if kind in ('shop', 'civic'):
+        objs.append(wall_quads(name + '_gf', L, Dp, 0, fh, M['storefront'], fh, 3.6))
+        if floors > 1: objs.append(wall_quads(name + '_up', L, Dp, fh, h, fac, fh, 3.6 if kind == 'shop' else 3.6))
+        # sign band over the shop fronts (front = +z three side), its cell picked from the atlas
+        idx = sign if sign is not None else random.randrange(32)
+        cu, cv = idx % SIGN_COLS, idx // SIGN_COLS; u0, u1 = cu / SIGN_COLS, (cu + 1) / SIGN_COLS; v1_, v0_ = 1 - cv / SIGN_ROWS, 1 - (cv + 1) / SIGN_ROWS
+        sw = min(L - .6, 7.5 if kind == 'shop' else 10)
+        sg = mesh_obj(name + '_sign', [(*P(-sw/2, Dp/2 + .32), fh - .55), (*P(sw/2, Dp/2 + .32), fh - .55), (*P(sw/2, Dp/2 + .32), fh + .45), (*P(-sw/2, Dp/2 + .32), fh + .45)],
+                      [(0, 1, 2, 3)], [M['signs']], BUILD); uv_quad(sg, [[(u0, v0_ + .01), (u1, v0_ + .01), (u1, v1_ - .01), (u0, v1_ - .01)]]); objs.append(sg)
+        objs.append(box(name + '_signbox', -sw/2 - .1, sw/2 + .1, Dp/2, Dp/2 + .3, fh - .65, fh + .55, M['steel'], BUILD))
+        objs.append(box(name + '_awn', -L/2, L/2, Dp/2, Dp/2 + 1.2, fh - .7, fh - .62, M['panel_white'], BUILD))   # canopy over the doors
+    else:
+        objs.append(wall_quads(name + '_w', L, Dp, 0, h, fac, fh, 3.6 if kind != 'barracks' else 4.2))
+    objs.append(box(name + '_plinth', -L/2 - .05, L/2 + .05, -Dp/2 - .05, Dp/2 + .05, 0, .35, M['tile'], BUILD))
+    flat_roof(name + '_roof', L, Dp, h, objs)
+    if kind != 'barracks' and random.random() < .7:   # rooftop water tank + aircon units
+        objs += [lathe(name + '_tank', [(0, 0), (.75, 0), (.75, 1.3), (.6, 1.45), (.2, 1.5), (0, 1.5)], M['panel_white'], BUILD, x=random.uniform(-L/4, L/4), z=random.uniform(-Dp/4, 0), y=h)]
+        objs.append(prop('exterior_aircon_unit', random.uniform(-L/3, L/3), -Dp/2 + .8, y=h, rot=0, fit=(0, .85)))
+    if kind == 'barracks':   # entrance porch and a rooftop stair hut
+        objs.append(box(name + '_porch', -2.5, 2.5, Dp/2, Dp/2 + 2.2, 2.9, 3.05, M['panel_white'], BUILD))
+        objs.append(box(name + '_hut', -2, 2, -Dp/4, Dp/4 - .5, h, h + 2.6, M['fac_barracks'], BUILD))
+    ca, sa = math.cos(rot), math.sin(rot); ex, ez = L/2 + 1, Dp/2 + 2
+    LAYOUT['polys'].append([[x + px * ca + pz * sa, z - px * sa + pz * ca] for px, pz in [(-ex, -ez), (ex, -ez), (ex, ez), (-ex, ez)]])
+    place(objs, x, z, rot)
+def front_rot(b, x, y):
+    """Turn the block so its +z (front / sign) side faces the nearest road."""
+    rn = road_near(x, y); a = b['a']
+    if rn is None: return a
+    to = (rn[1] - x, rn[2] - y)   # game coords; +z three front after rotation a points to game (sin a, -cos a)... test both long sides
+    best = a
+    for cand in (a, a + math.pi, a + math.pi / 2, a - math.pi / 2):
+        fx, fy = math.sin(cand), -math.cos(cand)   # local three +z (= Blender -y) after the Z rotation, in game coords
+        if fx * to[0] + fy * to[1] > math.sin(best) * to[0] - math.cos(best) * to[1]: best = cand
+    return best
 # ---- buildings from the satellite pass
 ROOFM = {'blue': ['roof_blue'], 'teal': ['roof_green'], 'warm': ['roof_red', 'roof_orange'], 'white': ['panel_grey', 'panel_white']}
 nh = nw = 0
@@ -677,6 +752,17 @@ for k, b in enumerate(WJ['buildings']):
     x, y = b['c']
     if not inreg(x, y, 6) or math.hypot(x - HX, y - HY) < 30: continue
     PLACE_Y[0] = b['z']; rm = M[random.choice(ROOFM.get(b.get('rc') or 'white', ['roof_blue']))]
+    kind_ = b['kind']; fl_ = max(1, int(b.get('floors') or 1))
+    if kind_ in ('shop', 'civic', 'barracks') or (kind_ == 'house' and fl_ >= 2):
+        k2 = 'villa' if kind_ == 'house' else kind_
+        L_, D_ = max(b['l'], 6), max(b['w'], 6)
+        if k2 == 'villa': L_, D_ = min(L_, 22), min(D_, 14)
+        if k2 == 'shop': L_, D_ = min(L_, 30), min(D_, 18)
+        rot_ = front_rot(b, x, y) if k2 in ('shop', 'civic') else b['a']
+        if abs(math.sin(rot_ - b['a'])) > .7: L_, D_ = D_, L_
+        sign_ = CIVIC_SIGN.get(next((n for n in CIVIC_SIGN if n in (b.get('name') or '')), None)) if k2 == 'civic' else None
+        PLACE_Y[0] = b['z']; town_block(f't{k}', x, -y, rot_, L_, D_, min(fl_, 6), k2, sign_); nh += 1
+        continue
     if b['kind'] == 'house':
         w, d = min(max(b['l'], 7.5), 17), min(max(b['w'], 5.8), 10.5)
         house(f'h{k}', x, -y, b['a'], w, d, rm, wall=random.random() < .55, gate_m=random.choice([M['paint_blue'], M['roof_green'], M['steel']])); nh += 1
