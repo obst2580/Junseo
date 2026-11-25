@@ -106,6 +106,23 @@ const VBS = (await Promise.all(REGION_DIRS.map(d => fetch(d + '/bake.json').then
 for (const b of VBS) for (const e of b.extra || []) W.buildings.push({ ...e, rc: null, src: 'infill' });   // infill buildings baked into a region: colliders + minimap
 const inR = (r, x, y, m = 0) => x > r[0] + m && x < r[2] - m && y > r[1] + m && y < r[3] - m;
 const inV = (x, y, m = 0) => VBS.some(b => inR(b.region, x, y, m));
+// what blender/build_village.py actually built for a building inside a baked region (same rules), so colliders match what you see:
+// undefined = not the bake's (procedural), null = left out of the bake (no collider), {l, w} = baked footprint
+function bakedBox(b) {
+  const v = VBS.find(q => inR(q.region, b.c[0], b.c[1], 6)); if (!v) return undefined;
+  if (b.src === 'infill') return { l: b.l, w: b.w };
+  if (inR(v.region, 0, 2) && Math.hypot(b.c[0], b.c[1] - 2) < 30) return null;   // cleared around the village hall
+  const fl = Math.max(1, b.floors || 1);
+  if (['shop', 'civic', 'barracks'].includes(b.kind) || (b.kind === 'house' && fl >= 2)) {
+    let L = Math.max(b.l, 6), D = Math.max(b.w, 6);
+    if (b.kind === 'house') { L = Math.min(L, 22); D = Math.min(D, 14); } else if (b.kind === 'shop') { L = Math.min(L, 30); D = Math.min(D, 18); }
+    return { l: L, w: D };
+  }
+  if (b.kind === 'house') return { l: Math.min(Math.max(b.l, 7.5), 17), w: Math.min(Math.max(b.w, 5.8), 10.5) };
+  if (b.kind === 'warehouse') return { l: Math.min(b.l, 46), w: Math.min(b.w, 26) };
+  return { l: Math.min(b.l, 18), w: Math.min(b.w, 11) };
+}
+function bakedGh(h) { const v = VBS.find(q => inR(q.region, h.c[0], h.c[1], 4)); if (!v) return undefined; return h.l < 10 ? null : { l: Math.min(h.l, 80), w: 2 * Math.max(2.6, Math.min(h.w / 2, 4)) }; }
 function clipRuns(list) {   // polylines outside the village, each run reaching one point into it so the joins meet
   const out = [];
   for (const L of list) {
@@ -354,8 +371,9 @@ const colliders = [];   // oriented boxes for the walker
   }
   for (const b of W.buildings) {
     const corners = rectCorners(b.c[0], b.c[1], b.l, b.w, b.a), z0 = b.z - .4;
+    const bb = bakedBox(b);
+    if (bb !== undefined) { if (bb) colliders.push({ c: b.c, a: b.a, hl: bb.l / 2 + .2, hw: bb.w / 2 + .2 }); continue; }   // drawn by a baked region
     colliders.push({ c: b.c, a: b.a, hl: b.l / 2 + .3, hw: b.w / 2 + .3 });
-    if (inV(b.c[0], b.c[1])) continue;   // drawn by the baked village
     const roofHex = b.rc && ROOF[b.rc] ? ROOF[b.rc][Math.floor(rnd() * 3)] : '#8d9493';
     const roofCol = new THREE.Color(roofHex);
     if (b.col && b.rc !== 'white') roofCol.lerp(new THREE.Color().setRGB(...b.col).convertSRGBToLinear(), .35);
@@ -380,7 +398,9 @@ const colliders = [];   // oriented boxes for the walker
     }
   }
   // the village hall: two floors, white walls, blue roof trim, a sign
-  { const b = { c: [0, 2], l: 18, w: 10, a: 0.12, zt: heightAt(0, 2) }; const corners = rectCorners(b.c[0], b.c[1], b.l, b.w, b.a);
+  if (inV(0, 2)) {   // baked hall: colliders for the main hall and its annex only
+    colliders.push({ c: [0, 2], a: .12, hl: 9.3, hw: 5.3 }, { c: [-13, 1.44], a: .12, hl: 4.2, hw: 4.2 });
+  } else { const b = { c: [0, 2], l: 18, w: 10, a: 0.12, zt: heightAt(0, 2) }; const corners = rectCorners(b.c[0], b.c[1], b.l, b.w, b.a);
     push('wall_civic', quadStrip(corners, b.zt - .4, b.zt + 6.6, 6, 3.3)); push('roof', gableRoof(b, b.zt + 6.6, .3, .6, new THREE.Color('#2f5f9e'))); colliders.push({ c: b.c, a: b.a, hl: 9.3, hw: 5.3 });
     const c = document.createElement('canvas'); c.width = 1024; c.height = 160; const g = c.getContext('2d'); g.fillStyle = '#1f3b63'; g.fillRect(0, 0, 1024, 160); g.fillStyle = '#fff';
     g.font = 'bold 96px "IBM Plex Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText('신화2리 마을회관', 512, 112);
@@ -439,8 +459,8 @@ say('비닐하우스 세우는 중…');
   const m = csmMat(new THREE.MeshStandardMaterial({ map: ft, roughness: .35, metalness: 0, transparent: true, opacity: .9, side: THREE.DoubleSide, envMapIntensity: 1 }));
   m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_INSTANCING\n vMapUv.x *= length(instanceMatrix[0].xyz) / 4.;\n#endif'); };
   m.customProgramCacheKey = () => 'gh';
-  const GH = W.greenhouses.filter(h => !inV(h.c[0], h.c[1]));
-  for (const h of W.greenhouses) if (inV(h.c[0], h.c[1])) colliders.push({ c: h.c, a: h.a, hl: h.l / 2, hw: h.w / 2 });
+  const GH = W.greenhouses.filter(h => bakedGh(h) === undefined);
+  for (const h of W.greenhouses) { const g_ = bakedGh(h); if (g_) colliders.push({ c: h.c, a: h.a, hl: g_.l / 2, hw: g_.w / 2 }); }
   const im = new THREE.InstancedMesh(g, m, GH.length); const M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
   GH.forEach((h, i) => { const hh = Math.min(3.4, h.w * .5); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), h.a); s.set(h.l, hh * 2, h.w); p.copy(V(h.c[0], h.c[1], h.z - .05)); M4.compose(p, q, s); im.setMatrixAt(i, M4);
     colliders.push({ c: h.c, a: h.a, hl: h.l / 2, hw: h.w / 2 }); });
@@ -761,5 +781,5 @@ scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) chain
   const t = ctl.target.clone(), hall = V(0, 2, heightAt(0, 2) + 3), dir = t.clone().sub(hall).setY(0).normalize();
   cam.position.copy(t).addScaledVector(dir, 9).add(new THREE.Vector3(0, 3.2, 0)); P && (P.yaw = Math.atan2(-dir.x, -dir.z)); ctl.update(); }
 $('load').hidden = true;
-window.__RC = THREE.Raycaster; window.__map = { regionState, cam, ctl, setMode, placeAt, scene, heightAt, get P() { return P; }, step, keys };
+window.__RC = THREE.Raycaster; window.__map = { colliders, regionState, cam, ctl, setMode, placeAt, scene, heightAt, get P() { return P; }, step, keys };
 </script>
