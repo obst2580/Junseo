@@ -34,6 +34,21 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 .panel.folded { width: auto; max-height: none; }
 #atkpad { position: fixed; right: calc(28px + env(safe-area-inset-right, 0px)); bottom: calc(34px + env(safe-area-inset-bottom, 0px)); width: 96px; height: 96px; border-radius: 50%; font: 700 17px var(--f, sans-serif); color: #1b1d14; background: var(--acc, #e2cf72); border: 3px solid rgba(255,255,255,.7); display: none; touch-action: manipulation }
 @media (pointer: coarse) { #atkpad { display: block } }
+#gauge { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: min(360px, calc(100vw - 260px)); min-width: 180px; text-align: center; pointer-events: none }
+#gauge .gl { font-size: 11.5px; color: #f1efe4; text-shadow: 0 1px 2px #000; letter-spacing: .08em; margin-bottom: 4px }
+#gauge .gb { height: 12px; border-radius: 6px; background: rgba(10,12,10,.7); border: 1px solid rgba(255,255,255,.35); overflow: hidden }
+#gauge .gb i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #c94b2a, #f0a33a); transition: width .15s }
+#gauge.full .gb i { background: linear-gradient(90deg, #f6d46a, #fff4c2, #f6d46a); animation: gpulse .5s infinite alternate }
+#gauge .gr { display: none; margin-top: 5px; font-weight: 700; color: #ffe27a; text-shadow: 0 1px 3px #000 } #gauge.full .gr { display: block }
+@keyframes gpulse { from { filter: brightness(1) } to { filter: brightness(1.5) } }
+#execbtn { position: fixed; right: calc(136px + env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px)); width: 84px; height: 84px; border-radius: 50%; font: 800 17px var(--f, sans-serif);
+  color: #2a0a00; background: #ffb44a; border: 3px solid #fff3c4; animation: gpulse .5s infinite alternate }
+#lbtop, #lbbot { position: fixed; left: 0; right: 0; height: 0; background: #000; transition: height .45s ease; pointer-events: none; z-index: 5 } #lbtop { top: 0 } #lbbot { bottom: 0 }
+body.cut #lbtop, body.cut #lbbot { height: 12vh } body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #stick, body.cut #execbtn { visibility: hidden }
+#cuttitle { position: fixed; left: 0; right: 0; top: 42%; text-align: center; font: 900 clamp(40px, 9vw, 96px) "Black Han Sans", var(--f, sans-serif); color: #fff3d0; letter-spacing: .04em;
+  text-shadow: 0 4px 0 #6b1c00, 0 0 30px rgba(255,120,40,.8); opacity: 0; transform: scale(1.6); transition: opacity .25s, transform .35s cubic-bezier(.2,1.6,.4,1); pointer-events: none; z-index: 6 }
+#cuttitle small { display: block; font: 700 clamp(14px, 2.4vw, 22px) var(--f, sans-serif); color: #ffe2b0; letter-spacing: .3em; margin-top: 6px }
+#cuttitle.on { opacity: 1; transform: scale(1) }
 #fxflash, #fxvig { position: fixed; inset: 0; pointer-events: none; opacity: 0 }
 #fxflash { background: radial-gradient(circle at 50% 45%, rgba(255,250,235,.95), rgba(255,240,210,.55) 45%, rgba(255,230,200,0) 80%) }
 #fxvig { background: radial-gradient(ellipse at center, rgba(160,0,0,0) 45%, rgba(150,0,0,.55) 100%) }
@@ -52,6 +67,9 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 <div class="hud" id="hud" aria-live="polite">불러오는 중</div>
 <div id="stick" aria-hidden="true"><i></i></div>
 <button type="button" id="atkpad" aria-label="공격">공격</button>
+<div id="gauge" hidden><div class="gl">타격 게이지</div><div class="gb"><i></i></div><div class="gr" id="gready">처형 가능! <kbd>E</kbd></div></div>
+<button type="button" id="execbtn" hidden>처형</button>
+<div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
 <div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
 <div id="load">들판에 사람 부르는 중…</div>
 
@@ -188,7 +206,7 @@ function playOnce(name) {
   strikes.length = 0;
   if (f && SP) {   // the partner squares up at the range where this attack lands, and the strikes are queued with their timing
     const meta = animMeta.clips[name] || {}, list = meta.strikes || [], t0 = st.t;
-    list.forEach((s_, i) => strikes.push({ t: t0 + s_.t, bone: s_.bone, follow: i > 0, power: f[3][i] ?? f[3][f[3].length - 1] ?? .6, label: f[1] }));
+    list.forEach((s_, i) => strikes.push({ final: !!(st.cutFinal && i === list.length - 1), t: t0 + s_.t, bone: s_.bone, follow: i > 0, power: f[3][i] ?? f[3][f[3].length - 1] ?? .6, label: f[1] }));
     if (list.length) spSquare(list[0]);
     list.forEach((s_, i) => setTimeout(() => FX.whoosh(f[3][i] ?? .6), Math.max(0, (s_.t - .14) * 1000))); }
   const snap = name.startsWith('hit_'); if (st.once) st.once.fadeOut(snap ? .05 : .25);
@@ -263,7 +281,7 @@ const FX = (() => {
       emit(p, 6 + Math.round(8 * s), { dir: dir.clone().multiplyScalar(.4), spread: 1, speed: 1.4, life: .35, size: .09 + .05 * s, color: [.7, .6, .45], kind: 1 });
       if (part === 'head' || part === 'cheek' || part === 'chin') emit(p, 8 + Math.round(10 * s), { dir: dir.clone().add(new THREE.Vector3(0, .5, 0)), spread: .6, speed: 2 + s, life: .5, size: .025, color: [.55, .65, .75], kind: 2 });
       if (heavy || down) { ring.position.copy(p); ring.visible = true; rs.t = 0; rs.s = .25 + .35 * s; }
-      const wk = crit ? 'crit' : kindKey; showWord(pick(WORDS[wk][0]), p, s, WORDS[wk][1]);
+      const wk = crit ? 'crit' : kindKey; if (!(st.cut && down)) showWord(pick(WORDS[wk][0]), p, s, WORDS[wk][1]);
       flashBody(who, s);
       // camera: shoved along the blow, plus shake; heavy zooms in for a beat
       camK.vel.addScaledVector(dir, .9 + 1.6 * s); shake.a = Math.max(shake.a, .015 + .035 * s); if (heavy || down) camK.zoom = 5 + 4 * s;
@@ -335,12 +353,14 @@ function judgeHit(sk) {
   const pDodge = SP.down || best.n.startsWith('leg') ? 0 : THREE.MathUtils.clamp(.08 + .05 * repeat - (dazed ? .08 : 0), 0, .25);
   const pCrit = THREE.MathUtils.clamp(.07 + (dazed ? .18 : 0) + (sk.follow ? .05 : 0), 0, .4);
   const roll = Math.random(), wdir = vel.clone().applyQuaternion(SP.holder.quaternion).setY(0); if (wdir.lengthSq() < 1e-6) wdir.set(0, 0, 1); wdir.normalize();
-  if (best.n !== 'leg_l' && best.n !== 'leg_r' && roll < pBlock) {
+  if (!st.cut && best.n !== 'leg_l' && best.n !== 'leg_r' && roll < pBlock) {
+    addGauge(3);
     spPlay(best.n === 'head' ? 'hit_face' : 'hit_chest', .22); SP.meter = (SP.meter || 0) + s * .15; hitStop = .03;
     FX.guard({ p: hit, dir: wdir, who: SP }); hitInfo.text = `${sk.label}: 막힘`; return; }
-  if (roll < pBlock + pDodge) {
+  if (!st.cut && roll < pBlock + pDodge) {
     spPlay(Math.random() < .5 ? 'hit_face_l' : 'hit_face_r', .3); FX.guard({ p: hit, dir: wdir, who: SP, dodge: true }); hitInfo.text = `${sk.label}: 피함`; return; }
-  const crit = Math.random() < pCrit; if (crit) s *= 1.5;
+  const crit = st.cut ? !!sk.final : Math.random() < pCrit; if (crit) s *= 1.5;
+  if (!st.cut) addGauge(s * 26 * (crit ? 1.6 : 1));
   SP.meter = (SP.meter || 0) + s;
   let reac, part;
   if (best.n === 'head') { part = upward ? '턱' : lateral ? (side === 'l' ? '왼뺨' : '오른뺨') : '얼굴'; reac = upward ? 'hit_chin' : lateral ? 'hit_face_' + side : 'hit_face'; }
@@ -348,7 +368,8 @@ function judgeHit(sk) {
   else if (best.n === 'gut') { part = lateral ? (side === 'l' ? '왼옆구리' : '오른옆구리') : '배'; reac = lateral ? 'hit_liver_' + side : 'hit_gut'; }
   else { part = best.n === 'leg_l' ? '왼다리' : '오른다리'; reac = 'hit_' + best.n; }
   let w = THREE.MathUtils.clamp(.4 + .6 * s / .95, .4, 1), note = '';
-  if (s >= 1.4 || SP.meter > 4.2) { reac = 'knockdown'; w = 1; SP.meter = 0; SP.down = true; note = ' → 다운'; }
+  if (st.cut && !sk.final) { w = 1; SP.meter = 1; }   // cutscene: every blow lands clean, the last one ends it
+  else if (sk.final || s >= 1.4 || SP.meter > 4.2) { reac = 'knockdown'; w = 1; SP.meter = 0; SP.down = true; note = ' → 다운'; }
   else if (s >= .95 || SP.meter > 2.6) { w = 1; note = ' (강타)';
     if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy';
     SP.next = null; SP.after = SP.meter > 2.6 ? 'stumble' : null; }
@@ -361,13 +382,59 @@ function judgeHit(sk) {
   hitInfo.text = `${sk.label}: ${part} ${crit ? '크리티컬' : '명중'} · 세기 ${s.toFixed(2)}${note}`;
 }
 let hitStop = 0;
+// ---------------------------------------------------------------- strike gauge → execution cutscene
+const gauge = { v: 0, idle: 0 };
+function addGauge(x) { if (!SP || SP.down) return; gauge.v = Math.min(100, gauge.v + x); gauge.idle = 0; }
+function gaugeUI() { const g = $('gauge'); g.hidden = !SP; g.querySelector('i').style.width = gauge.v + '%'; const full = gauge.v >= 100 && SP && !SP.down && !st.cut; g.classList.toggle('full', full);
+  $('execbtn').hidden = !(full && matchMedia('(pointer: coarse)').matches); }
+const EXECS = [
+  { name: '원투 어퍼 피니시', moves: ['combo_12', 'uppercut'] },
+  { name: '무릎 옆차기 처형', moves: ['hook', 'knee', 'kick_side'] },
+  { name: '날아차기 피날레', moves: ['combo_jh', 'jump_kick'] },
+];
+function execute() {
+  if (!SP || SP.down || st.cut || gauge.v < 100) return;
+  const E = EXECS[Math.floor(Math.random() * EXECS.length)];
+  gauge.v = 0; stopOnce(true); document.body.classList.add('cut'); if (document.pointerLockElement) document.exitPointerLock();
+  st.cut = { E, step: -1, t: 0, next: .55, shot: 0, endAt: 0, scale: 1 };
+  hitInfo.text = '처형: ' + E.name;
+}
+function cutStep(dt) {   // runs the moves back to back, cuts the camera per move, slows the last blow
+  const C = st.cut; C.t += dt * C.scale;   // cut time runs at animation speed, so the strike timings line up
+  if (C.step < C.E.moves.length - 1 && C.t >= C.next) {
+    C.step++; const mv = C.E.moves[C.step], last = C.step === C.E.moves.length - 1; st.cutFinal = last;
+    playOnce(mv); st.cutFinal = false; st.fight = false;   // no auto guard between cut moves
+    const meta = animMeta.clips[mv] || {}, ls = (meta.strikes || []).slice(-1)[0];
+    C.shot = last ? 2 : C.step % 2; C.strikeAt = C.t + (ls ? ls.t : .5);
+    C.next = C.t + (ls ? ls.t + .32 : .8);
+    if (last) { C.finalAt = C.strikeAt; C.endAt = C.strikeAt + 3.4; }
+  }
+  // slow motion around the last blow
+  C.scale = C.finalAt && C.t > C.finalAt - .12 && C.t < C.finalAt + .4 ? .2 : 1;
+  if (C.finalAt && C.t >= C.finalAt + .05 && !C.titled) { C.titled = true; $('cuttitle').innerHTML = 'K.O.<small>' + C.E.name + '</small>'; $('cuttitle').classList.add('on'); }
+  if (C.finalAt && C.t >= C.finalAt + .4) C.shot = 3;
+  if (C.endAt && C.t >= C.endAt) { st.cut = null; document.body.classList.remove('cut'); $('cuttitle').classList.remove('on'); playOnce('guard'); }
+}
+function cutCamera() {   // shot list: 0 low side wide, 1 over the shoulder, 2 close on the victim's face, 3 slow orbit over the knockdown
+  const C = st.cut, a = wpos(P, 'pelvis', new THREE.Vector3()), b = wpos(SP, 'pelvis', new THREE.Vector3()), hb = wpos(SP, 'head', new THREE.Vector3());
+  const F = b.clone().sub(a).setY(0); if (F.lengthSq() < 1e-4) F.set(Math.sin(st.yaw), 0, Math.cos(st.yaw)); F.normalize(); const L = new THREE.Vector3(F.z, 0, -F.x), mid = a.clone().lerp(b, .5);
+  let pos, tgt;
+  if (C.shot === 0) { pos = mid.clone().addScaledVector(L, 2.6).add(new THREE.Vector3(0, -.35, 0)).addScaledVector(F, -.4 + .15 * C.t); tgt = mid.clone().add(new THREE.Vector3(0, .35, 0)); }
+  else if (C.shot === 1) { pos = a.clone().addScaledVector(F, -1.5).addScaledVector(L, -.55).add(new THREE.Vector3(0, .75, 0)); tgt = hb.clone(); }
+  else if (C.shot === 2) { pos = hb.clone().addScaledVector(F, 1.7).addScaledVector(L, 1.15).add(new THREE.Vector3(0, -.1, 0)); tgt = hb.clone().addScaledVector(F, -.3).add(new THREE.Vector3(0, -.1, 0)); }   // in front of the victim, looking back at the blow
+  else { const ang = (C.t - C.finalAt) * .55; pos = b.clone().add(new THREE.Vector3(Math.cos(ang) * 3.2, 2.0, Math.sin(ang) * 3.2)); tgt = b.clone().add(new THREE.Vector3(0, .2, 0)); }
+  if (!C.camInit || C.lastShot !== C.shot) { cam.position.copy(pos); ctl.target.copy(tgt); C.camInit = true; C.lastShot = C.shot; }   // hard cut between shots
+  else { cam.position.lerp(pos, .12); ctl.target.lerp(tgt, .18); }
+  cam.lookAt(ctl.target);
+}
+addEventListener('keydown', e => { if (e.key.toLowerCase() === 'e' && gauge.v >= 100 && SP && !st.cut) { e.stopImmediatePropagation(); execute(); } }, true);
 // one attack button: the move is chosen from the range, the partner's state and the combo so far (weighted random, no straight repeats)
 const RANGE = { close: ['hook', 'uppercut', 'knee', 'combo_jh', 'flurry'], mid: ['jab', 'cross', 'combo_12', 'combo_jh', 'hook', 'flurry'], far: ['kick_front', 'kick_side', 'jump_kick', 'jab'] };
 const CHAIN = { jab: ['cross', 'hook', 'combo_12'], cross: ['hook', 'uppercut', 'kick_side'], hook: ['uppercut', 'cross', 'knee'], combo_12: ['hook', 'uppercut', 'kick_front'],
   combo_jh: ['uppercut', 'cross', 'kick_side'], uppercut: ['hook', 'kick_side', 'jab'], knee: ['uppercut', 'hook'], kick_front: ['jab', 'cross', 'jump_kick'] };
 const FINISH = ['uppercut', 'kick_side', 'jump_kick'];
 function autoAttack() {
-  if (!P) return; if (st.once && st.onceName !== 'guard' && st.once.isRunning() && st.once.time < st.once.getClip().duration * .55) { st.queued = true; return; }   // pressed mid-swing: chain next
+  if (!P || st.cut) return; if (st.once && st.onceName !== 'guard' && st.once.isRunning() && st.once.time < st.once.getClip().duration * .55) { st.queued = true; return; }   // pressed mid-swing: chain next
   if (SP && SP.down) { hitInfo.text = '쓰러진 상대는 때리지 않습니다'; return; }
   const a_ = wpos(P, 'pelvis', new THREE.Vector3()), b_ = SP ? wpos(SP, 'pelvis', new THREE.Vector3()) : a_.clone().add(new THREE.Vector3(1.2, 0, 0));
   const dist = Math.hypot(b_.x - a_.x, b_.z - a_.z);   // where the bodies really are (reactions push the partner back)
@@ -421,6 +488,7 @@ btns($('hurt'), HURT, playOnce);
 $('spar').addEventListener('click', () => { toggleSpar(); $('spar').blur(); });
 $('atk').addEventListener('click', () => { autoAttack(); $('atk').blur(); });
 $('atkpad').addEventListener('pointerdown', e => { e.preventDefault(); autoAttack(); });
+$('execbtn').addEventListener('pointerdown', e => { e.preventDefault(); execute(); });
 function sync() {
   $('people').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === current)));
   $('gaits').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.gait)));
@@ -430,11 +498,13 @@ function sync() {
 // ---------------------------------------------------------------- update
 const clock = new THREE.Clock(), tmp = new THREE.Vector3();
 function update(dt) {
-  if (!P) return; dt *= FX.timeScale(); st.t += dt;
+  if (!P) return; if (st.cut) { cutStep(dt); dt *= st.cut ? st.cut.scale : 1; }
+  dt *= FX.timeScale(); st.t += dt;
+  gauge.idle += dt; if (gauge.idle > 2.5 && gauge.v < 100) gauge.v = Math.max(0, gauge.v - 6 * dt); gaugeUI();
   // desired move direction relative to the camera
   let ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x;
   let iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
-  const mag = Math.min(1, Math.hypot(ix, iz)); const moving = mag > .1;
+  const mag = Math.min(1, Math.hypot(ix, iz)); const moving = !st.cut && mag > .1;   // no control during the cutscene
   const table = LOCO[st.gait], top = table[table.length - 1][1];
   const want = moving ? (st.gait === 'normal' ? (keys.has('shift') ? 3.0 : 1.0) : top) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
   if (moving && st.once && !(st.once.userData.loop === false && st.onceName === 'jump')) stopOnce(true);
@@ -474,13 +544,14 @@ function update(dt) {
   if (hitStop > 0) hitStop -= dt;
   // camera follow
   tmp.copy(P.holder.position); tmp.y = 1.25; const dlt = tmp.clone().sub(ctl.target); ctl.target.add(dlt); cam.position.add(dlt);
+  if (st.cut && SP) cutCamera();
   FX.update(dt);
   if (shake.a > .001) { cam.position.x += (Math.random() - .5) * shake.a; cam.position.y += (Math.random() - .5) * shake.a; shake.a *= Math.exp(-dt * 9); }
   sun.position.set(P.holder.position.x + 6, 10, P.holder.position.z + 4); sun.target.position.copy(P.holder.position);
   $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ALLACTS().find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}${hitInfo.text ? '<br>' + hitInfo.text : ''}`;
 }
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
-r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); FX.afterRender(); });
+r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); if (!st.cut) ctl.update(); r.render(scene, cam); FX.afterRender(); });
 await choose('ijang');
-window.__dbg = { autoAttack, hitInfo, toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
+window.__dbg = { gauge, execute, wpos, get SPX() { return SP; }, autoAttack, hitInfo, toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
 </script>

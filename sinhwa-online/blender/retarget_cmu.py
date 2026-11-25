@@ -185,7 +185,7 @@ for clip, spec in CLIPS.items():
             ALIGN[s] = td.rotation_difference(sd)
     # hips: scale and in-place handling
     src_stand = S_REST_W['Hips'].translation.z if S_REST_W['Hips'].translation.z > 1 else np.median(HP[:, 2])
-    stand_h = np.percentile(HP[seg, 2], 75) if mode in ('loop', 'loopw') else HP[seg[0], 2]
+    stand_h = np.percentile(HP[seg, 2], 75) if mode in ('loop', 'loopw') else max(HP[seg[0], 2], np.percentile(HP[:, 2], 90))   # a clip that starts on the floor: scale by the standing height
     scale = pel_h / max(stand_h, 1e-3)
     P = np.array([tuple(Rc @ Vector(p)) for p in HP[seg]])
     P -= P[0]
