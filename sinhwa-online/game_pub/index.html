@@ -344,6 +344,7 @@ const grassCam = uniform(new THREE.Vector3()), grassTime = uniform(0);
 say('주민 부르는 중…');
 const [at, ab, AM] = await Promise.all([fetch('anim.json').then(x => x.text()), fetch('anim_bin.json').then(x => x.json()), fetch('anims.json').then(x => x.json())]);
 const AG = await new GLTFLoader().parseAsync(glbFrom(at, ab.data), './');
+const FIGHTSET = new Set(['jab', 'cross', 'hook', 'uppercut', 'combo_12', 'combo_jh', 'flurry', 'kick_front', 'kick_side', 'knee', 'jump_kick']);
 const uvC = uv();
 async function person(id) {
   const base = 'npc/' + id + '/';
@@ -368,7 +369,15 @@ function rig(model, src) {
   const bones = {}; model.traverse(o => { if (o.isBone) bones[o.name] = o; }); const bone = nm => bones[nm];
   let refP = null; AG.scene.traverse(o => { if (o.name === 'pelvis') refP = o.position.clone(); });
   const pel = bone('pelvis'), rest = pel.position.clone(), k = rest.length() / refP.length();
-  const clips = src ? src.clips : AG.animations.map(clip => { const c = clip.clone(); for (const tr of c.tracks) if (tr.name === 'pelvis.position') for (let i = 0; i < tr.values.length; i += 3) for (let a = 0; a < 3; a++) tr.values[i + a] = rest.getComponent(a) + (tr.values[i + a] - refP.getComponent(a)) * k; return c; });
+  const clips = src ? src.clips : AG.animations.map(clip => { const c = clip.clone(); for (const tr of c.tracks) if (tr.name === 'pelvis.position') {
+      for (let i = 0; i < tr.values.length; i += 3) for (let a = 0; a < 3; a++) tr.values[i + a] = rest.getComponent(a) + (tr.values[i + a] - refP.getComponent(a)) * k;
+      if (AM.clips[c.name] && AM.clips[c.name].loop === false) {   // root motion: keep the travel as a curve, the pose stays over the feet
+        const n = tr.times.length, xs = new Float32Array(n), ys = new Float32Array(n), x0 = tr.values[0], y0 = tr.values[1];
+        for (let i = 0; i < n; i++) { xs[i] = tr.values[i * 3] - x0; ys[i] = tr.values[i * 3 + 1] - y0; tr.values[i * 3] = x0; tr.values[i * 3 + 1] = y0; }
+        const far = Math.hypot(xs[n - 1], ys[n - 1]), cap = FIGHTSET.has(c.name) ? 9 : 1.0;   // reactions travel at most a metre (the shove does the rest)
+        if (far > cap) for (let i = 0; i < n; i++) { xs[i] *= cap / far; ys[i] *= cap / far; }
+        c.userData.root = { t: tr.times, xs, ys }; } }
+    return c; });
   const mixer = new THREE.AnimationMixer(model), act = {};
   for (const c of clips) act[c.name] = mixer.clipAction(c);
   const holder = new THREE.Group(); holder.add(model); scene.add(holder);
@@ -501,7 +510,16 @@ const LOCO = [['idle', 0, 1], ['walk', 1.4, .954], ['jog', 3.2, 2.339], ['run', 
 function playOnce(F, name, w = 1, fade = .2) {
   const a = F.act[name]; if (!a) return;
   if (F.once && F.once !== a) F.once.fadeOut(fade);
-  a.reset(); a.setEffectiveWeight(w); a.fadeIn(fade); a.play(); F.once = a; F.onceName = name; F.ending = false;
+  a.reset(); a.setEffectiveWeight(w); a.fadeIn(fade); a.play(); F.once = a; F.onceName = name; F.ending = false; F.rootPrev = 0;
+}
+const _rv = new THREE.Vector3(), _rm = new THREE.Matrix4();
+function rootAt(R, t) { const T = R.t, n = T.length; if (t <= T[0]) return [R.xs[0], R.ys[0]]; if (t >= T[n - 1]) return [R.xs[n - 1], R.ys[n - 1]];
+  let i = 1; while (T[i] < t) i++; const f = (t - T[i - 1]) / (T[i] - T[i - 1]); return [R.xs[i - 1] + (R.xs[i] - R.xs[i - 1]) * f, R.ys[i - 1] + (R.ys[i] - R.ys[i - 1]) * f]; }
+function rootMove(F, R, t0, t1, w) {   // the clip's travel this frame, in the pelvis parent's frame -> holder -> world -> game
+  if (t1 <= t0 || w < .05) return;
+  if (!F.rootM) { F.holder.updateMatrixWorld(true); F.rootM = new THREE.Matrix4().copy(F.holder.matrixWorld).invert().multiply(F.bone('pelvis').parent.matrixWorld).setPosition(0, 0, 0); }
+  const a = rootAt(R, t0), b = rootAt(R, t1); _rv.set(b[0] - a[0], b[1] - a[1], 0).applyMatrix4(F.rootM).applyAxisAngle(UP, F.yaw).multiplyScalar(w);
+  [F.x, F.y] = collide(F.x + _rv.x, F.y - _rv.z);
 }
 function animate(F, dt) {
   const w = { idle: 0, walk: 0, jog: 0, run: 0 }, s = Math.min(Math.abs(F.speed), 5.5);
@@ -515,7 +533,9 @@ function animate(F, dt) {
   const ow = F.once ? F.once.getEffectiveWeight() : 0, g = F.combatT > 0 ? w.idle : 0;
   for (const n in w) { F.act[n].setEffectiveWeight((n === 'idle' ? w.idle - g : w[n]) * (1 - ow)); if (n !== 'idle') { F.act[n].timeScale = 0; F.act[n].time = F.phase * F.act[n].getClip().duration; } }
   F.act.guard.setEffectiveWeight(g * (1 - ow));
+  const ra = F.once, rt0 = ra ? ra.time : 0;
   F.update(G.hitStop > 0 ? dt * .08 : dt, .7 * (w.idle - g) * (1 - ow));   // hit-stop: a few frames of near-freeze on impact
+  if (ra && ra === F.once && ra.getClip().userData.root) rootMove(F, ra.getClip().userData.root, rt0, ra.time, ra.getEffectiveWeight());
   springs(F, dt);
 }
 function onceDone(F) {
@@ -535,7 +555,7 @@ function attack(F, mv, T) {
   const list = CLIPS[mv].strikes || [], pw = FIGHT[mv][1], t0 = G.t;
   list.forEach((s_, i) => F.strikes.push({ t: t0 + s_.t, bone: s_.bone, follow: i > 0, power: pw[i] ?? pw[pw.length - 1] ?? .6, label: FIGHT[mv][0], final: !!(G.cutFinal && i === list.length - 1), whoosh: t0 + Math.max(0, s_.t - .14), hist: [] }));
   if (T && list.length) { const s0 = list[0], k = F.k, depth = s0.up * k > 1.25 ? .1 : .14;   // step in so the first strike lands on the target
-    F.yaw = yawTo(F, T); F.lunge = { T, reach: s0.fwd * k + depth, lat: s0.lat * k, t: THREE.MathUtils.clamp(s0.t, .12, .3) }; }
+    F.lunge = { T, reach: s0.fwd * k + depth, lat: s0.lat * k, t: THREE.MathUtils.clamp(s0.t, .15, .35), max: G.cut ? 1.2 : .45 }; }   // a short step, never a jump
   F.repeat = mv === F.lastAtk ? F.repeat + 1 : 0; F.lastAtk = mv; F.lastAtkT = G.t;
 }
 function chooseMove(F, T) {
@@ -570,7 +590,7 @@ function judge(A, sk) {
     const head = wpos(D, 'head').add(new THREE.Vector3(0, .09, 0)), chest = wpos(D, 'spine_03'), gut = wpos(D, 'spine_01');
     const thl = wpos(D, 'thigh_l').lerp(wpos(D, 'calf_l'), .5), thr = wpos(D, 'thigh_r').lerp(wpos(D, 'calf_r'), .5);
     for (const [n, c, r_] of [['head', head, .15], ['chest', chest, .2], ['gut', gut, .2], ['leg_l', thl, .14], ['leg_r', thr, .14]]) { const d = hit.distanceTo(c) - r_; if (!best || d < best.d) best = { D, n, c, d }; } }
-  if (!best || best.d > (sk.follow ? .75 : .45)) { if (A === P) note(`${sk.label}: 빗나감`); return; }
+  if (!best || best.d > (sk.follow ? .75 : .45)) { return; }
   const D = best.D, inv = _q.copy(D.holder.quaternion).invert(), loc = hit.clone().sub(best.c).applyQuaternion(inv);
   const h0 = sk.hist.find(h => G.t - h[0] <= .12) || sk.hist[0] || [G.t, hit];
   const vel = hit.clone().sub(h0[1]).divideScalar(Math.max(G.t - h0[0], 1 / 60)).applyQuaternion(inv), sp = vel.length();
@@ -586,8 +606,8 @@ function judge(A, sk) {
   if (!best.n.startsWith('leg') && roll < pBlock) {
     if (A === P) addGauge(3);
     react(D, best.n === 'head' ? 'hit_face' : 'hit_chest', .22); D.meter += s * .15; G.hitStop = .03; D.combatT = 4; jolt(D, best.n, wdir, s * .35); shove(D, wdir, .9 + .6 * s);
-    FX.guard({ p: hit, dir: wdir }); note(`${sk.label}: ${D === P ? '막았다' : '막힘'}`); return; }
-  if (roll < pBlock + pDodge || (D === P && G.t < (P.iframe || 0))) { react(D, Math.random() < .5 ? 'hit_face_l' : 'hit_face_r', .3); FX.guard({ p: hit, dir: wdir, dodge: true }); note(`${sk.label}: ${D === P ? '피했다' : '피함'}`); return; }
+    FX.guard({ p: hit, dir: wdir }); return; }
+  if (roll < pBlock + pDodge || (D === P && G.t < (P.iframe || 0))) { react(D, Math.random() < .5 ? 'hit_face_l' : 'hit_face_r', .3); FX.guard({ p: hit, dir: wdir, dodge: true }); return; }
   const crit = cut ? !!sk.final : Math.random() < pCrit; if (crit) s *= 1.5;
   if (A === P && !cut) addGauge(s * 26 * (crit ? 1.6 : 1));
   D.meter += s; D.hurtT = G.t; D.combatT = 4;
@@ -608,8 +628,8 @@ function judge(A, sk) {
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
   jolt(D, best.n, worldDir, s * (crit ? 1.3 : 1) * (heavy ? 1.5 : 1)); shove(D, worldDir, down ? 4.6 : heavy ? 3.2 : 1.1 + 1.2 * s);
   FX.impact({ crit, p: hit, dir: worldDir, s: D === P ? s * .7 : s, part: fxPart, heavy, down, who: D, mine: A === P || D === P });
-  G.hitStop = .05 + .07 * Math.min(s, 1.5);
-  note(`${A === P ? '' : A.name + '의 '}${sk.label}: ${D === P ? '내 ' : ''}${part} ${crit ? '크리티컬' : '명중'}${down ? (D.hp <= 0 ? ' → 기절' : ' → 다운') : ''}`);
+  G.hitStop = .035 + .045 * Math.min(s, 1.5);
+  G.lastHit = `${A.id}>${D.id}:${part}${crit ? '!' : ''}${down ? '↓' : ''}`;   // for tests; nothing on screen
 }
 // ---- body physics: knockback velocity with ground friction, wall slams, bodies bumping, and a spring-damper on the trunk so every hit visibly jolts the body
 const SPR_BONES = ['spine_01', 'spine_02', 'spine_03', 'neck_01', 'head'];
@@ -635,7 +655,7 @@ function physics(F, dt) {
   const nx = F.x + vx * dt, ny = F.y + vy * dt, [cx, cy] = collide(nx, ny), lost = Math.hypot(nx - cx, ny - cy);
   F.x = cx; F.y = cy;
   if (lost > sp * dt * .4) {   // ran into a wall
-    if (sp > 3.2 && !F.wallT) { F.wallT = .5; F.hp = Math.max(0, F.hp - sp * 2.5); FX.shake(.05); FX.fallSound(); note('벽꽝!');
+    if (sp > 3.2 && !F.wallT) { F.wallT = .5; F.hp = Math.max(0, F.hp - sp * 2.5); FX.shake(.05); FX.fallSound(); 
       if (F.hp <= 0 && !F.down) { react(F, 'knockdown', 1, true); F.down = true; F.fallAt = G.t + .6; } }
     F.vel[0] *= -.15; F.vel[1] *= -.15; }
   const fr = Math.exp(-dt * (F.down ? 3.2 : 7.5)); F.vel[0] *= fr; F.vel[1] *= fr;
@@ -691,10 +711,10 @@ function think(n, dt) {
 function moveFighter(F, dt) {
   if (!F.lunge) physics(F, dt);
   const acc = F.want > F.speed ? 4.5 : 7; F.speed += Math.sign(F.want - F.speed) * Math.min(Math.abs(F.want - F.speed), acc * dt);
-  if (F.lunge) { const L = F.lunge; L.t -= dt; F.yaw = yawTo(F, L.T);
+  if (F.lunge) { const L = F.lunge; L.t -= dt; turnTo(F, yawTo(F, L.T), 16, dt);   // turn into the target, step at walking pace
     const fx = Math.sin(F.yaw), fy = -Math.cos(F.yaw), lx = Math.cos(F.yaw), ly = Math.sin(F.yaw);
-    let tx = L.T.x - fx * L.reach - lx * L.lat, ty = L.T.y - fy * L.reach - ly * L.lat, ddx = tx - F.x, ddy = ty - F.y; const dl = Math.hypot(ddx, ddy), mx = Math.min(dl, 1.6);
-    if (dl > 1e-4) { const f = Math.min(1, dt / Math.max(L.t, dt)); [F.x, F.y] = collide(F.x + ddx / dl * mx * f, F.y + ddy / dl * mx * f); }
+    let tx = L.T.x - fx * L.reach - lx * L.lat, ty = L.T.y - fy * L.reach - ly * L.lat, ddx = tx - F.x, ddy = ty - F.y; const dl = Math.hypot(ddx, ddy);
+    if (dl > 1e-4 && L.max > 0) { const st = Math.min(dl, L.max, (G.cut ? 3 : 2.2) * dt); L.max -= st; [F.x, F.y] = collide(F.x + ddx / dl * st, F.y + ddy / dl * st); }
     if (L.t <= 0) F.lunge = null; }
   else if (!(F.once && !F.ending) && Math.abs(F.speed) > .01) [F.x, F.y] = collide(F.x + Math.sin(F.yaw) * F.speed * dt, F.y - Math.cos(F.yaw) * F.speed * dt);
   if (F.once && !F.ending) F.speed *= Math.exp(-dt * 10);
@@ -807,10 +827,10 @@ const FX = (() => {
   for (const a of [posA, colA, sizeA]) a.setUsage(THREE.DynamicDrawUsage);
   const dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
     gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
-  const pm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  const pm = new THREE.SpriteNodeMaterial({ transparent: true, depthWrite: false });
   const ta = texture(dot).a;
   pm.positionNode = instancedDynamicBufferAttribute(posA); pm.scaleNode = instancedDynamicBufferAttribute(sizeA);
-  pm.colorNode = vec4(instancedDynamicBufferAttribute(colA).mul(ta), ta);
+  pm.colorNode = vec4(instancedDynamicBufferAttribute(colA), ta.mul(.75));
   const pts = new THREE.Sprite(pm); pts.count = N; pts.frustumCulled = false; pts.renderOrder = 8; scene.add(pts);
   let head = 0;
   function emit(p, n, opt) { for (let k = 0; k < n; k++) { const i = head; head = (head + 1) % N;
@@ -851,22 +871,16 @@ const FX = (() => {
   return {
     impact({ p, dir, s, part, heavy, down, who, crit, mine }) {
       dir = dir.clone().add(new THREE.Vector3((Math.random() - .5) * .5, (Math.random() - .3) * .4, (Math.random() - .5) * .5)).normalize();
-      emit(p, 6 + Math.round((14 + Math.random() * 12) * s), { dir: dir.clone().multiplyScalar(.9), spread: .9, speed: 2.6 + 2.2 * s, life: .22, size: .05 + .03 * s, color: [3.0, 2.4, 1.4], kind: 0 });
-      emit(p, 6 + Math.round(8 * s), { dir: dir.clone().multiplyScalar(.4), spread: 1, speed: 1.4, life: .35, size: .09 + .05 * s, color: [.7, .6, .45], kind: 1 });
-      if (part === 'head' || part === 'cheek' || part === 'chin') emit(p, 8 + Math.round(10 * s), { dir: dir.clone().add(new THREE.Vector3(0, .5, 0)), spread: .6, speed: 2 + s, life: .5, size: .025, color: [.55, .65, .75], kind: 2 });
-      if (heavy || down) { ring.position.copy(p); ring.visible = true; rs.t = 0; rs.s = .25 + .35 * s; }
-      const wk = crit ? 'crit' : down ? 'down' : heavy ? 'heavy' : part; if (!(G.cut && down)) showWord(pick(WORDS[wk][0]), p, s, WORDS[wk][1]);
-      flashBody(who, s);
-      const k = mine ? 1 : .35;   // a fight you are in shakes the camera; one across the street barely
-      camK.vel.addScaledVector(dir, (.9 + 1.6 * s) * k); shake.a = Math.max(shake.a, (.015 + .035 * s) * k); if ((heavy || down) && mine) camK.zoom = 5 + 4 * s;
-      if (mine) { flashA = heavy || down ? .55 : .12 * s; vigA = Math.min(.9, vigA + (who === P ? .45 : .25) + .2 * s); }
-      if (down && mine) { slow = .3; slowT = .6; }
+      if (heavy || down || crit) emit(p, 4 + Math.round(6 * s), { dir: dir.clone().multiplyScalar(.5), spread: .8, speed: 1.1, life: .4, size: .07 + .04 * s, color: [.42, .39, .35], kind: 1 });   // a puff off the clothes
+      if (part === 'head' || part === 'cheek' || part === 'chin') emit(p, 3 + Math.round(4 * s), { dir: dir.clone().add(new THREE.Vector3(0, .3, 0)), spread: .5, speed: 1.6 + s, life: .45, size: .018, color: [.78, .82, .86], kind: 2 });
+      const k = mine ? 1 : .3;   // a fight you are in moves the camera; one across the street barely
+      camK.vel.addScaledVector(dir, (.35 + .7 * s) * k); shake.a = Math.max(shake.a, (.006 + .014 * s) * (heavy || down ? 1.6 : 1) * k);
+      if (who === P) vigA = Math.min(.7, vigA + .18 + .12 * s);   // only your own hurt tints the screen
       const near = Math.hypot(who.x - P.x, who.y - P.y); thump(s, part, THREE.MathUtils.clamp(1.4 - near / 14, .1, 1));
       if (mine) try { navigator.vibrate && navigator.vibrate(heavy || down ? [30, 20, 60] : 18 + Math.round(20 * s)); } catch (e) {}
     },
     guard({ p, dir, dodge }) {
-      if (!dodge) { emit(p, 8, { dir: dir.clone().multiplyScalar(-.5), spread: 1, speed: 1.8, life: .18, size: .04, color: [1.2, 1.6, 2.0], kind: 0 }); thump(.25, 'body'); camK.vel.addScaledVector(dir, .5); shake.a = Math.max(shake.a, .01); }
-      showWord(pick(WORDS[dodge ? 'dodge' : 'block'][0]), p, .3, WORDS[dodge ? 'dodge' : 'block'][1]); },
+      if (!dodge) { thump(.25, 'body'); camK.vel.addScaledVector(dir, .25); shake.a = Math.max(shake.a, .005); } },
     ctx() { return ac; }, whoosh, fallSound, shake(a) { shake.a = Math.max(shake.a, a); },
     dust(p) { emit(p, 40, { dir: new THREE.Vector3(0, .5, 0), spread: 1.2, speed: 1.3, life: .9, size: .22, color: [.38, .33, .26], kind: 3 }); },
     timeScale() { return slowT > 0 ? slow : 1; },
@@ -875,7 +889,7 @@ const FX = (() => {
       for (let i = 0; i < N; i++) { if (life[i] <= 0) { size[i] = 0; continue; } life[i] -= dt; const k = kind[i];
         vel[i * 3 + 1] -= (k === 2 ? 6 : k === 3 ? -.2 : 2.5) * dt; const drag = k === 3 ? .9 : .97; vel[i * 3] *= drag; vel[i * 3 + 1] *= drag; vel[i * 3 + 2] *= drag;
         pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
-        if (k !== 3) { col[i * 3] *= .97; col[i * 3 + 1] *= .95; col[i * 3 + 2] *= .93; } else size[i] *= 1.01; if (life[i] <= 0) size[i] = 0; }
+        size[i] *= k === 3 ? 1.01 : .975;   // shrink away (normal blending: no glowing sparks) if (life[i] <= 0) size[i] = 0; }
       posA.needsUpdate = colA.needsUpdate = sizeA.needsUpdate = true;
       if (ring.visible) { rs.t += dt; const u = rs.t / .28; ring.scale.setScalar(rs.s * (.15 + u * .9)); ring.quaternion.copy(cam.quaternion); ringMat.opacity = Math.max(0, .8 * (1 - u)); if (u >= 1) ring.visible = false; }
       if (word.life > 0) { word.life -= dt; const u = 1 - word.life / .55, pop = u < .15 ? u / .15 * 1.25 : 1.25 - .25 * Math.min(1, (u - .15) / .2);
