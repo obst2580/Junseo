@@ -87,7 +87,7 @@ const GAITS = { normal: '보통', sneak: '살금살금', limp: '절뚝', drunk: 
 // fighting: [clip, label, key, strike times (s) → what the sparring partner takes]
 // fighting: [clip, label, key, power per strike] — where and how a strike lands is decided at contact (see judgeHit)
 const FIGHT = [['guard', '가드 자세', 'F', []], ['jab', '잽', '1', [.45]], ['cross', '스트레이트', '2', [.8]], ['hook', '훅', '3', [.85]], ['uppercut', '어퍼컷', '4', [1.05]],
-  ['combo_12', '원투', '5', [.45, .8]], ['combo_jh', '잽 훅', '6', [.45, .85]], ['flurry', '연타', '7', [.3, .3, .3, .3, .3, .3, .3, .3, .35, .35, .4, .4, .5, 1.1]],
+  ['combo_12', '원투', '5', [.45, .8]], ['combo_jh', '잽 훅', '6', [.45, .85]],
   ['kick_front', '앞차기', '8', [1.0]], ['kick_side', '옆차기', '9', [1.15]], ['knee', '무릎', '0', [.85]], ['jump_kick', '날아차기', 'K', [1.6]]];
 const HURT = [['hit_face', '얼굴 맞음', ''], ['hit_face_l', '왼뺨 맞음', ''], ['hit_face_r', '오른뺨 맞음', ''], ['hit_chin', '턱 맞음', ''], ['hit_chest', '가슴 맞음', ''], ['hit_gut', '배 맞음', ''],
   ['hit_liver_l', '왼옆구리', ''], ['hit_liver_r', '오른옆구리', ''], ['hit_leg_l', '왼다리', ''], ['hit_leg_r', '오른다리', ''], ['hit_heavy', '세게 맞음', ''], ['hit_spin_l', '돌아감(좌)', ''], ['hit_spin_r', '돌아감(우)', ''],
@@ -431,7 +431,7 @@ function cutCamera() {   // shot list: 0 low side wide, 1 over the shoulder, 2 c
 }
 addEventListener('keydown', e => { if (e.key.toLowerCase() === 'e' && gauge.v >= 100 && SP && !st.cut) { e.stopImmediatePropagation(); execute(); } }, true);
 // one attack button: the move is chosen from the range, the partner's state and the combo so far (weighted random, no straight repeats)
-const RANGE = { close: ['hook', 'uppercut', 'knee', 'combo_jh', 'flurry'], mid: ['jab', 'cross', 'combo_12', 'combo_jh', 'hook', 'flurry'], far: ['kick_front', 'kick_side', 'jump_kick', 'jab'] };
+const RANGE = { close: ['hook', 'uppercut', 'knee', 'combo_jh'], mid: ['jab', 'cross', 'combo_12', 'combo_jh', 'hook'], far: ['kick_front', 'kick_side', 'jump_kick', 'jab'] };
 const CHAIN = { jab: ['cross', 'hook', 'combo_12'], cross: ['hook', 'uppercut', 'kick_side'], hook: ['uppercut', 'cross', 'knee'], combo_12: ['hook', 'uppercut', 'kick_front'],
   combo_jh: ['uppercut', 'cross', 'kick_side'], uppercut: ['hook', 'kick_side', 'jab'], knee: ['uppercut', 'hook'], kick_front: ['jab', 'cross', 'jump_kick'] };
 const FINISH = ['uppercut', 'kick_side', 'jump_kick'];
