@@ -516,6 +516,7 @@ function animate(F, dt) {
   for (const n in w) { F.act[n].setEffectiveWeight((n === 'idle' ? w.idle - g : w[n]) * (1 - ow)); if (n !== 'idle') { F.act[n].timeScale = 0; F.act[n].time = F.phase * F.act[n].getClip().duration; } }
   F.act.guard.setEffectiveWeight(g * (1 - ow));
   F.update(G.hitStop > 0 ? dt * .08 : dt, .7 * (w.idle - g) * (1 - ow));   // hit-stop: a few frames of near-freeze on impact
+  springs(F, dt);
 }
 function onceDone(F) {
   const was = F.onceName;
@@ -523,7 +524,7 @@ function onceDone(F) {
     if (F.hp <= 0) { if (!F.ko) F.ko = F === P ? 3.2 : 7 + Math.random() * 3; return; }   // out cold: lie there (clamped on the last frame)
     playOnce(F, 'getup_back', 1, .15); return; }
   if (F.next) { const n = F.next; F.next = null; playOnce(F, n, 1, .1); return; }
-  if (was === 'getup_back') { F.down = false; F.meter = 0; }
+  if (was === 'getup_back') { F.down = false; F.meter = 0; if (F === P) P.iframe = G.t + 1.2; }
   F.ending = true; F.once.fadeOut(.25);
   if (FIGHT[was] && F.queued) { F.queued = false; if (F === P) playerAttack(); }
 }
@@ -558,7 +559,7 @@ function targetFor(F, range = 3.2) {   // the nearest standing person in front
 function playerAttack() {
   if (!P || G.cut || P.down || WANT.busted) return;
   if (P.once && FIGHT[P.onceName] && !P.ending && P.once.time < P.once.getClip().duration * .55) { P.queued = true; return; }   // pressed mid-swing: chain the next
-  if (P.once && !FIGHT[P.onceName] && !P.ending && P.onceName !== 'guard') return;   // still reeling
+  if (P.once && !FIGHT[P.onceName] && !P.ending && P.onceName !== 'guard' && (P.down || P.once.time < .2)) { P.buffer = G.t; return; }   // too soon: remember the press
   const T = targetFor(P); attack(P, chooseMove(P, T), T); P.target = T;
 }
 // ---- contact: the striking bone against the defender's body parts
@@ -584,13 +585,13 @@ function judge(A, sk) {
   provoke(D, A);
   if (!best.n.startsWith('leg') && roll < pBlock) {
     if (A === P) addGauge(3);
-    react(D, best.n === 'head' ? 'hit_face' : 'hit_chest', .22); D.meter += s * .15; G.hitStop = .03; D.combatT = 4;
+    react(D, best.n === 'head' ? 'hit_face' : 'hit_chest', .22); D.meter += s * .15; G.hitStop = .03; D.combatT = 4; jolt(D, best.n, wdir, s * .35); shove(D, wdir, .9 + .6 * s);
     FX.guard({ p: hit, dir: wdir }); note(`${sk.label}: ${D === P ? '막았다' : '막힘'}`); return; }
-  if (roll < pBlock + pDodge) { react(D, Math.random() < .5 ? 'hit_face_l' : 'hit_face_r', .3); FX.guard({ p: hit, dir: wdir, dodge: true }); note(`${sk.label}: ${D === P ? '피했다' : '피함'}`); return; }
+  if (roll < pBlock + pDodge || (D === P && G.t < (P.iframe || 0))) { react(D, Math.random() < .5 ? 'hit_face_l' : 'hit_face_r', .3); FX.guard({ p: hit, dir: wdir, dodge: true }); note(`${sk.label}: ${D === P ? '피했다' : '피함'}`); return; }
   const crit = cut ? !!sk.final : Math.random() < pCrit; if (crit) s *= 1.5;
   if (A === P && !cut) addGauge(s * 26 * (crit ? 1.6 : 1));
   D.meter += s; D.hurtT = G.t; D.combatT = 4;
-  D.hp = Math.max(0, D.hp - (cut ? (sk.final ? 999 : 4) : s * (D === P ? 8 : 15) * (crit ? 1.4 : 1)));
+  D.hp = Math.max(0, D.hp - (cut ? (sk.final ? 999 : 4) : s * (D === P ? 6 : 15) * (crit ? 1.4 : 1)));
   let reac, part;
   if (best.n === 'head') { part = upward ? '턱' : lateral ? (side === 'l' ? '왼뺨' : '오른뺨') : '얼굴'; reac = upward ? 'hit_chin' : lateral ? 'hit_face_' + side : 'hit_face'; }
   else if (best.n === 'chest') { part = '가슴'; reac = 'hit_chest'; }
@@ -600,15 +601,50 @@ function judge(A, sk) {
   if (cut && !sk.final) w = 1;
   else if (sk.final || D.hp <= 0 || s >= 1.4 || D.meter > 4.2) { reac = 'knockdown'; w = 1; D.meter = 0; down = true; }
   else if (s >= .95 || D.meter > 2.6) { w = 1; heavy = true; if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy'; after = D.meter > 2.6 ? 'stumble' : null; }
-  react(D, reac, w); D.next = after;
+  react(D, reac, w, heavy || down); D.next = after;
+  if (D !== P) D.atkCd = Math.max(D.atkCd, .55 + .4 * s);   // hit-stun for the AI: a clean hit buys you a beat
   if (down) { D.down = true; D.fallAt = G.t + .85; if (D.hp <= 0 && D !== P) { speak(D, 'ko'); if (A === P && !cut) crime(D, 'ko'); } }
   const worldDir = vel.clone().applyQuaternion(D.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.copy(fwd3(A.yaw)); worldDir.normalize();
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
+  jolt(D, best.n, worldDir, s * (crit ? 1.3 : 1) * (heavy ? 1.5 : 1)); shove(D, worldDir, down ? 4.6 : heavy ? 3.2 : 1.1 + 1.2 * s);
   FX.impact({ crit, p: hit, dir: worldDir, s: D === P ? s * .7 : s, part: fxPart, heavy, down, who: D, mine: A === P || D === P });
   G.hitStop = .05 + .07 * Math.min(s, 1.5);
   note(`${A === P ? '' : A.name + '의 '}${sk.label}: ${D === P ? '내 ' : ''}${part} ${crit ? '크리티컬' : '명중'}${down ? (D.hp <= 0 ? ' → 기절' : ' → 다운') : ''}`);
 }
-function react(D, name, w) {   // a reaction cuts the defender's own swing short when it is a real hit
+// ---- body physics: knockback velocity with ground friction, wall slams, bodies bumping, and a spring-damper on the trunk so every hit visibly jolts the body
+const SPR_BONES = ['spine_01', 'spine_02', 'spine_03', 'neck_01', 'head'];
+const SPR_PART = { head: { head: 1, neck_01: .7, spine_03: .25 }, chest: { spine_03: 1, spine_02: .6, neck_01: .35 }, gut: { spine_01: 1, spine_02: .55, spine_03: .2 },
+  leg_l: { spine_01: .45, spine_02: .2 }, leg_r: { spine_01: .45, spine_02: .2 } };
+const _ax = new THREE.Vector3(), _qa = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qi = new THREE.Quaternion(), UP = new THREE.Vector3(0, 1, 0);
+function jolt(F, part, dir3, s) {   // angular impulse: the struck part bends away along the blow
+  F.spr = F.spr || Object.fromEntries(SPR_BONES.map(b => [b, { a: new THREE.Vector3(), w: new THREE.Vector3() }]));
+  _ax.crossVectors(UP, dir3).normalize();
+  for (const [b, k] of Object.entries(SPR_PART[part] || SPR_PART.chest)) F.spr[b].w.addScaledVector(_ax, s * 7.5 * k);
+}
+function springs(F, dt) {
+  if (!F.spr) return; let live = false;
+  for (const b of SPR_BONES) { const sp = F.spr[b]; sp.w.addScaledVector(sp.a, -150 * dt).multiplyScalar(Math.exp(-11 * dt)); sp.a.addScaledVector(sp.w, dt); if (sp.a.length() > .75) sp.a.setLength(.75); if (sp.a.lengthSq() > 1e-6 || sp.w.lengthSq() > 1e-4) live = true; }
+  if (!live) return; F.model.updateMatrixWorld(true);
+  for (const b of SPR_BONES) { const sp = F.spr[b], bone = F.bone(b), ang = sp.a.length(); if (!bone || ang < 1e-4) continue;
+    _qa.setFromAxisAngle(_ax.copy(sp.a).divideScalar(ang), ang); bone.parent.getWorldQuaternion(_qp); _qi.copy(_qp).invert();
+    bone.quaternion.premultiply(_qi.multiply(_qa).multiply(_qp)); }   // world-space jolt, expressed in the parent's frame
+}
+function shove(F, dir3, v) { F.vel = F.vel || [0, 0]; F.vel[0] += dir3.x * v; F.vel[1] += -dir3.z * v; }   // three (x, z) -> game (x, -y)
+function physics(F, dt) {
+  if (!F.vel) return; const [vx, vy] = F.vel, sp = Math.hypot(vx, vy); if (sp < .02) { F.vel[0] = F.vel[1] = 0; return; }
+  const nx = F.x + vx * dt, ny = F.y + vy * dt, [cx, cy] = collide(nx, ny), lost = Math.hypot(nx - cx, ny - cy);
+  F.x = cx; F.y = cy;
+  if (lost > sp * dt * .4) {   // ran into a wall
+    if (sp > 3.2 && !F.wallT) { F.wallT = .5; F.hp = Math.max(0, F.hp - sp * 2.5); FX.shake(.05); FX.fallSound(); note('벽꽝!');
+      if (F.hp <= 0 && !F.down) { react(F, 'knockdown', 1, true); F.down = true; F.fallAt = G.t + .6; } }
+    F.vel[0] *= -.15; F.vel[1] *= -.15; }
+  const fr = Math.exp(-dt * (F.down ? 3.2 : 7.5)); F.vel[0] *= fr; F.vel[1] *= fr;
+  if (F.wallT) F.wallT = Math.max(0, F.wallT - dt);
+}
+function react(D, name, w, hard) {   // a reaction cuts the defender's own swing short when it is a real hit
+  if (D === P && !hard) {   // the player is never stun-locked: a light hit during your own swing, or right after another flinch, only jolts the body
+    if ((P.once && FIGHT[P.onceName] && !P.ending) || G.t - (P.flinchT || -9) < .5) return;
+    P.flinchT = G.t; }
   if (w >= .6) { D.strikes.length = 0; D.lunge = null; D.queued = false; }
   if (w < .6 && D.once && FIGHT[D.onceName] && !D.ending) return;   // a light tap does not stop a swing
   playOnce(D, name, w, .04);
@@ -625,6 +661,11 @@ function provoke(D, A) {
   if (GANG.has(D.id) && A === P) for (const o of npcs) if (o !== D && GANG.has(o.id) && o.state !== 'fight' && !o.down && Math.hypot(o.x - D.x, o.y - D.y) < 14) {
     o.state = 'fight'; o.foe = P; o.atkCd = 1 + Math.random(); speak(o, 'gang_join'); }
 }
+function rankOn(n, foe) {   // how many others are closer to the same target
+  const d = Math.hypot(foe.x - n.x, foe.y - n.y); let r = 0;
+  for (const o of npcs) if (o !== n && o.foe === foe && !o.down && (o.state === 'fight' || o.state === 'police') && Math.hypot(foe.x - o.x, foe.y - o.y) < d) r++;
+  return r;
+}
 function think(n, dt) {
   if (copThink(n, dt)) return;
   n.want = 0; if (n.down || G.cut) return;
@@ -633,6 +674,7 @@ function think(n, dt) {
   if (n.state === 'fight') {
     if (foe.down && foe.hp <= 0 || d > 22) { n.state = 'calm'; speak(n, 'fight_over'); return; }
     n.combatT = 4; turnTo(n, yawTo(n, foe), 8, dt);
+    if (rankOn(n, foe) >= 2) { n.want = d > 3.2 ? 1.6 : d < 2.3 ? -.9 : 0; n.atkCd = Math.max(n.atkCd, .4); return; }   // wait your turn at the edge of the fight
     if (d > 1.2) n.want = d > 4 ? 4.6 : 1.6;
     n.atkCd -= dt;
     if (npcs.some(o => o !== n && o.foe === foe && o.once && FIGHT[o.onceName] && !o.ending)) n.atkCd = Math.max(n.atkCd, .35);   // a gang takes turns, one swing at a time
@@ -647,6 +689,7 @@ function think(n, dt) {
 }
 // ---- per-frame: moving, separating bodies, strikes, falls
 function moveFighter(F, dt) {
+  if (!F.lunge) physics(F, dt);
   const acc = F.want > F.speed ? 4.5 : 7; F.speed += Math.sign(F.want - F.speed) * Math.min(Math.abs(F.want - F.speed), acc * dt);
   if (F.lunge) { const L = F.lunge; L.t -= dt; F.yaw = yawTo(F, L.T);
     const fx = Math.sin(F.yaw), fy = -Math.cos(F.yaw), lx = Math.cos(F.yaw), ly = Math.sin(F.yaw);
@@ -659,10 +702,13 @@ function moveFighter(F, dt) {
 function separate() {
   const all = fighters().filter(f => !f.down);
   for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) { const a = all[i], b = all[j], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), m = .62;
-    if (d < m && d > 1e-4) { const push = (m - d) / 2, ux = dx / d, uy = dy / d; if (!a.lunge) [a.x, a.y] = collide(a.x - ux * push, a.y - uy * push); if (!b.lunge) [b.x, b.y] = collide(b.x + ux * push, b.y + uy * push); } }
+    if (d < m && d > 1e-4) { const push = (m - d) / 2, ux = dx / d, uy = dy / d; if (!a.lunge) [a.x, a.y] = collide(a.x - ux * push, a.y - uy * push); if (!b.lunge) [b.x, b.y] = collide(b.x + ux * push, b.y + uy * push);
+      a.vel = a.vel || [0, 0]; b.vel = b.vel || [0, 0]; const rv = (b.vel[0] - a.vel[0]) * ux + (b.vel[1] - a.vel[1]) * uy;   // closing speed along the contact
+      if (rv < -.3) { const j = -rv * .6; a.vel[0] -= ux * j; a.vel[1] -= uy * j; b.vel[0] += ux * j; b.vel[1] += uy * j; } } }   // a body knocked into another shoves it
 }
 function fightStep(dt) {
   G.t += dt; if (G.infoT > 0) G.infoT -= dt;
+  if (P && P.buffer && G.t - P.buffer < .4 && !(P.once && !P.ending && !FIGHT[P.onceName] && P.once.time < .2) && !P.down) { P.buffer = 0; playerAttack(); }
   for (const n of npcs) think(n, dt);
   for (const F of fighters()) {
     if (F !== P) moveFighter(F, dt);
@@ -913,6 +959,7 @@ function copThink(n, dt) {   // returns true when it handled the officer
   if (!n.spotted && d < 24) { n.spotted = true; speak(n, 'cop_spot'); }
   n.combatT = d < 8 ? 4 : 0; turnTo(n, yawTo(n, P), 8, dt);
   if (P.down) { n.want = d > 1.1 ? 2.2 : 0; return true; }   // walk up to cuff him
+  if (rankOn(n, P) >= 2 && d < 4) { n.want = d < 2.3 ? -.9 : 0; n.atkCd = Math.max(n.atkCd, .4); return true; }
   if (d > 1.2) n.want = d > 3 ? (WANT.stars >= 3 ? 5.4 : 4.6) : 1.6;
   n.atkCd -= dt * (1 + .15 * WANT.stars);
   if (npcs.some(o => o !== n && o.foe === P && o.once && FIGHT[o.onceName] && !o.ending)) n.atkCd = Math.max(n.atkCd, .3);
@@ -968,7 +1015,9 @@ function step(dt) {
   const gdt = dt * FX.timeScale() * (G.cut ? G.cut.scale : 1);   // slow motion on knockdowns and the execution's last blow
   if (P && mode === 'walk') {
     const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
-    const free = !G.cut && !WANT.busted && !P.down && !(P.once && !P.ending);   // no walking mid-swing, mid-reaction or on the floor
+    const reeling = P.once && !P.ending && !FIGHT[P.onceName] && !P.down;
+    const free = !G.cut && !WANT.busted && !P.down && !(P.once && !P.ending && (FIGHT[P.onceName] || P.once.time < .3));   // walk out of a flinch after 0.3 s
+    if (free && reeling && (Math.abs(joy.x) + Math.abs(joy.y) > .1 || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k => keys.has(k)))) { P.ending = true; P.once.fadeOut(.15); }
     const mag = Math.min(1, Math.hypot(ix, iz)), moving = free && mag > .1;
     P.want = moving ? (keys.has('shift') ? 5.5 : 1.4) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;   // walk 1.4 m/s, sprint 5.5 m/s
     const v0 = P.speed;
