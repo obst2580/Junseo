@@ -400,11 +400,19 @@ for axis, spacing, other in ((0, 22.0, 70.0), (1, 70.0, 22.0)):
 print('bunds', nb)
 # ---- roads: ribbons with real heights; asphalt gets painted lines
 def ribbon(name, pts, zs, w, lift, m, group):
+    """Road strip draped on the terrain: the centre line is resampled every 2 m and every vertex sits on the ground + lift
+    (the stored road heights predate the terrain smoothing, so following them left roads hovering)."""
+    P2 = [pts[0]]
+    for a_, b_ in zip(pts[:-1], pts[1:]):
+        L = math.hypot(b_[0] - a_[0], b_[1] - a_[1]); n = max(1, int(L / 2.0))
+        for t in range(1, n + 1): P2.append((a_[0] + (b_[0] - a_[0]) * t / n, a_[1] + (b_[1] - a_[1]) * t / n))
     v, f = [], []
-    for k, (p, z) in enumerate(zip(pts, zs)):
-        a = pts[max(0, k - 1)]; b = pts[min(len(pts) - 1, k + 1)]; dx, dy = b[0] - a[0], b[1] - a[1]; l = math.hypot(dx, dy) or 1
+    for k, p in enumerate(P2):
+        a = P2[max(0, k - 1)]; b = P2[min(len(P2) - 1, k + 1)]; dx, dy = b[0] - a[0], b[1] - a[1]; l = math.hypot(dx, dy) or 1
         nx_, ny_ = -dy / l, dx / l
-        v += [(p[0] + nx_ * w / 2, p[1] + ny_ * w / 2, z + lift), (p[0] - nx_ * w / 2, p[1] - ny_ * w / 2, z + lift)]
+        for sgn in (1, -1):
+            x_, y_ = p[0] + sgn * nx_ * w / 2, p[1] + sgn * ny_ * w / 2
+            v.append((x_, y_, max(hget(x_, y_), hget(p[0], p[1])) + lift))
         if k: o = k * 2; f.append((o - 2, o - 1, o + 1, o))
     return mesh_obj(name, v, f, [m], group) if f else None
 def offset_line(pts, off):

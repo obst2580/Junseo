@@ -329,5 +329,18 @@ if 'buzz' in C.get('regions', []):   # buzz-cut scalp: above the forehead line, 
         if c[2] > eye_z + .055 or (c[2] > eye_z - .02 and dy > .075) or (c[2] > eye_z - .055 and dy > .11):
             polys.append([[round(uvb[li].uv.x, 5), round(uvb[li].uv.y, 5)] for li in f.loop_indices])
     skin_regions['buzz'] = polys; print('BUZZ faces', len(polys))
-json.dump({'recipes': recipes, 'tex_jobs': tex_jobs, 'uvclass': uvclass, 'skin_regions': skin_regions},
+suit_geo = None
+if C.get('varsity'):   # school varsity jacket: every top triangle with its rest-pose position, so patches / stripes are painted by body position
+    tris = []
+    for f in suit.data.polygons:
+        if face_bottom[f.index]: continue
+        vi = list(f.vertices); li = list(f.loop_indices)
+        arm_ = sum(dom[v].startswith(('upperarm', 'lowerarm', 'hand')) for v in vi) / len(vi) > .5
+        for k in range(1, len(vi) - 1):
+            ids = (0, k, k + 1)
+            tris.append([[round(uvl[li[j]].uv.x, 5), round(uvl[li[j]].uv.y, 5)] for j in ids] + [[round(float(c_), 4) for c_ in co[vi[j]]] for j in ids] + [1 if arm_ else 0])
+    lm = {n: [round(float(c_), 4) for c_ in bone_w(n)] for n in ('neck_01', 'spine_03', 'spine_01', 'pelvis', 'upperarm_l', 'lowerarm_l', 'hand_l', 'hand_r', 'upperarm_r')}
+    suit_geo = dict(tris=tris, lm=lm, top_min_z=round(float(min(t[3][2] for t in tris)), 4), name=C['varsity'])
+    print('VARSITY tris', len(tris))
+json.dump({'recipes': recipes, 'tex_jobs': tex_jobs, 'uvclass': uvclass, 'skin_regions': skin_regions, 'suit_geo': suit_geo},
           open(os.path.join(os.path.dirname(OUT), 'costume.json'), 'w'))

@@ -377,7 +377,7 @@ addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListen
 { const s = $('stick'), knob = s.querySelector('i'); let id = null; const move = e => { const rc = s.getBoundingClientRect(); let x = (e.clientX - rc.left - 60) / 50, y = (e.clientY - rc.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
   s.addEventListener('pointerdown', e => { id = e.pointerId; s.setPointerCapture(id); move(e); }); s.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); }); s.addEventListener('pointerup', () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; }); }
 // ---------------------------------------------------------------- third-person camera rig (over the right shoulder, lags behind, swings back behind you)
-const CR = { yaw: Math.PI * .85, pitch: .32, dist: 4.6, distT: 4.6, lastLook: -9, pivot: new THREE.Vector3(), fov: 50, bob: 0, init: false };
+const CR = { yaw: Math.PI * .85, pitch: .32, dist: 4.6, distT: 4.6, lastLook: -9, pivot: new THREE.Vector3(), fov: 50, bob: 0, jolt: 0, init: false };
 const lookBy = (dx, dy) => { CR.yaw -= dx * .0042; CR.pitch = THREE.MathUtils.clamp(CR.pitch + dy * .0034, -.35, 1.15); CR.lastLook = performance.now() / 1000; };
 { const el = r.domElement; let drag = null;
   el.addEventListener('click', () => { if (mode === 'walk' && document.pointerLockElement !== el && matchMedia('(pointer: fine)').matches) el.requestPointerLock?.(); });
@@ -398,14 +398,15 @@ const clock = new THREE.Clock(); let frames = 0, ft0 = performance.now(), fps = 
 function step(dt) {
   if (P && mode === 'walk') {
     const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
-    const mag = Math.min(1, Math.hypot(ix, iz)), moving = mag > .1, want = moving ? (keys.has('shift') ? 3.0 : 1.0) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
-    P.speed += Math.sign(want - P.speed) * Math.min(Math.abs(want - P.speed), (want > P.speed ? 3.2 : 5) * dt);
+    const mag = Math.min(1, Math.hypot(ix, iz)), moving = mag > .1, want = moving ? (keys.has('shift') ? 5.5 : 1.4) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;   // walk 1.4 m/s, sprint 5.5 m/s
+    const v0 = P.speed; P.speed += Math.sign(want - P.speed) * Math.min(Math.abs(want - P.speed), (want > P.speed ? 4.5 : 7) * dt);
+    CR.jolt = Math.max(CR.jolt * Math.exp(-dt * 1.6), dt > 0 ? THREE.MathUtils.clamp((P.speed - v0) / dt / 4.5, 0, 1) : 0) || 0;   // 1 while speeding up, fades once the pace holds
     if (moving) { const camYaw = CR.yaw, dir = Math.atan2(ix, iz) + camYaw; let d = dir - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * Math.min(1, dt * 10); }
     const nx = P.x + Math.sin(P.yaw) * P.speed * dt, ny = P.y - Math.cos(P.yaw) * P.speed * dt; [P.x, P.y] = collide(nx, ny);
     const z = heightAt(P.x, P.y); P.holder.position.copy(V(P.x, P.y, z)); P.holder.rotation.y = P.yaw;
-    const table = [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], w = { idle: 0, walk: 0, jog: 0, run: 0 }, s = Math.min(P.speed, 3);
+    const table = [['idle', 0, 1], ['walk', 1.4, .954], ['jog', 3.2, 2.339], ['run', 5.5, 3.009]], w = { idle: 0, walk: 0, jog: 0, run: 0 }, s = Math.min(P.speed, 5.5);   // [gait, speed it takes over at, the clip's own speed]
     for (let i = 0; i < 3; i++) { const [a, sa] = table[i], [b, sb] = table[i + 1]; if (s >= sa && s <= sb) { const t = (s - sa) / (sb - sa); w[a] += 1 - t; w[b] += t; break; } }
-    let rate = 0; for (const [n, sp] of table) if (n !== 'idle' && w[n] > 0) rate += w[n] * THREE.MathUtils.clamp(P.speed / sp, .6, 1.5) / P.act[n].getClip().duration;
+    let rate = 0; for (const [n, , nat] of table) if (n !== 'idle' && w[n] > 0) rate += w[n] * THREE.MathUtils.clamp(P.speed / nat, .6, 1.9) / P.act[n].getClip().duration;   // feet keep pace with the ground
     P.phase = (P.phase + dt * rate) % 1;
     for (const n in w) { P.act[n].setEffectiveWeight(w[n]); if (n !== 'idle') { P.act[n].timeScale = 0; P.act[n].time = P.phase * P.act[n].getClip().duration; } }
     P.update(dt);
@@ -416,7 +417,7 @@ function step(dt) {
     if (P.speed > .3 && now - CR.lastLook > 1.4) {                                  // walking with no mouse input: swing round behind
       let dy = (P.yaw + Math.PI) - CR.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); CR.yaw += dy * Math.min(1, dt * 1.6 * Math.min(P.speed, 2));
       CR.pitch += (.26 - CR.pitch) * Math.min(1, dt * .8); }
-    const run = THREE.MathUtils.clamp((P.speed - 1.6) / 1.4, 0, 1);
+    const run = THREE.MathUtils.clamp((P.speed - 2) / 3.5, 0, 1);
     CR.dist += (CR.distT * (1 + run * .18) - CR.dist) * Math.min(1, dt * 4);
     CR.fov += (50 + run * 9 - CR.fov) * Math.min(1, dt * 3); if (Math.abs(cam.fov - CR.fov) > .01) { cam.fov = CR.fov; cam.updateProjectionMatrix(); }
     const cp = Math.cos(CR.pitch), off = new THREE.Vector3(Math.sin(CR.yaw) * cp, Math.sin(CR.pitch), Math.cos(CR.yaw) * cp);
@@ -427,7 +428,7 @@ function step(dt) {
     for (let k = 1; k <= 24; k++) { const t = k / 24, q = look.clone().addScaledVector(off, dist * t), gx = q.x, gy = -q.z;
       if (colliders.some(c => { const ca = Math.cos(c.a), sa = Math.sin(c.a), ux = gx - c.c[0], uy = gy - c.c[1], u = ux * ca + uy * sa, v = -ux * sa + uy * ca; return Math.abs(u) < c.hl && Math.abs(v) < c.hw && c.hl > .5 && q.y < heightAt(c.c[0], c.c[1]) + 7; })) { dist = Math.max(.8, dist * (t - 1 / 24)); break; } }
     const camPos = look.clone().addScaledVector(off, dist);
-    CR.bob = P.speed > .2 ? Math.sin(P.phase * Math.PI * 4) * .025 * Math.min(P.speed, 3) : 0;   // two footfalls per cycle
+    CR.bob = P.speed > .2 ? Math.sin(P.phase * Math.PI * 4) * (.006 + .045 * CR.jolt) * Math.min(P.speed / 2, 1) : 0;   // two footfalls per cycle: a jolt as you set off, settling once running
     camPos.y += CR.bob;
     const gz = heightAt(camPos.x, -camPos.z) + .5; if (camPos.y < gz) camPos.y = gz;
     cam.position.copy(camPos); ctl.target.copy(look); cam.lookAt(look.x, look.y + CR.bob * .5, look.z);
