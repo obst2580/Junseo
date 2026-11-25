@@ -26,10 +26,16 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 #stick i { position: absolute; left: 40px; top: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .7) }
 @media (pointer: coarse) { #stick { display: block } }
 @media (max-width: 560px) { .panel { max-height: 46%; } }
+.fold { all: unset; display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; cursor: pointer; }
+.fold h1 { margin: 0; }
+.fold .chev { font-size: 13px; color: var(--acc); border: 1px solid var(--line); border-radius: 5px; padding: 2px 8px; white-space: nowrap; }
+.fold:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
+.panel.folded > :not(.fold) { display: none !important; }
+.panel.folded { width: auto; max-height: none; }
 </style>
 <div id="v"></div>
 <section class="panel" aria-label="동작 시험 조작판">
-  <h1>동작 시험장<small>CMU 모션캡처 43종</small></h1>
+  <button type="button" class="fold" id="fold" aria-expanded="true"><h1>동작 시험장<small>CMU 모션캡처 43종</small></h1><span class="chev">접기 ▲</span></button>
   <div class="lab">인물</div><div class="row" id="people"></div>
   <div class="lab">걸음걸이</div><div class="row" id="gaits"></div>
   <div class="lab">동작</div><div class="row" id="acts"></div>
@@ -211,6 +217,11 @@ function btns(host, items, onClick) { host.replaceChildren(...items.map(([v, lab
   b.innerHTML = label + (key ? `<kbd>${key}</kbd>` : ''); b.addEventListener('click', () => { onClick(v); b.blur(); }); return b; })); }
 btns($('people'), Object.entries(PEOPLE), choose);
 btns($('gaits'), Object.entries(GAITS), g => { st.gait = g; sync(); });
+{ // collapsible panel: folded by default on touch screens, remembered per viewer
+  const pan = $('fold').parentElement, set = f => { pan.classList.toggle('folded', f); $('fold').setAttribute('aria-expanded', String(!f)); $('fold').querySelector('.chev').textContent = f ? '펴기 ▼' : '접기 ▲'; try { localStorage.setItem('motionPanelFolded', f ? '1' : '0'); } catch (e) {} };
+  let saved = null; try { saved = localStorage.getItem('motionPanelFolded'); } catch (e) {}
+  set(saved === null ? matchMedia('(pointer: coarse)').matches : saved === '1');
+  $('fold').addEventListener('click', () => set(!pan.classList.contains('folded'))); }
 btns($('acts'), ACTS, playOnce);
 btns($('fight'), FIGHT, playOnce);
 btns($('hurt'), HURT, playOnce);
