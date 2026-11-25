@@ -65,16 +65,42 @@ CLIPS = {
 # ---- fighting: hit reactions authored on the guard stance: (bone, world axis, peak angle rad) + pelvis shove (dx, dy, dz) m
 # axes (Blender, character faces -Y): +X angle bends forward, -X bends back; +Z turns to the character's left; +Y tilts to its left
 REACT = {
+    # head
     'hit_face':   dict(rot=[('head', 'X', -.85), ('neck_01', 'X', -.45), ('spine_03', 'X', -.32), ('spine_02', 'X', -.18), ('spine_01', 'X', -.08),
                             ('upperarm_l', 'X', -.35), ('upperarm_r', 'X', -.35)], shove=(0, .3, 0), tp=.08, tau=.3),
     'hit_face_l': dict(rot=[('head', 'Z', -1.05), ('head', 'Y', -.4), ('neck_01', 'Z', -.45), ('spine_03', 'Z', -.35), ('spine_02', 'Z', -.18), ('spine_02', 'Y', -.18),
                             ('upperarm_l', 'Y', .35)], shove=(-.18, .1, 0), tp=.08, tau=.32),
     'hit_face_r': dict(rot=[('head', 'Z', 1.05), ('head', 'Y', .4), ('neck_01', 'Z', .45), ('spine_03', 'Z', .35), ('spine_02', 'Z', .18), ('spine_02', 'Y', .18),
                             ('upperarm_r', 'Y', -.35)], shove=(.18, .1, 0), tp=.08, tau=.32),
+    'hit_chin':   dict(rot=[('head', 'X', -1.15), ('neck_01', 'X', -.5), ('spine_03', 'X', -.38), ('spine_02', 'X', -.22), ('pelvis', 'X', -.06),
+                            ('upperarm_l', 'X', .3), ('upperarm_r', 'X', .3)], shove=(0, .22, .05), tp=.07, tau=.34),
+    # trunk
+    'hit_chest':  dict(rot=[('spine_03', 'X', -.38), ('spine_02', 'X', -.32), ('spine_01', 'X', -.15), ('head', 'X', .35), ('neck_01', 'X', .15),
+                            ('upperarm_l', 'X', -.4), ('upperarm_r', 'X', -.4)], shove=(0, .5, 0), tp=.09, tau=.36),
     'hit_gut':    dict(rot=[('spine_01', 'X', .45), ('spine_02', 'X', .55), ('spine_03', 'X', .35), ('head', 'X', -.15), ('pelvis', 'X', .18),
                             ('upperarm_l', 'X', .5), ('upperarm_r', 'X', .5), ('lowerarm_l', 'Z', -.6), ('lowerarm_r', 'Z', .6)], shove=(0, .25, -.12), tp=.12, tau=.55),
+    'hit_liver_l': dict(rot=[('spine_01', 'Y', .35), ('spine_02', 'Y', .4), ('spine_02', 'X', .25), ('spine_03', 'Y', .2), ('head', 'Y', -.2), ('pelvis', 'Y', -.1),
+                             ('upperarm_l', 'X', .55), ('lowerarm_l', 'Z', -.7), ('calf_l', 'X', .35)], shove=(-.16, .08, -.1), tp=.11, tau=.5),
+    'hit_liver_r': dict(rot=[('spine_01', 'Y', -.35), ('spine_02', 'Y', -.4), ('spine_02', 'X', .25), ('spine_03', 'Y', -.2), ('head', 'Y', .2), ('pelvis', 'Y', .1),
+                             ('upperarm_r', 'X', .55), ('lowerarm_r', 'Z', .7), ('calf_r', 'X', .35)], shove=(.16, .08, -.1), tp=.11, tau=.5),
+    # legs (low kick: the hit knee buckles, weight drops onto it)
+    'hit_leg_l':  dict(rot=[('thigh_l', 'X', -.3), ('calf_l', 'X', .95), ('pelvis', 'Y', .18), ('spine_02', 'Y', -.15), ('spine_02', 'X', .15)], shove=(-.05, .05, -.13), tp=.1, tau=.45),
+    'hit_leg_r':  dict(rot=[('thigh_r', 'X', -.3), ('calf_r', 'X', .95), ('pelvis', 'Y', -.18), ('spine_02', 'Y', .15), ('spine_02', 'X', .15)], shove=(.05, .05, -.13), tp=.1, tau=.45),
+    # heavy
     'hit_heavy':  dict(rot=[('head', 'X', -1.0), ('neck_01', 'X', -.5), ('spine_03', 'X', -.45), ('spine_02', 'X', -.35), ('pelvis', 'X', -.2),
                             ('upperarm_l', 'Y', .9), ('upperarm_r', 'Y', -.9), ('upperarm_l', 'X', -.5), ('upperarm_r', 'X', -.5)], shove=(0, .9, -.08), tp=.15, tau=.45),
+    'hit_spin_l': dict(rot=[('head', 'Z', -1.2), ('neck_01', 'Z', -.55), ('spine_03', 'Z', -.5), ('spine_02', 'Z', -.4), ('pelvis', 'Z', -.45), ('spine_02', 'Y', -.25),
+                            ('upperarm_l', 'Y', .8), ('upperarm_r', 'Y', -.4)], shove=(-.55, .3, -.06), tp=.14, tau=.5),
+    'hit_spin_r': dict(rot=[('head', 'Z', 1.2), ('neck_01', 'Z', .55), ('spine_03', 'Z', .5), ('spine_02', 'Z', .4), ('pelvis', 'Z', .45), ('spine_02', 'Y', .25),
+                            ('upperarm_r', 'Y', -.8), ('upperarm_l', 'Y', .4)], shove=(.55, .3, -.06), tp=.14, tau=.5),
+}
+# contact data for the attacks: (time s, striking bone) — from the strike detection on the source takes
+STRIKES = {
+    'jab': [(.45, 'hand_l')], 'cross': [(.48, 'hand_r')], 'hook': [(.47, 'hand_r')], 'uppercut': [(.47, 'hand_r')],
+    'combo_12': [(.45, 'hand_l'), (.65, 'hand_r')], 'combo_jh': [(.47, 'hand_l'), (.7, 'hand_r')],
+    'flurry': [(round(t - 1.0, 2), 'hand_' + sd) for t, sd in [(1.27, 'r'), (1.5, 'r'), (1.77, 'l'), (2.03, 'l'), (2.27, 'r'), (2.5, 'r'), (2.77, 'l'), (3.03, 'l'),
+               (3.3, 'r'), (3.57, 'r'), (3.83, 'l'), (4.07, 'l'), (4.33, 'r'), (4.57, 'r')]],
+    'kick_front': [(.83, 'foot_r')], 'kick_side': [(.62, 'foot_l')], 'knee': [(.6, 'calf_r')], 'jump_kick': [(1.3, 'foot_r')], 'punch': [(.5, 'hand_l')],
 }
 for k_ in REACT: CLIPS[k_] = ('14_01', 'react', .4, 1.75)
 MAP = {'Hips': 'pelvis', 'LowerBack': 'spine_01', 'Spine': 'spine_02', 'Spine1': 'spine_03', 'Neck': 'neck_01', 'Head': 'head',
@@ -181,9 +207,11 @@ for clip, spec in CLIPS.items():
         if tt < tp: x = tt / tp; return x * x * (3 - 2 * x)
         return math.exp(-(tt - tp) / tau) * math.cos((tt - tp) * 7.5) * .85 + .15 * math.exp(-(tt - tp) / (tau * 2.5))
     AX = {'X': Vector((1, 0, 0)), 'Y': Vector((0, 1, 0)), 'Z': Vector((0, 0, 1))}
+    STRK = []
     for fi, i in enumerate(seg):
         A = {}   # armature-space posed matrices
         e = env(fi / FPS); DC = {}
+        SF = {round(t_ * FPS): bn_ for t_, bn_ in STRIKES.get(clip, [])}
         for name in order:
             bone = tb[name]; parent = bone.parent
             base = (A[parent.name] @ REST[parent.name].inverted() @ REST[name]) if parent else REST[name].copy()
@@ -208,11 +236,16 @@ for clip, spec in CLIPS.items():
                 M.translation = TWi @ hw
             A[name] = M
             pb = tgt.pose.bones[name]
+            if fi == 0 and name == 'pelvis': P0W = TW @ M.translation
             basis = (base.inverted() @ M) if parent else (REST[name].inverted() @ M)
             loc, rot, _ = basis.decompose()
             pb.rotation_quaternion = rot; pb.keyframe_insert('rotation_quaternion', frame=fi + 1)
             if name == 'pelvis': pb.location = loc; pb.keyframe_insert('location', frame=fi + 1)
+        if fi in SF:   # contact point of the strike, relative to the start position (character faces -Y: forward = -dy, left = +dx)
+            bn_ = SF[fi]; w_ = TW @ (A[bn_].translation if bn_ in A else Vector()); d_ = w_ - P0W
+            STRK.append(dict(t=round(fi / FPS, 3), bone=bn_, fwd=round(-d_.y, 3), lat=round(d_.x, 3), up=round(w_.z, 3)))
     meta[clip] = dict(loop=mode in ('loop', 'loopw'), frames=len(seg), dur=round((len(seg) - 1) / FPS, 3), speed=round(float(speed), 3), src=fn)
+    if STRK: meta[clip]['strikes'] = STRK
     print('CLIP', clip, meta[clip])
     bpy.data.objects.remove(src, do_unlink=True); bpy.data.actions.remove(act)   # keep only the retargeted clip
     for pb in tgt.pose.bones: pb.rotation_quaternion = (1, 0, 0, 0); pb.location = (0, 0, 0)

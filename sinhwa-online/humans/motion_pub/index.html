@@ -58,11 +58,12 @@ const $ = id => document.getElementById(id);
 const PEOPLE = { ijang: '오만복 이장', halmeoni: '박순례', choi: '최 실장', minseok: '민석', police: '김 순경', syuper: '슈퍼 사장님', sangsa: '박 상사', anjun: '안준', jinwook: '홍진욱', parkjin: '박진', woochan: '조우찬' };
 const GAITS = { normal: '보통', sneak: '살금살금', limp: '절뚝', drunk: '술 취함', hurt: '배 부여잡고' };
 // fighting: [clip, label, key, strike times (s) → what the sparring partner takes]
-const FIGHT = [['guard', '가드 자세', 'F', []], ['jab', '잽', '1', [[.45, 'hit_face']]], ['cross', '스트레이트', '2', [[.48, 'hit_face']]], ['hook', '훅', '3', [[.47, 'hit_face_l']]],
-  ['uppercut', '어퍼컷', '4', [[.47, 'hit_heavy']]], ['combo_12', '원투', '5', [[.45, 'hit_face'], [.68, 'hit_face_r']]], ['combo_jh', '잽 훅', '6', [[.47, 'hit_face'], [.7, 'hit_face_l']]],
-  ['flurry', '연타', '7', [[.27, 'hit_face_r'], [.77, 'hit_face_l'], [1.3, 'hit_face_r'], [1.8, 'hit_face_l'], [2.3, 'hit_face'], [2.85, 'hit_gut'], [3.3, 'hit_heavy']]],
-  ['kick_front', '앞차기', '8', [[.83, 'hit_gut']]], ['kick_side', '옆차기', '9', [[.62, 'hit_heavy']]], ['knee', '무릎', '0', [[.6, 'hit_gut']]], ['jump_kick', '날아차기', 'K', [[1.3, 'knockdown']]]];
-const HURT = [['hit_face', '얼굴 맞음', ''], ['hit_face_l', '왼뺨 맞음', ''], ['hit_face_r', '오른뺨 맞음', ''], ['hit_gut', '배 맞음', ''], ['hit_heavy', '세게 맞음', ''],
+// fighting: [clip, label, key, power per strike] — where and how a strike lands is decided at contact (see judgeHit)
+const FIGHT = [['guard', '가드 자세', 'F', []], ['jab', '잽', '1', [.45]], ['cross', '스트레이트', '2', [.8]], ['hook', '훅', '3', [.85]], ['uppercut', '어퍼컷', '4', [1.05]],
+  ['combo_12', '원투', '5', [.45, .8]], ['combo_jh', '잽 훅', '6', [.45, .85]], ['flurry', '연타', '7', [.3, .3, .3, .3, .3, .3, .3, .3, .35, .35, .4, .4, .5, 1.1]],
+  ['kick_front', '앞차기', '8', [1.0]], ['kick_side', '옆차기', '9', [1.15]], ['knee', '무릎', '0', [.85]], ['jump_kick', '날아차기', 'K', [1.6]]];
+const HURT = [['hit_face', '얼굴 맞음', ''], ['hit_face_l', '왼뺨 맞음', ''], ['hit_face_r', '오른뺨 맞음', ''], ['hit_chin', '턱 맞음', ''], ['hit_chest', '가슴 맞음', ''], ['hit_gut', '배 맞음', ''],
+  ['hit_liver_l', '왼옆구리', ''], ['hit_liver_r', '오른옆구리', ''], ['hit_leg_l', '왼다리', ''], ['hit_leg_r', '오른다리', ''], ['hit_heavy', '세게 맞음', ''], ['hit_spin_l', '돌아감(좌)', ''], ['hit_spin_r', '돌아감(우)', ''],
   ['stumble', '휘청', ''], ['knockdown', '나가떨어짐', ''], ['fall', '앞으로 쓰러짐', ''], ['getup_back', '누웠다 일어남', '']];
 const ALLACTS = () => [...ACTS, ...FIGHT, ...HURT];
 const ACTS = [['jump', '점프', 'Space'], ['pickup', '줍기', 'E'], ['punch', '주먹', 'Q'], ['draw_gun', '총 꺼내기', 'G'], ['shoot', '사격', ''], ['phone', '전화', 'P'],
@@ -157,7 +158,7 @@ async function loadPerson(id) {
     if (!meta.loop) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
     actions[c.name] = a;
   }
-  return { holder, model, mixer, actions };
+  return { holder, model, mixer, actions, k, bone };
 }
 
 // ---------------------------------------------------------------- player
@@ -173,28 +174,74 @@ async function choose(id) {
   for (const [n] of Object.values(LOCO).flat()) { const a = P.actions[n]; if (a) { a.play(); a.setEffectiveWeight(0); } }
   st.once = null; $('load').hidden = true; sync();
 }
-const sched = [];   // [time, fn] pending partner reactions
+const strikes = [];   // pending contact checks: { t, bone, power, label }
 function playOnce(name) {
   if (!P || !P.actions[name]) return; const a = P.actions[name];
   const f = FIGHT.find(x => x[0] === name); st.fight = !!f;
-  sched.length = 0;
-  if (f && SP) { const t0 = st.t; for (const [t, r] of f[3]) sched.push([t0 + t, r]); spFace(); }
-  if (st.once) st.once.fadeOut(.25);
+  strikes.length = 0;
+  if (f && SP) {   // the partner squares up at the range where this attack lands, and the strikes are queued with their timing
+    const meta = animMeta.clips[name] || {}, list = meta.strikes || [], t0 = st.t;
+    list.forEach((s_, i) => strikes.push({ t: t0 + s_.t, bone: s_.bone, follow: i > 0, power: f[3][i] ?? f[3][f[3].length - 1] ?? .6, label: f[1] }));
+    if (list.length) spSquare(list[0]); }
   const snap = name.startsWith('hit_'); if (st.once) st.once.fadeOut(snap ? .05 : .25);
   a.reset(); a.setEffectiveWeight(1); a.fadeIn(snap ? .04 : .25); a.play(); st.once = a; st.onceName = name; sync();   // a hit lands at once
 }
 function stopOnce(user) { if (st.once) { const wasFight = st.fight && st.onceName !== 'guard'; st.once.fadeOut(.3); st.once = null; st.onceName = ''; sync();
   if (wasFight && !user) playOnce('guard'); } }   // after a strike, back into the guard
-// ---------------------------------------------------------------- sparring partner: stands in front and takes your hits
-let SP = null;
-function spPlay(name) { if (!SP || !SP.actions[name]) return; const a = SP.actions[name]; if (SP.cur && SP.cur !== a) SP.cur.fadeOut(.08);
-  a.reset(); a.setEffectiveWeight(1); a.fadeIn(.06); a.play(); SP.cur = a; SP.curName = name;
-  if (name === 'knockdown') SP.next = 'getup_back'; else SP.next = 'guard'; }
-function spFace() { if (!SP || !P) return; const y = st.yaw; SP.holder.position.set(P.holder.position.x + Math.sin(y) * 1.05, 0, P.holder.position.z + Math.cos(y) * 1.05); SP.holder.rotation.y = y + Math.PI; }
+// ---------------------------------------------------------------- sparring partner: contact-driven reactions
+let SP = null; const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), shake = { a: 0 };
+const hitInfo = { text: '' };
+function spPlay(name, w = 1) {   // a reaction on top of the guard; weight < 1 = a lighter version of the same reaction
+  if (!SP || !SP.actions[name]) return; const a = SP.actions[name];
+  for (const [n, b] of Object.entries(SP.actions)) if (b !== a && n !== 'guard' && b.isRunning()) b.fadeOut(.08);
+  a.reset(); a.setEffectiveWeight(w); a.fadeIn(.04); a.play(); SP.cur = a; SP.curW = w; SP.curName = name;
+  SP.next = name === 'knockdown' ? 'getup_back' : null; }
+function spSquare(s0) {   // stand where the first strike of this attack connects, facing the attacker
+  if (!SP || !P || SP.down) return;
+  for (const [n, b] of Object.entries(SP.actions)) if (n !== 'guard' && b.isRunning()) b.fadeOut(.12); SP.cur = null; SP.next = null;   // a new attack: square up again
+  const y = st.yaw, k = P.k || 1, F = new THREE.Vector3(Math.sin(y), 0, Math.cos(y)), L = new THREE.Vector3(Math.cos(y), 0, -Math.sin(y));
+  const depth = s0.up * k > 1.25 ? .1 : .14;   // contact point to the partner's centre: head ~10 cm, torso ~14 cm
+  SP.holder.position.copy(P.holder.position).addScaledVector(F, s0.fwd * k + depth).addScaledVector(L, s0.lat * k); SP.holder.position.y = 0;
+  SP.holder.rotation.y = y + Math.PI; }
+function spFace() { if (!SP || !P) return; spSquare({ fwd: .95, lat: 0, up: 1.3 }); }
+const wpos = (who, n, out) => who.bone(n).getWorldPosition(out);
+function judgeHit(sk) {
+  // contact: the striking bone against the partner's body parts (spheres on its bones)
+  const hit = wpos(P, sk.bone, new THREE.Vector3()); if (sk.bone.startsWith('hand')) hit.add(_v.copy(hit).sub(wpos(P, sk.bone.replace('hand', 'lowerarm'), new THREE.Vector3())).setLength(.07));   // the fist sits ahead of the wrist
+  const head = wpos(SP, 'head', new THREE.Vector3()).add(new THREE.Vector3(0, .09, 0)), chest = wpos(SP, 'spine_03', new THREE.Vector3()), gut = wpos(SP, 'spine_01', new THREE.Vector3());
+  const thl = wpos(SP, 'thigh_l', new THREE.Vector3()).lerp(wpos(SP, 'calf_l', new THREE.Vector3()), .5), thr = wpos(SP, 'thigh_r', new THREE.Vector3()).lerp(wpos(SP, 'calf_r', new THREE.Vector3()), .5);
+  const parts = [['head', head, .15], ['chest', chest, .2], ['gut', gut, .2], ['leg_l', thl, .14], ['leg_r', thr, .14]];
+  let best = null; for (const [n, c, r] of parts) { const d = hit.distanceTo(c) - r; if (!best || d < best.d) best = { n, c, d }; }
+  if (best.d > (sk.follow ? .75 : .45)) { hitInfo.text = `${sk.label}: 빗나감`; return; }   // follow-ups chase a partner the first hit pushed back   // within reach counts (the body leans into it)
+  // in the partner's frame: x = its left, y = up, z = its front
+  const inv = _q.copy(SP.holder.quaternion).invert(), loc = hit.clone().sub(best.c).applyQuaternion(inv);
+  // direction of travel over the last 0.1 s (at full extension the fist has almost stopped)
+  const h0 = sk.hist.find(h => st.t - h[0] <= .12) || sk.hist[0] || [st.t, hit];
+  const vel = hit.clone().sub(h0[1]).divideScalar(Math.max(st.t - h0[0], 1 / 60)).applyQuaternion(inv), sp = vel.length();
+  const side = (Math.abs(vel.x) > .5 ? -vel.x : loc.x) > 0 ? 'l' : 'r';   // a hook travels across: it lands on the side it comes from
+  const lateral = Math.abs(vel.x) > Math.abs(vel.z) * 1.1 && Math.abs(vel.x) > 1.2, upward = !lateral && vel.y > sp * .6;
+  const s = sk.power * THREE.MathUtils.clamp(sp / 5, .7, 1.3);
+  SP.meter = (SP.meter || 0) + s;
+  let reac, part;
+  if (best.n === 'head') { part = upward ? '턱' : lateral ? (side === 'l' ? '왼뺨' : '오른뺨') : '얼굴'; reac = upward ? 'hit_chin' : lateral ? 'hit_face_' + side : 'hit_face'; }
+  else if (best.n === 'chest') { part = '가슴'; reac = 'hit_chest'; }
+  else if (best.n === 'gut') { part = lateral ? (side === 'l' ? '왼옆구리' : '오른옆구리') : '배'; reac = lateral ? 'hit_liver_' + side : 'hit_gut'; }
+  else { part = best.n === 'leg_l' ? '왼다리' : '오른다리'; reac = 'hit_' + best.n; }
+  let w = THREE.MathUtils.clamp(.4 + .6 * s / .95, .4, 1), note = '';
+  if (s >= 1.4 || SP.meter > 4.2) { reac = 'knockdown'; w = 1; SP.meter = 0; SP.down = true; note = ' → 다운'; }
+  else if (s >= .95 || SP.meter > 2.6) { w = 1; note = ' (강타)';
+    if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy';
+    SP.next = null; SP.after = SP.meter > 2.6 ? 'stumble' : null; }
+  spPlay(reac, w); if (reac !== 'knockdown' && SP.after) { SP.next = SP.after; SP.after = null; }
+  hitStop = .06 + .05 * Math.min(s, 1.5); shake.a = Math.max(shake.a, .02 + .03 * s);
+  hitInfo.text = `${sk.label}: ${part} 명중 · 세기 ${s.toFixed(2)}${note}`;
+}
+let hitStop = 0;
 async function toggleSpar() {
   if (SP) { scene.remove(SP.holder); SP = null; $('spar').textContent = '대련 상대 세우기'; return; }
   const id = current === 'woochan' ? 'anjun' : 'woochan'; $('spar').textContent = PEOPLE[id] + ' 부르는 중…';
-  SP = await loadPerson(id); for (const a of Object.values(SP.actions)) a.stop(); scene.add(SP.holder); spFace(); spPlay('guard'); $('spar').textContent = '대련 상대 보내기';
+  SP = await loadPerson(id); for (const a of Object.values(SP.actions)) a.stop();
+  SP.actions.guard.play(); SP.meter = 0; scene.add(SP.holder); spFace(); $('spar').textContent = '대련 상대 보내기';
 }
 
 // ---------------------------------------------------------------- input
@@ -262,18 +309,28 @@ function update(dt) {
   for (const [n] of Object.values(LOCO).flat()) { const a = P.actions[n]; if (!a) continue; a.setEffectiveWeight(w[n] * (1 - onceW));
     if (n !== 'idle') { a.timeScale = 0; a.time = st.phase * a.getClip().duration; } }
   if (st.once && !st.once.isRunning() && st.once.userData.loop === false && st.once.time >= st.once.getClip().duration - .01) stopOnce();
-  P.mixer.update(dt);
-  // partner: pending hits, then back to guard (or up off the floor)
-  while (sched.length && st.t >= sched[0][0]) spPlay(sched.shift()[1]);
-  if (SP) { if (SP.cur && SP.cur.userData.loop === false && SP.cur.time >= SP.cur.getClip().duration - .02 && SP.next) { const n = SP.next; SP.next = null; spPlay(n); }
-    SP.mixer.update(dt); }
+  P.mixer.update(hitStop > 0 ? dt * .08 : dt);   // hit-stop: a few frames of near-freeze on impact
+  // partner: contact checks at each strike, reactions over the guard, back up after a knockdown
+  if (SP) {
+    for (const sk of strikes) { const p_ = wpos(P, sk.bone, new THREE.Vector3()); (sk.hist = sk.hist || []).push([st.t, p_]); if (sk.hist.length > 12) sk.hist.shift();
+      if (!sk.done && st.t >= sk.t) { sk.done = true; judgeHit(sk); } }
+    while (strikes.length && strikes[0].done) strikes.shift();
+    SP.meter = (SP.meter || 0) * Math.exp(-dt / 1.6);
+    const c = SP.cur;
+    if (c && c.userData.loop === false && c.time >= c.getClip().duration - .02) {
+      if (SP.next) { const n = SP.next; SP.next = null; spPlay(n); if (n === 'getup_back') SP.down = true; }
+      else { c.fadeOut(.25); SP.cur = null; if (SP.curName === 'getup_back') SP.down = false; } }
+    const rw = SP.cur ? SP.cur.getEffectiveWeight() : 0; SP.actions.guard.setEffectiveWeight(Math.max(0, 1 - rw));   // the guard fills in under a light hit
+    SP.mixer.update(hitStop > 0 ? dt * .08 : dt); }
+  if (hitStop > 0) hitStop -= dt;
   // camera follow
   tmp.copy(P.holder.position); tmp.y = 1.25; const dlt = tmp.clone().sub(ctl.target); ctl.target.add(dlt); cam.position.add(dlt);
+  if (shake.a > .001) { cam.position.x += (Math.random() - .5) * shake.a; cam.position.y += (Math.random() - .5) * shake.a; shake.a *= Math.exp(-dt * 9); }
   sun.position.set(P.holder.position.x + 6, 10, P.holder.position.z + 4); sun.target.position.copy(P.holder.position);
-  $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ALLACTS().find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}`;
+  $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ALLACTS().find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}${hitInfo.text ? '<br>' + hitInfo.text : ''}`;
 }
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
 r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); });
 await choose('ijang');
-window.__dbg = { toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
+window.__dbg = { hitInfo, toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
 </script>
