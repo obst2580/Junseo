@@ -32,6 +32,8 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 .fold:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
 .panel.folded > :not(.fold) { display: none !important; }
 .panel.folded { width: auto; max-height: none; }
+#atkpad { position: fixed; right: calc(28px + env(safe-area-inset-right, 0px)); bottom: calc(34px + env(safe-area-inset-bottom, 0px)); width: 96px; height: 96px; border-radius: 50%; font: 700 17px var(--f, sans-serif); color: #1b1d14; background: var(--acc, #e2cf72); border: 3px solid rgba(255,255,255,.7); display: none; touch-action: manipulation }
+@media (pointer: coarse) { #atkpad { display: block } }
 #fxflash, #fxvig { position: fixed; inset: 0; pointer-events: none; opacity: 0 }
 #fxflash { background: radial-gradient(circle at 50% 45%, rgba(255,250,235,.95), rgba(255,240,210,.55) 45%, rgba(255,230,200,0) 80%) }
 #fxvig { background: radial-gradient(ellipse at center, rgba(160,0,0,0) 45%, rgba(150,0,0,.55) 100%) }
@@ -44,11 +46,12 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
   <div class="lab">동작</div><div class="row" id="acts"></div>
   <div class="lab">격투 · 공격</div><div class="row" id="fight"></div>
   <div class="lab">격투 · 맞기</div><div class="row" id="hurt"></div>
-  <div class="row"><button type="button" id="spar">대련 상대 세우기</button></div>
+  <div class="row"><button type="button" id="spar">대련 상대 세우기</button><button type="button" id="atk">공격 (랜덤)<kbd>J</kbd></button></div>
   <div class="help"><b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>Space</b> 점프 · 마우스 드래그로 카메라<br>동작 중에 움직이면 동작이 끊기고 걷기로 돌아갑니다.</div>
 </section>
 <div class="hud" id="hud" aria-live="polite">불러오는 중</div>
 <div id="stick" aria-hidden="true"><i></i></div>
+<button type="button" id="atkpad" aria-label="공격">공격</button>
 <div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
 <div id="load">들판에 사람 부르는 중…</div>
 
@@ -192,7 +195,7 @@ function playOnce(name) {
   a.reset(); a.setEffectiveWeight(1); a.fadeIn(snap ? .04 : .25); a.play(); st.once = a; st.onceName = name; sync();   // a hit lands at once
 }
 function stopOnce(user) { if (st.once) { const wasFight = st.fight && st.onceName !== 'guard'; st.once.fadeOut(.3); st.once = null; st.onceName = ''; sync();
-  if (wasFight && !user) playOnce('guard'); } }   // after a strike, back into the guard
+  if (wasFight && !user) { if (st.queued) { st.queued = false; autoAttack(); } else playOnce('guard'); } } }   // after a strike, back into the guard
 // ---------------------------------------------------------------- impact feel: time, camera, particles, flash, words, sound
 const FX = (() => {
   // particles: one additive point cloud, CPU-updated (sparks / sweat / dust)
@@ -231,13 +234,13 @@ const FX = (() => {
   let ac = null; const audio = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch (e) {} return ac; };
   addEventListener('pointerdown', audio, { once: true }); addEventListener('keydown', audio, { once: true });
   function noise(dur) { const a = audio(); const b = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const n = a.createBufferSource(); n.buffer = b; return n; }
-  function thump(s, part) { const a = audio(); if (!a) return; const t = a.currentTime, out = a.createGain(); out.gain.value = .5 + .4 * Math.min(s, 1.5); out.connect(a.destination);
+  function thump(s, part) { const a = audio(); if (!a) return; const t = a.currentTime, jit = .85 + Math.random() * .3, out = a.createGain(); out.gain.value = .5 + .4 * Math.min(s, 1.5); out.connect(a.destination);
     // body: falling sine (the low "thud"), sharper and higher for the head / slap for the cheek
     const o = a.createOscillator(), og = a.createGain(), f0 = part === 'cheek' ? 260 : part === 'head' ? 170 : part === 'leg' ? 120 : 95;
-    o.frequency.setValueAtTime(f0 * (1.4 + .4 * s), t); o.frequency.exponentialRampToValueAtTime(f0 * .45, t + .16 + .08 * s);
+    o.frequency.setValueAtTime(f0 * jit * (1.4 + .4 * s), t); o.frequency.exponentialRampToValueAtTime(f0 * jit * .45, t + .16 + .08 * s);
     og.gain.setValueAtTime(1, t); og.gain.exponentialRampToValueAtTime(.001, t + .22 + .12 * s); o.connect(og).connect(out); o.start(t); o.stop(t + .4);
     // crack: band-passed noise click (skin / cloth)
-    const n = noise(.12), f = a.createBiquadFilter(), ng = a.createGain(); f.type = 'bandpass'; f.frequency.value = part === 'cheek' ? 2600 : 1400; f.Q.value = .9;
+    const n = noise(.12), f = a.createBiquadFilter(), ng = a.createGain(); f.type = 'bandpass'; f.frequency.value = (part === 'cheek' ? 2600 : 1400) * jit; f.Q.value = .9;
     ng.gain.setValueAtTime(part === 'cheek' ? 1.3 : .8, t); ng.gain.exponentialRampToValueAtTime(.001, t + .09); n.connect(f).connect(ng).connect(out); n.start(t);
     if (s > .95) { const n2 = noise(.5), lp = a.createBiquadFilter(), g2 = a.createGain(); lp.type = 'lowpass'; lp.frequency.value = 380; g2.gain.setValueAtTime(.9, t); g2.gain.exponentialRampToValueAtTime(.001, t + .45);
       n2.connect(lp).connect(g2).connect(out); n2.start(t); } }   // heavy: a boom underneath
@@ -247,16 +250,20 @@ const FX = (() => {
   function fallSound() { const a = audio(); if (!a) return; const t = a.currentTime, n = noise(.6), lp = a.createBiquadFilter(), g = a.createGain(); lp.type = 'lowpass'; lp.frequency.value = 220;
     g.gain.setValueAtTime(1.2, t); g.gain.exponentialRampToValueAtTime(.001, t + .55); n.connect(lp).connect(g).connect(a.destination); n.start(t);
     const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(35, t + .3); og.gain.setValueAtTime(.9, t); og.gain.exponentialRampToValueAtTime(.001, t + .35); o.connect(og).connect(a.destination); o.start(t); o.stop(t + .4); }
-  const WORDS = { cheek: ['철썩!', '#ffd0a0'], head: ['퍽!', '#fff1b0'], chin: ['빡!', '#ffe27a'], body: ['퍽!', '#ffe6c0'], leg: ['팍!', '#ffe6c0'], heavy: ['쾅!', '#ffb44a'], down: ['쿵!!', '#ff8a3a'] };
+  const WORDS = { cheek: [['철썩!', '짝!', '찰싹!'], '#ffd0a0'], head: [['퍽!', '퍼억!', '퍽퍽!'], '#fff1b0'], chin: [['빡!', '딱!', '빠악!'], '#ffe27a'], body: [['퍽!', '퍼억!', '욱!'], '#ffe6c0'],
+    leg: [['팍!', '파악!', '탁!'], '#ffe6c0'], heavy: [['쾅!', '콰광!', '퍼버벅!'], '#ffb44a'], down: [['쿵!!', '쿠웅!!', '털썩!!'], '#ff8a3a'], crit: [['크리티컬!', '급소!', '정타!'], '#ff5a3a'],
+    block: [['막음!', '탁!', '턱!'], '#bfe0ff'], dodge: [['휙—', '피함!', '슥—'], '#d8f0ff'] };
+  const pick = a => a[Math.floor(Math.random() * a.length)];
   return {
-    impact({ p, dir, s, part, heavy, down, who }) {
+    impact({ p, dir, s, part, heavy, down, who, crit }) {
+      dir = dir.clone().add(new THREE.Vector3((Math.random() - .5) * .5, (Math.random() - .3) * .4, (Math.random() - .5) * .5)).normalize();   // never the same twice
       const kindKey = down ? 'down' : heavy ? 'heavy' : part;
       // sparks: hot core along the strike, white flecks; sweat for face hits; cloth dust for body
-      emit(p, 10 + Math.round(18 * s), { dir: dir.clone().multiplyScalar(.9), spread: .9, speed: 2.6 + 2.2 * s, life: .22, size: .05 + .03 * s, color: [1.0, .85, .55], kind: 0 });
+      emit(p, 6 + Math.round((14 + Math.random() * 12) * s), { dir: dir.clone().multiplyScalar(.9), spread: .9, speed: 2.6 + 2.2 * s, life: .22, size: .05 + .03 * s, color: [1.0, .85, .55], kind: 0 });
       emit(p, 6 + Math.round(8 * s), { dir: dir.clone().multiplyScalar(.4), spread: 1, speed: 1.4, life: .35, size: .09 + .05 * s, color: [.7, .6, .45], kind: 1 });
       if (part === 'head' || part === 'cheek' || part === 'chin') emit(p, 8 + Math.round(10 * s), { dir: dir.clone().add(new THREE.Vector3(0, .5, 0)), spread: .6, speed: 2 + s, life: .5, size: .025, color: [.55, .65, .75], kind: 2 });
       if (heavy || down) { ring.position.copy(p); ring.visible = true; rs.t = 0; rs.s = .25 + .35 * s; }
-      showWord(WORDS[kindKey][0], p, s, WORDS[kindKey][1]);
+      const wk = crit ? 'crit' : kindKey; showWord(pick(WORDS[wk][0]), p, s, WORDS[wk][1]);
       flashBody(who, s);
       // camera: shoved along the blow, plus shake; heavy zooms in for a beat
       camK.vel.addScaledVector(dir, .9 + 1.6 * s); shake.a = Math.max(shake.a, .015 + .035 * s); if (heavy || down) camK.zoom = 5 + 4 * s;
@@ -264,6 +271,9 @@ const FX = (() => {
       if (down) { slow = .3; slowT = .6; }
       thump(s, part); try { navigator.vibrate && navigator.vibrate(heavy || down ? [30, 20, 60] : 18 + Math.round(20 * s)); } catch (e) {}
     },
+    guard({ p, dir, who, dodge }) {   // blocked: a dull tap, blue-white flecks, small push; dodged: just air
+      if (!dodge) { emit(p, 8, { dir: dir.clone().multiplyScalar(-.5), spread: 1, speed: 1.8, life: .18, size: .04, color: [.6, .8, 1], kind: 0 }); thump(.25, 'body'); camK.vel.addScaledVector(dir, .5); shake.a = Math.max(shake.a, .01); }
+      showWord(pick(WORDS[dodge ? 'dodge' : 'block'][0]), p, .3, WORDS[dodge ? 'dodge' : 'block'][1]); },
     whoosh, fallSound,
     dust(p) { emit(p, 40, { dir: new THREE.Vector3(0, .5, 0), spread: 1.2, speed: 1.3, life: .9, size: .22, color: [.38, .33, .26], kind: 3 }); },
     timeScale() { return slowT > 0 ? slow : 1; },
@@ -318,7 +328,19 @@ function judgeHit(sk) {
   const vel = hit.clone().sub(h0[1]).divideScalar(Math.max(st.t - h0[0], 1 / 60)).applyQuaternion(inv), sp = vel.length();
   const side = (Math.abs(vel.x) > .5 ? -vel.x : loc.x) > 0 ? 'l' : 'r';   // a hook travels across: it lands on the side it comes from
   const lateral = Math.abs(vel.x) > Math.abs(vel.z) * 1.1 && Math.abs(vel.x) > 1.2, upward = !lateral && vel.y > sp * .6;
-  const s = sk.power * THREE.MathUtils.clamp(sp / 5, .7, 1.3);
+  let s = sk.power * THREE.MathUtils.clamp(sp / 5, .7, 1.3) * (.85 + Math.random() * .3);
+  // outcome roll: blocked / slipped / clean / critical, weighed by the situation
+  const dazed = (SP.meter || 0) > 1.6, repeat = st.repeat || 0, light = sk.power < .6;
+  const pBlock = SP.down ? 0 : THREE.MathUtils.clamp((light ? .28 : .14) + .12 * repeat - (dazed ? .25 : 0) - (sk.follow ? .08 : 0), 0, .55);
+  const pDodge = SP.down || best.n.startsWith('leg') ? 0 : THREE.MathUtils.clamp(.08 + .05 * repeat - (dazed ? .08 : 0), 0, .25);
+  const pCrit = THREE.MathUtils.clamp(.07 + (dazed ? .18 : 0) + (sk.follow ? .05 : 0), 0, .4);
+  const roll = Math.random(), wdir = vel.clone().applyQuaternion(SP.holder.quaternion).setY(0); if (wdir.lengthSq() < 1e-6) wdir.set(0, 0, 1); wdir.normalize();
+  if (best.n !== 'leg_l' && best.n !== 'leg_r' && roll < pBlock) {
+    spPlay(best.n === 'head' ? 'hit_face' : 'hit_chest', .22); SP.meter = (SP.meter || 0) + s * .15; hitStop = .03;
+    FX.guard({ p: hit, dir: wdir, who: SP }); hitInfo.text = `${sk.label}: 막힘`; return; }
+  if (roll < pBlock + pDodge) {
+    spPlay(Math.random() < .5 ? 'hit_face_l' : 'hit_face_r', .3); FX.guard({ p: hit, dir: wdir, who: SP, dodge: true }); hitInfo.text = `${sk.label}: 피함`; return; }
+  const crit = Math.random() < pCrit; if (crit) s *= 1.5;
   SP.meter = (SP.meter || 0) + s;
   let reac, part;
   if (best.n === 'head') { part = upward ? '턱' : lateral ? (side === 'l' ? '왼뺨' : '오른뺨') : '얼굴'; reac = upward ? 'hit_chin' : lateral ? 'hit_face_' + side : 'hit_face'; }
@@ -333,12 +355,33 @@ function judgeHit(sk) {
   spPlay(reac, w); if (reac !== 'knockdown' && SP.after) { SP.next = SP.after; SP.after = null; }
   { const worldDir = vel.clone().applyQuaternion(SP.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.set(0, 0, 1); worldDir.normalize();
     const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
-    FX.impact({ p: hit, dir: worldDir, s, part: fxPart, heavy: w >= 1 && reac !== 'knockdown' && (s >= .95 || SP.meter > 2.6 || reac.startsWith('hit_heavy') || reac.startsWith('hit_spin')), down: reac === 'knockdown', who: SP });
+    FX.impact({ crit, p: hit, dir: worldDir, s, part: fxPart, heavy: w >= 1 && reac !== 'knockdown' && (s >= .95 || SP.meter > 2.6 || reac.startsWith('hit_heavy') || reac.startsWith('hit_spin')), down: reac === 'knockdown', who: SP });
     if (reac === 'knockdown') { SP.fallAt = st.t + .85; } }
   hitStop = .05 + .07 * Math.min(s, 1.5);   // freeze longer for harder blows
-  hitInfo.text = `${sk.label}: ${part} 명중 · 세기 ${s.toFixed(2)}${note}`;
+  hitInfo.text = `${sk.label}: ${part} ${crit ? '크리티컬' : '명중'} · 세기 ${s.toFixed(2)}${note}`;
 }
 let hitStop = 0;
+// one attack button: the move is chosen from the range, the partner's state and the combo so far (weighted random, no straight repeats)
+const RANGE = { close: ['hook', 'uppercut', 'knee', 'combo_jh', 'flurry'], mid: ['jab', 'cross', 'combo_12', 'combo_jh', 'hook', 'flurry'], far: ['kick_front', 'kick_side', 'jump_kick', 'jab'] };
+const CHAIN = { jab: ['cross', 'hook', 'combo_12'], cross: ['hook', 'uppercut', 'kick_side'], hook: ['uppercut', 'cross', 'knee'], combo_12: ['hook', 'uppercut', 'kick_front'],
+  combo_jh: ['uppercut', 'cross', 'kick_side'], uppercut: ['hook', 'kick_side', 'jab'], knee: ['uppercut', 'hook'], kick_front: ['jab', 'cross', 'jump_kick'] };
+const FINISH = ['uppercut', 'kick_side', 'jump_kick'];
+function autoAttack() {
+  if (!P) return; if (st.once && st.onceName !== 'guard' && st.once.isRunning() && st.once.time < st.once.getClip().duration * .55) { st.queued = true; return; }   // pressed mid-swing: chain next
+  if (SP && SP.down) { hitInfo.text = '쓰러진 상대는 때리지 않습니다'; return; }
+  const a_ = wpos(P, 'pelvis', new THREE.Vector3()), b_ = SP ? wpos(SP, 'pelvis', new THREE.Vector3()) : a_.clone().add(new THREE.Vector3(1.2, 0, 0));
+  const dist = Math.hypot(b_.x - a_.x, b_.z - a_.z);   // where the bodies really are (reactions push the partner back)
+  const band = dist < .85 ? 'close' : dist < 1.5 ? 'mid' : 'far', w = {}, NB = { close: 'mid', mid: Math.random() < .5 ? 'close' : 'far', far: 'mid' };
+  for (const m of RANGE[band]) w[m] = (w[m] || 0) + 1;
+  for (const m of RANGE[NB[band]]) w[m] = (w[m] || 0) + .35;   // sometimes reach for something from the next range
+  const RARE = { flurry: .35, jump_kick: .5 }; for (const m in RARE) if (w[m]) w[m] *= RARE[m];
+  if (st.lastAtk && performance.now() - st.lastAtkT < 1400) for (const m of CHAIN[st.lastAtk] || []) w[m] = (w[m] || 0) + 2.2;   // keep the combo flowing
+  if (SP && (SP.meter || 0) > 1.6) for (const m of FINISH) w[m] = (w[m] || 0) + 2.5;   // he is wobbling: go for the finish
+  if (st.lastAtk) w[st.lastAtk] = (w[st.lastAtk] || 0) * .15;
+  let tot = 0; for (const k in w) tot += w[k]; let r = Math.random() * tot, mv = 'jab'; for (const k in w) { r -= w[k]; if (r <= 0) { mv = k; break; } }
+  st.repeat = mv === st.lastAtk ? (st.repeat || 0) + 1 : 0; st.lastAtk = mv; st.lastAtkT = performance.now();
+  playOnce(mv);
+}
 async function toggleSpar() {
   if (SP) { scene.remove(SP.holder); SP = null; $('spar').textContent = '대련 상대 세우기'; return; }
   const id = current === 'woochan' ? 'anjun' : 'woochan'; $('spar').textContent = PEOPLE[id] + ' 부르는 중…';
@@ -351,6 +394,7 @@ const keys = new Set(); const joy = { x: 0, y: 0 };
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return; const k = e.key.toLowerCase(); keys.add(k);
   if (k === ' ') { e.preventDefault(); playOnce('jump'); }
+  if (k === 'j' && !e.repeat) { autoAttack(); return; }
   const fk = FIGHT.find(a => a[2].toLowerCase() === k); if (fk) { playOnce(fk[0]); return; }
   const hit = ACTS.find(a => a[2] && a[2].toLowerCase() === k && k !== ' '); if (hit) playOnce(hit[0]);
 });
@@ -375,6 +419,8 @@ btns($('acts'), ACTS, playOnce);
 btns($('fight'), FIGHT, playOnce);
 btns($('hurt'), HURT, playOnce);
 $('spar').addEventListener('click', () => { toggleSpar(); $('spar').blur(); });
+$('atk').addEventListener('click', () => { autoAttack(); $('atk').blur(); });
+$('atkpad').addEventListener('pointerdown', e => { e.preventDefault(); autoAttack(); });
 function sync() {
   $('people').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === current)));
   $('gaits').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.gait)));
@@ -436,5 +482,5 @@ function update(dt) {
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
 r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); FX.afterRender(); });
 await choose('ijang');
-window.__dbg = { hitInfo, toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
+window.__dbg = { autoAttack, hitInfo, toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
 </script>
