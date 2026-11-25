@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>신화리 온라인</title>
+<title>GTK: Grand Theft Korea</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
@@ -26,7 +26,11 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 #mini { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: 190px; height: 190px;
   border-radius: 50%; border: 2px solid rgba(255, 255, 255, .6); background: #1d241c; overflow: hidden }
 #mini canvas { width: 100%; height: 100% }
-#load { position: fixed; inset: 0; display: grid; place-items: center; background: #a9bccb; color: #1d2a22; font-size: 15px; text-align: center; line-height: 1.7 }
+#load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 40%, #2a2f26, #0d0f0b 75%); color: #e9e4cf; font-size: 15px; text-align: center; line-height: 1.7; z-index: 20 }
+#load .tk { font: 400 clamp(84px, 22vw, 200px)/.9 "Black Han Sans", var(--f); letter-spacing: .06em; color: #f3e3a8; text-shadow: 0 6px 0 #5a2a0c, 0 0 40px rgba(240,170,60,.35) }
+#load .te { font: 700 clamp(15px, 3.6vw, 26px) var(--f); letter-spacing: .42em; text-transform: uppercase; color: #e2cf72; margin-top: 10px; padding-left: .42em }
+#load .tko { font: 600 clamp(13px, 2.8vw, 18px) var(--f); letter-spacing: .5em; color: #b9b39a; margin-top: 4px; padding-left: .5em }
+#loadmsg { margin-top: 36px; font-size: 13px; color: #9aa38f; min-height: 1.7em }
 #stick { position: fixed; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, .5); background: rgba(0, 0, 0, .15); touch-action: none; display: none }
 #stick i { position: absolute; left: 40px; top: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .7) }
@@ -71,7 +75,7 @@ body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #sti
 <body>
 <div id="v"></div>
 <section class="panel" aria-label="게임 정보">
-  <h1>신화리 온라인<small>신화2리 · WebGPU</small></h1>
+  <h1>GTK<small>한국의 위대한 도둑 · 신화2리</small></h1>
   <div class="row" id="views"></div>
   <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 화면 클릭 후 <b>마우스</b>로 둘러보기(<b>Esc</b> 해제) · 휠 거리<br><b>클릭</b> 또는 <b>J</b> 공격(거리·상황 따라 기술이 바뀜) · 게이지가 차면 <b>E</b> 처형 · 달리면서 맞으면 잘 피함</div>
 </section>
@@ -85,7 +89,7 @@ body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #sti
 <div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
 <div id="kotext" aria-hidden="true">기절!</div>
 <div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
-<div id="load">신화리 들어가는 중…</div>
+<div id="load"><div class="tc"><div class="tk">GTK</div><div class="te">Grand Theft Korea</div><div class="tko">한국의 위대한 도둑</div><div id="loadmsg">신화리 들어가는 중…</div></div></div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"}}</script>
 <script type="module">
@@ -101,8 +105,8 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
 
 const $ = id => document.getElementById(id);
-const say = t => { $('load').textContent = t; };
-window.addEventListener('error', e => { $('load').hidden = false; $('load').textContent = '오류: ' + e.message; });
+const say = t => { $('loadmsg').textContent = t; };
+window.addEventListener('error', e => { $('load').hidden = false; $('loadmsg').textContent = '오류: ' + e.message; });
 
 // ---------------------------------------------------------------- renderer (WebGPU, falls back to WebGL2 where WebGPU is missing)
 const r = new THREE.WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
