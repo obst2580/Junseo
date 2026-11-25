@@ -43,7 +43,40 @@ CLIPS = {
     'fall':      ('90_16', 'once', .3, 5.0),
     'get_up':    ('140_01', 'once', .3, 6.0),
     'shrug':     ('141_21', 'once', .2, 2.2),
+    # ---- fighting: attacks (windows found by tools/strike detection on the CMU boxing / kick takes)
+    'guard':      ('14_01', 'loopw', .7, 1.5, .1, 2.2),     # boxing stance bob (search only before the first punch)
+    'jab':        ('13_18', 'once', 12.75, 13.8),
+    'cross':      ('13_17', 'once', 4.75, 5.85),
+    'hook':       ('13_18', 'once', 2.0, 3.15),
+    'uppercut':   ('17_10', 'once', 17.6, 18.7),
+    'combo_12':   ('14_03', 'once', 8.95, 10.2),
+    'combo_jh':   ('14_03', 'once', 6.5, 7.85),
+    'flurry':     ('80_10', 'once', 1.0, 4.9),
+    'kick_front': ('74_04', 'once', .6, 2.4),
+    'kick_side':  ('143_24', 'once', 1.85, 3.35),
+    'knee':       ('143_24', 'once', 3.3, 4.55),
+    'jump_kick':  ('75_16', 'once', .8, 2.85),
+    # ---- fighting: reactions (mocap)
+    'knockdown':  ('90_18', 'once', .3, 3.25),
+    'getup_back': ('139_18', 'once', .3, 7.0),
+    'stumble':    ('104_13', 'once', .3, 4.5),
+    'hurt_walk':  ('91_26', 'loop', 1.0, 2.4),
 }
+# ---- fighting: hit reactions authored on the guard stance: (bone, world axis, peak angle rad) + pelvis shove (dx, dy, dz) m
+# axes (Blender, character faces -Y): +X angle bends forward, -X bends back; +Z turns to the character's left; +Y tilts to its left
+REACT = {
+    'hit_face':   dict(rot=[('head', 'X', -.85), ('neck_01', 'X', -.45), ('spine_03', 'X', -.32), ('spine_02', 'X', -.18), ('spine_01', 'X', -.08),
+                            ('upperarm_l', 'X', -.35), ('upperarm_r', 'X', -.35)], shove=(0, .3, 0), tp=.08, tau=.3),
+    'hit_face_l': dict(rot=[('head', 'Z', -1.05), ('head', 'Y', -.4), ('neck_01', 'Z', -.45), ('spine_03', 'Z', -.35), ('spine_02', 'Z', -.18), ('spine_02', 'Y', -.18),
+                            ('upperarm_l', 'Y', .35)], shove=(-.18, .1, 0), tp=.08, tau=.32),
+    'hit_face_r': dict(rot=[('head', 'Z', 1.05), ('head', 'Y', .4), ('neck_01', 'Z', .45), ('spine_03', 'Z', .35), ('spine_02', 'Z', .18), ('spine_02', 'Y', .18),
+                            ('upperarm_r', 'Y', -.35)], shove=(.18, .1, 0), tp=.08, tau=.32),
+    'hit_gut':    dict(rot=[('spine_01', 'X', .45), ('spine_02', 'X', .55), ('spine_03', 'X', .35), ('head', 'X', -.15), ('pelvis', 'X', .18),
+                            ('upperarm_l', 'X', .5), ('upperarm_r', 'X', .5), ('lowerarm_l', 'Z', -.6), ('lowerarm_r', 'Z', .6)], shove=(0, .25, -.12), tp=.12, tau=.55),
+    'hit_heavy':  dict(rot=[('head', 'X', -1.0), ('neck_01', 'X', -.5), ('spine_03', 'X', -.45), ('spine_02', 'X', -.35), ('pelvis', 'X', -.2),
+                            ('upperarm_l', 'Y', .9), ('upperarm_r', 'Y', -.9), ('upperarm_l', 'X', -.5), ('upperarm_r', 'X', -.5)], shove=(0, .9, -.08), tp=.15, tau=.45),
+}
+for k_ in REACT: CLIPS[k_] = ('14_01', 'react', .4, 1.75)
 MAP = {'Hips': 'pelvis', 'LowerBack': 'spine_01', 'Spine': 'spine_02', 'Spine1': 'spine_03', 'Neck': 'neck_01', 'Head': 'head',
        'LeftUpLeg': 'thigh_l', 'LeftLeg': 'calf_l', 'LeftFoot': 'foot_l', 'LeftToeBase': 'ball_l',
        'RightUpLeg': 'thigh_r', 'RightLeg': 'calf_r', 'RightFoot': 'foot_r', 'RightToeBase': 'ball_r',
@@ -70,7 +103,8 @@ def yaw_to(src_fwd, dst_fwd):
     return Quaternion((0, 0, 1), b - a)
 
 meta = {}
-for clip, (fn, mode, a, b) in CLIPS.items():
+for clip, spec in CLIPS.items():
+    fn, mode, a, b = spec[:4]
     path = os.path.join(BVH, fn + '.bvh')
     if not os.path.exists(path): print('SKIP', clip); continue
     before = set(bpy.data.objects)
@@ -93,9 +127,10 @@ for clip, (fn, mode, a, b) in CLIPS.items():
         FW.append(lat.cross(Vector((0, 0, 1))).normalized())   # forward = (left - right) x up
     n = len(frames); HP = np.array([tuple(p) for p in HP])
     # pick the segment
-    if mode == 'loop':
+    if mode == 'loopw': mode_eff = 'loop'
+    if mode in ('loop', 'loopw'):
         L0, L1 = int(a * FPS), int(b * FPS)
-        core0, core1 = int(n * .1), int(n * .9)
+        core0, core1 = (int(spec[4] * FPS), min(n - 1, int(spec[5] * FPS))) if mode == 'loopw' else (int(n * .1), int(n * .9))
         keyb = ['LeftUpLeg', 'LeftLeg', 'RightUpLeg', 'RightLeg', 'Hips', 'LeftArm', 'RightArm', 'Spine1']
         Q = np.array([[tuple(R[s][i]) for s in keyb] for i in range(n)])
         best = (1e9, 0, 0)
@@ -124,13 +159,13 @@ for clip, (fn, mode, a, b) in CLIPS.items():
             ALIGN[s] = td.rotation_difference(sd)
     # hips: scale and in-place handling
     src_stand = S_REST_W['Hips'].translation.z if S_REST_W['Hips'].translation.z > 1 else np.median(HP[:, 2])
-    stand_h = np.percentile(HP[seg, 2], 75) if mode == 'loop' else HP[seg[0], 2]
+    stand_h = np.percentile(HP[seg, 2], 75) if mode in ('loop', 'loopw') else HP[seg[0], 2]
     scale = pel_h / max(stand_h, 1e-3)
     P = np.array([tuple(Rc @ Vector(p)) for p in HP[seg]])
     P -= P[0]
     t = np.arange(len(seg)) / FPS
     speed = 0.
-    if mode == 'loop':
+    if mode in ('loop', 'loopw'):
         for k in (0, 1):   # remove the linear drift (in-place loop), remember the speed
             co = np.polyfit(t, P[:, k], 1); P[:, k] -= np.polyval(co, t); speed = speed if k else 0
         dist = np.linalg.norm((np.array(tuple(Rc @ Vector(HP[seg[-1]]))) - np.array(tuple(Rc @ Vector(HP[seg[0]]))))[:2])
@@ -139,8 +174,16 @@ for clip, (fn, mode, a, b) in CLIPS.items():
     # build the action on the target
     action = bpy.data.actions.new(clip); action.use_fake_user = True
     tgt.animation_data_create(); tgt.animation_data.action = action
+    RX = REACT.get(clip)
+    def env(tt):   # sharp rise to the hit, damped wobble back
+        if not RX: return 0.
+        tp, tau = RX['tp'], RX['tau']
+        if tt < tp: x = tt / tp; return x * x * (3 - 2 * x)
+        return math.exp(-(tt - tp) / tau) * math.cos((tt - tp) * 7.5) * .85 + .15 * math.exp(-(tt - tp) / (tau * 2.5))
+    AX = {'X': Vector((1, 0, 0)), 'Y': Vector((0, 1, 0)), 'Z': Vector((0, 0, 1))}
     for fi, i in enumerate(seg):
         A = {}   # armature-space posed matrices
+        e = env(fi / FPS); DC = {}
         for name in order:
             bone = tb[name]; parent = bone.parent
             base = (A[parent.name] @ REST[parent.name].inverted() @ REST[name]) if parent else REST[name].copy()
@@ -148,11 +191,20 @@ for clip, (fn, mode, a, b) in CLIPS.items():
             if src_name is None: A[name] = base; continue
             Ws = Rc @ R[src_name][i]
             Wt = Ws @ S_REST_Q[src_name].inverted() @ ALIGN[src_name] @ T_REST_W[name].to_quaternion()
+            if RX:   # cumulative world-space hit rotation: a bone carries its ancestors' recoil
+                par_ = bone.parent; d_ = DC.get(par_.name, Quaternion()) if par_ else Quaternion()
+                while par_ is not None and par_.name not in DC: par_ = par_.parent; d_ = DC.get(par_.name, Quaternion()) if par_ else Quaternion()
+                for bn, ax, ang in RX['rot']:
+                    if bn == name: d_ = d_ @ Quaternion(AX[ax], ang * e)
+                DC[name] = d_; Wt = d_ @ Wt
             Arot = (TWr.inverted() @ Wt).to_matrix().to_4x4()
             M = Arot.copy(); M.translation = base.translation
             if name == 'pelvis':
-                hw = (TW @ REST['pelvis']).translation + Vector((P[fi, 0], P[fi, 1], P[fi, 2] - (P[:, 2].mean() if mode == 'loop' else 0) + (stand_h - stand_h) ))
+                hw = (TW @ REST['pelvis']).translation + Vector((P[fi, 0], P[fi, 1], P[fi, 2] - (P[:, 2].mean() if mode in ('loop', 'loopw') else 0) + (stand_h - stand_h) ))
                 hw.z = pel_h + (HP[i, 2] - stand_h) * scale
+                if RX:   # shoved back: travel keeps most of the way (no snap back), dip recovers
+                    tt_ = fi / FPS; tr_ = min(1., tt_ / (RX['tp'] * 2.5)); tr_ = tr_ * tr_ * (3 - 2 * tr_)
+                    hw += Vector((RX['shove'][0] * tr_, RX['shove'][1] * tr_, RX['shove'][2] * e))
                 M.translation = TWi @ hw
             A[name] = M
             pb = tgt.pose.bones[name]
@@ -160,7 +212,7 @@ for clip, (fn, mode, a, b) in CLIPS.items():
             loc, rot, _ = basis.decompose()
             pb.rotation_quaternion = rot; pb.keyframe_insert('rotation_quaternion', frame=fi + 1)
             if name == 'pelvis': pb.location = loc; pb.keyframe_insert('location', frame=fi + 1)
-    meta[clip] = dict(loop=mode == 'loop', frames=len(seg), dur=round((len(seg) - 1) / FPS, 3), speed=round(float(speed), 3), src=fn)
+    meta[clip] = dict(loop=mode in ('loop', 'loopw'), frames=len(seg), dur=round((len(seg) - 1) / FPS, 3), speed=round(float(speed), 3), src=fn)
     print('CLIP', clip, meta[clip])
     bpy.data.objects.remove(src, do_unlink=True); bpy.data.actions.remove(act)   # keep only the retargeted clip
     for pb in tgt.pose.bones: pb.rotation_quaternion = (1, 0, 0, 0); pb.location = (0, 0, 0)

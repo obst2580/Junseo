@@ -29,10 +29,13 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 </style>
 <div id="v"></div>
 <section class="panel" aria-label="동작 시험 조작판">
-  <h1>동작 시험장<small>CMU 모션캡처 22종</small></h1>
+  <h1>동작 시험장<small>CMU 모션캡처 43종</small></h1>
   <div class="lab">인물</div><div class="row" id="people"></div>
   <div class="lab">걸음걸이</div><div class="row" id="gaits"></div>
   <div class="lab">동작</div><div class="row" id="acts"></div>
+  <div class="lab">격투 · 공격</div><div class="row" id="fight"></div>
+  <div class="lab">격투 · 맞기</div><div class="row" id="hurt"></div>
+  <div class="row"><button type="button" id="spar">대련 상대 세우기</button></div>
   <div class="help"><b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>Space</b> 점프 · 마우스 드래그로 카메라<br>동작 중에 움직이면 동작이 끊기고 걷기로 돌아갑니다.</div>
 </section>
 <div class="hud" id="hud" aria-live="polite">불러오는 중</div>
@@ -47,7 +50,15 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 const $ = id => document.getElementById(id);
 const PEOPLE = { ijang: '오만복 이장', halmeoni: '박순례', choi: '최 실장', minseok: '민석', police: '김 순경', syuper: '슈퍼 사장님', sangsa: '박 상사', anjun: '안준', jinwook: '홍진욱', parkjin: '박진', woochan: '조우찬' };
-const GAITS = { normal: '보통', sneak: '살금살금', limp: '절뚝', drunk: '술 취함' };
+const GAITS = { normal: '보통', sneak: '살금살금', limp: '절뚝', drunk: '술 취함', hurt: '배 부여잡고' };
+// fighting: [clip, label, key, strike times (s) → what the sparring partner takes]
+const FIGHT = [['guard', '가드 자세', 'F', []], ['jab', '잽', '1', [[.45, 'hit_face']]], ['cross', '스트레이트', '2', [[.48, 'hit_face']]], ['hook', '훅', '3', [[.47, 'hit_face_l']]],
+  ['uppercut', '어퍼컷', '4', [[.47, 'hit_heavy']]], ['combo_12', '원투', '5', [[.45, 'hit_face'], [.68, 'hit_face_r']]], ['combo_jh', '잽 훅', '6', [[.47, 'hit_face'], [.7, 'hit_face_l']]],
+  ['flurry', '연타', '7', [[.27, 'hit_face_r'], [.77, 'hit_face_l'], [1.3, 'hit_face_r'], [1.8, 'hit_face_l'], [2.3, 'hit_face'], [2.85, 'hit_gut'], [3.3, 'hit_heavy']]],
+  ['kick_front', '앞차기', '8', [[.83, 'hit_gut']]], ['kick_side', '옆차기', '9', [[.62, 'hit_heavy']]], ['knee', '무릎', '0', [[.6, 'hit_gut']]], ['jump_kick', '날아차기', 'K', [[1.3, 'knockdown']]]];
+const HURT = [['hit_face', '얼굴 맞음', ''], ['hit_face_l', '왼뺨 맞음', ''], ['hit_face_r', '오른뺨 맞음', ''], ['hit_gut', '배 맞음', ''], ['hit_heavy', '세게 맞음', ''],
+  ['stumble', '휘청', ''], ['knockdown', '나가떨어짐', ''], ['fall', '앞으로 쓰러짐', ''], ['getup_back', '누웠다 일어남', '']];
+const ALLACTS = () => [...ACTS, ...FIGHT, ...HURT];
 const ACTS = [['jump', '점프', 'Space'], ['pickup', '줍기', 'E'], ['punch', '주먹', 'Q'], ['draw_gun', '총 꺼내기', 'G'], ['shoot', '사격', ''], ['phone', '전화', 'P'],
   ['wave', '손 흔들기', ''], ['shrug', '으쓱', ''], ['sit_stand', '앉았다 일어나기', ''], ['fall', '넘어짐', ''], ['get_up', '일어나기', ''], ['wait', '기다리기', ''],
   ['dig', '땅 파기', ''], ['sweep', '빗자루질', ''], ['push', '밀기', '']];
@@ -145,8 +156,8 @@ async function loadPerson(id) {
 
 // ---------------------------------------------------------------- player
 let P = null; const cache = {}; let current = 'ijang';
-const LOCO = { normal: [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], sneak: [['idle', 0], ['sneak', .6]], limp: [['idle', 0], ['limp', .65]], drunk: [['idle', 0], ['drunk', .5]] };
-const st = { gait: 'normal', speed: 0, phase: 0, once: null, onceName: '', yaw: 0 };
+const LOCO = { normal: [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], sneak: [['idle', 0], ['sneak', .6]], limp: [['idle', 0], ['limp', .65]], drunk: [['idle', 0], ['drunk', .5]], hurt: [['idle', 0], ['hurt_walk', .8]] };
+const st = { t: 0, gait: 'normal', speed: 0, phase: 0, once: null, onceName: '', yaw: 0 };
 async function choose(id) {
   $('load').hidden = false; $('load').textContent = PEOPLE[id] + ' 부르는 중…';
   try { cache[id] = cache[id] || await loadPerson(id); } catch (e) { $('load').textContent = '불러오지 못했습니다: ' + e.message; return; }
@@ -156,18 +167,36 @@ async function choose(id) {
   for (const [n] of Object.values(LOCO).flat()) { const a = P.actions[n]; if (a) { a.play(); a.setEffectiveWeight(0); } }
   st.once = null; $('load').hidden = true; sync();
 }
+const sched = [];   // [time, fn] pending partner reactions
 function playOnce(name) {
   if (!P || !P.actions[name]) return; const a = P.actions[name];
+  const f = FIGHT.find(x => x[0] === name); st.fight = !!f;
+  sched.length = 0;
+  if (f && SP) { const t0 = st.t; for (const [t, r] of f[3]) sched.push([t0 + t, r]); spFace(); }
   if (st.once) st.once.fadeOut(.25);
-  a.reset(); a.setEffectiveWeight(1); a.fadeIn(.25); a.play(); st.once = a; st.onceName = name; sync();
+  const snap = name.startsWith('hit_'); if (st.once) st.once.fadeOut(snap ? .05 : .25);
+  a.reset(); a.setEffectiveWeight(1); a.fadeIn(snap ? .04 : .25); a.play(); st.once = a; st.onceName = name; sync();   // a hit lands at once
 }
-function stopOnce() { if (st.once) { st.once.fadeOut(.3); st.once = null; st.onceName = ''; sync(); } }
+function stopOnce(user) { if (st.once) { const wasFight = st.fight && st.onceName !== 'guard'; st.once.fadeOut(.3); st.once = null; st.onceName = ''; sync();
+  if (wasFight && !user) playOnce('guard'); } }   // after a strike, back into the guard
+// ---------------------------------------------------------------- sparring partner: stands in front and takes your hits
+let SP = null;
+function spPlay(name) { if (!SP || !SP.actions[name]) return; const a = SP.actions[name]; if (SP.cur && SP.cur !== a) SP.cur.fadeOut(.08);
+  a.reset(); a.setEffectiveWeight(1); a.fadeIn(.06); a.play(); SP.cur = a; SP.curName = name;
+  if (name === 'knockdown') SP.next = 'getup_back'; else SP.next = 'guard'; }
+function spFace() { if (!SP || !P) return; const y = st.yaw; SP.holder.position.set(P.holder.position.x + Math.sin(y) * 1.05, 0, P.holder.position.z + Math.cos(y) * 1.05); SP.holder.rotation.y = y + Math.PI; }
+async function toggleSpar() {
+  if (SP) { scene.remove(SP.holder); SP = null; $('spar').textContent = '대련 상대 세우기'; return; }
+  const id = current === 'woochan' ? 'anjun' : 'woochan'; $('spar').textContent = PEOPLE[id] + ' 부르는 중…';
+  SP = await loadPerson(id); for (const a of Object.values(SP.actions)) a.stop(); scene.add(SP.holder); spFace(); spPlay('guard'); $('spar').textContent = '대련 상대 보내기';
+}
 
 // ---------------------------------------------------------------- input
 const keys = new Set(); const joy = { x: 0, y: 0 };
 addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return; const k = e.key.toLowerCase(); keys.add(k);
   if (k === ' ') { e.preventDefault(); playOnce('jump'); }
+  const fk = FIGHT.find(a => a[2].toLowerCase() === k); if (fk) { playOnce(fk[0]); return; }
   const hit = ACTS.find(a => a[2] && a[2].toLowerCase() === k && k !== ' '); if (hit) playOnce(hit[0]);
 });
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
@@ -183,23 +212,26 @@ function btns(host, items, onClick) { host.replaceChildren(...items.map(([v, lab
 btns($('people'), Object.entries(PEOPLE), choose);
 btns($('gaits'), Object.entries(GAITS), g => { st.gait = g; sync(); });
 btns($('acts'), ACTS, playOnce);
+btns($('fight'), FIGHT, playOnce);
+btns($('hurt'), HURT, playOnce);
+$('spar').addEventListener('click', () => { toggleSpar(); $('spar').blur(); });
 function sync() {
   $('people').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === current)));
   $('gaits').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.gait)));
-  $('acts').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.onceName)));
+  for (const h of ['acts', 'fight', 'hurt']) $(h).querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.onceName)));
 }
 
 // ---------------------------------------------------------------- update
 const clock = new THREE.Clock(), tmp = new THREE.Vector3();
 function update(dt) {
-  if (!P) return;
+  if (!P) return; st.t += dt;
   // desired move direction relative to the camera
   let ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x;
   let iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
   const mag = Math.min(1, Math.hypot(ix, iz)); const moving = mag > .1;
   const table = LOCO[st.gait], top = table[table.length - 1][1];
   const want = moving ? (st.gait === 'normal' ? (keys.has('shift') ? 3.0 : 1.0) : top) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
-  if (moving && st.once && !(st.once.userData.loop === false && st.onceName === 'jump')) stopOnce();
+  if (moving && st.once && !(st.once.userData.loop === false && st.onceName === 'jump')) stopOnce(true);
   const acc = want > st.speed ? 3.2 : 5; st.speed += Math.sign(want - st.speed) * Math.min(Math.abs(want - st.speed), acc * dt);
   if (moving && !st.once) {
     const camYaw = Math.atan2(cam.position.x - ctl.target.x, cam.position.z - ctl.target.z);
@@ -220,13 +252,17 @@ function update(dt) {
     if (n !== 'idle') { a.timeScale = 0; a.time = st.phase * a.getClip().duration; } }
   if (st.once && !st.once.isRunning() && st.once.userData.loop === false && st.once.time >= st.once.getClip().duration - .01) stopOnce();
   P.mixer.update(dt);
+  // partner: pending hits, then back to guard (or up off the floor)
+  while (sched.length && st.t >= sched[0][0]) spPlay(sched.shift()[1]);
+  if (SP) { if (SP.cur && SP.cur.userData.loop === false && SP.cur.time >= SP.cur.getClip().duration - .02 && SP.next) { const n = SP.next; SP.next = null; spPlay(n); }
+    SP.mixer.update(dt); }
   // camera follow
   tmp.copy(P.holder.position); tmp.y = 1.25; const dlt = tmp.clone().sub(ctl.target); ctl.target.add(dlt); cam.position.add(dlt);
   sun.position.set(P.holder.position.x + 6, 10, P.holder.position.z + 4); sun.target.position.copy(P.holder.position);
-  $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ACTS.find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}`;
+  $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ALLACTS().find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}`;
 }
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
 r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); });
 await choose('ijang');
-window.__dbg = { st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
+window.__dbg = { toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
 </script>

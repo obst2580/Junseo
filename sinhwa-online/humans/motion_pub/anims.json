@@ -154,6 +154,153 @@
    "dur": 2.0,
    "speed": 0.0,
    "src": "141_21"
+  },
+  "guard": {
+   "loop": true,
+   "frames": 22,
+   "dur": 0.7,
+   "speed": 0.07,
+   "src": "14_01"
+  },
+  "jab": {
+   "loop": false,
+   "frames": 33,
+   "dur": 1.067,
+   "speed": 0.0,
+   "src": "13_18"
+  },
+  "cross": {
+   "loop": false,
+   "frames": 34,
+   "dur": 1.1,
+   "speed": 0.0,
+   "src": "13_17"
+  },
+  "hook": {
+   "loop": false,
+   "frames": 35,
+   "dur": 1.133,
+   "speed": 0.0,
+   "src": "13_18"
+  },
+  "uppercut": {
+   "loop": false,
+   "frames": 34,
+   "dur": 1.1,
+   "speed": 0.0,
+   "src": "17_10"
+  },
+  "combo_12": {
+   "loop": false,
+   "frames": 39,
+   "dur": 1.267,
+   "speed": 0.0,
+   "src": "14_03"
+  },
+  "combo_jh": {
+   "loop": false,
+   "frames": 41,
+   "dur": 1.333,
+   "speed": 0.0,
+   "src": "14_03"
+  },
+  "flurry": {
+   "loop": false,
+   "frames": 118,
+   "dur": 3.9,
+   "speed": 0.0,
+   "src": "80_10"
+  },
+  "kick_front": {
+   "loop": false,
+   "frames": 55,
+   "dur": 1.8,
+   "speed": 0.0,
+   "src": "74_04"
+  },
+  "kick_side": {
+   "loop": false,
+   "frames": 46,
+   "dur": 1.5,
+   "speed": 0.0,
+   "src": "143_24"
+  },
+  "knee": {
+   "loop": false,
+   "frames": 38,
+   "dur": 1.233,
+   "speed": 0.0,
+   "src": "143_24"
+  },
+  "jump_kick": {
+   "loop": false,
+   "frames": 62,
+   "dur": 2.033,
+   "speed": 0.0,
+   "src": "75_16"
+  },
+  "knockdown": {
+   "loop": false,
+   "frames": 89,
+   "dur": 2.933,
+   "speed": 0.0,
+   "src": "90_18"
+  },
+  "getup_back": {
+   "loop": false,
+   "frames": 202,
+   "dur": 6.7,
+   "speed": 0.0,
+   "src": "139_18"
+  },
+  "stumble": {
+   "loop": false,
+   "frames": 127,
+   "dur": 4.2,
+   "speed": 0.0,
+   "src": "104_13"
+  },
+  "hurt_walk": {
+   "loop": true,
+   "frames": 40,
+   "dur": 1.3,
+   "speed": 0.834,
+   "src": "91_26"
+  },
+  "hit_face": {
+   "loop": false,
+   "frames": 41,
+   "dur": 1.333,
+   "speed": 0.0,
+   "src": "14_01"
+  },
+  "hit_face_l": {
+   "loop": false,
+   "frames": 41,
+   "dur": 1.333,
+   "speed": 0.0,
+   "src": "14_01"
+  },
+  "hit_face_r": {
+   "loop": false,
+   "frames": 41,
+   "dur": 1.333,
+   "speed": 0.0,
+   "src": "14_01"
+  },
+  "hit_gut": {
+   "loop": false,
+   "frames": 41,
+   "dur": 1.333,
+   "speed": 0.0,
+   "src": "14_01"
+  },
+  "hit_heavy": {
+   "loop": false,
+   "frames": 41,
+   "dur": 1.333,
+   "speed": 0.0,
+   "src": "14_01"
   }
  }
 }
