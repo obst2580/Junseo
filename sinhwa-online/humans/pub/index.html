@@ -12,7 +12,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-const MODEL = 'human.json';
+const PEOPLE = { ijang: '오만복 이장 (61)', halmeoni: '박순례 할머니 (78)' };
+const CH = PEOPLE[new URLSearchParams(location.search).get('c')] ? new URLSearchParams(location.search).get('c') : 'ijang', BASE = CH + '/';
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(innerWidth, innerHeight);
 r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.1; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById('v').appendChild(r.domElement);
@@ -29,16 +30,16 @@ Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.5, bottom: -.5
 const rim = new THREE.DirectionalLight('#bcd2ff', 1.2); rim.position.set(-2, 2.2, -2.5); scene.add(rim);
 const floor = new THREE.Mesh(new THREE.CircleGeometry(3, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#3a3f3a', roughness: .9 })); floor.receiveShadow = true; scene.add(floor);
 async function loadHuman() {
-  const [jsonText, binJson] = await Promise.all([fetch('human.json').then(r => r.text()), fetch('human_bin.json').then(r => r.json())]);
+  const [jsonText, binJson] = await Promise.all([fetch(BASE + 'human.json').then(r => r.text()), fetch(BASE + 'human_bin.json').then(r => r.json())]);
   const bin = Uint8Array.from(atob(binJson.data), c => c.charCodeAt(0)), enc = new TextEncoder();
   const jb = enc.encode(jsonText), jl = jb.length + (4 - jb.length % 4) % 4, bl = bin.length + (4 - bin.length % 4) % 4, total = 28 + jl + bl;
   const buf = new ArrayBuffer(total), dv = new DataView(buf), u8 = new Uint8Array(buf);
   dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true);
   dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true); u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20);
   dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl);
-  return new GLTFLoader().parseAsync(buf, './');
+  return new GLTFLoader().parseAsync(buf, BASE);
 }
-const EXTRAS = await (await fetch('extras.json')).json();
+const EXTRAS = await (await fetch(BASE + 'extras.json')).json();
 const g = await loadHuman();
 const texLoader = new THREE.TextureLoader(), pendingAdds = [], skinMats = [];
 const NORMALS = EXTRAS.normals || {};
@@ -75,7 +76,7 @@ g.scene.traverse(o => {
     }
     else {
       m.transparent = false; m.alphaTest = 0; m.opacity = 1; m.depthWrite = true;
-      const nm = NORMALS[m.name]; if (nm) { m.normalMap = texLoader.load(nm); m.normalMap.flipY = false; m.normalMap.colorSpace = THREE.NoColorSpace; }
+      const nm = NORMALS[m.name]; if (nm) { m.normalMap = texLoader.load(BASE + nm); m.normalMap.flipY = false; m.normalMap.colorSpace = THREE.NoColorSpace; }
       if (m.name.endsWith('.body')) skinMats.push([o, i, m]);
     }
   }
@@ -86,7 +87,7 @@ for (const [o, i, m] of skinMats) {
   const sk = new THREE.MeshPhysicalMaterial({ map: m.map, roughness: .52, sheen: .35, sheenRoughness: .5, sheenColor: new THREE.Color('#ffb8a0'),
     clearcoat: .06, clearcoatRoughness: .45, normalMap: PORES, normalScale: new THREE.Vector2(.35, .35) });
   if (EXTRAS.skinHeight) {   // per-character wrinkle + pore height map in the skin's own UV layout (replaces the tiled pores)
-    const hm = texLoader.load(EXTRAS.skinHeight); hm.flipY = false; hm.colorSpace = THREE.NoColorSpace; hm.anisotropy = 8;
+    const hm = texLoader.load(BASE + EXTRAS.skinHeight); hm.flipY = false; hm.colorSpace = THREE.NoColorSpace; hm.anisotropy = 8;
     sk.normalMap = null; sk.bumpMap = hm; sk.bumpScale = 1.6;
   }
   if (sk.normalMap) { sk.normalMap.wrapS = sk.normalMap.wrapT = THREE.RepeatWrapping; sk.normalMap.repeat.set(28, 28); }
@@ -111,6 +112,14 @@ function lowerArm(side, ang) {
   const pq = ua.parent.getWorldQuaternion(new THREE.Quaternion());
   ua.quaternion.copy(pq.clone().invert().multiply(new THREE.Quaternion().setFromAxisAngle(fwd, s * ang)).multiply(pq).multiply(ua.quaternion));
   g.scene.updateMatrixWorld(true);
+}
+// per-character posture (e.g. a stooped back): bend each listed bone about the body's side axis, + = forward
+for (const [bn, ang] of Object.entries(EXTRAS.pose || {})) {
+  const b = bone(bn), hd = bone('head'); if (!b) continue;
+  const side = new THREE.Vector3(1, 0, 0), q0 = b.quaternion.clone();
+  const crown = () => hd.localToWorld(new THREE.Vector3(0, .15, 0)).z;   // a point on top of the head: moves forward when bending forward
+  const turn = sg => { const pq = b.parent.getWorldQuaternion(new THREE.Quaternion()); b.quaternion.copy(pq.clone().invert().multiply(new THREE.Quaternion().setFromAxisAngle(side, sg * Math.abs(ang))).multiply(pq).multiply(q0)); g.scene.updateMatrixWorld(true); };
+  const z0 = crown(); turn(1); const fwd1 = crown() - z0; turn((fwd1 > 0) === (ang > 0) ? 1 : -1);
 }
 lowerArm('l', .72); lowerArm('r', .72);
 // straighten the elbow (rest pose has it bent forward), then turn the palm toward the thigh
@@ -144,7 +153,9 @@ curlFingers('l'); curlFingers('r');
 const headPos = wp(bone('head'));
 window.__head = [headPos.x, headPos.y, headPos.z];
 
-document.getElementById('info').textContent = `오만복 이장 시제품 · 삼각형 ${Math.round(tris / 1000)}k · 드래그 회전, 휠 확대`;
+ctl.target.set(0, headPos.y - .06, 0); cam.position.set(.35, headPos.y + .02, 1.25); ctl.update();
+document.getElementById('info').innerHTML = Object.entries(PEOPLE).map(([k, v]) => k === CH ? `<b>${v}</b>` : `<a href="?c=${k}" style="color:#9fc39a">${v}</a>`).join(' · ')
+  + `<div style="opacity:.7;margin-top:4px">삼각형 ${Math.round(tris / 1000)}k · 드래그 회전, 휠 확대</div>`;
 window.__mats = []; scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) window.__mats.push([m.name, m.color.getHexString(), !!m.map, m.alphaTest, m.transparent, m.map && m.map.image ? m.map.image.width : 0]); });
 window.__sceneRoot = scene; window.__view = { cam, ctl, ready: true };
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });

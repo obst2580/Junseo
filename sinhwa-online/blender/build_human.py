@@ -35,11 +35,18 @@ PRESETS = {
                  'neck-double-incr': .25, 'mouth-angles-down': .4, 'mouth-laugh-lines-in': 1.0,
                  'mouth-upperlip-volume-decr': .3, 'mouth-lowerlip-volume-decr': .15,
                  'l-eye-bag-incr': .6, 'r-eye-bag-incr': .6, 'nose-flaring-incr': .3, 'nose-scale-horiz-incr': .2, 'nose-volume-incr': .2}),
-    'halmeoni': dict(  # 박순례, 78세
-        macro=dict(gender=0.0, age=age(78), muscle=.35, weight=.45, proportions=.4, height=.25, cupsize=.4, firmness=.2,
+    'halmeoni': dict(  # 박순례, 78세 · 딸기 농가: 작고 마른 몸, 꽃무늬 몸빼 + 분홍 누빔 조끼 + 팔토시 + 고무장화 + 농사 모자
+        macro=dict(gender=0.0, age=age(78), muscle=.3, weight=.38, proportions=.4, height=.18, cupsize=.35, firmness=.15,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
         skin=('skins', 'old_asian_female', '.mhmat'),
-        hair='bob02', eyebrows='eyebrow002', clothes=['female_casualsuit01', 'shoes02']),
+        hair='short01', eyebrows='eyebrow002', clothes=['male_casualsuit03', 'shoes02'],
+        targets={'head-age-incr': 1.0, 'head-fat-decr': .2, 'l-cheek-volume-decr': .35, 'r-cheek-volume-decr': .35,
+                 'l-cheek-bones-incr': .35, 'r-cheek-bones-incr': .35, 'mouth-laugh-lines-in': .9, 'mouth-angles-down': .25,
+                 'mouth-upperlip-volume-decr': .45, 'mouth-lowerlip-volume-decr': .3, 'mouth-scale-depth-decr': .25,
+                 'l-eye-bag-incr': .6, 'r-eye-bag-incr': .6, 'nose-volume-incr': .15, 'nose-flaring-incr': .2,
+                 'chin-prominent-incr': .2, 'neck-scale-horiz-decr': .2},
+        costume=dict(suit='male_casualsuit03', shoes='shoes02', suit_tex='suit_halmeoni.png', shoe_tex='shoe_rubber.png',
+                     loose=.007, brim=.065, flap=.11, brim_down=.058)),
     'player': dict(  # 전입자 기본, 34세
         macro=dict(gender=1.0, age=age(34), muscle=.55, weight=.5, proportions=.55, height=.55, cupsize=.5, firmness=.5,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
@@ -66,6 +73,9 @@ HumanService.add_mhclo_asset(asset('tongue', 'tongue01', '.mhclo'), human, asset
 HumanService.add_mhclo_asset(asset('hair', P['hair'], '.mhclo'), human, asset_type='Hair', subdiv_levels=0, material_type='MAKESKIN')
 for c in P['clothes']:
     HumanService.add_mhclo_asset(asset('clothes', c, '.mhclo'), human, asset_type='Clothes', subdiv_levels=1, material_type='MAKESKIN')
+if P.get('costume'):   # farm outfit: retextured clothes, vest/arm covers/boots, modelled farm hat
+    TEX_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'humans', 'tex_src')
+    exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'costume.py')).read())
 # parts the game rig has no bones for (eyeballs, teeth, tongue) come out with no weights and would collapse to the
 # origin when skinned: bind every unweighted vertex of any rigged mesh to the head bone
 for o in bpy.context.scene.objects:
