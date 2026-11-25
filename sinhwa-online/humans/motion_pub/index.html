@@ -43,8 +43,10 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 @keyframes gpulse { from { filter: brightness(1) } to { filter: brightness(1.5) } }
 #execbtn { position: fixed; right: calc(136px + env(safe-area-inset-right, 0px)); bottom: calc(40px + env(safe-area-inset-bottom, 0px)); width: 84px; height: 84px; border-radius: 50%; font: 800 17px var(--f, sans-serif);
   color: #2a0a00; background: #ffb44a; border: 3px solid #fff3c4; animation: gpulse .5s infinite alternate }
-#lbtop, #lbbot { position: fixed; left: 0; right: 0; height: 0; background: #000; transition: height .45s ease; pointer-events: none; z-index: 5 } #lbtop { top: 0 } #lbbot { bottom: 0 }
-body.cut #lbtop, body.cut #lbbot { height: 12vh } body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #stick, body.cut #execbtn { visibility: hidden }
+#lbtop, #lbbot { position: fixed; left: 0; right: 0; height: min(30vh, max(9vh, calc((100vh - 100vw / 2.39) / 2))); background: #000; pointer-events: none; z-index: 5;
+  transition: transform .7s cubic-bezier(.65, 0, .25, 1) .05s; box-shadow: 0 0 24px 6px rgba(0,0,0,.55) }   /* 2.39:1 cinemascope bars */
+#lbtop { top: 0; transform: translateY(-110%) } #lbbot { bottom: 0; transform: translateY(110%) }
+body.cut #lbtop, body.cut #lbbot { transform: none; transition-delay: 0s } body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #stick, body.cut #execbtn { visibility: hidden }
 #cuttitle { position: fixed; left: 0; right: 0; top: 42%; text-align: center; font: 900 clamp(40px, 9vw, 96px) "Black Han Sans", var(--f, sans-serif); color: #fff3d0; letter-spacing: .04em;
   text-shadow: 0 4px 0 #6b1c00, 0 0 30px rgba(255,120,40,.8); opacity: 0; transform: scale(1.6); transition: opacity .25s, transform .35s cubic-bezier(.2,1.6,.4,1); pointer-events: none; z-index: 6 }
 #cuttitle small { display: block; font: 700 clamp(14px, 2.4vw, 22px) var(--f, sans-serif); color: #ffe2b0; letter-spacing: .3em; margin-top: 6px }
