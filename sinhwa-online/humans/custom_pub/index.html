@@ -1,0 +1,458 @@
+<title>신화리 전입신고서</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;700;900&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a municipal form sheet. Photo box on the left, numbered form rows on the right, stacked on phones. */
+:root {
+  --paper: #f4f2ea; --sheet: #fbfaf5; --ink: #1d2430; --ink-2: #4a5160; --rule: #2a3242; --hair: #c9c6ba;
+  --gov: #1f3b63; --stamp: #c2352b; --photo: #d9e2ea; --field: #eef0ea; --hi: #f0e6b8;
+  --f-head: "Noto Serif KR", "Nanum Myeongjo", serif; --f-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 14px }
+body { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px }
+.sheet { max-width: 1180px; margin: 0 auto; background: var(--sheet); border: 1px solid var(--hair); box-shadow: 0 1px 0 #d8d4c6, 0 18px 40px -28px #2a3242; padding: 22px clamp(14px, 3vw, 34px) 30px }
+.formno { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); border-bottom: 1px solid var(--hair); padding-bottom: 8px }
+h1 { font-family: var(--f-head); font-weight: 900; font-size: clamp(26px, 3.4vw, 38px); letter-spacing: .5em; text-align: center; margin: 18px 0 4px; text-wrap: balance }
+.sub { text-align: center; color: var(--ink-2); font-size: 13px; margin-bottom: 18px }
+.grid { display: grid; grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); gap: 22px; align-items: start }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr) } }
+/* photo */
+.photo { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 8px }
+.frame { position: relative; aspect-ratio: 3 / 4; max-width: 100%; border: 1.5px solid var(--rule); background: var(--photo); overflow: hidden }
+.frame canvas { display: block; width: 100%; height: 100%; touch-action: none }
+.frame .corner { position: absolute; left: 8px; top: 6px; font-size: 11px; color: #4a5a6a; letter-spacing: .08em; pointer-events: none }
+.frame .load { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--ink-2); font-size: 13px; background: var(--photo) }
+.photo-tools { display: flex; gap: 6px; flex-wrap: wrap }
+.chipbtn { font: inherit; font-size: 13px; border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); padding: 6px 10px; cursor: pointer }
+.chipbtn[aria-pressed="true"] { background: var(--ink); color: var(--sheet) }
+.chipbtn:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--gov); outline-offset: 2px }
+.cap { font-size: 12px; color: var(--ink-2) }
+/* form table */
+.form { border: 1.5px solid var(--rule); min-width: 0 }
+.row { display: grid; grid-template-columns: 116px minmax(0, 1fr); border-top: 1px solid var(--rule) }
+.row:first-child { border-top: 0 }
+.row > .lab { background: var(--field); border-right: 1px solid var(--rule); padding: 12px 10px; font-family: var(--f-head); font-weight: 700; font-size: 14px; display: flex; flex-direction: column; gap: 2px }
+.row > .lab small { font-family: var(--f-body); font-weight: 400; font-size: 11px; color: var(--ink-2) }
+.row > .val { padding: 12px; min-width: 0; display: grid; gap: 10px }
+@media (max-width: 520px) { .row { grid-template-columns: minmax(0, 1fr) } .row > .lab { border-right: 0; border-bottom: 1px solid var(--hair); flex-direction: row; align-items: baseline; gap: 8px } }
+.inline { display: flex; gap: 14px; flex-wrap: wrap; align-items: center }
+input[type=text] { font: inherit; font-size: 16px; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--rule); background: transparent; color: var(--ink); min-width: 0; width: 220px; max-width: 100% }
+.radio { display: inline-flex; gap: 6px; align-items: center; cursor: pointer }
+.radio input { accent-color: var(--gov) }
+.reasons { display: grid; gap: 6px }
+.reason { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: start; padding: 8px; border: 1px solid transparent; cursor: pointer }
+.reason:has(input:checked) { border-color: var(--rule); background: var(--hi) }
+.reason b { font-weight: 600 }
+.reason span { color: var(--ink-2); font-size: 12.5px; display: block; margin-top: 2px }
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule); flex-wrap: wrap }
+.tabs button { font: inherit; font-family: var(--f-head); font-weight: 700; border: 1px solid var(--rule); border-bottom: 0; margin-right: -1px; background: var(--field); color: var(--ink-2); padding: 7px 14px; cursor: pointer }
+.tabs button[aria-selected="true"] { background: var(--sheet); color: var(--ink); position: relative; top: 1px }
+.panel { display: grid; gap: 10px; padding-top: 4px }
+.sliders { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px 18px }
+.sl { display: grid; grid-template-columns: 74px minmax(0, 1fr) 34px; gap: 8px; align-items: center; font-size: 13px }
+.sl output { font-family: var(--f-mono); font-size: 11px; color: var(--ink-2); text-align: right; font-variant-numeric: tabular-nums }
+input[type=range] { width: 100%; accent-color: var(--gov) }
+.sw { display: flex; gap: 6px; flex-wrap: wrap }
+.sw button { width: 26px; height: 26px; border: 1px solid var(--rule); cursor: pointer; padding: 0 }
+.sw button[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 2px }
+.opts { display: flex; gap: 6px; flex-wrap: wrap }
+.sec { font-size: 12px; color: var(--ink-2); letter-spacing: .06em }
+.sign { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: space-between }
+.submit { font-family: var(--f-head); font-weight: 900; font-size: 16px; letter-spacing: .3em; padding: 10px 22px; border: 2px solid var(--ink); background: var(--ink); color: var(--sheet); cursor: pointer }
+.code { font-family: var(--f-mono); font-size: 12px; word-break: break-all; background: var(--field); border: 1px dashed var(--hair); padding: 8px; min-width: 0 }
+.stampbox { position: relative; min-height: 92px; display: flex; align-items: center; gap: 10px }
+.stamp { width: 86px; height: 86px; border: 3px solid var(--stamp); color: var(--stamp); border-radius: 50%; display: grid; place-items: center; text-align: center; font-family: var(--f-head); font-weight: 900; font-size: 13px; line-height: 1.2; transform: rotate(-12deg) scale(.6); opacity: 0; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), opacity .15s; mix-blend-mode: multiply }
+.stamp.on { opacity: .9; transform: rotate(-12deg) scale(1) }
+.note { font-size: 12px; color: var(--ink-2); line-height: 1.6 }
+.foot { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 14px; font-size: 12px; color: var(--ink-2) }
+@media (prefers-reduced-motion: reduce) { .stamp { transition: none } }
+</style>
+
+<div class="sheet">
+  <div class="formno"><span>■ 신화리 온라인 [별지 제15호서식] &lt;개정 2026. 11. 25.&gt;</span><span>처리기간: 즉시 (이장 기분에 따라 지연 가능)</span></div>
+  <h1>전입신고서</h1>
+  <div class="sub">충청남도 논산시 연무읍 신화2리 마을회관 접수 · 뒷면의 보조금 특약을 반드시 읽으시기 바랍니다</div>
+
+  <div class="grid">
+    <section class="photo" aria-label="증명사진">
+      <div class="frame" id="frame"><div class="corner">증명사진 3.5 × 4.5 cm · 드래그로 돌려보기</div><div class="load" id="load">서류 준비 중…</div></div>
+      <div class="photo-tools" role="group" aria-label="사진 구도">
+        <button class="chipbtn" id="v-face" aria-pressed="true">증명사진</button>
+        <button class="chipbtn" id="v-half" aria-pressed="false">상반신</button>
+        <button class="chipbtn" id="v-full" aria-pressed="false">전신</button>
+      </div>
+      <div class="cap" id="stat">최근 6개월 이내 촬영한 탈모(脫帽) 정면 상반신 사진</div>
+    </section>
+
+    <form class="form" id="form" autocomplete="off">
+      <div class="row"><div class="lab">① 성명<small>닉네임</small></div>
+        <div class="val"><div class="inline"><input type="text" id="nick" value="논두렁김씨" maxlength="12" aria-label="성명">
+          <span class="cap">"이름은 벌써 적어놨어. 동네 소문이 빨라." — 이장</span></div></div></div>
+      <div class="row"><div class="lab">② 성별</div>
+        <div class="val"><div class="inline">
+          <label class="radio"><input type="radio" name="sex" id="sex-m" value="m" checked> 남</label>
+          <label class="radio"><input type="radio" name="sex" id="sex-f" value="f"> 여</label></div></div></div>
+      <div class="row"><div class="lab">③ 전입 사유<small>시작 복장·빚·대사가 달라짐</small></div>
+        <div class="val"><div class="reasons" id="reasons"></div></div></div>
+      <div class="row"><div class="lab">④ 증명사진<small>외모</small></div>
+        <div class="val">
+          <div class="tabs" role="tablist" id="tabs">
+            <button type="button" role="tab" id="t-face" aria-selected="true">얼굴</button>
+            <button type="button" role="tab" id="t-hair" aria-selected="false">머리</button>
+            <button type="button" role="tab" id="t-body" aria-selected="false">체형·피부</button>
+            <button type="button" role="tab" id="t-wear" aria-selected="false">차림</button>
+          </div>
+          <div class="panel" id="p-face" role="tabpanel">
+            <div class="sec">인상 (빠른 선택)</div><div class="opts" id="presets"></div>
+            <div class="sliders" id="face-sl"></div>
+          </div>
+          <div class="panel" id="p-hair" role="tabpanel" hidden>
+            <div class="sec">머리 모양</div><div class="opts" id="hairs"></div>
+            <div class="sec">머리색</div><div class="sw" id="haircol"></div>
+            <div class="sliders" id="hair-sl"></div>
+          </div>
+          <div class="panel" id="p-body" role="tabpanel" hidden>
+            <div class="sliders" id="body-sl"></div>
+            <div class="sec">피부톤</div><div class="sw" id="skincol"></div>
+          </div>
+          <div class="panel" id="p-wear" role="tabpanel" hidden>
+            <div class="sec">옷</div><div class="opts" id="suits"></div>
+            <div class="sec">상의 색</div><div class="sw" id="topcol"></div>
+            <div class="sec">하의 색</div><div class="sw" id="botcol"></div>
+            <div class="sec">신발</div><div class="opts" id="shoes"></div>
+            <div class="sec">소품</div><div class="opts" id="acc"></div>
+          </div>
+        </div></div>
+      <div class="row"><div class="lab">⑤ 세대 구성</div>
+        <div class="val"><div class="inline">
+          <label class="radio"><input type="radio" name="house" id="h-solo" checked> 혼자</label>
+          <label class="radio"><input type="radio" name="house" id="h-crew"> 친구와 같은 세대 (같은 방 입장, 미니맵 표시만)</label></div></div></div>
+      <div class="row"><div class="lab">⑥ 서명<small>보조금 특약 동의</small></div>
+        <div class="val">
+          <div class="note">본인은 정착지원금 300만 원 중 행정 처리비를 공제한 금액을 수령하며, 마을 행사(확성기 방송 포함)에 성실히 참여할 것을 서약합니다.</div>
+          <div class="sign">
+            <button type="submit" class="submit" id="submit">전입 신고</button>
+            <div class="stampbox"><div class="stamp" id="stamp">신화2리<br>접 수<br><small id="stampdate"></small></div></div>
+          </div>
+          <div class="sec">외형 코드 (다른 플레이어 화면에서 같은 모습으로 조립됨)</div>
+          <div class="code" id="code" tabindex="0"></div>
+          <div class="inline"><button type="button" class="chipbtn" id="copy">코드 복사</button>
+            <input type="text" id="paste" placeholder="코드 붙여넣기" aria-label="외형 코드 붙여넣기"><button type="button" class="chipbtn" id="apply">적용</button></div>
+        </div></div>
+    </form>
+  </div>
+  <div class="foot"><span>신화2리장 오만복 (인)</span><span>※ 증명사진 재발급(전입신고 정정) 수수료는 이장 주머니로 들어갑니다.</span></div>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+const $ = id => document.getElementById(id);
+
+// ---------------------------------------------------------------- catalogue
+const FACE = [['eye_size', '눈 크기'], ['eye_gap', '눈 사이'], ['eye_tilt', '눈꼬리'], ['eye_open', '눈매 뜨임'], ['eye_bag', '눈밑 살'], ['brow', '눈썹 높이'],
+  ['nose_len', '코 길이'], ['nose_w', '코 폭'], ['nose_tip', '코끝'], ['mouth_w', '입 너비'], ['lips', '입술 두께'], ['jaw', '턱 너비'],
+  ['chin', '턱끝'], ['cheek', '광대'], ['face_shape', '둥근↔각진'], ['face_fat', '얼굴 살'], ['face_len', '얼굴 길이'], ['ears', '귀 크기']];
+const BODY = [['age', '나이'], ['muscle', '체격'], ['weight', '체중·배'], ['height', '키']];
+const PRESETS = {
+  '순한 인상': { eye_tilt: -.5, eye_size: .3, face_shape: -.5, cheek: -.2, mouth_w: -.1, brow: .2 },
+  '날카로운': { eye_tilt: .7, eye_open: -.5, nose_w: -.4, jaw: .3, cheek: .6, face_fat: -.6, lips: -.4, brow: -.5 },
+  '둥글둥글': { face_shape: -1, face_fat: .8, cheek: -.3, nose_tip: .5, nose_w: .4, eye_size: -.3, chin: -.4 },
+  '각진 상': { face_shape: 1, jaw: .9, chin: .5, face_len: .3, nose_len: .4, brow: -.3 },
+  '피곤한': { eye_bag: 1, eye_open: -.6, eye_tilt: -.4, face_fat: -.3, mouth_w: .1 },
+  '기본': {},
+};
+const HAIR_NAMES = { short01: '짧은 머리', short02: '바가지', short04: '포마드', culturalibre_hair_02: '덥수룩', bob02: '단발', toigo_curled_under_bob: '안말이 단발', long01: '긴 생머리', ponytail01: '포니테일', '': '삭발' };
+const HAIR_COLS = ['#141210', '#2a2521', '#4a3528', '#6e4a30', '#c9a35e', '#8e8a84', '#c9c4ba', '#7a2f2f'];
+const SKIN_COLS = ['#ffeadd', '#f6d9c4', '#e8c2a4', '#d6a885', '#b98a6c', '#8f6550'];
+const CLOTH_COLS = ['#2d3550', '#1c1d20', '#5a5e63', '#7d8086', '#c9c4b8', '#2f8f84', '#3d4a4a', '#4f5a3a', '#e0663a', '#b04a5a', '#d4c27a', '#3b4a66'];
+const SUIT_NAMES = { male_casualsuit01: '셔츠+바지', male_casualsuit04: '티셔츠+청바지', male_elegantsuit01: '정장', male_casualsuit03: '셔츠+바지(헐렁)' };
+const SHOE_NAMES = { shoes02: '슬리퍼', shoes03: '구두', shoes05: '운동화', shoes06: '캔버스화' };
+const REASONS = [
+  { name: '사업 실패', desc: '구겨진 남색 정장, 반쯤 풀린 넥타이. 최 실장이 "대표님" 소리로 접근한다. 빚 독촉 문자가 수시로 온다.',
+    wear: { suit: 'male_elegantsuit01', top: '#2d3550', bot: '#2d3550', shoes: 'shoes03', cap: 0, hood: 0, mask: 0, glasses: 0 }, debt: '빚 4,800만 원' },
+  { name: '퇴사', desc: '형광 등산 바람막이와 등산 바지. 할머니가 "놀러 왔냐" 하며 일을 더 시킨다. 체력 보너스.',
+    wear: { suit: 'male_casualsuit01', top: '#2f8f84', bot: '#3d4a4a', shoes: 'shoes05', cap: 1, hood: 0, mask: 0, glasses: 0 }, debt: '빚 900만 원' },
+  { name: '코인 손실', desc: '회색 후드티, 무릎 나온 트레이닝복, 슬리퍼. 민석이 "새 투자 기회"를 들고 찾아온다.',
+    wear: { suit: 'male_casualsuit01', top: '#7d8086', bot: '#2b2e33', shoes: 'shoes02', cap: 0, hood: 1, mask: 0, glasses: 1 }, debt: '빚 2,300만 원' },
+  { name: '유튜브 각', desc: '주황 티셔츠와 탈색 머리. 사고 현장을 찍으면 조회수 보상. 팜보이 제이슨이 경쟁자로 본다.',
+    wear: { suit: 'male_casualsuit04', top: '#e0663a', bot: '#3b4a66', shoes: 'shoes06', cap: 0, hood: 0, mask: 0, glasses: 1 }, debt: '빚 300만 원', hair: '#c9a35e' },
+  { name: '기타 (묻지 마세요)', desc: '검은 모자, 마스크, 선글라스, 검은 옷. 김 순경이 수상하게 본다. 고물상이 먼저 열린다.',
+    wear: { suit: 'male_casualsuit01', top: '#1c1d20', bot: '#1c1d20', shoes: 'shoes03', cap: 1, hood: 0, mask: 1, glasses: 2, capCol: '#1a1a1a' }, debt: '빚 비공개' },
+];
+
+// ---------------------------------------------------------------- state
+const S = { sex: 'm', reason: 0, face: Object.fromEntries(FACE.map(([k]) => [k, 0])), body: { age: 0, muscle: 0, weight: 0, height: 0 },
+  skin: 2, tan: .25, hair: 'short04', hairCol: 1, gray: 0, suit: 'male_elegantsuit01', top: '#2d3550', bot: '#2d3550', shoes: 'shoes03',
+  cap: 0, capCol: '#3d4a4a', hood: 0, mask: 0, glasses: 0 };
+
+// ---------------------------------------------------------------- 3D
+const frame = $('frame');
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2));
+r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.15; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+frame.prepend(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#d9e2ea');
+const cam = new THREE.PerspectiveCamera(24, .75, .05, 50);
+const ctl = new OrbitControls(cam, r.domElement); ctl.enablePan = false; ctl.minDistance = .4; ctl.maxDistance = 6;
+const key = new THREE.DirectionalLight('#fff3e4', 2.4); key.position.set(1.2, 2.6, 2.4); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.bias = -.0002; key.shadow.normalBias = .02;
+Object.assign(key.shadow.camera, { left: -1, right: 1, top: 2.2, bottom: -.2, near: .5, far: 8 }); scene.add(key);
+const fill = new THREE.DirectionalLight('#dfe9ff', .7); fill.position.set(-2, 1.6, 1.5); scene.add(fill);
+const rim = new THREE.DirectionalLight('#ffffff', .9); rim.position.set(-1, 2.4, -2.5); scene.add(rim);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(2, 48).rotateX(-Math.PI / 2), new THREE.ShadowMaterial({ opacity: .18 })); floor.receiveShadow = true; scene.add(floor);
+function resize() { const w = frame.clientWidth, h = frame.clientHeight; r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(frame); resize();
+(async () => {
+  try {
+    const j = await (await fetch('sky_env.json')).json(); const b = Uint8Array.from(atob(j.data), c => c.charCodeAt(0)); const hd = new RGBELoader().parse(b.buffer);
+    const t = new THREE.DataTexture(hd.data, hd.width, hd.height, THREE.RGBAFormat, hd.type); t.flipY = true; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; t.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = new THREE.PMREMGenerator(r).fromEquirectangular(t).texture; scene.environmentIntensity = .55;
+  } catch (e) { console.warn('env', e); }
+})();
+
+const cache = {}; let M = null;   // current model bundle
+const tl = new THREE.TextureLoader();
+async function loadSex(sex) {
+  if (cache[sex]) return cache[sex];
+  const base = sex + '/'; $('load').hidden = false; $('load').textContent = '서류 준비 중… (처음 한 번만 받습니다)';
+  const man = await (await fetch(base + 'manifest.json')).json();
+  let done = 0; const tick = () => { $('load').textContent = `서류 준비 중… ${Math.round(++done / (man.parts + 1) * 100)}%`; };
+  const [jsonText, ...parts] = await Promise.all([fetch(base + 'base.json').then(x => x.text()).then(t => (tick(), t)),
+    ...Array.from({ length: man.parts }, (_, i) => fetch(base + `bin${i}.json`).then(x => x.json()).then(j => (tick(), j.data)))]);
+  const bin = Uint8Array.from(atob(parts.join('')), c => c.charCodeAt(0)), jb = new TextEncoder().encode(jsonText);
+  const jl = jb.length + (4 - jb.length % 4) % 4, bl = bin.length + (4 - bin.length % 4) % 4, total = 28 + jl + bl;
+  const buf = new ArrayBuffer(total), dv = new DataView(buf), u8 = new Uint8Array(buf);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true); dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true);
+  u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20); dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl);
+  const g = await new GLTFLoader().parseAsync(buf, base);
+  cache[sex] = setup(g, man, base); return cache[sex];
+}
+
+function texture(url, srgb) { const t = tl.load(url); t.flipY = false; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = 8; return t; }
+function setup(g, man, base) {
+  const root = g.scene, nodes = {}, morphMeshes = [];
+  root.traverse(o => { if (o.name) nodes[o.name] = o; if (o.isMesh) { o.castShadow = o.receiveShadow = true; o.frustumCulled = false; if (o.morphTargetDictionary) morphMeshes.push(o); } });
+  const U = { top: { value: new THREE.Color() }, bot: { value: new THREE.Color() }, hair: { value: new THREE.Color() }, gray: { value: 0 } };
+  const bodyMesh = nodes.Human.isMesh ? nodes.Human : nodes.Human.children.find(c => c.isMesh);
+  // skin: physical, per-age diffuse, wrinkle/pore bump, tone + tan multiply
+  const skins = Object.fromEntries(Object.entries(man.skins).map(([k, u]) => [k, texture(base + u, true)]));
+  const sk = new THREE.MeshPhysicalMaterial({ map: skins.middle, roughness: .55, sheen: .3, sheenRoughness: .5, sheenColor: new THREE.Color('#ffb8a0'),
+    clearcoat: .05, clearcoatRoughness: .5, bumpMap: texture(base + man.skinHeight, false), bumpScale: 1.4 });
+  // covered skin is discarded under the garments being worn (one combined per-vertex flag)
+  const geo = bodyMesh.geometry, n = geo.attributes.position.count, hide = new THREE.BufferAttribute(new Float32Array(n), 1); geo.setAttribute('hideMask', hide);
+  sk.onBeforeCompile = sh => {
+    sh.vertexShader = 'attribute float hideMask;\nvarying float vHide;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvHide = hideMask;');
+    sh.fragmentShader = 'varying float vHide;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (vHide > .5) discard;');
+  };
+  bodyMesh.material = sk;
+  root.traverse(o => {
+    if (!o.isMesh || o === bodyMesh) return;
+    const m = o.material, nm = m.name || '';
+    if (/high-poly/.test(nm)) {   // eyes: opaque, depth-writing, cut the cornea dot
+      m.transparent = false; m.depthWrite = true; m.alphaTest = 0; m.roughness = .08; m.side = THREE.DoubleSide;
+      m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\nif (vMapUv.x > .86 && vMapUv.y > .86) discard;'); };
+      m.customProgramCacheKey = () => 'eye';
+    } else if (/eyebrow|eyelash/.test(nm)) {
+      m.transparent = false; m.depthWrite = true; m.alphaTest = .5; m.side = THREE.DoubleSide; m.roughness = .95; m.envMapIntensity = 0; m.specularIntensity = .1;
+      m.color.set(/eyelash/.test(nm) ? '#1c1816' : '#ffffff'); if (/eyebrow/.test(nm)) m.color.setRGB(1.6, 1.45, 1.35);
+    } else if (/^P/.test(o.name) && man.hairs.includes(o.name.slice(1))) {   // hair: neutral strands x chosen colour, scattered grey strands
+      m.transparent = false; m.depthWrite = true; m.alphaTest = .5; m.side = THREE.DoubleSide; m.roughness = .7; m.envMapIntensity = .35; m.color.set('#ffffff');
+      m.onBeforeCompile = sh => {
+        sh.uniforms.uHair = U.hair; sh.uniforms.uGray = U.gray;
+        sh.fragmentShader = 'uniform vec3 uHair; uniform float uGray;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+          float hs = fract(sin(dot(floor(vMapUv * vec2(1600., 160.)), vec2(12.9898, 78.233))) * 43758.5453);
+          diffuseColor.rgb = mix(uHair, vec3(.62, .6, .57), step(1. - uGray, hs)) * diffuseColor.r * 1.6;`);
+      };
+      m.customProgramCacheKey = () => 'hair';
+      const soft = m.clone(); soft.alphaTest = 0; soft.transparent = true; soft.depthWrite = false; soft.onBeforeCompile = m.onBeforeCompile; soft.customProgramCacheKey = () => 'hair-soft';
+      const f = o.clone(); f.material = soft; f.renderOrder = 2; f.castShadow = false; o.userData.fringe = f; o.parent.add(f);
+    } else if (/^P/.test(o.name) && man.garments[o.name.slice(1)]) {   // garments: slot colours over the original fold shading
+      const gm = man.garments[o.name.slice(1)]; const mask = texture(base + gm.mask, false);
+      m.transparent = false; m.depthWrite = true; m.alphaTest = 0; m.color.set('#ffffff'); m.roughness = .85;
+      m.onBeforeCompile = sh => {
+        sh.uniforms.uTop = U.top; sh.uniforms.uBot = U.bot; sh.uniforms.uMask = { value: mask };
+        sh.fragmentShader = 'uniform vec3 uTop; uniform vec3 uBot; uniform sampler2D uMask;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+          vec3 mk = texture2D(uMask, vMapUv).rgb; float tb = mk.g / max(mk.r + mk.g, 1e-3);
+          vec3 tinted = mix(uTop, uBot, tb) * diffuseColor.r * 3.07;
+          diffuseColor.rgb = mix(tinted, diffuseColor.rgb, clamp(mk.b, 0., 1.));`);
+      };
+      m.customProgramCacheKey = () => 'garment-' + o.name;
+    } else if (/^Xlens/.test(o.name)) { m.transparent = true; m.depthWrite = false; o.renderOrder = 3; m.roughness = .05; m.envMapIntensity = 1.2; }
+    else { m.transparent = false; m.depthWrite = true; }
+  });
+  // stand naturally: same posing helpers as the NPC viewer
+  root.updateMatrixWorld(true);
+  const bone = nm => { let b = null; root.traverse(o => { if (o.isBone && o.name === nm) b = o; }); return b; };
+  const wp = o => o.getWorldPosition(new THREE.Vector3());
+  { const f = wp(bone('ball_l')).sub(wp(bone('foot_l'))); f.y = 0; f.normalize(); root.rotation.y = -Math.atan2(f.x, f.z); root.updateMatrixWorld(true);
+    if (wp(bone('ball_l')).sub(wp(bone('foot_l'))).z < 0) { root.rotation.y += Math.PI; root.updateMatrixWorld(true); } }
+  const rotW = (b, q) => { const pq = b.parent.getWorldQuaternion(new THREE.Quaternion()); b.quaternion.copy(pq.clone().invert().multiply(q).multiply(pq).multiply(b.quaternion)); root.updateMatrixWorld(true); };
+  for (const sd of ['l', 'r']) {
+    const ua = bone('upperarm_' + sd), hand = bone('hand_' + sd), la = bone('lowerarm_' + sd), th = bone('thumb_01_' + sd), mid = bone('middle_01_' + sd);
+    const fwd = new THREE.Vector3(0, 0, 1), q0 = ua.quaternion.clone();
+    rotW(ua, new THREE.Quaternion().setFromAxisAngle(fwd, .72)); const y1 = wp(hand).y; ua.quaternion.copy(q0); root.updateMatrixWorld(true);
+    rotW(ua, new THREE.Quaternion().setFromAxisAngle(fwd, -.72)); const y2 = wp(hand).y; ua.quaternion.copy(q0); root.updateMatrixWorld(true);
+    rotW(ua, new THREE.Quaternion().setFromAxisAngle(fwd, y1 < y2 ? .72 : -.72));
+    const up = wp(la).sub(wp(ua)).normalize(), fo = wp(hand).sub(wp(la)).normalize();
+    rotW(la, new THREE.Quaternion().setFromUnitVectors(fo, fo.clone().lerp(up, .8).normalize()));
+    const axis = wp(hand).sub(wp(la)).normalize(), ql = la.quaternion.clone(); let best = 0, bs = -1e9;
+    for (let a = -1.6; a <= 1.6; a += .1) { la.quaternion.copy(ql); rotW(la, new THREE.Quaternion().setFromAxisAngle(axis, a)); const s = wp(th).z - wp(mid).z - Math.abs(a) * .002; if (s > bs) { bs = s; best = a; } }
+    la.quaternion.copy(ql); rotW(la, new THREE.Quaternion().setFromAxisAngle(axis, best));
+    for (const f of ['index', 'middle', 'ring', 'pinky']) for (const j of ['01', '02', '03']) {
+      const b = bone(`${f}_${j}_${sd}`), tip = bone(`${f}_03_${sd}`); if (!b) continue;
+      const amt = j === '01' ? .22 : .32, d0 = wp(tip).distanceTo(wp(hand)), qb = b.quaternion.clone(); let bq = null, bd = d0;
+      for (const ax of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)]) for (const sg of [1, -1]) {
+        b.quaternion.copy(qb).multiply(new THREE.Quaternion().setFromAxisAngle(ax, sg * amt)); root.updateMatrixWorld(true);
+        const d = wp(tip).distanceTo(wp(hand)); if (d < bd) { bd = d; bq = b.quaternion.clone(); } }
+      b.quaternion.copy(bq || qb); root.updateMatrixWorld(true);
+    }
+  }
+  const head = bone('head');
+  return { root, nodes, morphMeshes, U, sk, skins, bodyMesh, hide, head, man, wp };
+}
+
+// ---------------------------------------------------------------- apply state to the model
+const lin = h => new THREE.Color(h);
+function apply() {
+  if (!M) return;
+  const { nodes, morphMeshes, U, sk, skins, bodyMesh, hide, man } = M;
+  const vals = { ...S.face, age: S.body.age, muscle: S.body.muscle, weight: S.body.weight };
+  for (const o of morphMeshes) {
+    const d = o.morphTargetDictionary, inf = o.morphTargetInfluences;
+    for (const [k, v] of Object.entries(vals)) { if (d[k + '-'] !== undefined) inf[d[k + '-']] = Math.max(0, -v); if (d[k + '+'] !== undefined) inf[d[k + '+']] = Math.max(0, v); }
+  }
+  M.root.scale.setScalar(1 + S.body.height * .07);
+  // skin
+  const a = S.body.age; sk.map = a < -.33 ? skins.young : a > .33 ? skins.old : skins.middle; sk.bumpScale = 1.1 + Math.max(0, a) * 1.2;
+  const ref = lin(SKIN_COLS[2]), tone = lin(SKIN_COLS[S.skin]).lerp(lin('#b98a6c'), S.tan * .6);   // relative to the texture's own tone
+  sk.color.setRGB(tone.r / ref.r, tone.g / ref.g, tone.b / ref.b); sk.needsUpdate = true;
+  // visibility
+  const show = (nm, on) => { const o = nodes[nm]; if (!o) return; o.visible = on; o.traverse(c => { if (c.userData.fringe) c.userData.fringe.visible = on; }); if (o.userData.fringe) o.userData.fringe.visible = on; };
+  for (const h of man.hairs) show('P' + h, S.hair === h);
+  for (const c of man.clothes) show('P' + c, S.suit === c);
+  for (const s of man.shoes) show('P' + s, S.shoes === s);
+  show('Xcap', !!S.cap); show('Xhood', !!S.hood); show('Xmask', !!S.mask); show('Xframe', S.glasses > 0); show('Xlens', S.glasses > 0);
+  if (nodes.Xcap) nodes.Xcap.traverse(o => { if (o.isMesh) o.material.color.set(S.capCol); });
+  if (nodes.Xhood) nodes.Xhood.traverse(o => { if (o.isMesh) o.material.color.set(S.top).multiplyScalar(.85); });
+  if (nodes.Xlens) nodes.Xlens.traverse(o => { if (o.isMesh) { o.material.color.set(S.glasses === 2 ? '#0b0d10' : '#dfe6ea'); o.material.opacity = S.glasses === 2 ? .88 : .12; } });
+  U.top.value.set(S.top); U.bot.value.set(S.bot); U.hair.value.set(HAIR_COLS[S.hairCol]); U.gray.value = S.gray;
+  // covered skin under the worn garment + shoes
+  const geo = bodyMesh.geometry, h = hide.array; h.fill(0);
+  for (const nm of [S.suit, S.shoes]) {
+    const key = '_hide_' + nm.replace('male_', '').replace('shoes', 'sh'); const at = geo.attributes[key];
+    if (at) for (let i = 0; i < h.length; i++) if (at.array[i] > .5) h[i] = 1;
+  }
+  hide.needsUpdate = true;
+  $('code').textContent = encode();
+}
+
+// ---------------------------------------------------------------- camera framing
+let view = 'face';
+function frameView(v, instant) {
+  view = v; for (const [id, k] of [['v-face', 'face'], ['v-half', 'half'], ['v-full', 'full']]) $(id).setAttribute('aria-pressed', String(k === v));
+  if (!M) return; M.root.updateMatrixWorld(true);
+  const hp = M.wp(M.head), s = M.root.scale.y;
+  const T = { face: [hp.y + .07 * s, .95], half: [hp.y - .25 * s, 1.9], full: [hp.y * .52, 4.6 * s] }[v];
+  ctl.target.set(0, T[0], 0); cam.position.set(0, T[0] + .02, T[1]); ctl.update();
+}
+['face', 'half', 'full'].forEach(k => $('v-' + k).addEventListener('click', () => frameView(k)));
+
+// ---------------------------------------------------------------- appearance code (~50 bytes -> base64url)
+function encode() {
+  const b = [1, S.sex === 'm' ? 0 : 1, S.reason];
+  for (const [k] of FACE) b.push(Math.round(S.face[k] * 100) + 100);
+  for (const [k] of BODY) b.push(Math.round(S.body[k] * 100) + 100);
+  b.push(S.skin, Math.round(S.tan * 100), HAIRS().indexOf(S.hair) + 1, S.hairCol, Math.round(S.gray * 100));
+  b.push(SUITS().indexOf(S.suit), SHOES().indexOf(S.shoes), CLOTH_COLS.indexOf(S.top), CLOTH_COLS.indexOf(S.bot));
+  b.push(S.cap | S.hood << 1 | S.mask << 2 | S.glasses << 3, CLOTH_COLS.indexOf(S.capCol));
+  return btoa(String.fromCharCode(...b.map(x => (x + 256) % 256))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function decode(str) {
+  const b = Uint8Array.from(atob(str.trim().replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)); if (b[0] !== 1) throw new Error('알 수 없는 코드 버전');
+  let i = 1; S.sex = b[i++] ? 'f' : 'm'; S.reason = b[i++];
+  for (const [k] of FACE) S.face[k] = (b[i++] - 100) / 100;
+  for (const [k] of BODY) S.body[k] = (b[i++] - 100) / 100;
+  S.skin = b[i++]; S.tan = b[i++] / 100; const hi = b[i++]; S.hair = hi ? HAIRS()[hi - 1] : ''; S.hairCol = b[i++]; S.gray = b[i++] / 100;
+  S.suit = SUITS()[b[i++]] || SUITS()[0]; S.shoes = SHOES()[b[i++]] || SHOES()[0]; S.top = CLOTH_COLS[b[i++]] || S.top; S.bot = CLOTH_COLS[b[i++]] || S.bot;
+  const fl = b[i++]; S.cap = fl & 1; S.hood = fl >> 1 & 1; S.mask = fl >> 2 & 1; S.glasses = fl >> 3 & 3; S.capCol = CLOTH_COLS[b[i++]] || S.capCol;
+}
+const HAIRS = () => M ? M.man.hairs : Object.keys(HAIR_NAMES).filter(Boolean);
+const SUITS = () => M ? M.man.clothes : Object.keys(SUIT_NAMES);
+const SHOES = () => M ? M.man.shoes : Object.keys(SHOE_NAMES);
+
+// ---------------------------------------------------------------- form UI
+function slider(host, key, label, get, set, min = -1, max = 1) {
+  const id = 's-' + key, w = document.createElement('label'); w.className = 'sl'; w.htmlFor = id;
+  w.innerHTML = `<span>${label}</span><input type="range" id="${id}" min="${min * 100}" max="${max * 100}" step="1"><output></output>`;
+  const inp = w.querySelector('input'), out = w.querySelector('output');
+  const sync = () => { inp.value = Math.round(get() * 100); out.textContent = (get() > 0 ? '+' : '') + Math.round(get() * 100); };
+  inp.addEventListener('input', () => { set(inp.value / 100); out.textContent = (inp.value > 0 ? '+' : '') + inp.value; apply(); });
+  host.append(w); syncers.push(sync); sync();
+}
+function swatches(host, cols, get, set) {
+  host.replaceChildren(...cols.map((c, i) => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.title = c; b.setAttribute('aria-label', '색 ' + c);
+    b.addEventListener('click', () => { set(c, i); render(); apply(); }); b.dataset.c = c; b.dataset.i = i; return b; }));
+  syncers.push(() => host.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(get() === b.dataset.c || get() === +b.dataset.i))));
+}
+function options(host, items, get, set) {
+  host.replaceChildren(...items.map(([v, label]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'chipbtn'; b.textContent = label;
+    b.addEventListener('click', () => { set(v); render(); apply(); }); b.dataset.v = v; return b; }));
+  syncers.push(() => host.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(String(get()) === b.dataset.v))));
+}
+const syncers = []; const render = () => syncers.forEach(f => f());
+REASONS.forEach((rs, i) => {
+  const l = document.createElement('label'); l.className = 'reason';
+  l.innerHTML = `<input type="radio" name="reason" id="reason-${i}" value="${i}"><div><b>${rs.name}</b> <small class="cap">· ${rs.debt}</small><span>${rs.desc}</span></div>`;
+  l.querySelector('input').addEventListener('change', () => { S.reason = i; Object.assign(S, rs.wear); if (!rs.wear.capCol) S.capCol = '#3d4a4a'; if (rs.hair) S.hairCol = HAIR_COLS.indexOf(rs.hair); render(); apply(); });
+  $('reasons').append(l);
+});
+syncers.push(() => { $('reason-' + S.reason).checked = true; $('sex-' + S.sex).checked = true; });
+options($('presets'), Object.keys(PRESETS).map(k => [k, k]), () => '', k => { for (const [f] of FACE) S.face[f] = PRESETS[k][f] || 0; });
+FACE.forEach(([k, lab]) => slider($('face-sl'), k, lab, () => S.face[k], v => S.face[k] = v));
+options($('hairs'), Object.entries(HAIR_NAMES).map(([k, v]) => [k, v]), () => S.hair, v => S.hair = v);
+swatches($('haircol'), HAIR_COLS, () => S.hairCol, (c, i) => S.hairCol = i);
+slider($('hair-sl'), 'gray', '새치', () => S.gray, v => S.gray = v, 0, 1);
+BODY.forEach(([k, lab]) => slider($('body-sl'), k, lab, () => S.body[k], v => S.body[k] = v));
+slider($('body-sl'), 'tan', '햇볕 그을림', () => S.tan, v => S.tan = v, 0, 1);
+swatches($('skincol'), SKIN_COLS, () => S.skin, (c, i) => S.skin = i);
+options($('suits'), Object.entries(SUIT_NAMES), () => S.suit, v => S.suit = v);
+swatches($('topcol'), CLOTH_COLS, () => S.top, c => S.top = c);
+swatches($('botcol'), CLOTH_COLS, () => S.bot, c => S.bot = c);
+options($('shoes'), Object.entries(SHOE_NAMES), () => S.shoes, v => S.shoes = v);
+{ const host = $('acc'); const items = [['cap', '모자'], ['hood', '후드'], ['mask', '마스크'], ['g1', '안경'], ['g2', '선글라스']];
+  host.replaceChildren(...items.map(([k, lab]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'chipbtn'; b.textContent = lab;
+    b.addEventListener('click', () => { if (k === 'g1') S.glasses = S.glasses === 1 ? 0 : 1; else if (k === 'g2') S.glasses = S.glasses === 2 ? 0 : 2; else S[k] = S[k] ? 0 : 1; render(); apply(); });
+    b.dataset.k = k; return b; }));
+  syncers.push(() => host.querySelectorAll('button').forEach(b => { const k = b.dataset.k; b.setAttribute('aria-pressed', String(k === 'g1' ? S.glasses === 1 : k === 'g2' ? S.glasses === 2 : !!S[k])); })); }
+// tabs
+const TABS = ['face', 'hair', 'body', 'wear'];
+TABS.forEach(t => $('t-' + t).addEventListener('click', () => { TABS.forEach(u => { $('t-' + u).setAttribute('aria-selected', String(u === t)); $('p-' + u).hidden = u !== t; }); if (t === 'wear' || t === 'body') frameView(t === 'wear' ? 'full' : 'half'); else frameView('face'); }));
+// sex
+for (const sx of ['m', 'f']) $('sex-' + sx).addEventListener('change', () => switchSex(sx));
+async function switchSex(sx) {
+  S.sex = sx; if (M) M.root.visible = false;
+  try { M = await loadSex(sx); } catch (e) { $('load').hidden = false; $('load').textContent = '불러오지 못했습니다. 새로고침해 주세요. (' + e.message + ')'; return; }
+  if (!M.root.parent) scene.add(M.root); M.root.visible = true; $('load').hidden = true;
+  if (!M.man.hairs.includes(S.hair) && S.hair) S.hair = M.man.hairs[0];
+  render(); apply(); frameView(view);
+}
+// submit / code
+$('form').addEventListener('submit', e => { e.preventDefault(); const d = new Date(); $('stampdate').textContent = `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+  const st = $('stamp'); st.classList.remove('on'); void st.offsetWidth; st.classList.add('on');
+  $('stat').textContent = `${$('nick').value || '무명'} 님, 전입이 접수됐습니다. 곧 이장한테서 전화가 옵니다.`; });
+$('copy').addEventListener('click', async () => { const t = $('code').textContent; try { await navigator.clipboard.writeText(t); $('copy').textContent = '복사됨'; } catch { const s = getSelection(), rg = document.createRange(); rg.selectNodeContents($('code')); s.removeAllRanges(); s.addRange(rg); $('copy').textContent = '선택됨 (Ctrl+C)'; } setTimeout(() => $('copy').textContent = '코드 복사', 1600); });
+$('apply').addEventListener('click', async () => { try { const prev = S.sex; decode($('paste').value); if (S.sex !== prev) await switchSex(S.sex); render(); apply(); $('paste').value = ''; } catch (e) { $('paste').value = ''; $('paste').placeholder = '코드를 읽을 수 없습니다'; } });
+
+// boot: start from 전입 사유 1 with a filled-in example face
+Object.assign(S, REASONS[0].wear); Object.assign(S.face, { eye_tilt: .2, jaw: .2, face_fat: -.1 });
+render();
+switchSex('m');
+r.setAnimationLoop(() => { ctl.update(); r.render(scene, cam); });
+window.__dbg = { S, apply, frameView, get M() { return M; } };
+</script>
