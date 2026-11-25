@@ -67,6 +67,12 @@ body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #sti
 #kotext { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font: 900 clamp(36px, 8vw, 80px) "Black Han Sans", var(--f); color: #fff; text-shadow: 0 4px 0 #400, 0 0 24px #000;
   background: radial-gradient(ellipse at center, rgba(40,0,0,.15), rgba(20,0,0,.75)); opacity: 0; transition: opacity .6s }
 #kotext.on { opacity: 1 }
+#sub { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(64px + env(safe-area-inset-bottom, 0px)); max-width: min(900px, calc(100vw - 40px)); text-align: center; pointer-events: none; z-index: 8;
+  font: 600 clamp(16px, 2.3vw, 27px)/1.4 var(--f); color: #fff; letter-spacing: .02em; word-break: keep-all;
+  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 2px 4px rgba(0,0,0,.9); opacity: 0; transition: opacity .15s }
+#sub.on { opacity: 1 }
+body.cut #sub { bottom: calc(min(30vh, max(9vh, calc((100vh - 100vw / 2.39) / 2))) / 2 - .7em) }   /* in the cutscene: inside the lower black bar */
+@media (pointer: coarse) { #sub { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 280px); min-width: 200px } }
 #busted { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; text-align: center; font: 900 clamp(48px, 11vw, 110px) "Black Han Sans", var(--f); color: #e9f0ff; letter-spacing: .1em;
   text-shadow: 0 4px 0 #0b1f5c, 0 0 30px rgba(60,110,255,.7); background: radial-gradient(ellipse at center, rgba(0,10,40,.2), rgba(0,6,30,.8)); opacity: 0; transition: opacity .5s; z-index: 7 }
 #busted small { display: block; font: 600 clamp(13px, 2.2vw, 18px) var(--f); letter-spacing: .3em; color: #b9c8ff; margin-top: 8px }
@@ -100,6 +106,7 @@ body.cut #wanted { visibility: hidden }
 <div id="gauge" hidden><div class="gl">타격 게이지</div><div class="gb"><i></i></div><div class="gr">처형 가능! <kbd>E</kbd></div></div>
 <button type="button" id="execbtn" hidden>처형</button>
 <div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
+<div id="sub" role="status" aria-live="polite"></div>
 <div id="kotext" aria-hidden="true">기절!</div>
 <div id="busted" aria-hidden="true"><div>체포<small>연무지구대로 연행 중…</small></div></div>
 <div id="wanted" hidden aria-label="수배 단계"><span>수배</span><i>★</i><i>★</i><i>★</i><i>★</i><i>★</i></div>
@@ -669,21 +676,29 @@ function fightStep(dt) {
       else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
     if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
     if (F !== P) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y))); F.holder.rotation.y = F.yaw; animate(F, dt); }
-    if (F.bub) { F.bub.life -= dt; F.bub.sp.position.copy(wpos(F, 'head')).add(new THREE.Vector3(0, .45, 0)); F.bub.sp.material.opacity = Math.min(1, F.bub.life * 3); if (F.bub.life <= 0) F.bub.sp.visible = false; }
   }
-  separate(); policeStep(dt);
+  separate(); policeStep(dt); subStep(dt);
   if (P && P.hp < 100 && G.t - P.hurtT > 5 && !P.down) P.hp = Math.min(100, P.hp + dt * 6);
   G.gaugeIdle += dt; if (G.gaugeIdle > 2.5 && G.gauge < 100) G.gauge = Math.max(0, G.gauge - 6 * dt);
   if (G.hitStop > 0) G.hitStop -= dt;
 }
 // ---- speech bubbles over heads
-function bubble(F, txt) {
-  if (!F.bub) { const c = document.createElement('canvas'); c.width = 512; c.height = 128; const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false })); sp.renderOrder = 9; scene.add(sp); F.bub = { c, t, sp, life: 0 }; }
-  const { c, t, sp } = F.bub, g = c.getContext('2d'); g.clearRect(0, 0, 512, 128); g.font = '700 46px "IBM Plex Sans KR", sans-serif'; const tw = Math.min(480, g.measureText(txt).width + 44);
-  g.fillStyle = 'rgba(255,255,250,.94)'; g.beginPath(); g.roundRect(256 - tw / 2, 14, tw, 84, 30); g.fill(); g.beginPath(); g.moveTo(240, 96); g.lineTo(256, 122); g.lineTo(272, 96); g.fill();
-  g.fillStyle = '#1b1d14'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 256, 57, 450); t.needsUpdate = true;
-  sp.scale.set(1.6, .4, 1); sp.visible = true; F.bub.life = 2.4;
+// ---- spoken lines as film subtitles (bottom centre, white with a dark edge). VOICE maps a line to a recording once there are some.
+const VOICE = {};   // e.g. VOICE['거기 서!'] = 'voice/cop_stop.mp3'  (per speaker: VOICE['police|거기 서!'])
+const SUB = { q: [], cur: null, t: 0 };
+function bubble(F, txt) {   // kept the old name: every caller just says a line
+  if (!P || !txt) return; const d = Math.hypot(F.x - P.x, F.y - P.y); if (d > 26 && F !== P) return;   // only what you could hear
+  const line = { txt, who: F, dur: Math.min(4.5, 1.6 + txt.length * .09), pri: F.cop || F === G.cut?.T ? 1 : 0 };
+  if (!SUB.cur || line.pri >= SUB.cur.pri && SUB.t > .6) showSub(line); else if (SUB.q.length < 2) SUB.q.push(line);
+}
+function showSub(line) {
+  SUB.cur = line; SUB.t = 0; const el = $('sub'); el.textContent = line.txt; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+  const src = VOICE[(line.who.id || '') + '|' + line.txt] || VOICE[line.txt];
+  if (src) try { const a = new Audio(src); a.volume = THREE.MathUtils.clamp(1.2 - Math.hypot(line.who.x - P.x, line.who.y - P.y) / 26, .2, 1); a.play(); line.dur = Math.max(line.dur, 1); a.onloadedmetadata = () => { line.dur = Math.max(line.dur, a.duration + .3); }; } catch (e) {}
+}
+function subStep(dt) {
+  if (!SUB.cur) return; SUB.t += dt;
+  if (SUB.t >= SUB.cur.dur) { SUB.cur = null; $('sub').classList.remove('on'); const n = SUB.q.shift(); if (n) setTimeout(() => showSub(n), 120); }
 }
 // ---- strike gauge → execution cutscene
 function addGauge(x) { G.gauge = Math.min(100, G.gauge + x); G.gaugeIdle = 0; }
