@@ -28,25 +28,104 @@ PRESETS = {
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
         skin=('skins', 'old_asian_male', '.mhmat'),
         hair='short04', eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes04'],
-        targets={  # weathered farmer: lean face, cheekbones, deep folds (body stays heavy, face does not)
-                 'head-age-incr': 1.0, 'head-fat-decr': .35, 'head-square': .45, 'forehead-temple-decr': .3,
-                 'l-cheek-bones-incr': .5, 'r-cheek-bones-incr': .5, 'l-cheek-volume-decr': .3, 'r-cheek-volume-decr': .3,
-                 'l-cheek-inner-decr': .25, 'r-cheek-inner-decr': .25, 'chin-width-incr': .3, 'chin-bones-incr': .3,
-                 'neck-double-incr': .25, 'mouth-angles-down': .4, 'mouth-laugh-lines-in': 1.0,
-                 'mouth-upperlip-volume-decr': .3, 'mouth-lowerlip-volume-decr': .15,
-                 'l-eye-bag-incr': .6, 'r-eye-bag-incr': .6, 'nose-flaring-incr': .3, 'nose-scale-horiz-incr': .2, 'nose-volume-incr': .2}),
+        targets={'head-age-incr': 1.0, 'head-fat-decr': .35, 'head-square': .45, 'head-scale-vert-incr': .35, 'forehead-temple-decr': .3,
+                 'lr-cheek-bones-incr': .55, 'lr-cheek-volume-decr': .35, 'lr-cheek-inner-decr': .3, 'chin-width-incr': .3, 'chin-height-incr': .3,
+                 'neck-double-incr': .25, 'mouth-angles-down': .5, 'mouth-laugh-lines-in': 1.0, 'mouth-upperlip-volume-decr': .4,
+                 'mouth-lowerlip-volume-decr': .2, 'mouth-scale-horiz-incr': .25, 'lr-eye-bag-incr': .7, 'lr-eye-corner2-down': .5,
+                 'lr-eye-eyefold-down': .6, 'lr-eye-scale-decr': .25, 'nose-flaring-incr': .5, 'nose-scale-horiz-incr': .4,
+                 'nose-point-width-incr': .4, 'nose-volume-incr': .3, 'nose-base-down': .3, 'lr-ear-scale-incr': .4, 'lr-ear-lobe-incr': .6}),
     'halmeoni': dict(  # 박순례, 78세 · 딸기 농가: 작고 마른 몸, 꽃무늬 몸빼 + 분홍 누빔 조끼 + 팔토시 + 고무장화 + 농사 모자
         macro=dict(gender=0.0, age=age(78), muscle=.3, weight=.38, proportions=.4, height=.18, cupsize=.35, firmness=.15,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
         skin=('skins', 'old_asian_female', '.mhmat'),
         hair='short01', eyebrows='eyebrow002', clothes=['male_casualsuit03', 'shoes02'],
-        targets={'head-age-incr': 1.0, 'head-fat-decr': .2, 'l-cheek-volume-decr': .35, 'r-cheek-volume-decr': .35,
-                 'l-cheek-bones-incr': .35, 'r-cheek-bones-incr': .35, 'mouth-laugh-lines-in': .9, 'mouth-angles-down': .25,
-                 'mouth-upperlip-volume-decr': .45, 'mouth-lowerlip-volume-decr': .3, 'mouth-scale-depth-decr': .25,
-                 'l-eye-bag-incr': .6, 'r-eye-bag-incr': .6, 'nose-volume-incr': .15, 'nose-flaring-incr': .2,
-                 'chin-prominent-incr': .2, 'neck-scale-horiz-decr': .2},
-        costume=dict(suit='male_casualsuit03', shoes='shoes02', suit_tex='suit_halmeoni.png', shoe_tex='shoe_rubber.png',
-                     loose=.007, brim=.065, flap=.11, brim_down=.058)),
+        targets={'head-age-incr': 1.0, 'head-fat-decr': .3, 'head-scale-horiz-decr': .15, 'head-invertedtriangular': .4,
+                 'lr-cheek-volume-decr': .5, 'lr-cheek-bones-incr': .5, 'lr-cheek-inner-decr': .4, 'mouth-laugh-lines-in': 1.0,
+                 'mouth-angles-down': .3, 'mouth-upperlip-volume-decr': .7, 'mouth-lowerlip-volume-decr': .5, 'mouth-scale-depth-decr': .6,
+                 'mouth-trans-backward': .4, 'chin-prominent-incr': .5, 'chin-triangle': .4, 'lr-eye-bag-incr': .7, 'lr-eye-eyefold-down': .7,
+                 'lr-eye-scale-decr': .3, 'lr-eye-corner2-down': .4, 'nose-scale-horiz-decr': .2, 'nose-point-down': .4, 'nose-hump-incr': .3,
+                 'neck-scale-horiz-decr': .3, 'lr-ear-lobe-incr': .8, 'lr-ear-scale-incr': .3},
+        costume=dict(suit='male_casualsuit03', shoes='shoes02', loose=.007,
+                     suit_tex=dict(bottom='tile:momppae_floral.png:2', top='tile:blouse_print.png:2'), shoe_tex='rubber:#2e4230+mud',
+                     pieces=[dict(kind='vest', tex='tile:vest_quilt.png:10', gap=.05, push=.008, rough=.9),
+                             dict(kind='armcover', tex='tile:momppae_floral.png:5', push=.005),
+                             dict(kind='boot', tex='rubber:#2e4230+mud', push=.012, drop=.05, rough=.45)],
+                     hat=dict(kind='farm', tex='tile:hat_cloth.png:1', brim=.065, flap=.11, brim_down=.058))),
+    'choi': dict(  # 최 실장, 45세 · 그린밸류 F&B: 몸에 딱 맞는 회색 정장 + 흙 묻은 고무장화, 포마드, 선글라스, 각진 턱
+        macro=dict(gender=1.0, age=age(45), muscle=.55, weight=.5, proportions=.62, height=.62, cupsize=.5, firmness=.5,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'middleage_asian_male', '.mhmat'),
+        hair='short04', eyebrows='eyebrow009', clothes=['male_elegantsuit01', 'shoes03'],
+        targets={'head-square': 1.0, 'head-scale-vert-incr': .25, 'head-fat-decr': .4, 'chin-width-incr': .9, 'chin-bones-incr': .8,
+                 'chin-prominent-incr': .4, 'chin-height-incr': .3, 'lr-cheek-volume-decr': .5, 'lr-cheek-bones-incr': .6,
+                 'nose-scale-vert-incr': .6, 'nose-scale-horiz-decr': .35, 'nose-hump-incr': .4, 'nose-trans-forward': .3, 'nose-point-width-decr': .4,
+                 'mouth-upperlip-volume-decr': .6, 'mouth-lowerlip-volume-decr': .4, 'mouth-scale-horiz-decr': .1, 'mouth-angles-down': .2,
+                 'eyebrows-trans-down': .6, 'eyebrows-angle-down': .5, 'lr-eye-height2-decr': .3, 'lr-eye-corner1-up': .3,
+                 'lr-ear-scale-decr': .3, 'lr-ear-rot-backward': .3, 'neck-scale-horiz-incr': .3},
+        costume=dict(suit='male_elegantsuit01', shoes='shoes03', shoe_tex='rubber:#1e2220+mud',
+                     pieces=[dict(kind='boot', tex='rubber:#1e2220+mud', push=.011, drop=.1, rough=.4)],
+                     glasses=dict(frame='#151515', lens='#0b0d10', w=.027, h=.019))),
+    'minseok': dict(  # 민석, 36세 · 마을 상생 매니저: 바랜 후드티, 청바지, 새 장화, 안경, 지저분한 수염
+        macro=dict(gender=1.0, age=age(36), muscle=.4, weight=.55, proportions=.5, height=.55, cupsize=.5, firmness=.5,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'young_asian_male', '.mhmat'),
+        hair='short01', eyebrows='eyebrow009', clothes=['male_casualsuit01', 'shoes05'],
+        targets={'head-round': .9, 'head-fat-incr': .55, 'head-scale-horiz-incr': .2, 'lr-cheek-volume-incr': .7, 'lr-cheek-bones-decr': .3,
+                 'chin-height-decr': .4, 'chin-prominent-decr': .5, 'chin-width-decr': .2, 'neck-double-incr': .5,
+                 'nose-point-up': .6, 'nose-scale-vert-decr': .4, 'nose-volume-incr': .3, 'nose-nostrils-width-incr': .4,
+                 'mouth-upperlip-volume-incr': .5, 'mouth-lowerlip-volume-incr': .7, 'mouth-scale-horiz-decr': .2,
+                 'lr-eye-scale-decr': .3, 'lr-eye-height2-decr': .5, 'lr-eye-bag-incr': .5, 'lr-eye-epicanthus-in': .5,
+                 'eyebrows-trans-up': .3, 'lr-ear-wing-incr': .5},
+        costume=dict(suit='male_casualsuit01', shoes='shoes05', loose=.004,
+                     suit_tex=dict(top='solid:#6c6f4c', bottom='keep'), shoe_tex='rubber:#3f5a3c',
+                     pieces=[dict(kind='boot', tex='rubber:#3f5a3c', push=.011, drop=.08, rough=.3),
+                             dict(kind='hood', tex='solid:#62654a', radius=.08, tube=.045)],
+                     glasses=dict(frame='#2b2b2b', lens='#dfe6ea', w=.024, h=.017), regions=['beard'])),
+    'police': dict(  # 김 순경, 29세 · 연무 파출소: 남색 근무복 + 형광 조끼 + 경찰 모자
+        macro=dict(gender=1.0, age=age(29), muscle=.5, weight=.45, proportions=.55, height=.58, cupsize=.5, firmness=.5,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'young_asian_male', '.mhmat'),
+        hair='short01', eyebrows='eyebrow009', clothes=['male_casualsuit01', 'shoes03'],
+        targets={'head-oval': .8, 'head-fat-decr': .3, 'head-scale-horiz-decr': .15, 'chin-triangle': .6, 'chin-height-incr': .2,
+                 'lr-cheek-volume-decr': .3, 'lr-eye-scale-incr': .55, 'lr-eye-height2-incr': .6, 'lr-eye-epicanthus-out': .5,
+                 'lr-eye-corner2-down': .3, 'eyebrows-trans-up': .7, 'eyebrows-angle-up': .7, 'nose-scale-horiz-decr': .3,
+                 'nose-point-width-decr': .3, 'nose-scale-vert-decr': .2, 'mouth-scale-horiz-decr': .25, 'mouth-lowerlip-volume-incr': .3,
+                 'mouth-angles-up': .15, 'neck-scale-horiz-decr': .4, 'lr-ear-scale-incr': .7, 'lr-ear-wing-incr': .9, 'lr-ear-flap-incr': .5},
+        costume=dict(suit='male_casualsuit01', shoes='shoes03', loose=.003,
+                     suit_tex=dict(top='solid:#3c4f6b', bottom='solid:#2a3346'), shoe_tex='leather:#161616',
+                     pieces=[dict(kind='vest', tex='hivis', gap=0, push=.007, rough=.7)],
+                     hat=dict(kind='police', tex='solid:#2f3f58', brim_down=.05, height=.075, thick=.002))),
+    'syuper': dict(  # 신화슈퍼 사장님, 55세: 진한 파마머리, 붉은 니트, 청록 조끼, 체크무늬 앞치마, 둥근 체형
+        macro=dict(gender=0.0, age=age(55), muscle=.3, weight=.85, proportions=.4, height=.3, cupsize=.6, firmness=.3,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'middleage_asian_female', '.mhmat'),
+        hair='short02', eyebrows='eyebrow002', clothes=['male_casualsuit03', 'shoes02'],
+        targets={'head-round': 1.0, 'head-fat-incr': .7, 'head-scale-horiz-incr': .35, 'head-scale-vert-decr': .15,
+                 'lr-cheek-volume-incr': .9, 'lr-cheek-bones-incr': .3, 'neck-double-incr': .8, 'chin-height-decr': .2,
+                 'lr-eye-scale-decr': .45, 'lr-eye-height2-decr': .4, 'lr-eye-corner2-up': .4, 'lr-eye-bag-incr': .4,
+                 'nose-scale-horiz-incr': .5, 'nose-flaring-incr': .6, 'nose-scale-vert-decr': .3, 'nose-volume-incr': .4,
+                 'mouth-upperlip-volume-incr': .6, 'mouth-lowerlip-volume-incr': .8, 'mouth-scale-horiz-incr': .3, 'mouth-angles-up': .3,
+                 'mouth-laugh-lines-in': .6, 'eyebrows-angle-up': .3},
+        costume=dict(suit='male_casualsuit03', shoes='shoes02', loose=.006,
+                     suit_tex=dict(top='solid:#b04a5a', bottom='solid:#3a3434'), shoe_tex='rubber:#7a5a4e',
+                     pieces=[dict(kind='vest', tex='solid:#3a6b6a', gap=.06, push=.008),
+                             dict(kind='apron', tex='check:#3a6b6a:#e8e2d4:9', bib=False, width=.19, bottom=.1, push=.02)])),
+    'sangsa': dict(  # 박 상사(예), 58세 · 충성고물상: 스포츠머리, 사제 야상, 기름 묻은 가죽 앞치마, 전투화, 큰 체격
+        macro=dict(gender=1.0, age=age(58), muscle=.72, weight=.72, proportions=.5, height=.62, cupsize=.5, firmness=.5,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'middleage_asian_male', '.mhmat'),
+        hair=None, eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes04'],
+        targets={'head-square': 1.0, 'head-scale-horiz-incr': .3, 'head-age-incr': .6, 'head-fat-incr': .15, 'forehead-trans-forward': .6,
+                 'forehead-nubian-incr': .5, 'eyebrows-trans-forward': .6, 'eyebrows-trans-down': .5, 'eyebrows-angle-down': .4,
+                 'lr-eye-scale-decr': .4, 'lr-eye-push1-in': .6, 'lr-eye-push2-in': .6, 'lr-eye-height2-decr': .4, 'lr-eye-bag-incr': .5,
+                 'nose-scale-horiz-incr': .7, 'nose-flaring-incr': .8, 'nose-point-width-incr': .7, 'nose-compression-compress': .6,
+                 'nose-scale-vert-decr': .3, 'chin-width-incr': .8, 'chin-bones-incr': .9, 'chin-prominent-incr': .5,
+                 'mouth-scale-horiz-incr': .4, 'mouth-angles-down': .4, 'mouth-upperlip-volume-decr': .2,
+                 'neck-scale-horiz-incr': .8, 'neck-double-incr': .3, 'lr-ear-scale-incr': .3, 'lr-ear-flap-incr': .7, 'lr-ear-scale-depth-incr': .6},
+        costume=dict(suit='male_casualsuit05', shoes='shoes04',
+                     suit_tex=dict(top='solid:#3c4630', inner='solid:#4a4d38', bottom='solid:#30362a'), shoe_tex='leather:#1c1a18',
+                     pieces=[dict(kind='boot', tex='leather:#1c1a18', push=.01, drop=.12, rough=.5),
+                             dict(kind='apron', tex='leather:#6e5a3c+oil', width=.17, top=.05, bottom=.12, push=.02, rough=.6)], regions=['buzz'])),
     'player': dict(  # 전입자 기본, 34세
         macro=dict(gender=1.0, age=age(34), muscle=.55, weight=.5, proportions=.55, height=.55, cupsize=.5, firmness=.5,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
@@ -58,7 +137,11 @@ P = PRESETS[PRESET]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 addon_utils.enable('bl_ext.user_default.mpfb', default_set=True, persistent=False)
 human = HumanService.create_human(macro_detail_dict=P['macro'], scale=0.1)
-for tname, w in P.get('targets', {}).items():   # face sculpt (age, jowls, eye bags...)
+TG = {}
+for tname, w in P.get('targets', {}).items():   # 'lr-x' = symmetric l-x and r-x
+    if tname.startswith('lr-'): TG['l-' + tname[3:]] = w; TG['r-' + tname[3:]] = w
+    else: TG[tname] = w
+for tname, w in TG.items():   # face sculpt (age, jowls, eye bags...)
     path = TargetService.target_full_path(tname)
     if path: TargetService.load_target(human, path, weight=w, name=tname)
     else: print('MISSING TARGET', tname)
@@ -70,11 +153,10 @@ HumanService.add_mhclo_asset(asset('eyebrows', P['eyebrows'], '.mhclo'), human, 
 HumanService.add_mhclo_asset(asset('eyelashes', 'eyelashes01', '.mhclo'), human, asset_type='Eyelashes', subdiv_levels=0, material_type='MAKESKIN')
 HumanService.add_mhclo_asset(asset('teeth', 'teeth_base', '.mhclo'), human, asset_type='Teeth', subdiv_levels=0, material_type='MAKESKIN')
 HumanService.add_mhclo_asset(asset('tongue', 'tongue01', '.mhclo'), human, asset_type='Tongue', subdiv_levels=0, material_type='MAKESKIN')
-HumanService.add_mhclo_asset(asset('hair', P['hair'], '.mhclo'), human, asset_type='Hair', subdiv_levels=0, material_type='MAKESKIN')
+if P.get('hair'): HumanService.add_mhclo_asset(asset('hair', P['hair'], '.mhclo'), human, asset_type='Hair', subdiv_levels=0, material_type='MAKESKIN')
 for c in P['clothes']:
     HumanService.add_mhclo_asset(asset('clothes', c, '.mhclo'), human, asset_type='Clothes', subdiv_levels=1, material_type='MAKESKIN')
 if P.get('costume'):   # farm outfit: retextured clothes, vest/arm covers/boots, modelled farm hat
-    TEX_SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'humans', 'tex_src')
     exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'costume.py')).read())
 # parts the game rig has no bones for (eyeballs, teeth, tongue) come out with no weights and would collapse to the
 # origin when skinned: bind every unweighted vertex of any rigged mesh to the head bone

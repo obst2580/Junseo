@@ -81,5 +81,27 @@ dots = np.zeros((W, W), np.float32); m = int(260 * spots)
 dy, dx = rng.integers(0, W, m), rng.integers(0, W, m); dots[dy, dx] = rng.uniform(.5, 1, m)
 dots = np.clip(blur(dots, W / 2048 * 2.2) * 9, 0, 1) * head
 col *= 1 - dots[..., None] * np.array([.18, .28, .36], np.float32) * spots   # small brown age spots
+# skin regions from the 3D model (UV polygons): stubble on the jaw / upper lip
+if len(sys.argv) > 7:
+    import json
+    from PIL import ImageDraw
+    regs = json.load(open(sys.argv[7]))
+    if regs.get('beard'):
+        m = Image.new('L', (W, W), 0); d = ImageDraw.Draw(m)
+        for poly in regs['beard']: d.polygon([(u % 1 * W, (1 - v % 1) * W) for u, v in poly], fill=255)
+        bm_ = blur(np.asarray(m).astype(np.float32) / 255, W / 2048 * 10)
+        bm_ = np.clip((bm_ - .15) / .5, 0, 1) * skin
+        dots = np.clip(blur(rng.standard_normal((W, W)).astype(np.float32), .7) * 2.5, 0, 1)
+        k = bm_ * (.1 + .3 * dots)
+        col = col * (1 - k[..., None]) + np.array([.16, .15, .15], np.float32) * k[..., None]
+        print('beard px', int((bm_ > .5).sum()))
+    if regs.get('buzz'):   # very short dark hair: dense dark stipple over the scalp region
+        m = Image.new('L', (W, W), 0); d = ImageDraw.Draw(m)
+        for poly in regs['buzz']: d.polygon([(u % 1 * W, (1 - v % 1) * W) for u, v in poly], fill=255)
+        bz = np.clip(blur(np.asarray(m).astype(np.float32) / 255, W / 2048 * 6) * 1.6 - .3, 0, 1) * skin
+        dots = np.clip(blur(rng.standard_normal((W, W)).astype(np.float32), .6) * 2 + .4, 0, 1)
+        k = bz * (.55 + .4 * dots)
+        col = col * (1 - k[..., None]) + np.array([.12, .11, .10], np.float32) * k[..., None]
+        print('buzz px', int((bz > .5).sum()))
 Image.fromarray(np.clip(col * 255, 0, 255).astype(np.uint8)).save(out_d, quality=92)
 print('height', out_h, H2, 'diffuse', out_d)

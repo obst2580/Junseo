@@ -3,7 +3,7 @@
 <style>
 html,body{height:100%;margin:0;overflow:hidden;background:#1b1f1c;color:#eef0e8;font-family:"IBM Plex Sans KR",system-ui,sans-serif}
 #v{position:fixed;inset:0}#v canvas{display:block;width:100%;height:100%}
-#info{position:fixed;left:max(14px,env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));background:rgba(14,18,16,.82);border:1px solid #38423a;border-radius:6px;padding:10px 12px;font-size:13px;max-width:320px}
+#info{position:fixed;left:max(14px,env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));background:rgba(14,18,16,.82);border:1px solid #38423a;border-radius:6px;padding:10px 12px;font-size:13px;max-width:340px;line-height:1.6}
 </style>
 <div id="v"></div><div id="info">불러오는 중…</div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-const PEOPLE = { ijang: '오만복 이장 (61)', halmeoni: '박순례 할머니 (78)' };
+const PEOPLE = { ijang: '오만복 이장 (61)', halmeoni: '박순례 (78)', choi: '최 실장 (45)', minseok: '민석 (36)', police: '김 순경 (29)', syuper: '신화슈퍼 사장님 (55)', sangsa: '박 상사 (58)' };
 const CH = PEOPLE[new URLSearchParams(location.search).get('c')] ? new URLSearchParams(location.search).get('c') : 'ijang', BASE = CH + '/';
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(innerWidth, innerHeight);
 r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.1; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -68,6 +68,9 @@ g.scene.traverse(o => {
       if (brow) { m.specularIntensity = .1; if (/eyebrow/i.test(m.name)) m.color.setRGB(2.3, 2.1, 1.95); }   // dark texture: lift to grey-brown, no sky sheen
       const soft = m.clone(); soft.alphaTest = 0; soft.transparent = true; soft.depthWrite = false;
       const fringe = o.clone(); fringe.material = soft; fringe.renderOrder = 2; fringe.castShadow = false; pendingAdds.push([o.parent, fringe]);
+    } else if (/lens/i.test(m.name)) {   // glasses: dark lenses are sunglasses, light ones are clear glass
+      const light = m.color.r + m.color.g + m.color.b > 1.5; m.transparent = true; m.opacity = light ? .12 : .88; m.depthWrite = false;
+      m.roughness = .05; m.metalness = 0; m.envMapIntensity = 1.2; o.renderOrder = 3;
     } else if (eye) {
       // the eye mesh carries both eyeball and cornea; the cornea samples the small dot at the texture corner -> cut it away
       m.transparent = false; m.depthWrite = true; m.alphaTest = 0; m.roughness = .08; m.side = THREE.DoubleSide;   // eyeball normals point inward
