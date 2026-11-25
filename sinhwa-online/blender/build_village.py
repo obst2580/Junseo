@@ -348,8 +348,23 @@ nx, ny = int((X1 - X0) / STEP), int((Y1 - Y0) / STEP)
 verts = [(X0 + i * STEP, Y0 + j * STEP, hget(X0 + i * STEP, Y0 + j * STEP)) for j in range(ny + 1) for i in range(nx + 1)]
 faces, fm = [], []
 CLS_MAT = {}   # one ground material: the viewer blends field / paddy / dirt / gravel from the class mask (no 2 m blocks)
+# cells fully under a road / lane: no ground face there (both layers share the planar lightmap; the covered ground
+# would bake black into the road's texels)
+_cov = np.zeros((ny * 4, nx * 4), bool); _sx = X0 + (np.arange(nx * 4) + .5) * STEP / 4; _sy = Y0 + (np.arange(ny * 4) + .5) * STEP / 4
+for rd in WJ['roads']:
+    if rd['w'] < 2.5 or len(rd['pts']) < 2: continue
+    hw = (rd['w'] - 1.2) / 2
+    for (x0_, y0_), (x1_, y1_) in zip(rd['pts'][:-1], rd['pts'][1:]):
+        i0 = np.searchsorted(_sx, min(x0_, x1_) - hw); i1 = np.searchsorted(_sx, max(x0_, x1_) + hw)
+        j0 = np.searchsorted(_sy, min(y0_, y1_) - hw); j1 = np.searchsorted(_sy, max(y0_, y1_) + hw)
+        if i1 <= i0 or j1 <= j0: continue
+        qx, qy = np.meshgrid(_sx[i0:i1], _sy[j0:j1]); dx_, dy_ = x1_ - x0_, y1_ - y0_; L2 = dx_ * dx_ + dy_ * dy_ or 1
+        t = np.clip(((qx - x0_) * dx_ + (qy - y0_) * dy_) / L2, 0, 1)
+        _cov[j0:j1, i0:i1] |= np.hypot(qx - x0_ - t * dx_, qy - y0_ - t * dy_) < hw
+_rm = _cov.reshape(ny, 4, nx, 4).all(axis=(1, 3)); print('ground cells under roads removed', int(_rm.sum()))   # every sub-sample of the cell covered
 for j in range(ny):
     for i in range(nx):
+        if _rm[j, i]: continue
         a = j * (nx + 1) + i; faces.append((a, a + 1, a + nx + 2, a + nx + 1))
         fm.append(CLS_MAT.get(gcls(X0 + (i + .5) * STEP, Y0 + (j + .5) * STEP), 0))
 mesh_obj('ground', verts, faces, [M['g_ground'], M['g_paddy'], M['lane_b'], M['g_yard']], GROUND, face_mats=fm)

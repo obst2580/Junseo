@@ -126,18 +126,18 @@ PRESETS = {
                      suit_tex=dict(top='solid:#3c4630', inner='solid:#4a4d38', bottom='solid:#30362a'), shoe_tex='leather:#1c1a18',
                      pieces=[dict(kind='boot', tex='leather:#1c1a18', push=.01, drop=.12, rough=.5),
                              dict(kind='apron', tex='leather:#6e5a3c+oil', width=.17, top=.05, bottom=.12, push=.02, rough=.6)], regions=['buzz'])),
-    'anjun': dict(  # 안준: 키 크고 마른 20세 전후, 앞머리 짧은 머리, 웃는 인상 — 검은 플리스 집업 + 흰 줄 트레이닝 바지
+    'anjun': dict(  # 안준: 키 크고 마른 20세 전후, 반삭(버즈컷) — 검은 플리스 집업 + 흰 줄 트레이닝 바지
         macro=dict(gender=1.0, age=age(20), muscle=.45, weight=.33, proportions=.62, height=.78, cupsize=.5, firmness=.55,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
         skin=('skins', 'young_asian_male', '.mhmat'),
-        hair='culturalibre_hair_06', eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes05'],
+        hair=None, eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes05'],
         targets={'head-scale-vert-incr': .35, 'head-oval': .4, 'chin-width-decr': .5, 'chin-triangle': .5, 'chin-height-incr': .3,
                  'lr-cheek-bones-incr': .55, 'lr-cheek-volume-decr': .35, 'head-fat-decr': .3, 'nose-scale-vert-incr': .35, 'nose-scale-horiz-decr': .2,
                  'lr-ear-flap-incr': 1.0, 'lr-ear-scale-incr': .3, 'lr-ear-wing-incr': .5, 'mouth-lowerlip-volume-incr': .25,
                  'neck-scale-horiz-decr': .3},
         costume=dict(suit='male_casualsuit05', shoes='shoes05', loose=.004,
                      suit_tex=dict(top='solid:#18191c', inner='solid:#ecebe6', bottom='solid:#141518'), shoe_tex='leather:#121212',
-                     pieces=[dict(kind='stripes', tex='color:#efefea', count=2, width=.011, gap=.02)])),
+                     pieces=[dict(kind='stripes', tex='color:#efefea', count=2, width=.011, gap=.02)], regions=['buzz'])),
     'jinwook': dict(  # 홍진욱: 키 크고 마른 체형, 곱슬기 짧은 머리, 차분한 긴 얼굴 — 검은 니트 집업 + 진갈색 슬랙스
         macro=dict(gender=1.0, age=age(20), muscle=.42, weight=.36, proportions=.6, height=.76, cupsize=.5, firmness=.55,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),

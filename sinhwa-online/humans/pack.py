@@ -101,6 +101,7 @@ for m in g['materials']:
 stp = os.path.join(src, 'face_sticker.npz')
 if os.path.exists(os.path.join(here, 'photos', name + '.json')) and os.path.exists(stp):
     import numpy as np
+    PSPEC = json.load(open(os.path.join(here, 'photos', name + '.json')))
     S_ = np.load(stp); n = len(S_['pos'])
     raw = bytearray(raw)
     def add_view(arr, target=None):
@@ -126,7 +127,7 @@ if os.path.exists(os.path.join(here, 'photos', name + '.json')) and os.path.exis
     g['nodes'].append({'name': 'Human.facephoto', 'mesh': len(g['meshes']) - 1, 'skin': 0})
     sc = g['scenes'][g.get('scene', 0)]['nodes']; sc.append(len(g['nodes']) - 1)
     for i_, nd in enumerate(g['nodes']):
-        if 'mesh' in nd and any(k in g['meshes'][nd['mesh']]['name'] for k in ('eyebrow', 'eyelash')):
+        if 'mesh' in nd and any(k in g['meshes'][nd['mesh']]['name'] for k in (('eyelash',) if PSPEC.get('keep_brows') else ('eyebrow', 'eyelash'))):
             if i_ in sc: sc.remove(i_)
             for pn in g['nodes']:
                 if i_ in pn.get('children', []): pn['children'].remove(i_)

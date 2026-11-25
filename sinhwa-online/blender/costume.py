@@ -324,6 +324,8 @@ if 'buzz' in C.get('regions', []):   # buzz-cut scalp: above the forehead line, 
     for f in human.data.polygons:
         if not all(v in hs for v in f.vertices): continue
         c = hco[list(f.vertices)].mean(0); dy = c[1] - eye_front_y
+        hw_ = np.abs(headv[np.abs(headv[:, 2] - (eye_z + .06)) < .01][:, 0]).max()   # skull half-width above the ears
+        if abs(c[0]) > hw_ - .004 and c[2] < eye_z + .045: continue                  # the ears stay skin
         if c[2] > eye_z + .055 or (c[2] > eye_z - .02 and dy > .075) or (c[2] > eye_z - .055 and dy > .11):
             polys.append([[round(uvb[li].uv.x, 5), round(uvb[li].uv.y, 5)] for li in f.loop_indices])
     skin_regions['buzz'] = polys; print('BUZZ faces', len(polys))

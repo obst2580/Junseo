@@ -107,12 +107,13 @@ mw = 1 - (1 - spec.get('mouth', .5)) * np.clip(1.6 - dm, 0, 1)
 # nose: a frontal photo paints nostril shadows onto the sides of the 3D nose -> keep the mesh's own nose shading
 tip = P[np.argmax(np.where((np.abs(P[:, 0]) < .01) & (P[:, 1] < eR[1]) & (P[:, 1] > mouth[1]), P[:, 2], -9))]
 dn = np.sqrt((((pos[ty, tx] - tip[:2]) / [.45 * ed, .4 * ed]) ** 2).sum(1)); mw = mw * (1 - .75 * np.clip(1.4 - dn, 0, 1))
-w = mw * samp(pmask)[:, 0] * np.clip((nrm[ty, tx] - .15) / .4, 0, 1) * inside * spec.get('strength', .8)
+w = mw * samp(pmask)[:, 0] * np.clip((nrm[ty, tx] - .15) / .4, 0, 1) * inside * spec.get('strength', .8 if len(sys.argv) <= 5 else 0.)
 det = np.clip(samp(detail), .25, 1.35)
 # target base = current texture low-pass (keeps the character's tan/weathering) pulled toward the photo skin tone
 wimg = np.zeros((S, S), np.float32); wimg[ty, tx] = w
 base_lp = np.dstack([lowpass(dif[..., c], 24) for c in range(3)])
-tex_ref = (base_lp[ty, tx] * w[:, None]).sum(0) / max(w.sum(), 1e-3)
+wt_ = w if w.sum() > 1 else samp(pmask)[:, 0] * np.clip((nrm[ty, tx] - .15) / .4, 0, 1) * inside   # tone reference even when nothing is painted
+tex_ref = (base_lp[ty, tx] * wt_[:, None]).sum(0) / max(wt_.sum(), 1e-3)
 tone = (skin_ref / skin_ref.mean()) / (tex_ref / tex_ref.mean()); tone = tone ** .9 * (skin_ref.mean() / tex_ref.mean()) ** (.95 if len(sys.argv) > 5 else .5)
 newc = base_lp[ty, tx] * tone * det
 out = dif.copy(); wimg = lowpass(wimg, 2.0)[ty, tx][:, None]          # soften seams between triangles
@@ -165,6 +166,12 @@ if len(sys.argv) > 5:
     tris = np.r_[quads[:, [0, 2, 1]], quads[:, [0, 3, 2]]] if False else np.r_[quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]]
     np.savez(st_npz, pos=pos3[used].astype(np.float32), nrm=nrm3[used].astype(np.float32), uv=uvs[used].astype(np.float32),
              col=np.c_[np.ones((len(used), 3)), va[used]].astype(np.float32), idx=remap[tris].astype(np.uint32))
-    rgba = np.dstack([ph, pmask[..., None]])
+    # above the eyes, hair (bangs) must not come along: drop pixels much darker than the skin
+    lum_ = ph @ np.array([.3, .59, .11], np.float32); sl = float(skin_ref @ np.array([.3, .59, .11]))
+    hairm = np.clip((lum_ / sl - .55) / .25, 0, 1); hairm = np.where(yy < qe[1] - .18 * pe, hairm, 1.)
+    hairm = np.minimum(hairm, np.where(yy < qe[1] - .18 * pe, np.clip((yy - (qe[1] - spec.get('top', .55) * pe)) / (.06 * pe), 0, 1), 1.))
+    # halve the photo's own light falloff (window light on one cheek) so the sticker edge meets the skin evenly
+    phf = np.clip(ph * (sl / np.maximum(lumlow, .05))[..., None] ** .55, 0, 1)
+    rgba = np.dstack([phf, (pmask * lowpass(hairm.astype(np.float32), 1.5))[..., None]])
     Image.fromarray(np.clip(rgba * 255, 0, 255).astype(np.uint8), 'RGBA').save(st_png)
     print('face sticker', len(used), 'verts', len(tris), 'tris')

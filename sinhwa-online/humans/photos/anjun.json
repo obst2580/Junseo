@@ -1,1 +1,1 @@
-{"photo": "anjun.jpg", "lm": {"eyeR": [180, 355], "eyeL": [383, 355], "mouth": [270, 580], "chin": [272, 722]}, "top": 0.22, "side": 0.8, "mouth": 0.7}
+{"photo": "anjun.jpg", "lm": {"eyeR": [180, 355], "eyeL": [383, 355], "mouth": [270, 580], "chin": [272, 722]}, "top": 0.14, "side": 0.8, "mouth": 0.7, "keep_brows": true}
