@@ -86,6 +86,23 @@ body.cut #sub { bottom: calc(min(30vh, max(9vh, calc((100vh - 100vw / 2.39) / 2)
 #wanted.flash i.on { color: #fff; text-shadow: 0 0 10px #ffd23a }
 @keyframes wblink { to { opacity: .25 } }
 body.cut #wanted { visibility: hidden }
+/* phones / tablets: landscape only — a rotate prompt in portrait, a compact HUD in landscape */
+#rotate { position: fixed; inset: 0; z-index: 30; display: none; place-items: center; text-align: center; background: #0d0f0b; color: #e9e4cf; padding: 24px }
+#rotate .ph { width: 54px; height: 92px; border: 4px solid #e2cf72; border-radius: 10px; margin: 0 auto 22px; animation: rot 1.8s ease-in-out infinite }
+@keyframes rot { 0%, 25% { transform: rotate(0) } 60%, 100% { transform: rotate(-90deg) } }
+#rotate b { display: block; font: 400 26px "Black Han Sans", var(--f); color: #f3e3a8; margin-bottom: 8px } #rotate p { margin: 0 0 18px; color: #aab3a2; line-height: 1.6 }
+#rotate button { font-size: 15px; padding: 10px 16px; background: var(--acc); color: #1b1d14; border: 0; border-radius: 8px; font-weight: 700 }
+@media (pointer: coarse) and (orientation: portrait) { #rotate { display: grid } }
+@media (pointer: coarse) {
+  .hud { display: none } .panel .help { display: none } .panel { width: auto; padding: 6px 8px; gap: 5px } .panel h1 { font-size: 13px }
+  #mini { top: calc(10px + env(safe-area-inset-top, 0px)); bottom: auto; width: 108px; height: 108px }
+  #wanted { top: calc(124px + env(safe-area-inset-top, 0px)) }
+  #atkpad { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: 88px; height: 88px }
+  #execbtn { right: calc(126px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); width: 74px; height: 74px }
+  #sub { bottom: calc(58px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 320px); min-width: 220px; font-size: clamp(15px, 2.4vw, 22px) }
+  #gauge { width: min(300px, calc(100vw - 340px)) }
+  #bars { width: min(300px, calc(100vw - 420px)) }
+}
 #fxflash, #fxvig { position: fixed; inset: 0; pointer-events: none; opacity: 0 }
 #fxflash { background: radial-gradient(circle at 50% 45%, rgba(255,250,235,.95), rgba(255,240,210,.55) 45%, rgba(255,230,200,0) 80%) }
 #fxvig { background: radial-gradient(ellipse at center, rgba(160,0,0,0) 45%, rgba(150,0,0,.55) 100%) }
@@ -107,6 +124,7 @@ body.cut #wanted { visibility: hidden }
 <button type="button" id="execbtn" hidden>처형</button>
 <div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
 <div id="sub" role="status" aria-live="polite"></div>
+<div id="rotate"><div><div class="ph" aria-hidden="true"></div><b>가로로 돌려주세요</b><p>GTK는 가로 화면에서 플레이합니다.</p><button type="button" id="landbtn">가로 전체화면으로</button></div></div>
 <div id="kotext" aria-hidden="true">기절!</div>
 <div id="busted" aria-hidden="true"><div>체포<small>연무지구대로 연행 중…</small></div></div>
 <div id="wanted" hidden aria-label="수배 단계"><span>수배</span><i>★</i><i>★</i><i>★</i><i>★</i><i>★</i></div>
@@ -128,6 +146,13 @@ import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
 
 const $ = id => document.getElementById(id);
+// phones / tablets: ask for fullscreen + a landscape lock on the first touch (Android honours it; iOS shows the rotate prompt instead)
+const coarse = matchMedia('(pointer: coarse)').matches;
+async function goLandscape() {
+  try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
+  try { await screen.orientation?.lock?.('landscape'); } catch (e) {}
+}
+if (coarse) { addEventListener('pointerdown', goLandscape, { once: true }); document.getElementById('landbtn').addEventListener('click', e => { e.stopPropagation(); goLandscape(); }); }
 const say = t => { $('loadmsg').textContent = t; };
 window.addEventListener('error', e => { $('load').hidden = false; $('loadmsg').textContent = '오류: ' + e.message; });
 
