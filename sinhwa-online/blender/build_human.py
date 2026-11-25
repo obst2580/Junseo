@@ -85,7 +85,7 @@ PRESETS = {
         macro=dict(gender=1.0, age=age(29), muscle=.5, weight=.45, proportions=.55, height=.58, cupsize=.5, firmness=.5,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
         skin=('skins', 'young_asian_male', '.mhmat'),
-        hair='short01', eyebrows='eyebrow009', clothes=['male_casualsuit01', 'shoes03'],
+        hair='short01', eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes03'],
         targets={'head-oval': .8, 'head-fat-decr': .3, 'head-scale-horiz-decr': .15, 'chin-triangle': .6, 'chin-height-incr': .2,
                  'lr-cheek-volume-decr': .3, 'lr-eye-scale-incr': .55, 'lr-eye-height2-incr': .6, 'lr-eye-epicanthus-out': .5,
                  'lr-eye-corner2-down': .3, 'eyebrows-trans-up': .7, 'eyebrows-angle-up': .7, 'nose-scale-horiz-decr': .3,
@@ -126,12 +126,69 @@ PRESETS = {
                      suit_tex=dict(top='solid:#3c4630', inner='solid:#4a4d38', bottom='solid:#30362a'), shoe_tex='leather:#1c1a18',
                      pieces=[dict(kind='boot', tex='leather:#1c1a18', push=.01, drop=.12, rough=.5),
                              dict(kind='apron', tex='leather:#6e5a3c+oil', width=.17, top=.05, bottom=.12, push=.02, rough=.6)], regions=['buzz'])),
+    'anjun': dict(  # 안준: 키 크고 마른 20세 전후, 앞머리 짧은 머리, 웃는 인상 — 검은 플리스 집업 + 흰 줄 트레이닝 바지
+        macro=dict(gender=1.0, age=age(20), muscle=.45, weight=.33, proportions=.62, height=.78, cupsize=.5, firmness=.55,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'young_asian_male', '.mhmat'),
+        hair='culturalibre_hair_05', eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes05'],
+        targets={'head-scale-horiz-decr': .2, 'chin-width-decr': .3, 'lr-eye-scale-decr': .2, 'nose-scale-horiz-decr': .3, 'nose-point-width-decr': .4,
+                 'nose-flaring-decr': .3, 'lr-ear-flap-incr': .6, 'head-oval': .5, 'head-fat-decr': .35, 'head-scale-vert-incr': .2, 'lr-cheek-bones-incr': .4, 'lr-cheek-volume-decr': .3,
+                 'mouth-angles-up': .6, 'mouth-scale-horiz-incr': .25, 'lr-eye-corner2-down': .25, 'lr-eye-height2-decr': .5,
+                 'chin-height-incr': .25, 'chin-triangle': .3, 'nose-scale-vert-incr': .15, 'lr-ear-wing-incr': .3, 'neck-scale-horiz-decr': .3},
+        costume=dict(suit='male_casualsuit05', shoes='shoes05', loose=.004,
+                     suit_tex=dict(top='solid:#18191c', inner='solid:#ecebe6', bottom='solid:#141518'), shoe_tex='leather:#121212',
+                     pieces=[dict(kind='stripes', tex='color:#efefea', count=2, width=.011, gap=.02)])),
+    'jinwook': dict(  # 홍진욱: 키 크고 마른 체형, 곱슬기 짧은 머리, 차분한 긴 얼굴 — 검은 니트 집업 + 진갈색 슬랙스
+        macro=dict(gender=1.0, age=age(20), muscle=.42, weight=.36, proportions=.6, height=.76, cupsize=.5, firmness=.55,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'young_asian_male', '.mhmat'),
+        hair='short02', eyebrows='eyebrow009', clothes=['male_casualsuit05', 'shoes03'],
+        targets={'head-scale-vert-incr': .15, 'head-fat-incr': .1, 'lr-cheek-volume-decr': .1,
+                 'nose-scale-vert-incr': .35, 'nose-flaring-incr': .2, 'nose-point-width-incr': .2, 'nose-hump-incr': .2, 'lr-ear-flap-incr': .5, 'chin-width-incr': .45, 'chin-bones-incr': .3, 'lr-eye-height2-decr': .35, 'lr-eye-scale-decr': .15,
+                 'mouth-scale-horiz-decr': .15, 'mouth-lowerlip-volume-incr': .2, 'chin-prominent-incr': .25, 'chin-height-incr': .3, 'eyebrows-trans-down': .2},
+        costume=dict(suit='male_casualsuit05', shoes='shoes03', loose=.004,
+                     suit_tex=dict(top='solid:#141517', inner='solid:#1b1c1f', bottom='solid:#33292a'), shoe_tex='leather:#111111')),
+    'parkjin': dict(  # 박진: 보통 키에 다부진 체형, 가르마 머리, 둥근 얼굴 — 검은 숏패딩 + 흰 두 줄 트레이닝 바지 + 슬리퍼
+        macro=dict(gender=1.0, age=age(20), muscle=.58, weight=.6, proportions=.5, height=.56, cupsize=.5, firmness=.55,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'young_asian_male', '.mhmat'),
+        hair='culturalibre_hair_06', eyebrows='eyebrow009', clothes=['male_casualsuit01', 'shoes02'],
+        targets={'head-round': .55, 'head-fat-incr': .3, 'lr-cheek-volume-incr': .45, 'head-scale-horiz-incr': .15, 'chin-width-incr': .25,
+                 'lr-eye-scale-decr': .2, 'lr-eye-height2-decr': .3, 'lr-eye-corner2-down': .2, 'nose-scale-horiz-incr': .2, 'nose-flaring-incr': .3, 'nose-point-up': .2,
+                 'mouth-upperlip-volume-incr': .25, 'mouth-lowerlip-volume-incr': .35, 'neck-scale-horiz-incr': .3},
+        costume=dict(suit='male_casualsuit01', shoes='shoes02', loose=.004,
+                     suit_tex=dict(top='solid:#111214', bottom='solid:#121316'), shoe_tex='rubber:#101010',
+                     pieces=[dict(kind='puffer', tex='solid:#141518', rough=.55, push=.02, amp=.011, period=.16),
+                             dict(kind='stripes', tex='color:#f2f2ee', count=2, width=.012, gap=.022)])),
+    'woochan': dict(  # 조우찬: 다부진 운동형 체형, 아주 짧은 머리 + 크림색 니트 비니 — 검은 긴팔 티 + 흰 두 줄 트레이닝 바지 + 흰 운동화
+        macro=dict(gender=1.0, age=age(20), muscle=.75, weight=.55, proportions=.55, height=.64, cupsize=.5, firmness=.6,
+                   race=dict(asian=1.0, caucasian=0.0, african=0.0)),
+        skin=('skins', 'young_asian_male', '.mhmat'),
+        hair=None, eyebrows='eyebrow009', clothes=['male_casualsuit01', 'shoes05'],
+        targets={'head-square': .55, 'head-scale-horiz-incr': .2, 'chin-width-incr': .5, 'chin-bones-incr': .35, 'head-fat-incr': .1, 'lr-cheek-bones-incr': .5,
+                 'lr-eye-height2-decr': .3, 'lr-eye-corner2-up': .2, 'nose-scale-horiz-incr': .25, 'nose-volume-incr': .15,
+                 'mouth-scale-horiz-incr': .1, 'neck-scale-horiz-incr': .55, 'lr-ear-scale-incr': .2},
+        costume=dict(suit='male_casualsuit01', shoes='shoes05', loose=.002,
+                     suit_tex=dict(top='solid:#16171a', bottom='solid:#121316'), shoe_tex='leather:#eeeeea',
+                     pieces=[dict(kind='stripes', tex='color:#f2f2ee', count=2, width=.012, gap=.022)],
+                     hat=dict(kind='beanie', tex='knit:#e9e3d2', brim_down=.1, rough=.95, thick=.004), regions=['buzz'])),
     'player': dict(  # 전입자 기본, 34세
         macro=dict(gender=1.0, age=age(34), muscle=.55, weight=.5, proportions=.55, height=.55, cupsize=.5, firmness=.5,
                    race=dict(asian=1.0, caucasian=0.0, african=0.0)),
         skin=('skins', 'middleage_asian_male', '.mhmat'),
         hair='short04', eyebrows='eyebrow003', clothes=['male_casualsuit02', 'shoes03']),
 }
+# young men modelled on photos: MakeHuman's asian base reads puffy with big round eyes and a broad nose; slim it toward the photos
+FRIEND_FACE = {'nose-volume-decr': .45, 'nose-point-width-decr': .45, 'nose-flaring-decr': .25, 'nose-scale-depth-decr': .15,
+               'lr-eye-height1-decr': .35, 'lr-eye-epicanthus-in': .4, 'lr-eye-bag-decr': .5, 'eyebrows-angle-down': .5,
+               'mouth-lowerlip-volume-decr': .3, 'mouth-upperlip-volume-decr': .2, 'lr-cheek-inner-decr': .4, 'neck-double-decr': .5}
+for k in ('anjun', 'jinwook', 'parkjin', 'woochan'):
+    t = PRESETS[k]['targets']
+    for n, w in FRIEND_FACE.items():
+        opp = n.rsplit('-', 1)[0] + '-' + {'incr': 'decr', 'decr': 'incr'}.get(n.rsplit('-', 1)[1], '')
+        if n not in t and opp not in t: t[n] = w
+    t['lr-eye-height2-decr'] = 1.0; t['lr-eye-eyefold-down'] = max(t.get('lr-eye-eyefold-down', 0), .5); t['lr-eye-scale-decr'] = max(t.get('lr-eye-scale-decr', 0), .25)
+PRESETS['parkjin']['targets'].update({'head-fat-incr': .05, 'lr-cheek-volume-incr': .15})
 P = PRESETS[PRESET]
 
 bpy.ops.wm.read_factory_settings(use_empty=True)

@@ -167,6 +167,41 @@ for pc in C.get('pieces', []):
                 lw_ = min(1, max(0, t)); side = 'thigh_l' if v.co.x > 0 else 'thigh_r'
                 gs['pelvis'].add([v.index], 1 - .6 * lw_, 'REPLACE'); gs[side].add([v.index], .6 * lw_, 'REPLACE')
         print('PIECE apron panel'); continue
+    elif k == 'puffer':   # quilted down jacket: the whole top (sleeves too) pushed out with horizontal down channels
+        keep = [(not face_bottom[f.index]) and not any(dom[v].startswith(('hand', 'head')) for v in f.vertices) for f in suit.data.polygons]
+        o = duplicate(suit, name, keep, mat); mixed_copy(o)
+        bm = bmesh.new(); bm.from_mesh(o.data); bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=1, use_grid_fill=True); bm.to_mesh(o.data); bm.free()
+        mw = o.matrix_world; k_ = 1 / mw.to_scale()[0]; per = pc.get('period', .13); base, amp = pc.get('push', .03), pc.get('amp', .022)
+        o.data.update(); nrm = [v.normal.copy() for v in o.data.vertices]
+        for v, n in zip(o.data.vertices, nrm):
+            wz = (mw @ v.co).z; ph = (wz % per) / per
+            v.co += n * (base + amp * math.sin(ph * math.pi) ** .6) * k_
+        for p_ in o.data.polygons: p_.use_smooth = True
+        print('PIECE puffer', len(o.data.polygons)); continue
+    elif k == 'stripes':   # sports side stripes running down the outside of each trouser leg
+        bco = vert_world(suit); bm_ = [i for i, v in enumerate(suit.data.vertices) if dom[i].startswith(('thigh', 'calf', 'foot')) or (dom[i].startswith('pelvis') and bco[i][2] < pelvis_z)]
+        hip_z = pelvis_z - .02; ank_z = bone_w('foot_l').z + .06
+        bm = bmesh.new(); nS = 34; width = pc.get('width', .012); gap = pc.get('gap', .022); n_str = pc.get('count', 2)
+        for side in (1, -1):
+            pts = []
+            for i in range(nS + 1):
+                z = hip_z + (ank_z - hip_z) * i / nS
+                cand = [bco[j] for j in bm_ if abs(bco[j][2] - z) < .02 and bco[j][0] * side > .02]
+                if not cand: continue
+                c = max(cand, key=lambda q: q[0] * side); pts.append(Vector((c[0] + side * .004, c[1], c[2])))
+            for s_ in range(n_str):
+                off = (s_ - (n_str - 1) / 2) * gap
+                ring = []
+                for p_ in pts:
+                    for e in (-width / 2, width / 2): ring.append(bm.verts.new((p_.x + side * .001, p_.y + off + e, p_.z)))
+                for i in range(len(pts) - 1): bm.faces.new((ring[i * 2], ring[i * 2 + 1], ring[i * 2 + 3], ring[i * 2 + 2]))
+        o = finish_mesh(name, bm, mat)
+        o.parent = arm; o.matrix_parent_inverse = arm.matrix_world.inverted(); o.modifiers.new('Armature', 'ARMATURE').object = arm
+        knee = bone_w('calf_l').z; gs = {n_: o.vertex_groups.new(name=n_) for n_ in ('thigh_l', 'thigh_r', 'calf_l', 'calf_r')}
+        for v in o.data.vertices:
+            sd = 'l' if v.co.x > 0 else 'r'; wz = (o.matrix_world @ v.co).z; t_ = max(0, min(1, (knee + .06 - wz) / .12))
+            gs['thigh_' + sd].add([v.index], 1 - t_, 'REPLACE'); gs['calf_' + sd].add([v.index], t_, 'REPLACE')
+        print('PIECE stripes'); continue
     elif k == 'hood':   # bunched hood lying behind the neck: a fat tube along an arc round the back of the neck
         nk = bone_w('neck_01'); R, rt = pc.get('radius', .075), pc.get('tube', .035); cz = nk.z - .005
         bm = bmesh.new(); uvq = bm.loops.layers.uv.new('UVMap'); rs = []; NA, NT = 20, 14
@@ -218,6 +253,18 @@ if C.get('hat'):
                 ph = a0 + (a1 - a0) * i / 32; w = 1 + .05 * t * math.sin(ph * 9); v.co.x = cx + (v.co.x - cx) * w; v.co.y = cy + (v.co.y - cy) * w
             if prevf: strip(prevf, r, 1 + (k - 1) * .2, 1 + k * .2, closed=False, ureps=3)
             prevf = r
+    elif kind == 'beanie':   # knit beanie: snug dome over the skull, slight slouch at the crown, folded cuff band
+        sk = headv[headv[:, 2] > zb + .035]   # skull above the ears: the cuff hugs the head, not the ear tips
+        rx = (sk[:, 0].max() - sk[:, 0].min()) / 2 * 1.06 + .006; ry = (sk[:, 1].max() - sk[:, 1].min()) / 2 * 1.04 + .006
+        cx, cy = (sk[:, 0].min() + sk[:, 0].max()) / 2, (sk[:, 1].min() + sk[:, 1].max()) / 2
+        rings = []
+        for k in range(9):
+            t = k / 8; a_ = t * math.pi / 2; z = zb + .045 + (ztop + .028 - zb - .045) * math.sin(a_)
+            s_ = math.cos(a_) ** .9 * (1.0 + .04 * math.sin(t * math.pi)) + .02
+            rings.append(ring(z, rx * max(s_, .05), ry * max(s_, .05)))
+        for k in range(8): strip(rings[k], rings[k + 1], .2 + k * .1, .3 + k * .1, ureps=24)
+        cuff0 = ring(zb - .004, rx * 1.03, ry * 1.03); cuff1 = ring(zb + .05, rx * 1.05, ry * 1.05)
+        strip(cuff0, cuff1, 0, .2, ureps=24); strip(cuff1, rings[0], .2, .2, ureps=24)
     elif kind == 'police':   # peaked cap: straight band, flat crown a little wider than the band, visor in front (-Y)
         zt = zb + H.get('height', .08); grow = 1.1
         b0 = ring(zb, rx, ry); b1 = ring(zb + .04, rx * 1.01, ry * 1.01)

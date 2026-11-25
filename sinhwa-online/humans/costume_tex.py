@@ -43,6 +43,10 @@ def fill(recipe, W, seed=1):
         mix = (bx.astype(np.float32) + by) / 2            # 0, .5, 1 -> gingham: dark, mid, light
         a = cb[None, None] * (1 - mix[..., None]) + ca[None, None] * mix[..., None]
         a *= (1 + weave(W, 1.5, .05) + noise(W, 32, seed) * .03)[..., None]
+    elif kind == 'knit':   # rib knit: vertical wales across u, fine stitch rows along v
+        y, x = np.mgrid[0:W, 0:W] / W
+        rib = .5 + .5 * np.cos(x * 2 * np.pi * 64); row = .5 + .5 * np.cos(y * 2 * np.pi * 180)
+        a = hexrgb(parts[1])[None, None] * (.78 + .16 * rib + .06 * row + noise(W, 24, seed) * .03)[..., None]
     elif kind == 'hivis':
         a = hexrgb('#d4e04a')[None, None] * (1 + weave(W, 3, .09) + noise(W, 24, seed) * .04)[..., None]
         y, x = np.mgrid[0:W, 0:W]; holes = ((x % 6 < 2) & (y % 6 < 2)); a[holes] *= .78   # mesh fabric

@@ -1,15 +1,15 @@
 """python3 pack.py <src_dir> <gltf_name> <pub_dir> : glTF -> artifact-friendly JSON pack + material extras"""
-import json, base64, os, sys, shutil
+import json, base64, os, sys, shutil, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image
 src, name, dst = sys.argv[1], sys.argv[2], sys.argv[3]
 SKIN = {    # face weathering per character: (tan, spots)
   'ijang': (.55, .6),
   'halmeoni': (.38, .8),
-  'choi': (.3, .3), 'minseok': (.15, .25), 'police': (.25, .15), 'syuper': (.3, .4), 'sangsa': (.55, .5),
+  'choi': (.3, .3), 'minseok': (.15, .25), 'anjun': (.05, .05), 'jinwook': (.05, .05), 'parkjin': (.08, .08), 'woochan': (.12, .06), 'police': (.25, .15), 'syuper': (.3, .4), 'sangsa': (.55, .5),
 }
 GRAY_HAIR = {  # recolour hair textures (keeps strand contrast and alpha)
-  'halmeoni': (196, 190, 180), 'choi': (30, 28, 28), 'minseok': (40, 34, 30), 'police': (30, 28, 27), 'syuper': (62, 42, 34),
+  'halmeoni': (196, 190, 180), 'choi': (30, 28, 28), 'minseok': (40, 34, 30), 'police': (30, 28, 27), 'syuper': (62, 42, 34), 'anjun': (24, 22, 21), 'jinwook': (26, 23, 21), 'parkjin': (28, 25, 23), 'woochan': (24, 22, 21),
 }
 POSE = {       # per-character standing pose, applied in the viewer (radians, + = bend forward)
   'halmeoni': {'spine_01': .2, 'spine_02': .14, 'spine_03': .06, 'neck_01': -.2, 'head': -.18},
@@ -17,7 +17,7 @@ POSE = {       # per-character standing pose, applied in the viewer (radians, + 
 TINTS = {   # multiply colours for grey-authored MakeHuman textures (per character)
   'ijang': {'hair': '#3b3732', 'eyelashes': '#1c1816'},
   'halmeoni': {'eyelashes': '#2a2420'},
-  **{k: {'eyelashes': '#1c1816'} for k in ('choi', 'minseok', 'police', 'syuper', 'sangsa')},
+  **{k: {'eyelashes': '#1c1816'} for k in ('choi', 'minseok', 'police', 'syuper', 'sangsa', 'anjun', 'jinwook', 'parkjin', 'woochan')},
 }
 os.makedirs(os.path.join(dst, 'tex'), exist_ok=True)
 g = json.load(open(os.path.join(src, name + '.gltf')))
@@ -54,7 +54,21 @@ if name in GRAY_HAIR:
             L = a[..., :3] @ np.array([.3, .59, .11]); lo, hi = np.percentile(L[a[..., 3] > .5], (5, 95))
             t = np.clip((L - lo) / max(hi - lo, 1e-3), 0, 1)[..., None]
             rgb = np.array(GRAY_HAIR[name]) / 255 * (.55 + .55 * t)
-            Image.fromarray(np.clip(np.dstack([rgb, a[..., 3:]]) * 255, 0, 255).astype(np.uint8)).save(p); print('grey hair', im['uri'])
+            out = Image.fromarray(np.clip(np.dstack([rgb, a[..., 3:]]) * 255, 0, 255).astype(np.uint8)); (out.convert('RGB') if p.endswith('.jpg') else out).save(p); print('grey hair', im['uri'])
+# solid low-poly hair (culturalibre_*): strand texture + frayed alpha so the clumps read as locks of hair
+for m in g['materials']:
+    if 'culturalibre_hair' in m['name']:
+        pbr = m.setdefault('pbrMetallicRoughness', {})
+        if 'baseColorTexture' not in pbr:   # some of these ship with a flat colour only: add a texture slot
+            g.setdefault('images', []).append({'uri': ''}); g.setdefault('textures', []).append({'source': len(g['images']) - 1})
+            pbr['baseColorTexture'] = {'index': len(g['textures']) - 1}
+        pbr['baseColorFactor'] = [1, 1, 1, 1]
+        im = g['images'][g['textures'][pbr['baseColorTexture']['index']]['source']]
+        col = '#%02x%02x%02x' % tuple(int(min(255, c * 1.7)) for c in GRAY_HAIR.get(name, (30, 27, 25))); outp = os.path.join('tex', m['name'].split('.')[-1] + '_strands.png')
+        subprocess.run([sys.executable, os.path.join(here, 'hair_strands.py'), os.path.join(src, name + '.gltf'), os.path.join(src, g['buffers'][0]['uri']),
+                        m['name'].split('.')[-1].replace('culturalibre_', ''), os.path.join(dst, outp), col], check=True)
+        im['uri'] = outp; im['mimeType'] = 'image/png'; m['alphaMode'] = 'BLEND'; m['doubleSided'] = True
+        m['pbrMetallicRoughness']['roughnessFactor'] = .6; m.pop('extensions', None)
 raw = open(os.path.join(src, g['buffers'][0]['uri']), 'rb').read(); del g['buffers'][0]['uri']
 json.dump(g, open(os.path.join(dst, 'human.json'), 'w'))
 json.dump({'data': base64.b64encode(raw).decode()}, open(os.path.join(dst, 'human_bin.json'), 'w'))
@@ -79,5 +93,7 @@ for m in g['materials']:
         if costume and costume.get('skin_regions'):
             rp = os.path.join(src, 'skin_regions.json'); json.dump(costume['skin_regions'], open(rp, 'w')); extra = ['7', rp]
         subprocess.run([sys.executable, os.path.join(here, 'skin_detail.py'), dif, os.path.join(dst, skin_h), dif, *map(str, SKIN[name]), *extra], check=True)
+        ph = os.path.join(here, 'photos', name + '.json')   # characters modelled on a real person: project the front photo onto the face
+        if os.path.exists(ph): subprocess.run([sys.executable, os.path.join(here, 'photo_face.py'), src, name, dif, ph], check=True)
 json.dump({'normals': normals, 'tints': tint, 'skinHeight': skin_h, 'pose': POSE.get(name, {})}, open(os.path.join(dst, 'extras.json'), 'w'))
 print('normals', normals); print('tints', tint)

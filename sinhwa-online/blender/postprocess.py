@@ -67,6 +67,10 @@ from PIL import ImageDraw
 lay = json.load(open(os.path.join(src, 'layout.json')))
 S = 1024; E = 180.0
 px = lambda x, z: ((x + E) / (2 * E) * S, (z + E) / (2 * E) * S)
+if 'region' in lay:   # village build: ground lightmap spans the region (game x east / y north; three z = -y)
+    X0, Y0, X1, Y1 = lay['region']; S = 2048
+    px = lambda x, z: ((x - X0) / (X1 - X0) * S, (z + Y1) / (Y1 - Y0) * S)
+for k in ('lanes', 'roads', 'rects', 'polys'): lay.setdefault(k, [])
 def img(): return Image.new('L', (S, S), 0)
 def strip_poly(x0, z0, x1, z1, w):
     dx, dz = x1 - x0, z1 - z0; L = (dx * dx + dz * dz) ** .5; nx, nz = -dz / L * w / 2, dx / L * w / 2
@@ -94,6 +98,33 @@ R_ = np.clip(np.asarray(dirt.filter(ImageFilter.GaussianBlur(3)), np.float32) / 
 G_ = np.asarray(grav.filter(ImageFilter.GaussianBlur(2.5)), np.float32) / 255
 blk = np.asarray(block.filter(ImageFilter.GaussianBlur(1.5)), np.float32) / 255
 B_ = np.clip((1 - blk) * (1 - R_ * .85) * (.55 + .45 * smooth_noise(30, 4)), 0, 1)
+if 'region' in lay and os.environ.get('WORLD'):   # village: grass / dirt / gravel from the land classes (0 field 1 paddy 2 gh-yard 3 yard 4 water 5 forest 6 bare)
+    WJ = json.load(open(os.path.join(os.environ['WORLD'], 'world.json'))); G = WJ['ground']
+    cls = np.asarray(Image.open(os.path.join(os.environ['WORLD'], G['file'])))
+    if cls.ndim == 3: cls = cls[..., 0]
+    xs = X0 + (np.arange(S) + .5) / S * (X1 - X0); ys = Y1 - (np.arange(S) + .5) / S * (Y1 - Y0)
+    cc = np.clip(((xs - G['x0']) / G['res']).astype(int), 0, cls.shape[1] - 1); rr = np.clip(((G['y1'] - ys) / G['res']).astype(int), 0, cls.shape[0] - 1)
+    C = cls[rr[:, None], cc[None, :]]
+    def soft(v, r): return np.asarray(Image.fromarray((v * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r)), np.float32) / 255
+    gw = soft(np.select([C == 0, C == 1, C == 5], [.55, .1, .95], 0.).astype(np.float32), 3)
+    dw = soft(np.select([C == 6, C == 2], [1., .55], 0.).astype(np.float32), 3)
+    vw = soft((C == 3).astype(np.float32) * .6, 2)
+    patch = smooth_noise(60, 3)
+    B_ = np.clip((1 - blk) * gw * (.35 + .9 * patch) * (1 - R_ * .7), 0, 1)
+    R_ = np.clip(R_ + dw * .8, 0, 1); G_ = np.clip(G_ + vw, 0, 1)
 mask = np.stack([R_, G_, B_], -1)
 Image.fromarray((mask * 255).astype(np.uint8), 'RGB').save(os.path.join(dst, 'groundmask.png'))
 print('mask ok')
+if 'region' in lay and os.environ.get('WORLD'):   # terrain height over the region (16-bit in R/G) so instanced grass sits on the ground
+    import base64
+    HJ = json.load(open(os.path.join(os.environ['WORLD'], 'height.json')))
+    hu = np.frombuffer(base64.b64decode(HJ['data']), dtype='<u2').reshape(HJ['h'], HJ['w']).astype(np.float32) * HJ['scale'] + HJ['hmin']
+    N = 512; X0, Y0, X1, Y1 = lay['region']
+    xs = X0 + (np.arange(N) + .5) / N * (X1 - X0); ys = Y1 - (np.arange(N) + .5) / N * (Y1 - Y0)   # rows: north -> south (= three z ascending)
+    gx, gy = np.meshgrid(xs, ys); i = np.clip((gx - HJ['x0']) / HJ['step'], 0, HJ['w'] - 1.001); j = np.clip((gy - HJ['y0']) / HJ['step'], 0, HJ['h'] - 1.001)
+    i0, j0 = i.astype(int), j.astype(int); ti, tj = i - i0, j - j0
+    h = (hu[j0, i0] * (1 - ti) + hu[j0, i0 + 1] * ti) * (1 - tj) + (hu[j0 + 1, i0] * (1 - ti) + hu[j0 + 1, i0 + 1] * ti) * tj
+    lo, hi = float(h.min()) - 1, float(h.max()) + 1; q = np.round((h - lo) / (hi - lo) * 65535).astype(np.uint32)
+    Image.fromarray(np.dstack([(q >> 8), (q & 255), np.zeros_like(q)]).astype(np.uint8), 'RGB').save(os.path.join(dst, 'heightmap.png'))
+    b = json.load(open(os.path.join(dst, 'bake.json'))); b.update(region=lay['region'], hlo=lo, hhi=hi); json.dump(b, open(os.path.join(dst, 'bake.json'), 'w'))
+    print('heightmap', lo, hi)

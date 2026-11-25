@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
-const PEOPLE = { ijang: '오만복 이장 (61)', halmeoni: '박순례 (78)', choi: '최 실장 (45)', minseok: '민석 (36)', police: '김 순경 (29)', syuper: '신화슈퍼 사장님 (55)', sangsa: '박 상사 (58)' };
+const PEOPLE = { ijang: '오만복 이장 (61)', halmeoni: '박순례 (78)', choi: '최 실장 (45)', minseok: '민석 (36)', police: '김 순경 (29)', syuper: '신화슈퍼 사장님 (55)', sangsa: '박 상사 (58)', anjun: '안준', jinwook: '홍진욱', parkjin: '박진', woochan: '조우찬' };
 const CH = PEOPLE[new URLSearchParams(location.search).get('c')] ? new URLSearchParams(location.search).get('c') : 'ijang', BASE = CH + '/';
 const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(innerWidth, innerHeight);
 r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.1; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
