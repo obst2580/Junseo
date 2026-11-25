@@ -67,6 +67,19 @@ body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #sti
 #kotext { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font: 900 clamp(36px, 8vw, 80px) "Black Han Sans", var(--f); color: #fff; text-shadow: 0 4px 0 #400, 0 0 24px #000;
   background: radial-gradient(ellipse at center, rgba(40,0,0,.15), rgba(20,0,0,.75)); opacity: 0; transition: opacity .6s }
 #kotext.on { opacity: 1 }
+#busted { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; text-align: center; font: 900 clamp(48px, 11vw, 110px) "Black Han Sans", var(--f); color: #e9f0ff; letter-spacing: .1em;
+  text-shadow: 0 4px 0 #0b1f5c, 0 0 30px rgba(60,110,255,.7); background: radial-gradient(ellipse at center, rgba(0,10,40,.2), rgba(0,6,30,.8)); opacity: 0; transition: opacity .5s; z-index: 7 }
+#busted small { display: block; font: 600 clamp(13px, 2.2vw, 18px) var(--f); letter-spacing: .3em; color: #b9c8ff; margin-top: 8px }
+#busted.on { opacity: 1; animation: bflash .5s steps(2) 3 }
+@keyframes bflash { 50% { background: radial-gradient(ellipse at center, rgba(60,0,0,.25), rgba(40,0,10,.8)) } }
+#wanted { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(78px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-radius: 8px; background: rgba(16,20,16,.6); pointer-events: none }
+#wanted span { font-size: 11px; color: #f1efe4; margin-right: 5px; letter-spacing: .1em }
+#wanted i { font-style: normal; font-size: 21px; line-height: 1; color: rgba(255,255,255,.18); text-shadow: 0 1px 2px #000 }
+#wanted i.on { color: #ffd23a }
+#wanted.search i.on { animation: wblink .7s infinite alternate }
+#wanted.flash i.on { color: #fff; text-shadow: 0 0 10px #ffd23a }
+@keyframes wblink { to { opacity: .25 } }
+body.cut #wanted { visibility: hidden }
 #fxflash, #fxvig { position: fixed; inset: 0; pointer-events: none; opacity: 0 }
 #fxflash { background: radial-gradient(circle at 50% 45%, rgba(255,250,235,.95), rgba(255,240,210,.55) 45%, rgba(255,230,200,0) 80%) }
 #fxvig { background: radial-gradient(ellipse at center, rgba(160,0,0,0) 45%, rgba(150,0,0,.55) 100%) }
@@ -77,7 +90,7 @@ body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #sti
 <section class="panel" aria-label="게임 정보">
   <h1>GTK<small>한국의 위대한 도둑 · 신화2리</small></h1>
   <div class="row" id="views"></div>
-  <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 화면 클릭 후 <b>마우스</b>로 둘러보기(<b>Esc</b> 해제) · 휠 거리<br><b>클릭</b> 또는 <b>J</b> 공격(거리·상황 따라 기술이 바뀜) · 게이지가 차면 <b>E</b> 처형 · 달리면서 맞으면 잘 피함</div>
+  <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 화면 클릭 후 <b>마우스</b>로 둘러보기(<b>Esc</b> 해제) · 휠 거리<br><b>클릭</b> 또는 <b>J</b> 공격(거리·상황 따라 기술이 바뀜) · 게이지가 차면 <b>E</b> 처형 · 달리면서 맞으면 잘 피함<br>주민을 때리면 <b>수배</b>: 경찰이 출동, 쓰러지면 체포 · 시야에서 벗어나면 별이 줄어듦</div>
 </section>
 <div class="hud" id="hud">불러오는 중</div>
 <div id="mini"><canvas id="minic" width="380" height="380"></canvas></div>
@@ -88,6 +101,8 @@ body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #sti
 <button type="button" id="execbtn" hidden>처형</button>
 <div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
 <div id="kotext" aria-hidden="true">기절!</div>
+<div id="busted" aria-hidden="true"><div>체포<small>연무지구대로 연행 중…</small></div></div>
+<div id="wanted" hidden aria-label="수배 단계"><span>수배</span><i>★</i><i>★</i><i>★</i><i>★</i><i>★</i></div>
 <div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
 <div id="load"><div class="tc"><div class="tk">GTK</div><div class="te">Grand Theft Korea</div><div class="tko">한국의 위대한 도둑</div><div id="loadmsg">신화리 들어가는 중…</div></div></div>
 
@@ -99,6 +114,7 @@ import { pass, mrt, output, normalView, velocity, uniform, texture, uv, vec2, ve
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
@@ -338,16 +354,20 @@ async function person(id) {
   const bone = nm => { let b = null; model.traverse(o => { if (o.isBone && o.name === nm) b = o; }); return b; }, wpv = o => o.getWorldPosition(new THREE.Vector3());
   model.updateMatrixWorld(true); const f = wpv(bone('ball_l')).sub(wpv(bone('foot_l'))); f.y = 0; f.normalize(); model.rotation.y = -Math.atan2(f.x, f.z); model.updateMatrixWorld(true);
   if (wpv(bone('ball_l')).sub(wpv(bone('foot_l'))).z < 0) model.rotation.y += Math.PI;
+  return rig(model);
+}
+// skeleton, clips scaled to this body, mixer — also used for clones of a loaded person (the police squad)
+function rig(model, src) {
+  const bones = {}; model.traverse(o => { if (o.isBone) bones[o.name] = o; }); const bone = nm => bones[nm];
   let refP = null; AG.scene.traverse(o => { if (o.name === 'pelvis') refP = o.position.clone(); });
   const pel = bone('pelvis'), rest = pel.position.clone(), k = rest.length() / refP.length();
+  const clips = src ? src.clips : AG.animations.map(clip => { const c = clip.clone(); for (const tr of c.tracks) if (tr.name === 'pelvis.position') for (let i = 0; i < tr.values.length; i += 3) for (let a = 0; a < 3; a++) tr.values[i + a] = rest.getComponent(a) + (tr.values[i + a] - refP.getComponent(a)) * k; return c; });
   const mixer = new THREE.AnimationMixer(model), act = {};
-  for (const clip of AG.animations) { const c = clip.clone(); for (const tr of c.tracks) if (tr.name === 'pelvis.position') for (let i = 0; i < tr.values.length; i += 3) for (let a = 0; a < 3; a++) tr.values[i + a] = rest.getComponent(a) + (tr.values[i + a] - refP.getComponent(a)) * k;
-    act[c.name] = mixer.clipAction(c); }
+  for (const c of clips) act[c.name] = mixer.clipAction(c);
   const holder = new THREE.Group(); holder.add(model); scene.add(holder);
   const upright = ['neck_01', 'head'].map(nm => bone(nm)).filter(Boolean).map(b => [b, b.quaternion.clone()]);
   const update = (dt, up = .7) => { mixer.update(dt); if (up > .01) for (const [b, q] of upright) b.quaternion.slerp(q, up); };   // the idle clip stares at the ground
-  const bones = {}; model.traverse(o => { if (o.isBone) bones[o.name] = o; });
-  return { holder, model, mixer, act, update, k, bone: nm => bones[nm] };
+  return { holder, model, mixer, act, update, k, clips, bone };
 }
 const NPCS = [['ijang', 8, -6, 2.6], ['halmeoni', 14, 9, -1.2], ['syuper', -12, -9, .8], ['anjun', 22, -18, -2.2], ['woochan', 25, -16, 2.4], ['jinwook', 24.5, -19.5, -.6], ['parkjin', 21, -15.5, 1.3]];
 let P = null; const npcs = [];
@@ -396,7 +416,7 @@ const MAPIMG = (() => { const s = .9, c = document.createElement('canvas'); c.wi
 function drawMini(x, y, yaw) {
   const g = mini, S = 380, zoom = 1.3; g.save(); g.fillStyle = '#1d241c'; g.fillRect(0, 0, S, S); g.translate(S / 2, S / 2); g.scale(zoom, zoom);
   g.drawImage(MAPIMG.c, -(x - REG[0]) * MAPIMG.s, -(REG[3] - y) * MAPIMG.s); g.restore();
-  for (const n of npcs) { const dx = (n.x - x) * MAPIMG.s * zoom, dy = -(n.y - y) * MAPIMG.s * zoom; if (Math.hypot(dx, dy) < S / 2 - 8) { g.fillStyle = '#e2cf72'; g.beginPath(); g.arc(S / 2 + dx, S / 2 + dy, 5, 0, 7); g.fill(); } }
+  for (const n of npcs) { const dx = (n.x - x) * MAPIMG.s * zoom, dy = -(n.y - y) * MAPIMG.s * zoom; if (Math.hypot(dx, dy) < S / 2 - 8) { g.fillStyle = n.cop ? ((performance.now() / 250 | 0) % 2 ? '#ff3b3b' : '#3b7bff') : n.state === 'fight' ? '#ff8a3a' : '#e2cf72'; g.beginPath(); g.arc(S / 2 + dx, S / 2 + dy, 5, 0, 7); g.fill(); } }
   g.save(); g.translate(S / 2, S / 2); g.rotate(-yaw + Math.PI); g.fillStyle = '#ff5a3c'; g.beginPath(); g.moveTo(0, -13); g.lineTo(8, 9); g.lineTo(-8, 9); g.closePath(); g.fill(); g.restore();
 }
 
@@ -527,7 +547,7 @@ function targetFor(F, range = 3.2) {   // the nearest standing person in front
   return best;
 }
 function playerAttack() {
-  if (!P || G.cut || P.down) return;
+  if (!P || G.cut || P.down || WANT.busted) return;
   if (P.once && FIGHT[P.onceName] && !P.ending && P.once.time < P.once.getClip().duration * .55) { P.queued = true; return; }   // pressed mid-swing: chain the next
   if (P.once && !FIGHT[P.onceName] && !P.ending && P.onceName !== 'guard') return;   // still reeling
   const T = targetFor(P); attack(P, chooseMove(P, T), T); P.target = T;
@@ -572,7 +592,7 @@ function judge(A, sk) {
   else if (sk.final || D.hp <= 0 || s >= 1.4 || D.meter > 4.2) { reac = 'knockdown'; w = 1; D.meter = 0; down = true; }
   else if (s >= .95 || D.meter > 2.6) { w = 1; heavy = true; if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy'; after = D.meter > 2.6 ? 'stumble' : null; }
   react(D, reac, w); D.next = after;
-  if (down) { D.down = true; D.fallAt = G.t + .85; if (D.hp <= 0 && D !== P) bubble(D, pick(SHOUT.ko)); }
+  if (down) { D.down = true; D.fallAt = G.t + .85; if (D.hp <= 0 && D !== P) { bubble(D, pick(SHOUT.ko)); if (A === P && !cut) crime(D, 'ko'); } }
   const worldDir = vel.clone().applyQuaternion(D.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.copy(fwd3(A.yaw)); worldDir.normalize();
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
   FX.impact({ crit, p: hit, dir: worldDir, s: D === P ? s * .7 : s, part: fxPart, heavy, down, who: D, mine: A === P || D === P });
@@ -588,6 +608,8 @@ function note(t) { G.info = t; G.infoT = 2.5; }
 // ---- villagers' minds
 function provoke(D, A) {
   if (D === P || G.cut) return;
+  if (A === P) crime(D, 'hit');
+  if (D.cop) { if (D.state !== 'police') { D.state = 'police'; } D.foe = P; if (Math.random() < .4) bubble(D, pick(COPLINE.hit)); D.atkCd = Math.min(D.atkCd, .5); return; }
   const mood = D.temper === 'flee' ? 'flee' : 'fight';
   if (D.state !== mood) bubble(D, pick(SHOUT[D.id] && mood === 'flee' ? SHOUT[D.id] : SHOUT[mood]));
   D.state = mood; D.foe = A; D.fleeT = 6 + Math.random() * 3; D.atkCd = Math.min(D.atkCd, .6 + Math.random() * .6);
@@ -595,6 +617,7 @@ function provoke(D, A) {
     o.state = 'fight'; o.foe = P; o.atkCd = 1 + Math.random(); bubble(o, pick(SHOUT.gang)); }
 }
 function think(n, dt) {
+  if (copThink(n, dt)) return;
   n.want = 0; if (n.down || G.cut) return;
   if (n.once && !n.ending) return;   // busy swinging or reeling
   const foe = n.foe || P, d = Math.hypot(foe.x - n.x, foe.y - n.y);
@@ -643,12 +666,12 @@ function fightStep(dt) {
     if (F.fallAt && G.t >= F.fallAt) { F.fallAt = 0; FX.fallSound(); FX.dust(wpos(F, 'pelvis').setY(heightAt(F.x, F.y) + .05)); FX.shake(.05); }
     if (F.ko > 0) { F.ko -= dt; if (F.ko <= 0) { F.ko = 0; F.hp = F === P ? 60 : 40; playOnce(F, 'getup_back', 1, .15);
       if (F === P) { for (const n of npcs) if (n.state === 'fight') { n.state = 'calm'; bubble(n, pick(SHOUT.calm)); } $('kotext').classList.remove('on'); }
-      else { F.state = 'calm'; } } }
-    if (F === P && F.hp <= 0 && F.down && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
+      else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
+    if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
     if (F !== P) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y))); F.holder.rotation.y = F.yaw; animate(F, dt); }
     if (F.bub) { F.bub.life -= dt; F.bub.sp.position.copy(wpos(F, 'head')).add(new THREE.Vector3(0, .45, 0)); F.bub.sp.material.opacity = Math.min(1, F.bub.life * 3); if (F.bub.life <= 0) F.bub.sp.visible = false; }
   }
-  separate();
+  separate(); policeStep(dt);
   if (P && P.hp < 100 && G.t - P.hurtT > 5 && !P.down) P.hp = Math.min(100, P.hp + dt * 6);
   G.gaugeIdle += dt; if (G.gaugeIdle > 2.5 && G.gauge < 100) G.gauge = Math.max(0, G.gauge - 6 * dt);
   if (G.hitStop > 0) G.hitStop -= dt;
@@ -673,6 +696,7 @@ function execute() {
   for (const n of npcs) if (n !== T) { n.strikes.length = 0; n.lunge = null;   // bystanders back off and give the shot room
     const dx = n.x - T.x, dy = n.y - T.y, d = Math.hypot(dx, dy) || 1; if (d < 3.2) [n.x, n.y] = collide(T.x + dx / d * 3.2, T.y + dy / d * 3.2); }
   T.strikes.length = 0; T.lunge = null; T.state = T.temper === 'flee' ? 'flee' : 'fight'; T.yaw = yawTo(T, P); T.combatT = 4;
+  crime(T, 'exec');
   G.cut = { E, T, step: -1, t: 0, next: .55, shot: 0, endAt: 0, scale: 1 }; note('처형: ' + E.name);
 }
 function cutStep(dt) {
@@ -688,15 +712,26 @@ function cutStep(dt) {
   if (C.finalAt && C.t >= C.finalAt + .4) C.shot = 3;
   if (C.endAt && C.t >= C.endAt) { G.cut = null; document.body.classList.remove('cut'); $('cuttitle').classList.remove('on'); CR.init = false; }
 }
-function cutCamera() {   // 0 low side wide, 1 over the shoulder, 2 in front of the victim looking back at the blow, 3 slow orbit over the knockdown
-  const C = G.cut, T = C.T, a = wpos(P, 'pelvis'), b = wpos(T, 'pelvis'), hb = wpos(T, 'head');
+function segBlocked(p, q) {   // anything solid (buildings, greenhouses, poles) between the camera and what it looks at
+  for (let k = 0; k <= 16; k++) { const t = k / 16, x = p.x + (q.x - p.x) * t, z = p.z + (q.z - p.z) * t, y = p.y + (q.y - p.y) * t, gx = x, gy = -z;
+    for (const c of colliders) { const ca = Math.cos(c.a), sa = Math.sin(c.a), ux = gx - c.c[0], uy = gy - c.c[1], u = ux * ca + uy * sa, v = -ux * sa + uy * ca;
+      if (Math.abs(u) < c.hl + .25 && Math.abs(v) < c.hw + .25 && y < heightAt(c.c[0], c.c[1]) + 8) return true; } }
+  return false;
+}
+function cutCamera() {   // 0 side wide, 1 over the shoulder, 2 in front of the victim looking back at the blow, 3 slow orbit over the knockdown
+  const C = G.cut, T = C.T, a = wpos(P, 'pelvis'), b = wpos(T, 'pelvis'), hb = wpos(T, 'head'), ha = wpos(P, 'head');
   const F = b.clone().sub(a).setY(0); if (F.lengthSq() < 1e-4) F.copy(fwd3(P.yaw)); F.normalize(); const L = new THREE.Vector3(F.z, 0, -F.x), mid = a.clone().lerp(b, .5);
-  let pos, tgt;
-  if (C.shot === 0) { pos = mid.clone().addScaledVector(L, 2.6).add(new THREE.Vector3(0, -.35, 0)).addScaledVector(F, -.4 + .15 * C.t); tgt = mid.clone().add(new THREE.Vector3(0, .35, 0)); }
-  else if (C.shot === 1) { pos = a.clone().addScaledVector(F, -1.5).addScaledVector(L, -.55).add(new THREE.Vector3(0, .75, 0)); tgt = hb.clone(); }
-  else if (C.shot === 2) { pos = hb.clone().addScaledVector(F, 1.7).addScaledVector(L, 1.15).add(new THREE.Vector3(0, -.1, 0)); tgt = hb.clone().addScaledVector(F, -.3).add(new THREE.Vector3(0, -.1, 0)); }
-  else { const ang = (C.t - C.finalAt) * .55; pos = b.clone().add(new THREE.Vector3(Math.cos(ang) * 3.2, 2.0, Math.sin(ang) * 3.2)); tgt = b.clone().add(new THREE.Vector3(0, .2, 0)); }
-  const gz = heightAt(pos.x, -pos.z) + .25; if (pos.y < gz) pos.y = gz;
+  const shot = (side, near) => {   // side = ±1 mirrors the angle, near < 1 pulls the camera in
+    if (C.shot === 0) return [mid.clone().addScaledVector(L, 3.0 * side * near).add(new THREE.Vector3(0, .25, 0)).addScaledVector(F, -.4 + .12 * C.t), mid.clone().add(new THREE.Vector3(0, .3, 0))];
+    if (C.shot === 1) return [a.clone().addScaledVector(F, -1.6 * near).addScaledVector(L, -.6 * side).add(new THREE.Vector3(0, .85, 0)), hb.clone().lerp(ha, .25)];
+    if (C.shot === 2) return [hb.clone().addScaledVector(F, 1.8 * near).addScaledVector(L, 1.2 * side * near).add(new THREE.Vector3(0, .05, 0)), hb.clone().lerp(ha, .45).add(new THREE.Vector3(0, -.15, 0))];
+    const ang = (C.t - C.finalAt) * .55 * side + C.orb; return [b.clone().add(new THREE.Vector3(Math.cos(ang) * 3.4 * near, 2.1, Math.sin(ang) * 3.4 * near)), b.clone().add(new THREE.Vector3(0, .2, 0))];
+  };
+  if (C.shot === 3 && C.orb === undefined) { C.orb = 0; let best = 0; for (let k = 0; k < 12; k++) { const t = k / 12 * 6.283, p_ = b.clone().add(new THREE.Vector3(Math.cos(t) * 3.4, 2.1, Math.sin(t) * 3.4)); let free = 0; for (let j = 0; j < 6; j++) { const u = t + j * .25, q = b.clone().add(new THREE.Vector3(Math.cos(u) * 3.4, 2.1, Math.sin(u) * 3.4)); if (segBlocked(q, b)) break; free++; } if (free > best) { best = free; C.orb = t; } } }
+  if (C.lastShot !== C.shot || !C.pick) {   // per shot: the first angle with a clear view of both fighters
+    C.pick = [1, 1]; for (const [sd, nr] of [[1, 1], [-1, 1], [1, .7], [-1, .7], [1, .5], [-1, .5], [1, .35]]) { const [p_, t_] = shot(sd, nr); if (!segBlocked(p_, t_) && !segBlocked(p_, ha) && !segBlocked(p_, hb)) { C.pick = [sd, nr]; break; } } }
+  const [pos, tgt] = shot(C.pick[0], C.pick[1]);
+  const gz = heightAt(pos.x, -pos.z) + .35; if (pos.y < gz) pos.y = gz;
   if (!C.camInit || C.lastShot !== C.shot) { cam.position.copy(pos); C.tgt = tgt.clone(); C.camInit = true; C.lastShot = C.shot; }
   else { cam.position.lerp(pos, .12); C.tgt.lerp(tgt, .18); }
   cam.lookAt(C.tgt); ctl.target.copy(C.tgt);
@@ -769,7 +804,7 @@ const FX = (() => {
     guard({ p, dir, dodge }) {
       if (!dodge) { emit(p, 8, { dir: dir.clone().multiplyScalar(-.5), spread: 1, speed: 1.8, life: .18, size: .04, color: [1.2, 1.6, 2.0], kind: 0 }); thump(.25, 'body'); camK.vel.addScaledVector(dir, .5); shake.a = Math.max(shake.a, .01); }
       showWord(pick(WORDS[dodge ? 'dodge' : 'block'][0]), p, .3, WORDS[dodge ? 'dodge' : 'block'][1]); },
-    whoosh, fallSound, shake(a) { shake.a = Math.max(shake.a, a); },
+    ctx() { return ac; }, whoosh, fallSound, shake(a) { shake.a = Math.max(shake.a, a); },
     dust(p) { emit(p, 40, { dir: new THREE.Vector3(0, .5, 0), spread: 1.2, speed: 1.3, life: .9, size: .22, color: [.38, .33, .26], kind: 3 }); },
     timeScale() { return slowT > 0 ? slow : 1; },
     zoom() { return camK.zoom; },
@@ -795,17 +830,114 @@ const FX = (() => {
 })();
 // ---------------------------------------------------------------- fight HUD + input
 const barsUI = () => {
-  $('php').style.width = P ? P.hp + '%' : '0'; const T = P && (P.target && !P.target.down && Math.hypot(P.target.x - P.x, P.target.y - P.y) < 8 ? P.target : npcs.find(n => n.state === 'fight' && n.foe === P && Math.hypot(n.x - P.x, n.y - P.y) < 8));
+  $('php').style.width = P ? P.hp + '%' : '0'; const T = P && (P.target && !P.target.down && Math.hypot(P.target.x - P.x, P.target.y - P.y) < 8 ? P.target : npcs.find(n => (n.state === 'fight' || n.state === 'police') && n.foe === P && Math.hypot(n.x - P.x, n.y - P.y) < 8));
   $('tbar').hidden = !T; if (T) { $('tname').textContent = T.name; $('thp').style.width = T.hp + '%'; }
   const show = G.gauge > 0 || (P && P.combatT > 0); $('gauge').hidden = !show; $('gauge').querySelector('i').style.width = G.gauge + '%';
   const full = G.gauge >= 100 && !G.cut && P && !P.down && !!targetFor(P, 4); $('gauge').classList.toggle('full', full); $('execbtn').hidden = !(full && matchMedia('(pointer: coarse)').matches);
-  $('finfo').textContent = G.infoT > 0 ? G.info : ''; };
+  $('finfo').textContent = G.infoT > 0 ? G.info : ''; wantedUI(); };
 addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (mode !== 'walk' || e.repeat) return; if (k === 'j') playerAttack(); if (k === 'e') execute(); });
 r.domElement.addEventListener('mousedown', e => { if (e.button === 0 && document.pointerLockElement === r.domElement && mode === 'walk') playerAttack(); });
 $('atkpad').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (mode === 'walk') playerAttack(); });
 $('execbtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); execute(); });
 if (P) arm(P, 'minseok');
 NPCS.forEach(([id, x, y, yaw]) => { const n = npcs.find(o => o.pid === id); if (n) { arm(n, id); n.yaw = yaw; n.home = [x, y, yaw]; } });
+
+// ---------------------------------------------------------------- police: wanted stars, a squad that runs in, arrests, losing them
+const COPN = ['김 순경', '이 순경', '박 경장', '최 경사', '정 순경'];
+const COPLINE = { spot: ['거기 서!', '경찰이다! 꼼짝 마!', '손 들어!', '엎드려!'], hit: ['공무집행방해야!', '지원 요청! 지원 요청!', '이 자식이!'], lost: ['어디 갔지…', '놓쳤다!', '이 근처일 텐데'], leave: ['철수!', '다음엔 안 놓친다'] };
+const WANT = { stars: 0, search: 0, spawnT: 0, crimeT: -99, busted: 0, flash: 0 };
+const cops = [];   // pool: loaded once, cloned per officer
+let copTpl = null, copLoading = null;
+const CRIME = { hit: 1, ko: 2, cophit: 2, copko: 3, exec: 3 };   // minimum stars, then +1 for repeat offences while wanted
+function crime(D, kind) {
+  if (D === P || WANT.busted) return;
+  const min = CRIME[D.cop ? (kind === 'ko' ? 'copko' : 'cophit') : kind], before = WANT.stars;
+  let s = Math.max(before, min);
+  if (before >= min && kind !== 'hit') s++;                                  // a knockout or an execution while already wanted: one more star
+  if (D.cop && kind === 'hit' && before >= 2 && G.t - WANT.crimeT > 8) s++;   // keeps on swinging at the police
+  WANT.stars = Math.min(5, s); WANT.crimeT = G.t; WANT.search = 0;
+  if (WANT.stars > before) { WANT.flash = 1.2; if (!before) WANT.spawnT = 3.5; note(`수배 ${'★'.repeat(WANT.stars)} — ${WANT.stars >= 3 ? '경찰 지원 병력 출동' : '연무지구대 출동'}`); }
+}
+async function loadCop() {
+  if (copTpl) return copTpl; if (!copLoading) copLoading = person('police').then(t => { t.holder.visible = false; copTpl = t; return t; }); return copLoading;
+}
+function newCop() {
+  const m = SkeletonUtils.clone(copTpl.model); m.traverse(o => { if (o.isMesh) o.material = o.material.clone(); });   // own materials: the hit flash is per officer
+  const c = rig(m, copTpl); arm(c, 'police'); c.cop = true; return c;
+}
+function spawnSpot() {   // out of sight: behind the camera's side of the player, 30–40 m out, on open ground
+  for (let k = 0; k < 24; k++) {
+    const a = CR.yaw + (Math.random() - .5) * 2.2, d = 30 + Math.random() * 10, x = P.x + Math.sin(a) * d, y = P.y - Math.cos(a) * d;
+    if (!inReg(x, y, 4)) continue; const [cx, cy] = collide(x, y); if (Math.hypot(cx - x, cy - y) > .2) continue; return [x, y];
+  }
+  const a = Math.random() * 6.28; return collide(P.x + Math.cos(a) * 28, P.y + Math.sin(a) * 28);
+}
+function dispatch() {
+  if (!copTpl) { loadCop(); return; }
+  const want = Math.min(4, WANT.stars), active = cops.filter(c => c.onDuty);
+  if (active.length >= want) return;
+  let c = cops.find(c => !c.onDuty); if (!c) { c = newCop(); cops.push(c); }
+  const [x, y] = spawnSpot(); Object.assign(c, { x, y, yaw: yawTo({ x, y }, P), hp: 120 + 15 * WANT.stars, meter: 0, down: false, ko: 0, state: 'police', foe: P, onDuty: true, speed: 0, want: 0, atkCd: 1.5, strikes: [], lunge: null,
+    name: COPN[cops.indexOf(c) % COPN.length], spotted: false });
+  if (c.once) { c.once.stop(); c.once = null; c.onceName = ''; c.ending = false; }
+  c.holder.visible = true; c.holder.position.copy(V(x, y, heightAt(x, y))); if (!npcs.includes(c)) npcs.push(c);
+}
+function offDuty(c) { c.onDuty = false; c.holder.visible = false; c.strikes.length = 0; if (c.bub) c.bub.sp.visible = false; const i = npcs.indexOf(c); if (i >= 0) npcs.splice(i, 1); }
+function copThink(n, dt) {   // returns true when it handled the officer
+  if (!n.cop) return false;
+  n.want = 0; if (n.down || G.cut || (n.once && !n.ending)) return true;
+  const d = Math.hypot(P.x - n.x, P.y - n.y);
+  if (n.state === 'leave') { turnTo(n, yawTo(P, n), 5, dt); n.want = 1.6; if (d > 40) offDuty(n); return true; }
+  if (!n.spotted && d < 24) { n.spotted = true; bubble(n, pick(COPLINE.spot)); }
+  n.combatT = d < 8 ? 4 : 0; turnTo(n, yawTo(n, P), 8, dt);
+  if (P.down) { n.want = d > 1.1 ? 2.2 : 0; return true; }   // walk up to cuff him
+  if (d > 1.2) n.want = d > 3 ? (WANT.stars >= 3 ? 5.4 : 4.6) : 1.6;
+  n.atkCd -= dt * (1 + .15 * WANT.stars);
+  if (npcs.some(o => o !== n && o.foe === P && o.once && FIGHT[o.onceName] && !o.ending)) n.atkCd = Math.max(n.atkCd, .3);
+  if (d < 1.7 && n.atkCd <= 0) { attack(n, chooseMove(n, P), P); n.atkCd = .8 + Math.random() * 1.3; }
+  return true;
+}
+function busted(by) {
+  WANT.busted = 3.6; $('busted').classList.add('on'); bubble(by, '체포한다! 묵비권을 행사할 수 있…'); note(`${by.name}에게 체포됨`);
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+function afterBusted() {
+  $('busted').classList.remove('on'); WANT.stars = 0; WANT.search = 0; G.gauge = 0;
+  for (const c of cops) if (c.onDuty) offDuty(c);
+  for (const n of npcs) if (n.state === 'fight' || n.state === 'flee') { n.state = 'calm'; n.foe = null; }
+  if (P.once) { P.once.stop(); P.once = null; P.onceName = ''; P.ending = false; } P.down = false; P.ko = 0; P.hp = 100; P.meter = 0; $('kotext').classList.remove('on');
+  placeAt(6, -14); P.yaw = Math.PI; note('연무지구대 훈방 조치. 이번만 봐준다.');   // released in front of the village hall
+}
+let siren = null;
+function sirenStep() {   // two-tone wail from the nearest officer on duty
+  const a = FX.ctx(); if (!a) return;
+  if (!siren) { const o = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter(); o.type = 'sawtooth'; f.type = 'lowpass'; f.frequency.value = 1800; g.gain.value = 0; o.connect(f).connect(g).connect(a.destination); o.start(); siren = { o, g }; }
+  let near = 1e9; for (const c of cops) if (c.onDuty && c.state === 'police') near = Math.min(near, Math.hypot(c.x - P.x, c.y - P.y));
+  const vol = WANT.stars && !WANT.busted && near < 60 ? .07 * THREE.MathUtils.clamp(1.3 - near / 50, .15, 1) : 0, t = a.currentTime;
+  siren.o.frequency.setTargetAtTime(Math.sin(t * Math.PI * 1.1) > 0 ? 960 : 720, t, .06); siren.g.gain.setTargetAtTime(vol, t, .3);
+}
+function policeStep(dt) {
+  WANT.flash = Math.max(0, WANT.flash - dt);
+  if (WANT.busted > 0) { WANT.busted -= dt; if (WANT.busted <= 0) afterBusted(); return; }
+  if (WANT.stars > 0) {
+    loadCop();
+    WANT.spawnT -= dt; if (WANT.spawnT <= 0) { dispatch(); WANT.spawnT = Math.max(1.2, 5 - WANT.stars * .8); }
+    // seen: an officer standing within 26 m keeps the search clock at zero; out of sight for long enough, the stars drop one by one
+    const seen = cops.some(c => c.onDuty && !c.down && c.state === 'police' && Math.hypot(c.x - P.x, c.y - P.y) < 26);
+    if (seen || G.t - WANT.crimeT < 4) WANT.search = 0; else WANT.search += dt;
+    if (WANT.search > 9 + WANT.stars * 2) { WANT.search = 0; WANT.stars--; WANT.flash = .8;
+      if (!WANT.stars) { note('수배 해제'); for (const c of cops) if (c.onDuty) { c.state = 'leave'; bubble(c, pick(COPLINE.lost)); } }
+      else note(`수배 ${'★'.repeat(WANT.stars)} — 추적이 느슨해졌다`); }
+    // arrest: down near an officer who is standing
+    if (P.down && !G.cut) { const by = cops.find(c => c.onDuty && !c.down && c.state === 'police' && Math.hypot(c.x - P.x, c.y - P.y) < 2.4); if (by) busted(by); }
+  }
+  sirenStep();
+}
+function wantedUI() {
+  const el = $('wanted'); el.hidden = !WANT.stars && !WANT.flash; const searching = WANT.stars && WANT.search > 2;
+  el.querySelectorAll('i').forEach((s, i) => s.classList.toggle('on', i < WANT.stars));
+  el.classList.toggle('search', !!searching); el.classList.toggle('flash', WANT.flash > 0);
+}
 
 // ---------------------------------------------------------------- loop
 const clock = new THREE.Clock(); let frames = 0, ft0 = performance.now(), fps = 60, quality = 0;
@@ -814,7 +946,7 @@ function step(dt) {
   const gdt = dt * FX.timeScale() * (G.cut ? G.cut.scale : 1);   // slow motion on knockdowns and the execution's last blow
   if (P && mode === 'walk') {
     const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
-    const free = !G.cut && !P.down && !(P.once && !P.ending);   // no walking mid-swing, mid-reaction or on the floor
+    const free = !G.cut && !WANT.busted && !P.down && !(P.once && !P.ending);   // no walking mid-swing, mid-reaction or on the floor
     const mag = Math.min(1, Math.hypot(ix, iz)), moving = free && mag > .1;
     P.want = moving ? (keys.has('shift') ? 5.5 : 1.4) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;   // walk 1.4 m/s, sprint 5.5 m/s
     const v0 = P.speed;
@@ -853,12 +985,12 @@ function step(dt) {
   const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
   sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN, 80); sun.target.updateMatrixWorld();
   fogDensity.value = mode === 'sky' ? .0005 : .0016;
-  grassCam.value.set(focus.x, 0, focus.z); grassTime.value = performance.now() / 1000; window.__grass.visible = mode === 'walk';
+  grassCam.value.set(focus.x, 0, focus.z); grassTime.value = performance.now() / 1000; window.__grass.visible = mode === 'walk' && !G.cut;   // grass blades would wall off the low cutscene angles
   if (P) drawMini(P.x, P.y, P.yaw);
 }
 if (P) placeAt(6, -14);
 $('load').hidden = true;
-window.__game = { manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
