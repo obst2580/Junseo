@@ -1,1 +1,1 @@
-{"photo": "parkjin.jpg", "lm": {"eyeR": [116, 162.5], "eyeL": [185, 162.5], "mouth": [151.5, 231], "chin": [150, 297]}, "top": 0.3, "side": 0.82, "mouth": 0.6}
+{"photo": "parkjin.jpg", "lm": {"eyeR": [116, 162.5], "eyeL": [185, 162.5], "mouth": [151.5, 231], "chin": [150, 297], "nose": [151, 196], "mouthR": [120, 232], "mouthL": [183, 232]}, "top": 0.3, "side": 0.95, "mouth": 0.6, "sharpen": 160, "keep_brows": true}

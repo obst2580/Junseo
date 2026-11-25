@@ -112,8 +112,10 @@ if 'region' in lay and os.environ.get('WORLD'):   # village: grass / dirt / grav
     patch = smooth_noise(60, 3)
     B_ = np.clip((1 - blk) * gw * (.35 + .9 * patch) * (1 - R_ * .7), 0, 1)
     R_ = np.clip(R_ + dw * .8, 0, 1); G_ = np.clip(G_ + vw, 0, 1)
+    A_ = soft((C == 1).astype(np.float32), 1.5) * (1 - blk * .0)   # paddy weight (harvested stubble field)
 mask = np.stack([R_, G_, B_], -1)
-Image.fromarray((mask * 255).astype(np.uint8), 'RGB').save(os.path.join(dst, 'groundmask.png'))
+if 'A_' in dir(): mask = np.dstack([mask, A_])
+Image.fromarray((mask * 255).astype(np.uint8), 'RGBA' if mask.shape[2] == 4 else 'RGB').save(os.path.join(dst, 'groundmask.png'))
 print('mask ok')
 if 'region' in lay and os.environ.get('WORLD'):   # terrain height over the region (16-bit in R/G) so instanced grass sits on the ground
     import base64

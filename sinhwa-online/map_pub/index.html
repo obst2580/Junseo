@@ -46,6 +46,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { CSM } from 'three/addons/csm/CSM.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
@@ -98,6 +99,27 @@ function heightAt(x, y) {   // game coords (x east, y north)
 }
 const V = (x, y, z) => new THREE.Vector3(x, z, -y);   // game -> three
 const B = W.bounds;
+// baked village (Blender lightmaps, lookdev quality) replaces the procedural world inside its region
+const VB = await fetch('village/bake.json').then(x => x.ok ? x.json() : null).catch(() => null);
+const VREG = VB ? VB.region : [1e9, 1e9, -1e9, -1e9];
+const inV = (x, y, m = 0) => x > VREG[0] + m && x < VREG[2] - m && y > VREG[1] + m && y < VREG[3] - m;
+function clipRuns(list) {   // polylines outside the village, each run reaching one point into it so the joins meet
+  const out = [];
+  for (const L of list) {
+    if (!L.pts || L.pts.length < 2) continue;
+    if (!L.pts.some(p => inV(p[0], p[1], 2))) { out.push(L); continue; }
+    let run = [];
+    const flush = () => { if (run.length > 1) out.push({ ...L, pts: run.map(k => L.pts[k]), z: Array.isArray(L.z) ? run.map(k => L.z[k]) : L.z }); run = []; };
+    for (let k = 0; k < L.pts.length; k++) {
+      const inside = inV(L.pts[k][0], L.pts[k][1], 2);
+      if (!inside) { if (!run.length && k > 0) run.push(k - 1); run.push(k); }
+      else if (run.length) { run.push(k); flush(); }
+    }
+    flush();
+  }
+  return out;
+}
+const RD = clipRuns(W.roads), RL = clipRuns(W.rails), WT = clipRuns(W.waters);
 
 // noise texture (weathering, field variation)
 const NOISE = (() => { const n = 256, c = document.createElement('canvas'); c.width = c.height = n; const g = c.getContext('2d'), img = g.createImageData(n, n);
@@ -136,8 +158,10 @@ const terrain = (() => {
     Object.assign(sh.uniforms, { splat: { value: SPLAT }, tPaddy: { value: paddy }, tDirt: { value: dirt }, tGravel: { value: gravel }, tConc: { value: conc }, noiseMap: { value: NOISE },
       gb: { value: new THREE.Vector4(W.ground.x0, W.ground.y1, W.ground.w * W.ground.res, W.ground.h * W.ground.res) } });
     sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvWP = (modelMatrix * vec4(transformed, 1.)).xyz;');
-    sh.fragmentShader = 'uniform sampler2D splat, tPaddy, tDirt, tGravel, tConc, noiseMap; uniform vec4 gb; varying vec3 vWP;\n' + sh.fragmentShader
+    sh.uniforms.vreg = { value: new THREE.Vector4(...VREG) };
+    sh.fragmentShader = 'uniform sampler2D splat, tPaddy, tDirt, tGravel, tConc, noiseMap; uniform vec4 gb, vreg; varying vec3 vWP;\n' + sh.fragmentShader
       .replace('#include <map_fragment>', `
+      if (vWP.x > vreg.x && vWP.x < vreg.z && -vWP.z > vreg.y && -vWP.z < vreg.w) discard;   // the baked village ground is drawn there
       vec2 wuv = vWP.xz / 7.;
       vec2 suv = vec2((vWP.x - gb.x) / gb.z, (-vWP.z - gb.y) / -gb.w);
       float n1 = texture2D(noiseMap, vWP.xz * .004).r, n2 = texture2D(noiseMap, vWP.xz * .05).r;
@@ -185,7 +209,7 @@ say('길 닦는 중…');
 {
   const asph = [], conc = [], dirt = [];
   const MARK = { motorway: 3, trunk: 3, primary: 2, secondary: 2, tertiary: 1 };
-  for (const rd of W.roads) {
+  for (const rd of RD) {
     if (rd.pts.length < 2) continue;
     const big = rd.w >= 5.5, lift = rd.w >= 10 ? .1 : rd.w >= 5.5 ? .08 : .05;
     const g = ribbon(rd.pts, rd.z, rd.w, { lift, mark: MARK[rd.kind] || 0, vScale: big ? 6 : 3 });
@@ -221,18 +245,18 @@ say('길 닦는 중…');
   mk(asph, am); mk(conc, cm); mk(dirt, dm);
   // rails: ballast bed + two steel rails
   const bal = [], rail = [];
-  for (const rl of W.rails) { if (rl.pts.length < 2) continue; bal.push(ribbon(rl.pts, rl.z, 3.6, { lift: -.15 }));
+  for (const rl of RL) { if (rl.pts.length < 2) continue; bal.push(ribbon(rl.pts, rl.z, 3.6, { lift: -.15 }));
     for (const off of [-.72, .72]) { const p2 = rl.pts.map((p, k) => { const a = rl.pts[Math.max(0, k - 1)], b = rl.pts[Math.min(rl.pts.length - 1, k + 1)]; let dx = b[0] - a[0], dy = b[1] - a[1]; const l = Math.hypot(dx, dy) || 1; return [p[0] - dy / l * off, p[1] + dx / l * off]; });
       rail.push(ribbon(p2, rl.z, .14, { lift: .05 })); } }
   if (bal.length) { const m = new THREE.Mesh(mergeGeometries(bal), csmMat(new THREE.MeshStandardMaterial({ map: tex('gravel.jpg', true, 1), color: '#8a8378', roughness: 1 }))); m.receiveShadow = true; scene.add(m); }
   if (rail.length) { const m = new THREE.Mesh(mergeGeometries(rail), csmMat(new THREE.MeshStandardMaterial({ color: '#6f6a64', metalness: .8, roughness: .35 }))); scene.add(m); }
   // streams and drains
-  const wat = W.waters.filter(w => w.pts.length > 1).map(w => ribbon(w.pts, w.z, w.w, { lift: 0 }));
+  const wat = WT.filter(w => w.pts.length > 1).map(w => ribbon(w.pts, w.z, w.w, { lift: 0 }));
   window.__waterMat = new THREE.MeshStandardMaterial({ color: '#3b4a45', roughness: .08, metalness: .1, envMapIntensity: 1.2, polygonOffset: true, polygonOffsetFactor: -1 });
   if (wat.length) scene.add(new THREE.Mesh(mergeGeometries(wat), window.__waterMat));
   for (const lk of W.lakes || []) { const sh = new THREE.Shape(lk.pts.map(p_ => new THREE.Vector2(p_[0], p_[1]))); const g = new THREE.ShapeGeometry(sh); g.rotateX(-Math.PI / 2);
     const m = new THREE.Mesh(g, window.__waterMat); m.position.y = lk.z + .25; scene.add(m); }
-  for (const p of W.ponds) { const g = new THREE.CircleGeometry(.5, 24).rotateX(-Math.PI / 2); g.scale(p.l, 1, p.w); const m = new THREE.Mesh(g, window.__waterMat); m.position.copy(V(p.c[0], p.c[1], p.z + .15)); m.rotation.y = p.a; scene.add(m); }
+  for (const p of W.ponds.filter(p => !inV(p.c[0], p.c[1]))) { const g = new THREE.CircleGeometry(.5, 24).rotateX(-Math.PI / 2); g.scale(p.l, 1, p.w); const m = new THREE.Mesh(g, window.__waterMat); m.position.copy(V(p.c[0], p.c[1], p.z + .15)); m.rotation.y = p.a; scene.add(m); }
 }
 
 // ---------------------------------------------------------------- facades (canvas textures, one module per tile)
@@ -304,7 +328,7 @@ const colliders = [];   // oriented boxes for the walker
   W.buildings = W.buildings.filter(b => !nearLm(b));
   const roadNear = (x, y) => { let best = null, bd = 1e9; for (const rd of W.roads) { if (rd.w < 3) continue; for (let k = 0; k < rd.pts.length - 1; k++) { const p = rd.pts[k], q2 = rd.pts[k + 1], dx = q2[0] - p[0], dy = q2[1] - p[1], L2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((x - p[0]) * dx + (y - p[1]) * dy) / L2)), cx = p[0] + t * dx, cy = p[1] + t * dy, d = Math.hypot(cx - x, cy - y); if (d < bd) { bd = d; best = { d, a: Math.atan2(dy, dx), cx, cy }; } } } return best; };
   window.__roadNear = roadNear;
-  for (const l of W.landmarks) { const L_ = LMK[l.id]; if (!L_) continue; const rn = roadNear(l.p[0], l.p[1]);
+  for (const l of W.landmarks) { const L_ = LMK[l.id]; if (!L_ || inV(l.p[0], l.p[1])) continue; const rn = roadNear(l.p[0], l.p[1]);
     const a0 = rn ? rn.a : 0, nx = rn ? (l.p[0] - rn.cx) / (rn.d || 1) : 0, ny = rn ? (l.p[1] - rn.cy) / (rn.d || 1) : 1;
     const c = rn ? [rn.cx + nx * (L_.w / 2 + 8), rn.cy + ny * (L_.w / 2 + 8)] : l.p, zt = heightAt(...c);
     const b = { c, l: L_.l, w: L_.w, a: a0, zt, kind: L_.kind }; l.build = b;
@@ -328,6 +352,7 @@ const colliders = [];   // oriented boxes for the walker
   for (const b of W.buildings) {
     const corners = rectCorners(b.c[0], b.c[1], b.l, b.w, b.a), z0 = b.z - .4;
     colliders.push({ c: b.c, a: b.a, hl: b.l / 2 + .3, hw: b.w / 2 + .3 });
+    if (inV(b.c[0], b.c[1])) continue;   // drawn by the baked village
     const roofHex = b.rc && ROOF[b.rc] ? ROOF[b.rc][Math.floor(rnd() * 3)] : '#8d9493';
     const roofCol = new THREE.Color(roofHex);
     if (b.col && b.rc !== 'white') roofCol.lerp(new THREE.Color().setRGB(...b.col).convertSRGBToLinear(), .35);
@@ -411,8 +436,10 @@ say('비닐하우스 세우는 중…');
   const m = csmMat(new THREE.MeshStandardMaterial({ map: ft, roughness: .35, metalness: 0, transparent: true, opacity: .9, side: THREE.DoubleSide, envMapIntensity: 1 }));
   m.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_INSTANCING\n vMapUv.x *= length(instanceMatrix[0].xyz) / 4.;\n#endif'); };
   m.customProgramCacheKey = () => 'gh';
-  const im = new THREE.InstancedMesh(g, m, W.greenhouses.length); const M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
-  W.greenhouses.forEach((h, i) => { const hh = Math.min(3.4, h.w * .5); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), h.a); s.set(h.l, hh * 2, h.w); p.copy(V(h.c[0], h.c[1], h.z - .05)); M4.compose(p, q, s); im.setMatrixAt(i, M4);
+  const GH = W.greenhouses.filter(h => !inV(h.c[0], h.c[1]));
+  for (const h of W.greenhouses) if (inV(h.c[0], h.c[1])) colliders.push({ c: h.c, a: h.a, hl: h.l / 2, hw: h.w / 2 });
+  const im = new THREE.InstancedMesh(g, m, GH.length); const M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  GH.forEach((h, i) => { const hh = Math.min(3.4, h.w * .5); q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), h.a); s.set(h.l, hh * 2, h.w); p.copy(V(h.c[0], h.c[1], h.z - .05)); M4.compose(p, q, s); im.setMatrixAt(i, M4);
     colliders.push({ c: h.c, a: h.a, hl: h.l / 2, hw: h.w / 2 }); });
   im.castShadow = true; im.receiveShadow = true; scene.add(im);
 }
@@ -430,6 +457,7 @@ say('나무 심는 중…');
   for (let i = 0; i < 1600; i++) { const x = B[0] + Math.random() * (B[2] - B[0]), y = B[1] + Math.random() * (B[3] - B[1]), h = heightAt(x, y);
     if (h > 12 + Math.random() * 10) pts.push([x, y, h]); }
   for (const b of W.buildings) if (b.kind === 'house' && Math.random() < .35) { const a = Math.random() * 6.28, d = Math.max(b.l, b.w) * .7 + 2; pts.push([b.c[0] + Math.cos(a) * d, b.c[1] + Math.sin(a) * d, heightAt(b.c[0] + Math.cos(a) * d, b.c[1] + Math.sin(a) * d)]); }
+  for (let i = pts.length - 1; i >= 0; i--) if (inV(pts[i][0], pts[i][1])) pts.splice(i, 1);
   const ci = new THREE.InstancedMesh(crown, cm, pts.length), ti = new THREE.InstancedMesh(trunk, tm, pts.length), M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(), p = new THREE.Vector3(), col = new THREE.Color();
   pts.forEach(([x, y, z], i) => { const s = .8 + Math.random() * .7; q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * 6.28); sc.set(s, s * (.9 + Math.random() * .3), s); p.copy(V(x, y, z - .1));
     M4.compose(p, q, sc); ci.setMatrixAt(i, M4); ti.setMatrixAt(i, M4); ci.setColorAt(i, col.setHSL(.22 + Math.random() * .06, .35 + Math.random() * .2, .38 + Math.random() * .14)); });
@@ -439,7 +467,7 @@ say('나무 심는 중…');
 // ---------------------------------------------------------------- place signs (Korean labels on poles)
 function signTex(text) { const c = document.createElement('canvas'); c.width = 512; c.height = 96; const g = c.getContext('2d'); g.fillStyle = '#1f4f8f'; g.fillRect(0, 0, 512, 96); g.strokeStyle = '#fff'; g.lineWidth = 4; g.strokeRect(6, 6, 500, 84);
   g.fillStyle = '#fff'; g.font = 'bold 50px "IBM Plex Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText(text, 256, 66); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; }
-for (const l of W.landmarks) { if (l.id === 'hall') continue;
+for (const l of W.landmarks) { if (l.id === 'hall' || inV(l.p[0], l.p[1])) continue;
   const grp = new THREE.Group(); const pole = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, 4.2, 8).translate(0, 2.1, 0), new THREE.MeshStandardMaterial({ color: '#8a8f94', metalness: .6, roughness: .4 }));
   const board = new THREE.Mesh(new THREE.PlaneGeometry(3.6, .68), new THREE.MeshStandardMaterial({ map: signTex(l.name), side: THREE.DoubleSide })); board.position.y = 3.9;
   grp.add(pole, board); grp.position.copy(V(l.p[0] + 6, l.p[1] - 6, heightAt(l.p[0] + 6, l.p[1] - 6))); scene.add(grp); }
@@ -452,7 +480,7 @@ say('전봇대 세우는 중…');
   const lampG = (() => { const p_ = new THREE.CylinderGeometry(.07, .1, 7, 6).translate(0, 3.5, 0), arm = new THREE.BoxGeometry(1.6, .08, .08).translate(.8, 6.9, 0), hd = new THREE.BoxGeometry(.6, .12, .3).translate(1.55, 6.82, 0); return mergeGeometries([p_, arm, hd]); })();
   const poles = [], lamps = [], wires = [];
   const inTown = (x, y) => W.patches.some(p => p.name === '연무읍' && x >= p.game[0] && x <= p.game[2] && y >= p.game[1] && y <= p.game[3]);
-  for (const rd of W.roads) {
+  for (const rd of RD) {
     const wantPole = rd.w >= 3 && rd.w <= 10 && rd.kind !== 'motorway', wantLamp = rd.w >= 4 && rd.w <= 14;
     if (!wantPole && !wantLamp) continue;
     let acc = 0, nextP = 20 + Math.random() * 20, nextL = 15, prev = null;
@@ -477,7 +505,7 @@ say('전봇대 세우는 중…');
   const wall = (pts, zs, off, h0, h1) => { const P_ = [], I_ = []; pts.forEach((p_, k) => { const a_ = pts[Math.max(0, k - 1)], b_ = pts[Math.min(pts.length - 1, k + 1)]; let dx = b_[0] - a_[0], dy = b_[1] - a_[1]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
       const x = p_[0] - dy * off, y = p_[1] + dx * off; P_.push(x, zs[k] + h0, -y, x, zs[k] + h1, -y); if (k) { const o = k * 2; I_.push(o - 2, o, o - 1, o - 1, o, o + 1); } });
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(P_, 3)); g.setIndex(I_); g.computeVertexNormals(); return g; };
-  for (const rd of W.roads) if (rd.kind === 'motorway' && rd.pts.length > 1) { for (const off of [rd.w / 2 - .2, -rd.w / 2 + .2]) rails.push(wall(rd.pts, rd.z, off, .45, .8)); med.push(wall(rd.pts, rd.z, 0, 0, .9)); }
+  for (const rd of RD) if (rd.kind === 'motorway' && rd.pts.length > 1) { for (const off of [rd.w / 2 - .2, -rd.w / 2 + .2]) rails.push(wall(rd.pts, rd.z, off, .45, .8)); med.push(wall(rd.pts, rd.z, 0, 0, .9)); }
   if (rails.length) scene.add(new THREE.Mesh(mergeGeometries(rails), new THREE.MeshStandardMaterial({ color: '#b9bcbf', metalness: .7, roughness: .35, side: THREE.DoubleSide })));
   if (med.length) { const m = new THREE.Mesh(mergeGeometries(med), new THREE.MeshStandardMaterial({ color: '#b3ada2', roughness: .9, side: THREE.DoubleSide })); m.castShadow = true; scene.add(m); }
   window.__furniture = { poles: poles.length, lamps: lamps.length };
@@ -537,6 +565,59 @@ const glbFrom = (jsonText, b64) => { const bin = Uint8Array.from(atob(b64), c =>
   const jl = jb.length + (4 - jb.length % 4) % 4, bl = bin.length + (4 - bin.length % 4) % 4, total = 28 + jl + bl, buf = new ArrayBuffer(total), dv = new DataView(buf), u8 = new Uint8Array(buf);
   dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true); dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true); u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20);
   dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl); return buf; };
+// ---------------------------------------------------------------- baked village (Blender Cycles lightmaps; see blender/build_village.py)
+if (VB) {
+  say('마을 불러오는 중…');
+  const vt = new THREE.TextureLoader();
+  const lmTex = async u => { const t = await vt.loadAsync('village/' + u); t.flipY = false; t.channel = 1; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+  const LMV = { ground: await lmTex('lm_ground.jpg'), build: await lmTex('lm_build.jpg') }, LI = VB.lmax * Math.PI;
+  const ONE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); ONE.needsUpdate = true; ONE.channel = 1;
+  const [jt, head] = await Promise.all([fetch('village/scene.json').then(x => x.text()), fetch('village/scene_bin.json').then(x => x.json())]);
+  const parts = await Promise.all(Array.from({ length: head.parts }, (_, i) => fetch(`village/scene_bin${i}.json`).then(x => x.json())));
+  const gl = new GLTFLoader(); gl.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
+  const vg = await gl.parseAsync(glbFrom(jt, parts.map(q => q.data).join('')), 'village/');
+  const mask = await vt.loadAsync('village/groundmask.png'); mask.flipY = false; mask.colorSpace = THREE.NoColorSpace;
+  const paddyT = await vt.loadAsync('village/paddy.jpg'); paddyT.colorSpace = THREE.SRGBColorSpace; paddyT.wrapS = paddyT.wrapT = THREE.RepeatWrapping; paddyT.anisotropy = maxAniso;
+  const gravelT = tex('gravel.jpg');
+  // the bake already holds sun + sky light: switch realtime direct light and ambient off on these surfaces, keep reflections
+  const bakedOnly = (m, extra) => {
+    m.onBeforeCompile = (sh, rr) => { if (extra) extra(sh, rr);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <lights_fragment_maps>', 'reflectedLight.directDiffuse = vec3(0.); reflectedLight.directSpecular = vec3(0.); irradiance = vec3(0.);\n#include <lights_fragment_maps>'); };
+    const k = (extra ? 'x' : '') + m.name; m.customProgramCacheKey = () => 'baked|' + k; m.userData.csm = true; m.needsUpdate = true; };
+  const groundBlend = sh => {   // class mask (R dirt, G gravel, B grass, A paddy) in lightmap space: field soil, harvested paddy, dirt, gravel
+    sh.uniforms.maskMap = { value: mask }; sh.uniforms.dirtMap = { value: paddyT }; sh.uniforms.gravelMap = { value: gravelT };
+    sh.vertexShader = 'varying vec3 vGPos;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vGPos = (modelMatrix * vec4(transformed, 1.)).xyz;');
+    sh.fragmentShader = 'uniform sampler2D maskMap, dirtMap, gravelMap; varying vec3 vGPos;\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+      vec4 msk = texture2D(maskMap, vLightMapUv); vec2 wp = vGPos.xz; float nz = texture2D(dirtMap, wp * .021).g; float dist = length(vViewPosition);
+      vec2 f = mat2(.946, .326, -.326, .946) * wp; vec2 cell = vec2(fract(f.x / .30) - .5, (fract(f.y / .15) - .5) * .5);
+      float tuft = 1. - smoothstep(.07, .2, length(cell)), near = 1. - smoothstep(12., 45., dist);
+      vec3 mud = texture2D(dirtMap, wp * .23).rgb * vec3(.78, .74, .70), stub = vec3(.62, .53, .33);
+      float straw = smoothstep(.55, .8, texture2D(dirtMap, wp * 1.7 + 3.1).r) * .5;
+      vec3 paddy = mix(mud, stub, clamp(tuft * near * .85 + straw * .4, 0., 1.)); paddy = mix(paddy, mix(mud, stub, .28), smoothstep(30., 90., dist));
+      diffuseColor.rgb = mix(diffuseColor.rgb, paddy, smoothstep(.25, .75, msk.a + (nz - .5) * .25));
+      diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(dirtMap, wp * .55).rgb * .92, smoothstep(.15, .85, msk.r + (nz - .5) * .5));
+      diffuseColor.rgb = mix(diffuseColor.rgb, texture2D(gravelMap, wp * .45).rgb * .85, smoothstep(.2, .8, msk.g + (nz - .5) * .4));`); };
+  const seen = new Set();
+  vg.scene.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = false; o.receiveShadow = false;
+    let p_ = o, tag = null; while (p_) { if (p_.userData && p_.userData.lm) { tag = p_.userData.lm; break; } p_ = p_.parent; }
+    if (tag === 'vc') { o.material = [].concat(o.material).map(m => m.clone()); if (o.material.length === 1) o.material = o.material[0];
+      const g = o.geometry; if (!g.attributes.uv1) g.setAttribute('uv1', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); }
+    for (const m of [].concat(o.material)) {
+      if (seen.has(m)) continue; seen.add(m);
+      if ((m.transparent || m.alphaTest > 0) && m.map && !/glass|paper|film/.test(m.name)) { m.transparent = false; m.alphaTest = .5; m.depthWrite = true; m.side = THREE.DoubleSide; }
+      if (m.map) m.map.anisotropy = maxAniso;
+      if (tag === 'vc') { m.vertexColors = !!o.geometry.attributes.color; m.lightMap = ONE; m.lightMapIntensity = LI; m.envMapIntensity = (m.roughness < .35 || m.metalness > .5) ? .6 : .05; bakedOnly(m); }
+      else if (tag) { m.lightMap = LMV[tag]; m.lightMapIntensity = LI; m.envMapIntensity = (m.roughness < .35 || m.metalness > .3) ? .9 : .08;
+        if (m.name === 'glass') { m.color.set('#5a6873'); m.metalness = .75; m.roughness = .05; m.envMapIntensity = 1.25; }
+        if (['g_yard', 'yard_b', 'g_lane', 'lane_b'].includes(m.name)) m.color.setScalar(.8);
+        if (m.name === 'g_ground') { m.color.setRGB(.92, .9, .82); bakedOnly(m, groundBlend); } else bakedOnly(m); }
+      else if (m.name === 'film') { m.transparent = true; m.opacity = .38; m.depthWrite = false; m.side = THREE.DoubleSide; o.renderOrder = 2; m.userData.csm = true; }
+    }
+  });
+  scene.add(vg.scene); window.__village = vg.scene;
+}
 let P = null;
 try {
   const base = 'npc/minseok/';
@@ -560,6 +641,11 @@ try {
   const holder = new THREE.Group(); holder.add(model); scene.add(holder);
   for (const n of ['idle', 'walk', 'jog', 'run']) { act[n].play(); act[n].setEffectiveWeight(n === 'idle' ? 1 : 0); }
   P = { holder, mixer, act, x: 6, y: -14, yaw: Math.PI, speed: 0, phase: 0 };
+  { // soft contact shadow under the feet on baked ground (no realtime sun there)
+    const c = document.createElement('canvas'); c.width = c.height = 64; const g2 = c.getContext('2d'), gr = g2.createRadialGradient(32, 32, 2, 32, 32, 31);
+    gr.addColorStop(0, 'rgba(0,0,0,.55)'); gr.addColorStop(.6, 'rgba(0,0,0,.25)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g2.fillStyle = gr; g2.fillRect(0, 0, 64, 64);
+    const blob = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4 }));
+    blob.renderOrder = 1; scene.add(blob); P.blob = blob; }
 } catch (e) { console.warn('player', e); }
 
 // ---------------------------------------------------------------- collisions (2D oriented boxes, grid bucketed)
@@ -625,6 +711,7 @@ function step(dt) {
     if (moving) { const camYaw = Math.atan2(cam.position.x - ctl.target.x, cam.position.z - ctl.target.z), dir = Math.atan2(ix, iz) + camYaw; let d = dir - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * Math.min(1, dt * 10); }
     const nx = P.x + Math.sin(P.yaw) * P.speed * dt, ny = P.y - Math.cos(P.yaw) * P.speed * dt; [P.x, P.y] = collide(nx, ny);
     const z = heightAt(P.x, P.y); P.holder.position.copy(V(P.x, P.y, z)); P.holder.rotation.y = P.yaw;
+    if (P.blob) { P.blob.visible = inV(P.x, P.y); P.blob.position.copy(V(P.x, P.y, z + .04)); }
     const table = [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], w = { idle: 0, walk: 0, jog: 0, run: 0 }, s = Math.min(P.speed, 3);
     for (let i = 0; i < 3; i++) { const [a, sa] = table[i], [b, sb] = table[i + 1]; if (s >= sa && s <= sb) { const t = (s - sa) / (sb - sa); w[a] += 1 - t; w[b] += t; break; } }
     let rate = 0; for (const [n, sp] of table) if (n !== 'idle' && w[n] > 0) rate += w[n] * THREE.MathUtils.clamp(P.speed / sp, .6, 1.5) / P.act[n].getClip().duration;
@@ -661,5 +748,5 @@ scene.traverse(o => { if (o.isMesh) for (const m of [].concat(o.material)) chain
   const t = ctl.target.clone(), hall = V(0, 2, heightAt(0, 2) + 3), dir = t.clone().sub(hall).setY(0).normalize();
   cam.position.copy(t).addScaledVector(dir, 9).add(new THREE.Vector3(0, 3.2, 0)); P && (P.yaw = Math.atan2(-dir.x, -dir.z)); ctl.update(); }
 $('load').hidden = true;
-window.__map = { cam, ctl, setMode, placeAt, scene, heightAt, get P() { return P; }, step, keys };
+window.__RC = THREE.Raycaster; window.__map = { cam, ctl, setMode, placeAt, scene, heightAt, get P() { return P; }, step, keys };
 </script>

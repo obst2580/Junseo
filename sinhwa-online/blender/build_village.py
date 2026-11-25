@@ -413,15 +413,15 @@ for ri, rd in enumerate(WJ['roads']):
     pts = [p for p, _ in run]; zs = [z for _, z in run]
     for a, b in zip(pts, pts[1:]): ROAD_SEGS.append((a, b, rd['w']))
     if rd['w'] >= 5.5:
-        ribbon(f'road{ri}', pts, zs, rd['w'], .06, M['g_asphalt'], GROUND)
+        ribbon(f'road{ri}', pts, zs, rd['w'], .06, M['g_asphalt'], BUILD)
         mk = MARK.get(rd['kind'], 0)
         if mk:
-            for s in (-1, 1): ribbon(f'lw{ri}', offset_line(pts, s * (rd['w'] / 2 - .35)), zs, .14, .075, M['g_paintW'], GROUND)
+            for s in (-1, 1): ribbon(f'lw{ri}', offset_line(pts, s * (rd['w'] / 2 - .35)), zs, .14, .075, M['g_paintW'], BUILD)
             if mk >= 2:
-                for s in (-1, 1): ribbon(f'ly{ri}', offset_line(pts, s * .12), zs, .12, .075, M['g_paintY'], GROUND)
-            else: ribbon(f'ly{ri}', pts, zs, .13, .075, M['g_paintY'], GROUND)
-    elif rd['w'] >= 2.5: ribbon(f'lane{ri}', pts, zs, rd['w'], .05, M['g_lane'], GROUND)
-    else: ribbon(f'path{ri}', pts, zs, rd['w'], .03, M['g_yard'], GROUND)
+                for s in (-1, 1): ribbon(f'ly{ri}', offset_line(pts, s * .12), zs, .12, .075, M['g_paintY'], BUILD)
+            else: ribbon(f'ly{ri}', pts, zs, .13, .075, M['g_paintY'], BUILD)
+    elif rd['w'] >= 2.5: ribbon(f'lane{ri}', pts, zs, rd['w'], .05, M['g_lane'], BUILD)
+    else: ribbon(f'path{ri}', pts, zs, rd['w'], .03, M['g_yard'], BUILD)
 def road_near(x, y):
     best = None
     for a, b, w in ROAD_SEGS:
@@ -813,7 +813,7 @@ NOLM = [o for o in bpy.context.scene.objects if o.name.startswith(('wire',)) or 
 
 # yards / lanes / roads share the ground's planar lightmap: anything left under the terrain would bake black onto the
 # ground texels above it, so lift every ground-group surface to sit on top of the terrain
-for o in GROUND:
+for o in GROUND + [o for o in BUILD if o.name.startswith(('road', 'lw', 'ly', 'lane', 'path'))]:
     if o.name not in bpy.data.objects or o.type != 'MESH' or o.name.startswith('ground'): continue
     mw = o.matrix_world; inv = mw.inverted()
     for v in o.data.vertices:

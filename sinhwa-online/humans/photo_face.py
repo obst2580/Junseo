@@ -65,17 +65,38 @@ pk = [ip]
 print('mouth y', round(float(mouth[1]), 4), 'nose tip y', round(float(tipy), 4), 'lip peaks', [round(float(ys_[i]), 4) for i in pk[:3]])
 mid = P[(np.abs(P[:, 0]) < .006) & (P[:, 1] < mouth[1] - .015) & (P[:, 1] > mouth[1] - .09)]
 pog = mid[np.argmax(mid[:, 2])]; ch = mid[mid[:, 2] > pog[2] - .022]; chin = ch[np.argmin(ch[:, 1])]
-M = np.array([eR[:2], eL[:2], mouth, chin[:2]])
-lm = spec['lm']; Q = np.array([lm['eyeR'], lm['eyeL'], lm['mouth'], lm['chin']], np.float64)
-print('model lm', np.round(M, 4).tolist(), 'lip texels', int(red.sum()))
+Ml = [eR[:2], eL[:2], mouth, chin[:2]]
+lm = spec['lm']; Ql = [lm['eyeR'], lm['eyeL'], lm['mouth'], lm['chin']]
+# extra landmarks: nose tip (front-most midline point) and the two mouth corners (outermost lip texels at the parting)
+if 'nose' in lm: Ml.append(np.r_[0, tipy]); Ql.append(lm['nose'])
+if 'mouthR' in lm:
+    band = hit & (np.abs(pos[..., 1] - mouth[1]) < .004) & (np.abs(pos[..., 0]) < .05)
+    bx = pos[band][:, 0]; br = (st[..., 0] - st[..., 1])[band]; edges_ = np.arange(-.05, .0501, .002)
+    prof_r = np.array([br[(bx >= e0) & (bx < e0 + .002)].mean() if ((bx >= e0) & (bx < e0 + .002)).any() else 0 for e0 in edges_[:-1]])
+    cen_ = prof_r[np.abs(edges_[:-1] + .001) < .006].mean(); base_ = np.percentile(prof_r, 15); thr_ = base_ + .4 * (cen_ - base_)
+    xc_ = edges_[:-1] + .001; on = prof_r > thr_; c0 = int(np.argmin(np.abs(xc_))); lo_ = c0; hi_ = c0
+    while lo_ > 0 and on[lo_ - 1]: lo_ -= 1
+    while hi_ < len(on) - 1 and on[hi_ + 1]: hi_ += 1
+    insd = xc_[lo_:hi_ + 1]                                    # the contiguous red run through the centre = the lips
+    lipc = np.array([[insd.min(), mouth[1]], [insd.max(), mouth[1]]]) if len(insd) else np.zeros((0, 2))
+    print('lip corner x', lipc[:, 0] if len(lipc) else None, 'prof', np.round(prof_r).astype(int).tolist())
+    if len(lipc) == 2:
+        iR, iL = 0, 1
+        Ml += [lipc[iR], lipc[iL]]; Ql += [lm['mouthR'], lm['mouthL']]
+M = np.array(Ml, np.float64); Q = np.array(Ql, np.float64); NL = len(M)
+print('model lm', np.round(M, 4).tolist())
 # affine model(x,y) -> photo(u,v) + gaussian RBF on residuals so all 4 landmarks land exactly
-A = np.c_[M, np.ones(4)]; T, *_ = np.linalg.lstsq(A, Q, rcond=None); res = Q - A @ T
-sig = .6 * ed
-K = np.exp(-((M[:, None] - M[None]) ** 2).sum(-1) / (2 * sig * sig)); W = np.linalg.solve(K + 1e-6 * np.eye(4), res)
+A = np.c_[M, np.ones(NL)]; T, *_ = np.linalg.lstsq(A, Q, rcond=None); res = Q - A @ T
+sig = (.6 if NL == 4 else .4) * ed
+K = np.exp(-((M[:, None] - M[None]) ** 2).sum(-1) / (2 * sig * sig)); W = np.linalg.solve(K + 1e-6 * np.eye(NL), res)
 def to_photo(xy):
     k = np.exp(-((xy[:, None] - M[None]) ** 2).sum(-1) / (2 * sig * sig)); return np.c_[xy, np.ones(len(xy))] @ T + k @ W
 
 img = Image.open(os.path.join(os.path.dirname(os.path.abspath(spec_path)), spec['photo'])).convert('RGB')
+if spec.get('sharpen'):   # small source photos: 2x up + unsharp so eyes / brows / lips keep their edges on the sticker
+    from PIL import ImageFilter as _IF
+    img = img.resize((img.size[0] * 2, img.size[1] * 2), Image.LANCZOS).filter(_IF.UnsharpMask(radius=3, percent=int(spec['sharpen']), threshold=1))
+    Q = Q * 2; T = T * 2; W = W * 2   # landmarks / mapping were fitted in source-pixel units
 if spec.get('crop'): img = img.crop(tuple(spec['crop']))
 ph = np.asarray(img).astype(np.float32) / 255; H, Wd = ph.shape[:2]
 # photo face mask: ellipse from brow line to chin, feathered
@@ -168,10 +189,10 @@ if len(sys.argv) > 5:
              col=np.c_[np.ones((len(used), 3)), va[used]].astype(np.float32), idx=remap[tris].astype(np.uint32))
     # above the eyes, hair (bangs) must not come along: drop pixels much darker than the skin
     lum_ = ph @ np.array([.3, .59, .11], np.float32); sl = float(skin_ref @ np.array([.3, .59, .11]))
-    hairm = np.clip((lum_ / sl - .55) / .25, 0, 1); hairm = np.where(yy < qe[1] - .18 * pe, hairm, 1.)
-    hairm = np.minimum(hairm, np.where(yy < qe[1] - .18 * pe, np.clip((yy - (qe[1] - spec.get('top', .55) * pe)) / (.06 * pe), 0, 1), 1.))
+    hairm = np.clip((lum_ / sl - (.72 if spec.get('keep_brows') else .55)) / .2, 0, 1); hc_ = spec.get('hair_cut', .18 if spec.get('keep_brows') else .5); hairm = np.where(yy < qe[1] - hc_ * pe, hairm, 1.)
+    hairm = np.minimum(hairm, np.where(yy < qe[1] - hc_ * pe, np.clip((yy - (qe[1] - spec.get('top', .55) * pe)) / (.06 * pe), 0, 1), 1.))
     # halve the photo's own light falloff (window light on one cheek) so the sticker edge meets the skin evenly
-    phf = np.clip(ph * (sl / np.maximum(lumlow, .05))[..., None] ** .55, 0, 1)
+    phf = np.clip(ph * (sl / np.maximum(lumlow, .05))[..., None] ** (.55 + .4 * (1 - pmask))[..., None], 0, 1)   # flatter toward the edge
     rgba = np.dstack([phf, (pmask * lowpass(hairm.astype(np.float32), 1.5))[..., None]])
     Image.fromarray(np.clip(rgba * 255, 0, 255).astype(np.uint8), 'RGBA').save(st_png)
     print('face sticker', len(used), 'verts', len(tris), 'tris')
