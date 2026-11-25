@@ -1,6 +1,6 @@
 <title>신화리 동작 시험장</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* Layout: full-screen field with the character; a compact control sheet docked top-left, action pad bottom-right. */
 :root { --ink: #eef0e6; --dim: #a9b0a2; --panel: rgba(17, 21, 17, .84); --line: #3c4a3a; --acc: #d9c66a; --key: #2a3328;
@@ -32,6 +32,9 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 .fold:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; border-radius: 4px; }
 .panel.folded > :not(.fold) { display: none !important; }
 .panel.folded { width: auto; max-height: none; }
+#fxflash, #fxvig { position: fixed; inset: 0; pointer-events: none; opacity: 0 }
+#fxflash { background: radial-gradient(circle at 50% 45%, rgba(255,250,235,.95), rgba(255,240,210,.55) 45%, rgba(255,230,200,0) 80%) }
+#fxvig { background: radial-gradient(ellipse at center, rgba(160,0,0,0) 45%, rgba(150,0,0,.55) 100%) }
 </style>
 <div id="v"></div>
 <section class="panel" aria-label="동작 시험 조작판">
@@ -46,6 +49,7 @@ kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 
 </section>
 <div class="hud" id="hud" aria-live="polite">불러오는 중</div>
 <div id="stick" aria-hidden="true"><i></i></div>
+<div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
 <div id="load">들판에 사람 부르는 중…</div>
 
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -182,12 +186,106 @@ function playOnce(name) {
   if (f && SP) {   // the partner squares up at the range where this attack lands, and the strikes are queued with their timing
     const meta = animMeta.clips[name] || {}, list = meta.strikes || [], t0 = st.t;
     list.forEach((s_, i) => strikes.push({ t: t0 + s_.t, bone: s_.bone, follow: i > 0, power: f[3][i] ?? f[3][f[3].length - 1] ?? .6, label: f[1] }));
-    if (list.length) spSquare(list[0]); }
+    if (list.length) spSquare(list[0]);
+    list.forEach((s_, i) => setTimeout(() => FX.whoosh(f[3][i] ?? .6), Math.max(0, (s_.t - .14) * 1000))); }
   const snap = name.startsWith('hit_'); if (st.once) st.once.fadeOut(snap ? .05 : .25);
   a.reset(); a.setEffectiveWeight(1); a.fadeIn(snap ? .04 : .25); a.play(); st.once = a; st.onceName = name; sync();   // a hit lands at once
 }
 function stopOnce(user) { if (st.once) { const wasFight = st.fight && st.onceName !== 'guard'; st.once.fadeOut(.3); st.once = null; st.onceName = ''; sync();
   if (wasFight && !user) playOnce('guard'); } }   // after a strike, back into the guard
+// ---------------------------------------------------------------- impact feel: time, camera, particles, flash, words, sound
+const FX = (() => {
+  // particles: one additive point cloud, CPU-updated (sparks / sweat / dust)
+  const N = 600, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N), vel = new Float32Array(N * 3), life = new Float32Array(N), max = new Float32Array(N), kind = new Uint8Array(N);
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3)); geo.setAttribute('size', new THREE.BufferAttribute(size, 1));
+  const dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.35, 'rgba(255,255,255,.7)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+  const pmat = new THREE.ShaderMaterial({ uniforms: { map: { value: dot }, scale: { value: innerHeight * .5 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, vertexColors: true,
+    vertexShader: 'uniform float scale; attribute float size; varying vec3 vC; void main(){ vC = color; vec4 mv = modelViewMatrix * vec4(position,1.); gl_PointSize = size * scale / -mv.z; gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform sampler2D map; varying vec3 vC; void main(){ vec4 t = texture2D(map, gl_PointCoord); if (t.a < .02) discard; gl_FragColor = vec4(vC * t.a, t.a); }' });
+  const pts = new THREE.Points(geo, pmat); pts.frustumCulled = false; scene.add(pts);
+  let head = 0;
+  function emit(p, n, opt) { for (let k = 0; k < n; k++) { const i = head; head = (head + 1) % N;
+      const d = new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize().multiplyScalar(opt.spread).add(opt.dir || new THREE.Vector3());
+      d.multiplyScalar(opt.speed * (.4 + Math.random() * .8));
+      pos.set([p.x, p.y, p.z], i * 3); vel.set([d.x, d.y, d.z], i * 3); life[i] = max[i] = opt.life * (.6 + Math.random() * .6); size[i] = opt.size * (.6 + Math.random() * .8); kind[i] = opt.kind;
+      col.set(opt.color, i * 3); } }
+  // flat shockwave ring facing the camera
+  const ringMat = new THREE.MeshBasicMaterial({ color: '#fff3d6', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 48), ringMat); ring.visible = false; scene.add(ring); const rs = { t: 0, s: 0 };
+  // comic onomatopoeia
+  const word = (() => { const c = document.createElement('canvas'); c.width = 512; c.height = 256; const t = new THREE.CanvasTexture(c);
+    const m = new THREE.SpriteMaterial({ map: t, transparent: true, depthTest: false, depthWrite: false }); const sp = new THREE.Sprite(m); sp.renderOrder = 10; sp.visible = false; scene.add(sp);
+    return { c, t, sp, life: 0 }; })();
+  function showWord(txt, p, s, color) { const g = word.c.getContext('2d'); g.clearRect(0, 0, 512, 256); g.font = '900 150px "Black Han Sans", "IBM Plex Sans KR", sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = 'round'; g.lineWidth = 22; g.strokeStyle = '#1a1208'; g.strokeText(txt, 256, 132); g.fillStyle = color; g.fillText(txt, 256, 128);
+    word.t.needsUpdate = true; word.sp.position.copy(p).add(new THREE.Vector3(0, .25, 0)); word.base = word.sp.position.clone(); word.life = .55; word.s = .32 + .25 * s; word.sp.visible = true; }
+  // defender flash: a white emissive pulse on its materials
+  const flashMats = []; let flashT = 0;
+  function flashBody(who, s) { flashMats.length = 0; who.model.traverse(o => { if (o.isMesh && o.material && o.material.emissive) flashMats.push([o.material, o.material.emissive.clone()]); }); flashT = .09 + .05 * s; }
+  // camera: directional kick + shake + zoom punch
+  const camK = { off: new THREE.Vector3(), vel: new THREE.Vector3(), zoom: 0 };
+  // screen
+  let flashA = 0, vigA = 0, slow = 0, slowT = 0;
+  // sound (synthesised, starts on the first key / tap)
+  let ac = null; const audio = () => { try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch (e) {} return ac; };
+  addEventListener('pointerdown', audio, { once: true }); addEventListener('keydown', audio, { once: true });
+  function noise(dur) { const a = audio(); const b = a.createBuffer(1, Math.ceil(a.sampleRate * dur), a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const n = a.createBufferSource(); n.buffer = b; return n; }
+  function thump(s, part) { const a = audio(); if (!a) return; const t = a.currentTime, out = a.createGain(); out.gain.value = .5 + .4 * Math.min(s, 1.5); out.connect(a.destination);
+    // body: falling sine (the low "thud"), sharper and higher for the head / slap for the cheek
+    const o = a.createOscillator(), og = a.createGain(), f0 = part === 'cheek' ? 260 : part === 'head' ? 170 : part === 'leg' ? 120 : 95;
+    o.frequency.setValueAtTime(f0 * (1.4 + .4 * s), t); o.frequency.exponentialRampToValueAtTime(f0 * .45, t + .16 + .08 * s);
+    og.gain.setValueAtTime(1, t); og.gain.exponentialRampToValueAtTime(.001, t + .22 + .12 * s); o.connect(og).connect(out); o.start(t); o.stop(t + .4);
+    // crack: band-passed noise click (skin / cloth)
+    const n = noise(.12), f = a.createBiquadFilter(), ng = a.createGain(); f.type = 'bandpass'; f.frequency.value = part === 'cheek' ? 2600 : 1400; f.Q.value = .9;
+    ng.gain.setValueAtTime(part === 'cheek' ? 1.3 : .8, t); ng.gain.exponentialRampToValueAtTime(.001, t + .09); n.connect(f).connect(ng).connect(out); n.start(t);
+    if (s > .95) { const n2 = noise(.5), lp = a.createBiquadFilter(), g2 = a.createGain(); lp.type = 'lowpass'; lp.frequency.value = 380; g2.gain.setValueAtTime(.9, t); g2.gain.exponentialRampToValueAtTime(.001, t + .45);
+      n2.connect(lp).connect(g2).connect(out); n2.start(t); } }   // heavy: a boom underneath
+  function whoosh(s) { const a = audio(); if (!a) return; const t = a.currentTime, n = noise(.35), f = a.createBiquadFilter(), g = a.createGain();
+    f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(2400 + 1200 * s, t + .14); f.frequency.exponentialRampToValueAtTime(700, t + .3);
+    g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.22 + .2 * s, t + .1); g.gain.exponentialRampToValueAtTime(.001, t + .3); n.connect(f).connect(g).connect(a.destination); n.start(t); }
+  function fallSound() { const a = audio(); if (!a) return; const t = a.currentTime, n = noise(.6), lp = a.createBiquadFilter(), g = a.createGain(); lp.type = 'lowpass'; lp.frequency.value = 220;
+    g.gain.setValueAtTime(1.2, t); g.gain.exponentialRampToValueAtTime(.001, t + .55); n.connect(lp).connect(g).connect(a.destination); n.start(t);
+    const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(35, t + .3); og.gain.setValueAtTime(.9, t); og.gain.exponentialRampToValueAtTime(.001, t + .35); o.connect(og).connect(a.destination); o.start(t); o.stop(t + .4); }
+  const WORDS = { cheek: ['철썩!', '#ffd0a0'], head: ['퍽!', '#fff1b0'], chin: ['빡!', '#ffe27a'], body: ['퍽!', '#ffe6c0'], leg: ['팍!', '#ffe6c0'], heavy: ['쾅!', '#ffb44a'], down: ['쿵!!', '#ff8a3a'] };
+  return {
+    impact({ p, dir, s, part, heavy, down, who }) {
+      const kindKey = down ? 'down' : heavy ? 'heavy' : part;
+      // sparks: hot core along the strike, white flecks; sweat for face hits; cloth dust for body
+      emit(p, 10 + Math.round(18 * s), { dir: dir.clone().multiplyScalar(.9), spread: .9, speed: 2.6 + 2.2 * s, life: .22, size: .05 + .03 * s, color: [1.0, .85, .55], kind: 0 });
+      emit(p, 6 + Math.round(8 * s), { dir: dir.clone().multiplyScalar(.4), spread: 1, speed: 1.4, life: .35, size: .09 + .05 * s, color: [.7, .6, .45], kind: 1 });
+      if (part === 'head' || part === 'cheek' || part === 'chin') emit(p, 8 + Math.round(10 * s), { dir: dir.clone().add(new THREE.Vector3(0, .5, 0)), spread: .6, speed: 2 + s, life: .5, size: .025, color: [.55, .65, .75], kind: 2 });
+      if (heavy || down) { ring.position.copy(p); ring.visible = true; rs.t = 0; rs.s = .25 + .35 * s; }
+      showWord(WORDS[kindKey][0], p, s, WORDS[kindKey][1]);
+      flashBody(who, s);
+      // camera: shoved along the blow, plus shake; heavy zooms in for a beat
+      camK.vel.addScaledVector(dir, .9 + 1.6 * s); shake.a = Math.max(shake.a, .015 + .035 * s); if (heavy || down) camK.zoom = 5 + 4 * s;
+      flashA = heavy || down ? .55 : .12 * s; vigA = Math.min(.9, vigA + .25 + .2 * s);
+      if (down) { slow = .3; slowT = .6; }
+      thump(s, part); try { navigator.vibrate && navigator.vibrate(heavy || down ? [30, 20, 60] : 18 + Math.round(20 * s)); } catch (e) {}
+    },
+    whoosh, fallSound,
+    dust(p) { emit(p, 40, { dir: new THREE.Vector3(0, .5, 0), spread: 1.2, speed: 1.3, life: .9, size: .22, color: [.38, .33, .26], kind: 3 }); },
+    timeScale() { return slowT > 0 ? slow : 1; },
+    update(dt) {
+      for (let i = 0; i < N; i++) { if (life[i] <= 0) { size[i] = 0; continue; } life[i] -= dt; const k = kind[i];
+        vel[i * 3 + 1] -= (k === 2 ? 6 : k === 3 ? -.2 : 2.5) * dt; const drag = k === 3 ? .9 : .97; vel[i * 3] *= drag; vel[i * 3 + 1] *= drag; vel[i * 3 + 2] *= drag;
+        pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
+        const f = Math.max(life[i] / max[i], 0); if (k !== 3) { col[i * 3] *= .97; col[i * 3 + 1] *= .95; col[i * 3 + 2] *= .93; } else size[i] *= 1.01; if (f <= 0) size[i] = 0; }
+      geo.attributes.position.needsUpdate = geo.attributes.color.needsUpdate = geo.attributes.size.needsUpdate = true;
+      if (ring.visible) { rs.t += dt; const u = rs.t / .28; ring.scale.setScalar(rs.s * (.15 + u * .9)); ring.quaternion.copy(cam.quaternion); ringMat.opacity = Math.max(0, .8 * (1 - u)); if (u >= 1) ring.visible = false; }
+      if (word.life > 0) { word.life -= dt; const u = 1 - word.life / .55, pop = u < .15 ? u / .15 * 1.25 : 1.25 - .25 * Math.min(1, (u - .15) / .2);
+        word.sp.scale.set(word.s * 2 * pop, word.s * pop, 1); word.sp.position.copy(word.base).add(new THREE.Vector3(0, u * .25, 0)); word.sp.material.opacity = u > .7 ? (1 - u) / .3 : 1; if (word.life <= 0) word.sp.visible = false; }
+      if (flashT > 0) { flashT -= dt; const v = Math.max(flashT, 0) * 8; for (const [m, e] of flashMats) m.emissive.setRGB(e.r + v, e.g + v * .9, e.b + v * .8); if (flashT <= 0) for (const [m, e] of flashMats) m.emissive.copy(e); }
+      camK.vel.addScaledVector(camK.off, -120 * dt); camK.vel.multiplyScalar(Math.exp(-14 * dt)); camK.off.addScaledVector(camK.vel, dt);   // springy camera kick
+      cam.position.add(camK.off);
+      if (camK.zoom > 0 || cam.fov !== 42) { camK.zoom *= Math.exp(-dt * 6); cam.fov = 42 - camK.zoom; cam.updateProjectionMatrix(); if (camK.zoom < .01) { camK.zoom = 0; cam.fov = 42; cam.updateProjectionMatrix(); } }
+      flashA *= Math.exp(-dt * 14); vigA *= Math.exp(-dt * 2.2); $('fxflash').style.opacity = flashA.toFixed(3); $('fxvig').style.opacity = vigA.toFixed(3);
+      if (slowT > 0) slowT -= dt;
+    },
+    afterRender() { cam.position.sub(camK.off); }   // the kick is a view offset, not a move
+  };
+})();
 // ---------------------------------------------------------------- sparring partner: contact-driven reactions
 let SP = null; const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), shake = { a: 0 };
 const hitInfo = { text: '' };
@@ -233,7 +331,11 @@ function judgeHit(sk) {
     if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy';
     SP.next = null; SP.after = SP.meter > 2.6 ? 'stumble' : null; }
   spPlay(reac, w); if (reac !== 'knockdown' && SP.after) { SP.next = SP.after; SP.after = null; }
-  hitStop = .06 + .05 * Math.min(s, 1.5); shake.a = Math.max(shake.a, .02 + .03 * s);
+  { const worldDir = vel.clone().applyQuaternion(SP.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.set(0, 0, 1); worldDir.normalize();
+    const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
+    FX.impact({ p: hit, dir: worldDir, s, part: fxPart, heavy: w >= 1 && reac !== 'knockdown' && (s >= .95 || SP.meter > 2.6 || reac.startsWith('hit_heavy') || reac.startsWith('hit_spin')), down: reac === 'knockdown', who: SP });
+    if (reac === 'knockdown') { SP.fallAt = st.t + .85; } }
+  hitStop = .05 + .07 * Math.min(s, 1.5);   // freeze longer for harder blows
   hitInfo.text = `${sk.label}: ${part} 명중 · 세기 ${s.toFixed(2)}${note}`;
 }
 let hitStop = 0;
@@ -282,7 +384,7 @@ function sync() {
 // ---------------------------------------------------------------- update
 const clock = new THREE.Clock(), tmp = new THREE.Vector3();
 function update(dt) {
-  if (!P) return; st.t += dt;
+  if (!P) return; dt *= FX.timeScale(); st.t += dt;
   // desired move direction relative to the camera
   let ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x;
   let iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
@@ -316,6 +418,7 @@ function update(dt) {
       if (!sk.done && st.t >= sk.t) { sk.done = true; judgeHit(sk); } }
     while (strikes.length && strikes[0].done) strikes.shift();
     SP.meter = (SP.meter || 0) * Math.exp(-dt / 1.6);
+    if (SP.fallAt && st.t >= SP.fallAt) { SP.fallAt = 0; FX.fallSound(); FX.dust(wpos(SP, 'pelvis', new THREE.Vector3()).setY(.05)); shake.a = Math.max(shake.a, .05); }
     const c = SP.cur;
     if (c && c.userData.loop === false && c.time >= c.getClip().duration - .02) {
       if (SP.next) { const n = SP.next; SP.next = null; spPlay(n); if (n === 'getup_back') SP.down = true; }
@@ -325,12 +428,13 @@ function update(dt) {
   if (hitStop > 0) hitStop -= dt;
   // camera follow
   tmp.copy(P.holder.position); tmp.y = 1.25; const dlt = tmp.clone().sub(ctl.target); ctl.target.add(dlt); cam.position.add(dlt);
+  FX.update(dt);
   if (shake.a > .001) { cam.position.x += (Math.random() - .5) * shake.a; cam.position.y += (Math.random() - .5) * shake.a; shake.a *= Math.exp(-dt * 9); }
   sun.position.set(P.holder.position.x + 6, 10, P.holder.position.z + 4); sun.target.position.copy(P.holder.position);
   $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ALLACTS().find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}${hitInfo.text ? '<br>' + hitInfo.text : ''}`;
 }
 addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
-r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); });
+r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); FX.afterRender(); });
 await choose('ijang');
 window.__dbg = { hitInfo, toggleSpar, get SP() { return SP; }, st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
 </script>
