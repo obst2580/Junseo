@@ -1,1 +1,1 @@
-{"photo": "anjun.jpg", "lm": {"eyeR": [180, 355], "eyeL": [383, 355], "mouth": [270, 580], "chin": [272, 722], "nose": [272, 455], "mouthR": [200, 572], "mouthL": [345, 570]}, "top": 0.14, "side": 0.8, "mouth": 0.7, "keep_brows": true}
+{"photo": "anjun.jpg", "lm": {"eyeR": [180, 355], "eyeL": [383, 355], "mouth": [270, 580], "chin": [272, 722], "nose": [272, 455], "mouthR": [200, 572], "mouthL": [345, 570]}, "top": 0.14, "side": 0.8, "mouth": 0.7, "keep_brows": true, "contour": {"eye": [72, 492], "mouth": [120, 440], "jaw": [170, 400]}}

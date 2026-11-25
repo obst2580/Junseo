@@ -11,7 +11,11 @@ from PIL import Image, ImageFilter
 
 src, name, dif_path, spec_path = sys.argv[1:5]
 spec = json.load(open(spec_path))
-g = json.load(open(os.path.join(src, name + '.gltf'))); raw = open(os.path.join(src, g['buffers'][0]['uri']), 'rb').read()
+g = json.load(open(os.path.join(src, name + '.gltf')))
+FIT = dif_path == '--fit'          # mode 1: reshape the head mesh to the photo's proportions (writes <name>.bin from <name>.orig.bin)
+binp = os.path.join(src, g['buffers'][0]['uri']); origp = binp.replace('.bin', '.orig.bin')
+if FIT and not os.path.exists(origp): import shutil; shutil.copy(binp, origp)
+raw = open(origp if FIT else binp, 'rb').read()
 NC = {5126: np.float32, 5123: np.uint16, 5125: np.uint32, 5121: np.uint8}; NN = {'SCALAR': 1, 'VEC2': 2, 'VEC3': 3, 'VEC4': 4}
 
 def acc(i):
@@ -26,7 +30,7 @@ def prim(key):
 body = prim('.body'); P = acc(body['attributes']['POSITION']); N = acc(body['attributes']['NORMAL']); UV = acc(body['attributes']['TEXCOORD_0'])
 F = acc(body['indices']).reshape(-1, 3)
 eyes = acc(prim('.high-poly')['attributes']['POSITION']); teeth = acc(prim('teeth_base')['attributes']['POSITION'])
-S = 2048; dif = np.asarray(Image.open(dif_path).convert('RGB')).astype(np.float32) / 255
+S = 2048; dif = None if FIT else np.asarray(Image.open(dif_path).convert('RGB')).astype(np.float32) / 255
 eR = eyes[eyes[:, 0] < 0].mean(0); eL = eyes[eyes[:, 0] > 0].mean(0); ed = np.linalg.norm(eL - eR)
 chin0 = eR[1] - 2.4 * ed
 # rasterise head triangles into UV space: per-texel 3D position + normal
@@ -92,6 +96,46 @@ K = np.exp(-((M[:, None] - M[None]) ** 2).sum(-1) / (2 * sig * sig)); W = np.lin
 def to_photo(xy):
     k = np.exp(-((xy[:, None] - M[None]) ** 2).sum(-1) / (2 * sig * sig)); return np.c_[xy, np.ones(len(xy))] @ T + k @ W
 
+if FIT:
+    # landmark targets in model units: similarity (scale + shift, photo y down) fitted on eyes / mouth / chin / nose
+    # scale from the eye distance alone (eyes stay put; selfie perspective makes whole-face fits unreliable)
+    pe_ = np.linalg.norm(Q[1] - Q[0]); sc_ = pe_ / ed; qmid = (Q[0] + Q[1]) / 2; mmid = (M[0] + M[1]) / 2
+    tx_ = qmid[0] - sc_ * mmid[0]; ty_ = qmid[1] + sc_ * mmid[1]
+    src_pts = list(M); tgt = [np.r_[(q[0] - tx_) / sc_, (ty_ - q[1]) / sc_] for q in Q]
+    # face outline at eye / mouth / jaw level (front half of the head, ears excluded by depth)
+    ct = spec.get('contour', {})
+    jawy = mouth[1] + .6 * (chin[1] - mouth[1])
+    for key, my_ in (('eye', eR[1]), ('mouth', mouth[1]), ('jaw', jawy)):
+        if key not in ct or not spec.get('fit_contour'): continue
+        band = P[(np.abs(P[:, 1] - my_) < .004) & (P[:, 2] > eR[2] - .05)]
+        if not len(band): continue
+        for side, xm, qx in ((-1, band[:, 0].min(), ct[key][0]), (1, band[:, 0].max(), ct[key][1])):
+            src_pts.append(np.r_[xm, my_]); tgt.append(np.r_[(qx - tx_) / sc_, my_])
+    S_ = np.array(src_pts); D_ = (np.array(tgt) - S_) * spec.get('fit', .5); D_[:2] = 0   # eyes fixed
+    # the lips move as one piece (upper / lower lip points take the mouth's displacement), so the mouth never opens
+    dm_ = D_[2].copy(); lip = np.array([[0, mouth[1] + .006], [0, mouth[1] - .007], [-.012, mouth[1]], [.012, mouth[1]]])
+    S_ = np.vstack([S_, lip]); D_ = np.vstack([D_, np.tile(dm_, (4, 1))])
+    # fixed anchors keep the skull, the ears' back and the neck where they are
+    anc = np.array([[0, eR[1] + 2.6 * ed], [-2.3 * ed, eR[1] + 1.6 * ed], [2.3 * ed, eR[1] + 1.6 * ed], [-3.4 * ed, eR[1]], [3.4 * ed, eR[1]],
+                    [0, chin[1] - 1.6 * ed], [-1.8 * ed, chin[1] - 1.5 * ed], [1.8 * ed, chin[1] - 1.5 * ed]])
+    S_ = np.vstack([S_, anc]); D_ = np.vstack([D_, np.zeros_like(anc)])
+    sg = .7 * ed; K_ = np.exp(-((S_[:, None] - S_[None]) ** 2).sum(-1) / (2 * sg * sg)); Wt = np.linalg.solve(K_ + 1e-6 * np.eye(len(S_)), D_)
+    print('fit scale', round(float(1 / sc_), 6), 'max landmark move mm', np.round(np.abs(D_).max(0) * 1000, 1).tolist())
+    rb = bytearray(raw)
+    for m in g['meshes']:
+        if any(k in m['name'] for k in ('suit', 'shoes', 'stripes', 'puffer', 'boot', 'apron', 'vest')): continue
+        for pr in m['primitives']:
+            ai = pr['attributes']['POSITION']; a = g['accessors'][ai]; bv = g['bufferViews'][a['bufferView']]
+            off = bv.get('byteOffset', 0) + a.get('byteOffset', 0); st = bv.get('byteStride', 0) or 12
+            V = np.ndarray((a['count'], 3), np.float32, bytes(rb), off, (st, 4)).copy()
+            k_ = np.exp(-((V[:, None, :2] - S_[None]) ** 2).sum(-1) / (2 * sg * sg)) @ Wt
+            wv = np.clip((V[:, 1] - (chin[1] - 1.5 * ed)) / (1.0 * ed), 0, 1); wv = wv * wv * (3 - 2 * wv)
+            wv = (wv * np.clip((1.75 * ed - np.abs(V[:, 0])) / (.4 * ed), 0, 1))[:, None]   # the ears and the back of the skull stay
+            V[:, :2] += (k_ * wv).astype(np.float32)
+            out = np.ndarray((a['count'], 3), np.float32, rb, off, (st, 4)); out[:] = V
+            a['min'] = V.min(0).tolist(); a['max'] = V.max(0).tolist()
+    open(binp, 'wb').write(bytes(rb)); json.dump(g, open(os.path.join(src, name + '.gltf'), 'w'))
+    sys.exit(0)
 img = Image.open(os.path.join(os.path.dirname(os.path.abspath(spec_path)), spec['photo'])).convert('RGB')
 if spec.get('sharpen'):   # small source photos: 2x up + unsharp so eyes / brows / lips keep their edges on the sticker
     from PIL import ImageFilter as _IF

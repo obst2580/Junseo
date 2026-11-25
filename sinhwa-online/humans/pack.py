@@ -20,6 +20,9 @@ TINTS = {   # multiply colours for grey-authored MakeHuman textures (per charact
   **{k: {'eyelashes': '#1c1816'} for k in ('choi', 'minseok', 'police', 'syuper', 'sangsa', 'anjun', 'jinwook', 'parkjin', 'woochan')},
 }
 os.makedirs(os.path.join(dst, 'tex'), exist_ok=True)
+_ph = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photos', name + '.json')
+if os.path.exists(_ph) and json.load(open(_ph)).get('fit'):   # opt-in (experimental): characters modelled on a photo: reshape the head to the photo's proportions first
+    import subprocess as _sp; _sp.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'photo_face.py'), src, name, '--fit', _ph], check=True)
 g = json.load(open(os.path.join(src, name + '.gltf')))
 orig_name = {}
 for im in g['images']:
