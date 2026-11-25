@@ -38,7 +38,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 <section class="panel" aria-label="게임 정보">
   <h1>신화리 온라인<small>신화2리 · WebGPU</small></h1>
   <div class="row" id="views"></div>
-  <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 마우스 드래그 카메라 · 휠 확대</div>
+  <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 화면 클릭 후 <b>마우스</b>로 둘러보기(<b>Esc</b> 해제) · 드래그도 가능 · 휠 거리</div>
 </section>
 <div class="hud" id="hud">불러오는 중</div>
 <div id="mini"><canvas id="minic" width="380" height="380"></canvas></div>
@@ -87,10 +87,17 @@ const [W, HJ, VB] = await Promise.all(['world.json', 'height.json', 'village/bak
 const REG = VB.region;                                   // the playable area: the baked 신화2리 (game coords x east, y north)
 const hraw = Uint8Array.from(atob(HJ.data), c => c.charCodeAt(0)); const hu = new Uint16Array(hraw.buffer);
 const HW = HJ.w, HH = HJ.h, HS = HJ.step; const HF = new Float32Array(HW * HH); for (let i = 0; i < HF.length; i++) HF[i] = HJ.hmin + hu[i] * HJ.scale;
-function heightAt(x, y) {
+function demAt(x, y) {
   let i = (x - HJ.x0) / HS, j = (y - HJ.y0) / HS; i = Math.min(Math.max(i, 0), HW - 1.001); j = Math.min(Math.max(j, 0), HH - 1.001);
   const i0 = i | 0, j0 = j | 0, ti = i - i0, tj = j - j0, a = HF[j0 * HW + i0], b = HF[j0 * HW + i0 + 1], c = HF[(j0 + 1) * HW + i0], d = HF[(j0 + 1) * HW + i0 + 1];
   return (a * (1 - ti) + b * ti) * (1 - tj) + (c * (1 - ti) + d * ti) * tj;
+}
+// walking height: the top of what was actually baked (ground, yards, roads, banks) on a 0.5 m grid, the DEM elsewhere
+const SG = { res: .5, w: 0, h: 0, z: null };
+function heightAt(x, y) {
+  if (SG.z) { const i = Math.round((x - REG[0]) / SG.res), j = Math.round((y - REG[1]) / SG.res);
+    if (i >= 0 && j >= 0 && i < SG.w && j < SG.h) { const v = SG.z[j * SG.w + i]; if (v > -1e8) return v; } }
+  return demAt(x, y);
 }
 const V = (x, y, z) => new THREE.Vector3(x, z, -y);   // game -> three
 const inReg = (x, y, m = 0) => x > REG[0] + m && x < REG[2] - m && y > REG[1] + m && y < REG[3] - m;
@@ -181,14 +188,39 @@ vg.scene.traverse(o => {
   if (o.name === 'LM_GROUND' || (o.parent && o.parent.name === 'LM_GROUND')) groundMesh = groundMesh || o;
 });
 scene.add(vg.scene);
-// realtime character shadows on the baked ground: a shadow-only copy of the ground
-if (groundMesh) { const sc = new THREE.Mesh(groundMesh.geometry, new THREE.ShadowNodeMaterial({ opacity: .55 })); sc.applyMatrix4(groundMesh.matrixWorld); sc.receiveShadow = true; sc.renderOrder = 1;
-  sc.material.polygonOffset = true; sc.material.polygonOffsetFactor = -2; scene.add(sc); }
+{ // rasterise the walkable baked surfaces into SG (max height per cell = the top surface)
+  vg.scene.updateMatrixWorld(true);
+  const WALK = /^(g_ground|g_paddy|g_bund|g_yard|yard_b|g_lane|lane_b|g_asphalt|g_paintW|g_paintY)$/;
+  SG.w = Math.ceil((REG[2] - REG[0]) / SG.res) + 1; SG.h = Math.ceil((REG[3] - REG[1]) / SG.res) + 1; SG.z = new Float32Array(SG.w * SG.h).fill(-1e9);
+  const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3();
+  vg.scene.traverse(o => {
+    if (!o.isMesh) return; const ms = [].concat(o.material);
+    const g = o.geometry, pos = g.attributes.position, idx = g.index, groups = g.groups.length ? g.groups : [{ start: 0, count: idx ? idx.count : pos.count, materialIndex: 0 }];
+    for (const gr of groups) {
+      const m = ms[gr.materialIndex || 0]; if (!m || !WALK.test(m.name)) continue;
+      for (let t = gr.start; t < gr.start + gr.count; t += 3) {
+        const ia = idx ? idx.getX(t) : t, ib = idx ? idx.getX(t + 1) : t + 1, ic = idx ? idx.getX(t + 2) : t + 2;
+        va.fromBufferAttribute(pos, ia).applyMatrix4(o.matrixWorld); vb.fromBufferAttribute(pos, ib).applyMatrix4(o.matrixWorld); vc.fromBufferAttribute(pos, ic).applyMatrix4(o.matrixWorld);
+        const ax = va.x, ay = -va.z, bx = vb.x, by = -vb.z, cx = vc.x, cy = -vc.z;   // game x / y
+        const den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy); if (Math.abs(den) < 1e-9) continue;
+        const i0 = Math.max(0, Math.floor((Math.min(ax, bx, cx) - REG[0]) / SG.res)), i1 = Math.min(SG.w - 1, Math.ceil((Math.max(ax, bx, cx) - REG[0]) / SG.res));
+        const j0 = Math.max(0, Math.floor((Math.min(ay, by, cy) - REG[1]) / SG.res)), j1 = Math.min(SG.h - 1, Math.ceil((Math.max(ay, by, cy) - REG[1]) / SG.res));
+        for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+          const px = REG[0] + i * SG.res, py = REG[1] + j * SG.res;
+          const l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / den, l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / den, l3 = 1 - l1 - l2;
+          if (l1 < -1e-3 || l2 < -1e-3 || l3 < -1e-3) continue;
+          const zz = l1 * va.y + l2 * vb.y + l3 * vc.y, k = j * SG.w + i; if (zz > SG.z[k]) SG.z[k] = zz; } } } });
+}
+// realtime character shadows on the baked walkable surfaces (ground, yards, roads): shadow-only copies
+{ const shadowMat = new THREE.ShadowNodeMaterial({ opacity: .55 }); shadowMat.polygonOffset = true; shadowMat.polygonOffsetFactor = -2;
+  const WALKS = /^(g_ground|g_paddy|g_bund|g_yard|yard_b|g_lane|lane_b|g_asphalt|g_paintW|g_paintY)$/, add = [];
+  vg.scene.traverse(o => { if (o.isMesh && WALKS.test([].concat(o.material)[0].name)) add.push(o); });
+  for (const o of add) { const sc = new THREE.Mesh(o.geometry, shadowMat); sc.applyMatrix4(o.matrixWorld); sc.receiveShadow = true; sc.renderOrder = 1; scene.add(sc); } }
 
 // ---------------------------------------------------------------- far terrain outside the village (realtime lit, fades into the fog)
 { const STEPF = 8, X0 = REG[0] - 1400, X1 = REG[2] + 1400, Y0 = REG[1] - 1400, Y1 = REG[3] + 1400, nx = Math.round((X1 - X0) / STEPF), ny = Math.round((Y1 - Y0) / STEPF);
   const pos = new Float32Array((nx + 1) * (ny + 1) * 3), uvA = new Float32Array((nx + 1) * (ny + 1) * 2); let k = 0;
-  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) { const x = X0 + i * STEPF, y = Y0 + j * STEPF; pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, y) - .05; pos[k * 3 + 2] = -y; uvA[k * 2] = x / 7; uvA[k * 2 + 1] = y / 7; k++; }
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) { const x = X0 + i * STEPF, y = Y0 + j * STEPF; pos[k * 3] = x; pos[k * 3 + 1] = demAt(x, y) - .05; pos[k * 3 + 2] = -y; uvA[k * 2] = x / 7; uvA[k * 2 + 1] = y / 7; k++; }
   const idx = [];
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const cx = X0 + (i + .5) * STEPF, cy = Y0 + (j + .5) * STEPF; if (inReg(cx, cy, 2)) continue;
     const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1; idx.push(a, b, c, b, d, c); }   // counter-clockwise from above
@@ -344,11 +376,21 @@ addEventListener('keydown', e => { keys.add(e.key.toLowerCase()); if ([' ', 'arr
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListener('blur', () => keys.clear());
 { const s = $('stick'), knob = s.querySelector('i'); let id = null; const move = e => { const rc = s.getBoundingClientRect(); let x = (e.clientX - rc.left - 60) / 50, y = (e.clientY - rc.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
   s.addEventListener('pointerdown', e => { id = e.pointerId; s.setPointerCapture(id); move(e); }); s.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); }); s.addEventListener('pointerup', () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; }); }
+// ---------------------------------------------------------------- third-person camera rig (over the right shoulder, lags behind, swings back behind you)
+const CR = { yaw: Math.PI * .85, pitch: .32, dist: 4.6, distT: 4.6, lastLook: -9, pivot: new THREE.Vector3(), fov: 50, bob: 0, init: false };
+const lookBy = (dx, dy) => { CR.yaw -= dx * .0042; CR.pitch = THREE.MathUtils.clamp(CR.pitch + dy * .0034, -.35, 1.15); CR.lastLook = performance.now() / 1000; };
+{ const el = r.domElement; let drag = null;
+  el.addEventListener('click', () => { if (mode === 'walk' && document.pointerLockElement !== el && matchMedia('(pointer: fine)').matches) el.requestPointerLock?.(); });
+  addEventListener('mousemove', e => { if (document.pointerLockElement === el && mode === 'walk') lookBy(e.movementX, e.movementY); });
+  el.addEventListener('pointerdown', e => { if (mode === 'walk' && document.pointerLockElement !== el) { drag = [e.clientX, e.clientY, e.pointerId]; } });
+  addEventListener('pointermove', e => { if (drag && e.pointerId === drag[2]) { lookBy(e.clientX - drag[0], e.clientY - drag[1]); drag[0] = e.clientX; drag[1] = e.clientY; } });
+  addEventListener('pointerup', e => { if (drag && e.pointerId === drag[2]) drag = null; });
+  el.addEventListener('wheel', e => { if (mode === 'walk') { CR.distT = THREE.MathUtils.clamp(CR.distT * (1 + Math.sign(e.deltaY) * .12), 2.2, 10); e.preventDefault(); } }, { passive: false }); }
 function btns(host, items, on) { host.replaceChildren(...items.map(([v, label]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v; b.textContent = label; b.addEventListener('click', () => { on(v); b.blur(); }); return b; })); }
-function setMode(m) { mode = m; $('views').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === m)));
+function setMode(m) { mode = m; ctl.enabled = m === 'sky'; if (m === 'sky' && document.pointerLockElement) document.exitPointerLock(); $('views').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === m)));
   if (m === 'sky') { ctl.target.set((REG[0] + REG[2]) / 2, 0, -(REG[1] + REG[3]) / 2); cam.position.set(ctl.target.x + 260, 330, ctl.target.z + 420); ctl.update(); }
   else if (P) placeAt(P.x, P.y); }
-function placeAt(x, y) { if (!P) return; [P.x, P.y] = collide(x, y); P.speed = 0; const t = V(P.x, P.y, heightAt(P.x, P.y) + 1.35); ctl.target.copy(t); cam.position.copy(t).add(new THREE.Vector3(3.5, 2.2, 6)); mode = 'walk'; }
+function placeAt(x, y) { if (!P) return; [P.x, P.y] = collide(x, y); P.speed = 0; mode = 'walk'; ctl.enabled = false; CR.init = false; }
 btns($('views'), [['walk', '걷기'], ['sky', '하늘에서 보기']], setMode);
 
 // ---------------------------------------------------------------- loop
@@ -358,7 +400,7 @@ function step(dt) {
     const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
     const mag = Math.min(1, Math.hypot(ix, iz)), moving = mag > .1, want = moving ? (keys.has('shift') ? 3.0 : 1.0) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
     P.speed += Math.sign(want - P.speed) * Math.min(Math.abs(want - P.speed), (want > P.speed ? 3.2 : 5) * dt);
-    if (moving) { const camYaw = Math.atan2(cam.position.x - ctl.target.x, cam.position.z - ctl.target.z), dir = Math.atan2(ix, iz) + camYaw; let d = dir - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * Math.min(1, dt * 10); }
+    if (moving) { const camYaw = CR.yaw, dir = Math.atan2(ix, iz) + camYaw; let d = dir - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * Math.min(1, dt * 10); }
     const nx = P.x + Math.sin(P.yaw) * P.speed * dt, ny = P.y - Math.cos(P.yaw) * P.speed * dt; [P.x, P.y] = collide(nx, ny);
     const z = heightAt(P.x, P.y); P.holder.position.copy(V(P.x, P.y, z)); P.holder.rotation.y = P.yaw;
     const table = [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], w = { idle: 0, walk: 0, jog: 0, run: 0 }, s = Math.min(P.speed, 3);
@@ -367,16 +409,32 @@ function step(dt) {
     P.phase = (P.phase + dt * rate) % 1;
     for (const n in w) { P.act[n].setEffectiveWeight(w[n]); if (n !== 'idle') { P.act[n].timeScale = 0; P.act[n].time = P.phase * P.act[n].getClip().duration; } }
     P.update(dt);
-    const tgt = V(P.x, P.y, z + 1.35), d = tgt.clone().sub(ctl.target); ctl.target.add(d); cam.position.add(d);
-    { const tx = ctl.target.x, tz = ctl.target.z, dx = cam.position.x - tx, dz = cam.position.z - tz; let f = 1;
-      for (let k = 1; k <= 24; k++) { const t = k / 24, gx = tx + dx * t, gy = -(tz + dz * t);
-        if (colliders.some(c => { const ca = Math.cos(c.a), sa = Math.sin(c.a), ux = gx - c.c[0], uy = gy - c.c[1], u = ux * ca + uy * sa, v = -ux * sa + uy * ca; return Math.abs(u) < c.hl && Math.abs(v) < c.hw && c.hl > .5; })) { f = Math.max(.12, t - 1 / 24); break; } }
-      if (f < 1) { cam.position.x = tx + dx * f; cam.position.z = tz + dz * f; } }   // walls stay between the camera and nothing
-    const cz = heightAt(cam.position.x, -cam.position.z) + .6; if (cam.position.y < cz) cam.position.y = cz;
+    // ---- camera rig
+    const now = performance.now() / 1000, pivotT = V(P.x, P.y, z + 1.45);
+    if (!CR.init) { CR.pivot.copy(pivotT); CR.yaw = P.yaw + Math.PI; CR.init = true; }
+    CR.pivot.lerp(pivotT, 1 - Math.exp(-dt * 9));                                   // soft follow: the player leads, the camera catches up
+    if (P.speed > .3 && now - CR.lastLook > 1.4) {                                  // walking with no mouse input: swing round behind
+      let dy = (P.yaw + Math.PI) - CR.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); CR.yaw += dy * Math.min(1, dt * 1.6 * Math.min(P.speed, 2));
+      CR.pitch += (.26 - CR.pitch) * Math.min(1, dt * .8); }
+    const run = THREE.MathUtils.clamp((P.speed - 1.6) / 1.4, 0, 1);
+    CR.dist += (CR.distT * (1 + run * .18) - CR.dist) * Math.min(1, dt * 4);
+    CR.fov += (50 + run * 9 - CR.fov) * Math.min(1, dt * 3); if (Math.abs(cam.fov - CR.fov) > .01) { cam.fov = CR.fov; cam.updateProjectionMatrix(); }
+    const cp = Math.cos(CR.pitch), off = new THREE.Vector3(Math.sin(CR.yaw) * cp, Math.sin(CR.pitch), Math.cos(CR.yaw) * cp);
+    const right = new THREE.Vector3(Math.cos(CR.yaw), 0, -Math.sin(CR.yaw)), shoulder = right.multiplyScalar(.42);   // over the right shoulder (player sits left of centre)
+    const look = CR.pivot.clone().add(shoulder);
+    // walls: pull the camera in along the line to the pivot
+    let dist = CR.dist;
+    for (let k = 1; k <= 24; k++) { const t = k / 24, q = look.clone().addScaledVector(off, dist * t), gx = q.x, gy = -q.z;
+      if (colliders.some(c => { const ca = Math.cos(c.a), sa = Math.sin(c.a), ux = gx - c.c[0], uy = gy - c.c[1], u = ux * ca + uy * sa, v = -ux * sa + uy * ca; return Math.abs(u) < c.hl && Math.abs(v) < c.hw && c.hl > .5 && q.y < heightAt(c.c[0], c.c[1]) + 7; })) { dist = Math.max(.8, dist * (t - 1 / 24)); break; } }
+    const camPos = look.clone().addScaledVector(off, dist);
+    CR.bob = P.speed > .2 ? Math.sin(P.phase * Math.PI * 4) * .025 * Math.min(P.speed, 3) : 0;   // two footfalls per cycle
+    camPos.y += CR.bob;
+    const gz = heightAt(camPos.x, -camPos.z) + .5; if (camPos.y < gz) camPos.y = gz;
+    cam.position.copy(camPos); ctl.target.copy(look); cam.lookAt(look.x, look.y + CR.bob * .5, look.z);
   }
   for (const n of npcs) n.update(dt);
   if (P) P.holder.visible = mode === 'walk';
-  ctl.update();
+  if (mode === 'sky') ctl.update();
   const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
   sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN, 80); sun.target.updateMatrixWorld();
   fogDensity.value = mode === 'sky' ? .0005 : .0016;
@@ -385,13 +443,14 @@ function step(dt) {
 }
 if (P) placeAt(6, -14);
 $('load').hidden = true;
-window.__game = { cam, ctl, scene, heightAt, placeAt, setMode, step, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
     const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'), im = g.createImageData(w, h);
     const half = px instanceof Uint16Array, f16 = v => { const s = (v & 0x8000) ? -1 : 1, e = (v >> 10) & 31, m = v & 1023; return e === 0 ? s * m / 16777216 : e === 31 ? 0 : s * Math.pow(2, e - 15) * (1 + m / 1024); };
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = ((h - 1 - y) * w + x) * 4, o = (y * w + x) * 4;
+    const flip = !r.backend.isWebGPUBackend;   // WebGL reads rows bottom-up, WebGPU top-down
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const i = ((flip ? h - 1 - y : y) * w + x) * 4, o = (y * w + x) * 4;
       for (let k = 0; k < 3; k++) { let v = half ? f16(px[i + k]) : px[i + k] / (px instanceof Uint8Array ? 255 : 1); v = v / (1 + v); im.data[o + k] = Math.round(Math.pow(Math.max(v, 0), 1 / 2.2) * 255 * 1.6); }
       im.data[o + 3] = 255; }
     g.putImageData(im, 0, 0); return c.toDataURL('image/png'); } };
