@@ -94,6 +94,45 @@ for m in g['materials']:
             rp = os.path.join(src, 'skin_regions.json'); json.dump(costume['skin_regions'], open(rp, 'w')); extra = ['7', rp]
         subprocess.run([sys.executable, os.path.join(here, 'skin_detail.py'), dif, os.path.join(dst, skin_h), dif, *map(str, SKIN[name]), *extra], check=True)
         ph = os.path.join(here, 'photos', name + '.json')   # characters modelled on a real person: project the front photo onto the face
-        if os.path.exists(ph): subprocess.run([sys.executable, os.path.join(here, 'photo_face.py'), src, name, dif, ph], check=True)
+        if os.path.exists(ph): subprocess.run([sys.executable, os.path.join(here, 'photo_face.py'), src, name, dif, ph,
+                                               os.path.join(dst, 'tex', 'face_photo.png'), os.path.join(src, 'face_sticker.npz')], check=True)
+# face sticker (characters modelled on a photo): append the photo shell as a skinned mesh bound to the head bone,
+# and drop the modelled brows / lashes (the photo carries the real ones)
+stp = os.path.join(src, 'face_sticker.npz')
+if os.path.exists(os.path.join(here, 'photos', name + '.json')) and os.path.exists(stp):
+    import numpy as np
+    S_ = np.load(stp); n = len(S_['pos'])
+    raw = bytearray(raw)
+    def add_view(arr, target=None):
+        while len(raw) % 4: raw.append(0)
+        off = len(raw); b_ = np.ascontiguousarray(arr).tobytes(); raw.extend(b_)
+        bv = {'buffer': 0, 'byteOffset': off, 'byteLength': len(b_)}
+        if target: bv['target'] = target
+        g['bufferViews'].append(bv); return len(g['bufferViews']) - 1
+    def add_acc(arr, ctype, typ, target, minmax=False):
+        a_ = {'bufferView': add_view(arr, target), 'componentType': ctype, 'count': int(arr.shape[0]), 'type': typ}
+        if minmax: a_['min'] = arr.min(0).tolist(); a_['max'] = arr.max(0).tolist()
+        g['accessors'].append(a_); return len(g['accessors']) - 1
+    joints = g['skins'][0]['joints']; hj = next(i for i, j in enumerate(joints) if g['nodes'][j].get('name') == 'head')
+    attrs = {'POSITION': add_acc(S_['pos'], 5126, 'VEC3', 34962, True), 'NORMAL': add_acc(S_['nrm'], 5126, 'VEC3', 34962),
+             'TEXCOORD_0': add_acc(S_['uv'], 5126, 'VEC2', 34962), 'COLOR_0': add_acc(S_['col'], 5126, 'VEC4', 34962),
+             'JOINTS_0': add_acc(np.tile(np.array([hj, 0, 0, 0], np.uint16), (n, 1)), 5123, 'VEC4', 34962),
+             'WEIGHTS_0': add_acc(np.tile(np.array([1, 0, 0, 0], np.float32), (n, 1)), 5126, 'VEC4', 34962)}
+    ia = add_acc(S_['idx'].reshape(-1), 5125, 'SCALAR', 34963)
+    g['images'].append({'uri': 'tex/face_photo.png', 'mimeType': 'image/png'}); g['textures'].append({'source': len(g['images']) - 1, **({'sampler': 0} if g.get('samplers') else {})})
+    g['materials'].append({'name': 'Human.facephoto', 'alphaMode': 'BLEND', 'doubleSided': False,
+                           'pbrMetallicRoughness': {'baseColorTexture': {'index': len(g['textures']) - 1}, 'metallicFactor': 0, 'roughnessFactor': .62}})
+    g['meshes'].append({'name': 'facephoto', 'primitives': [{'attributes': attrs, 'indices': ia, 'material': len(g['materials']) - 1}]})
+    g['nodes'].append({'name': 'Human.facephoto', 'mesh': len(g['meshes']) - 1, 'skin': 0})
+    sc = g['scenes'][g.get('scene', 0)]['nodes']; sc.append(len(g['nodes']) - 1)
+    for i_, nd in enumerate(g['nodes']):
+        if 'mesh' in nd and any(k in g['meshes'][nd['mesh']]['name'] for k in ('eyebrow', 'eyelash')):
+            if i_ in sc: sc.remove(i_)
+            for pn in g['nodes']:
+                if i_ in pn.get('children', []): pn['children'].remove(i_)
+    g['buffers'][0]['byteLength'] = len(raw)
+    json.dump(g, open(os.path.join(dst, 'human.json'), 'w'))
+    json.dump({'data': base64.b64encode(bytes(raw)).decode()}, open(os.path.join(dst, 'human_bin.json'), 'w'))
+    print('face sticker merged', n)
 json.dump({'normals': normals, 'tints': tint, 'skinHeight': skin_h, 'pose': POSE.get(name, {})}, open(os.path.join(dst, 'extras.json'), 'w'))
 print('normals', normals); print('tints', tint)

@@ -347,7 +347,7 @@ STEP = 2.0
 nx, ny = int((X1 - X0) / STEP), int((Y1 - Y0) / STEP)
 verts = [(X0 + i * STEP, Y0 + j * STEP, hget(X0 + i * STEP, Y0 + j * STEP)) for j in range(ny + 1) for i in range(nx + 1)]
 faces, fm = [], []
-CLS_MAT = {0: 0, 1: 1, 2: 2, 3: 3, 4: 1, 5: 0, 6: 3}
+CLS_MAT = {}   # one ground material: the viewer blends field / paddy / dirt / gravel from the class mask (no 2 m blocks)
 for j in range(ny):
     for i in range(nx):
         a = j * (nx + 1) + i; faces.append((a, a + 1, a + nx + 2, a + nx + 1))
@@ -796,6 +796,14 @@ if wires:
     bpy.context.view_layer.objects.active = wires[0]; bpy.ops.object.convert(target='MESH')
 NOLM = [o for o in bpy.context.scene.objects if o.name.startswith(('wire',)) or o in NOLM]
 
+# yards / lanes / roads share the ground's planar lightmap: anything left under the terrain would bake black onto the
+# ground texels above it, so lift every ground-group surface to sit on top of the terrain
+for o in GROUND:
+    if o.name not in bpy.data.objects or o.type != 'MESH' or o.name.startswith('ground'): continue
+    mw = o.matrix_world; inv = mw.inverted()
+    for v in o.data.vertices:
+        w = mw @ v.co; hz = hget(w.x, w.y) + (.065 if o.name.startswith(('lw', 'ly')) else .045)   # paint stays above the asphalt
+        if w.z < hz: w.z = hz; v.co = inv @ w
 ground = join([o for o in GROUND if o.name in bpy.data.objects], 'LM_GROUND')
 build = join([o for o in BUILD if o.name in bpy.data.objects], 'LM_BUILD')
 props = join([o for o in PROPS if o.name in bpy.data.objects], 'VC_PROPS')

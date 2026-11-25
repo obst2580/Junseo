@@ -53,6 +53,16 @@ srcimg = [im['uri'] for im in g['images'] if 'skin' in im['uri'] or 'diffuse' in
 st = np.asarray(Image.open(os.path.join(src, srcimg)).convert('RGB').resize((S, S))).astype(np.float32)
 red = (st[..., 0] - st[..., 1] > 55) & hit & (np.abs(pos[..., 0]) < .03) & (pos[..., 1] < eR[1] - .03)
 mouth = np.r_[0, pos[red][:, 1].mean() - .002]
+# better: the lip parting on the midline profile = deepest point between the two lip bulges (below the nose tip)
+mid_ = P[np.abs(P[:, 0]) < .004]; tipy = mid_[np.argmax(np.where(mid_[:, 1] > eR[1] - 2.2 * ed, mid_[:, 2], -9)), 1]
+ys_ = np.arange(tipy - .012, tipy - .075, -.001); prof = []
+for yv in ys_:
+    m_ = mid_[np.abs(mid_[:, 1] - yv) < .0015]; prof.append(m_[:, 2].max() if len(m_) else np.nan)
+prof = np.array(prof)
+up = np.where((ys_ < tipy - .02) & (ys_ > tipy - .045), prof, -9); ip = int(np.argmax(up))       # upper lip peak
+win = np.where((ys_ < ys_[ip] - .002) & (ys_ > ys_[ip] - .013), prof, 9); mouth = np.r_[0, ys_[int(np.argmin(win))]]   # lip parting
+pk = [ip]
+print('mouth y', round(float(mouth[1]), 4), 'nose tip y', round(float(tipy), 4), 'lip peaks', [round(float(ys_[i]), 4) for i in pk[:3]])
 mid = P[(np.abs(P[:, 0]) < .006) & (P[:, 1] < mouth[1] - .015) & (P[:, 1] > mouth[1] - .09)]
 pog = mid[np.argmax(mid[:, 2])]; ch = mid[mid[:, 2] > pog[2] - .022]; chin = ch[np.argmin(ch[:, 1])]
 M = np.array([eR[:2], eL[:2], mouth, chin[:2]])
@@ -73,7 +83,7 @@ qe = (Q[0] + Q[1]) / 2; pe = np.linalg.norm(Q[1] - Q[0])
 top = qe[1] - spec.get('top', .55) * pe; bot = Q[3][1] + .05 * pe; cy = (top + bot) / 2; ry = (bot - top) / 2; rx = spec.get('side', .95) * pe
 yy, xx = np.mgrid[0:H, 0:Wd].astype(np.float32)
 d = np.sqrt(((xx - qe[0]) / rx) ** 2 + ((yy - cy) / ry) ** 2)
-pmask = np.clip((1 - d) / .18, 0, 1) * np.clip((yy - top) / (.12 * pe), 0, 1)
+pmask = np.clip((1 - d) / (.3 if len(sys.argv) > 5 else .18), 0, 1) * np.clip((yy - top) / (.12 * pe), 0, 1)
 # flatten photo lighting: divide by a masked low-pass, keep detail + local colour (lips, brows)
 def lowpass(a, r):
     p = int(3 * r) + 1; a = np.pad(a.astype(np.float32), p, mode='edge'); h, w = a.shape
@@ -103,9 +113,58 @@ det = np.clip(samp(detail), .25, 1.35)
 wimg = np.zeros((S, S), np.float32); wimg[ty, tx] = w
 base_lp = np.dstack([lowpass(dif[..., c], 24) for c in range(3)])
 tex_ref = (base_lp[ty, tx] * w[:, None]).sum(0) / max(w.sum(), 1e-3)
-tone = (skin_ref / skin_ref.mean()) / (tex_ref / tex_ref.mean()); tone = tone ** .9 * (skin_ref.mean() / tex_ref.mean()) ** .5
+tone = (skin_ref / skin_ref.mean()) / (tex_ref / tex_ref.mean()); tone = tone ** .9 * (skin_ref.mean() / tex_ref.mean()) ** (.95 if len(sys.argv) > 5 else .5)
 newc = base_lp[ty, tx] * tone * det
 out = dif.copy(); wimg = lowpass(wimg, 2.0)[ty, tx][:, None]          # soften seams between triangles
 out[ty, tx] = dif[ty, tx] * (1 - wimg) + newc * wimg
+if len(sys.argv) > 5: out = dif * tone   # sticker mode: the whole skin takes the photo's skin tone so neck / ears / hands match the face
 Image.fromarray(np.clip(out * 255, 0, 255).astype(np.uint8)).save(dif_path, quality=92)
 print('photo face', name, 'texels', int((w > .05).sum()), 'tone', np.round(tone, 3))
+
+# ---------------------------------------------------------------- face sticker: the photo itself on a thin shell over the face
+# A grid in front view is cast onto the head (skin + eyeballs) so the shell also bridges the eye openings; its UVs are the
+# photo coordinates, the photo's face mask becomes the texture alpha, and grazing angles fade out through vertex alpha.
+if len(sys.argv) > 5:
+    st_png, st_npz = sys.argv[5], sys.argv[6]
+    ep = prim('.high-poly'); EF = acc(ep['indices']).reshape(-1, 3) + len(P)
+    VP = np.vstack([P, eyes]); TRI = np.vstack([F[sel], EF])
+    cz = VP[TRI].mean(1)
+    TRI = TRI[(cz[:, 1] > chin[1] - .04) & (cz[:, 1] < eR[1] + .12) & (cz[:, 2] > eR[2] - .05)]
+    A2 = VP[TRI][:, :, :2]; Z3 = VP[TRI][:, :, 2]
+    step_ = .0018
+    gx = np.arange(eR[0] - 1.6 * ed, eL[0] + 1.6 * ed + 1e-6, step_); gy = np.arange(chin[1] - .03, eR[1] + 1.4 * ed, step_)
+    GX, GY = np.meshgrid(gx, gy); pts = np.c_[GX.ravel(), GY.ravel()]
+    zhit = np.full(len(pts), -9.0)
+    a, b, c = A2[:, 0], A2[:, 1], A2[:, 2]
+    den = (b[:, 1] - c[:, 1]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 1] - c[:, 1]); ok = np.abs(den) > 1e-12
+    for s0 in range(0, len(pts), 400):
+        q = pts[s0:s0 + 400][:, None, :]
+        l1 = ((b[:, 1] - c[:, 1]) * (q[..., 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (q[..., 1] - c[:, 1])) / np.where(ok, den, 1)
+        l2 = ((c[:, 1] - a[:, 1]) * (q[..., 0] - c[:, 0]) + (a[:, 0] - c[:, 0]) * (q[..., 1] - c[:, 1])) / np.where(ok, den, 1)
+        l3 = 1 - l1 - l2; inside_ = ok & (l1 >= -1e-6) & (l2 >= -1e-6) & (l3 >= -1e-6)
+        z = l1 * Z3[:, 0] + l2 * Z3[:, 1] + l3 * Z3[:, 2]
+        zhit[s0:s0 + 400] = np.where(inside_, z, -9).max(1)
+    qph = to_photo(pts); uvs = qph / [Wd, H]
+    am = np.clip((1 - np.sqrt(((qph[:, 0] - qe[0]) / rx) ** 2 + ((qph[:, 1] - cy) / ry) ** 2)) / .3, 0, 1) * np.clip((qph[:, 1] - top) / (.12 * pe), 0, 1)
+    ny_, nx_ = GX.shape; ZH = zhit.reshape(ny_, nx_)
+    pit = ((np.abs(GX) < .028) & (np.abs(GY - mouth[1]) < .008)) | (np.hypot(GX - eR[0], GY - eR[1]) < .018) | (np.hypot(GX - eL[0], GY - eL[1]) < .018)
+    # bridge cavities (mouth slit, eye corners): a texel far behind its neighbours takes the local surface height instead
+    for _ in range(3):
+        Zp = np.pad(ZH, 3, mode='edge'); nb = np.stack([Zp[3 + dy:3 + dy + ny_, 3 + dx:3 + dx + nx_] for dy in range(-3, 4) for dx in range(-3, 4)])
+        hi = np.sort(nb, 0)[-12]; ZH = np.where((ZH < hi - .004) & (hi > -1) & pit, hi - .001, ZH)
+    zhit = ZH.ravel()
+    dzdx = np.gradient(ZH, step_, axis=1); dzdy = np.gradient(ZH, step_, axis=0)
+    nrm3 = np.dstack([-dzdx, -dzdy, np.ones_like(ZH)]); nrm3 /= np.linalg.norm(nrm3, axis=2, keepdims=True); nrm3 = nrm3.reshape(-1, 3)
+    va = np.clip((nrm3[:, 2] - .3) / .3, 0, 1) * (zhit > -1)
+    pos3 = np.c_[pts, zhit] + nrm3 * .0012
+    idx = np.arange(len(pts)).reshape(ny_, nx_); quads = np.c_[idx[:-1, :-1].ravel(), idx[:-1, 1:].ravel(), idx[1:, 1:].ravel(), idx[1:, :-1].ravel()]
+    keepq = (zhit[quads] > -1).all(1) & ((am * va)[quads].max(1) > .01)
+    # no stretched faces across depth jumps (eyelid -> eyeball edges are fine, nose side walls are not)
+    keepq &= (zhit[quads].max(1) - zhit[quads].min(1)) < .012
+    quads = quads[keepq]; used = np.unique(quads); remap = -np.ones(len(pts), int); remap[used] = np.arange(len(used))
+    tris = np.r_[quads[:, [0, 2, 1]], quads[:, [0, 3, 2]]] if False else np.r_[quads[:, [0, 1, 2]], quads[:, [0, 2, 3]]]
+    np.savez(st_npz, pos=pos3[used].astype(np.float32), nrm=nrm3[used].astype(np.float32), uv=uvs[used].astype(np.float32),
+             col=np.c_[np.ones((len(used), 3)), va[used]].astype(np.float32), idx=remap[tris].astype(np.uint32))
+    rgba = np.dstack([ph, pmask[..., None]])
+    Image.fromarray(np.clip(rgba * 255, 0, 255).astype(np.uint8), 'RGBA').save(st_png)
+    print('face sticker', len(used), 'verts', len(tris), 'tris')
