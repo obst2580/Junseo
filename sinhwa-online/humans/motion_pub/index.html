@@ -1,0 +1,232 @@
+<title>신화리 동작 시험장</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: full-screen field with the character; a compact control sheet docked top-left, action pad bottom-right. */
+:root { --ink: #eef0e6; --dim: #a9b0a2; --panel: rgba(17, 21, 17, .84); --line: #3c4a3a; --acc: #d9c66a; --key: #2a3328;
+  --f: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; --m: "IBM Plex Mono", ui-monospace, monospace; color-scheme: dark }
+html, body { height: 100%; margin: 0; overflow: hidden; background: #8fa8b8; color: var(--ink); font-family: var(--f); font-size: 13px }
+[hidden] { display: none !important }
+#v { position: fixed; inset: 0 } #v canvas { display: block; width: 100%; height: 100%; touch-action: none }
+.panel { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); width: min(330px, calc(100vw - 24px));
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 8px; max-height: calc(100% - 24px); overflow: auto }
+.panel h1 { font-size: 15px; margin: 0; letter-spacing: .04em } .panel h1 small { color: var(--dim); font-weight: 400; font-size: 12px; margin-left: 6px }
+.lab { color: var(--dim); font-size: 11.5px; letter-spacing: .06em }
+.row { display: flex; flex-wrap: wrap; gap: 5px }
+button { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--key); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; cursor: pointer }
+button[aria-pressed="true"] { background: var(--acc); color: #1b1d14; border-color: var(--acc) }
+button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
+kbd { font-family: var(--m); font-size: 10.5px; color: var(--acc); margin-left: 4px }
+.hud { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-family: var(--m); font-size: 12px; line-height: 1.6; min-width: 150px; font-variant-numeric: tabular-nums }
+.help { color: var(--dim); font-size: 12px; line-height: 1.6 }
+#load { position: fixed; inset: 0; display: grid; place-items: center; background: #8fa8b8; color: #1d2a22; font-size: 15px }
+#stick { position: fixed; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .5); background: rgba(0, 0, 0, .15); touch-action: none; display: none }
+#stick i { position: absolute; left: 40px; top: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .7) }
+@media (pointer: coarse) { #stick { display: block } }
+@media (max-width: 560px) { .panel { max-height: 46%; } }
+</style>
+<div id="v"></div>
+<section class="panel" aria-label="동작 시험 조작판">
+  <h1>동작 시험장<small>CMU 모션캡처 22종</small></h1>
+  <div class="lab">인물</div><div class="row" id="people"></div>
+  <div class="lab">걸음걸이</div><div class="row" id="gaits"></div>
+  <div class="lab">동작</div><div class="row" id="acts"></div>
+  <div class="help"><b>WASD</b> 이동 · <b>Shift</b> 달리기 · <b>Space</b> 점프 · 마우스 드래그로 카메라<br>동작 중에 움직이면 동작이 끊기고 걷기로 돌아갑니다.</div>
+</section>
+<div class="hud" id="hud" aria-live="polite">불러오는 중</div>
+<div id="stick" aria-hidden="true"><i></i></div>
+<div id="load">들판에 사람 부르는 중…</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+const $ = id => document.getElementById(id);
+const PEOPLE = { ijang: '오만복 이장', halmeoni: '박순례', choi: '최 실장', minseok: '민석', police: '김 순경', syuper: '슈퍼 사장님', sangsa: '박 상사' };
+const GAITS = { normal: '보통', sneak: '살금살금', limp: '절뚝', drunk: '술 취함' };
+const ACTS = [['jump', '점프', 'Space'], ['pickup', '줍기', 'E'], ['punch', '주먹', 'Q'], ['draw_gun', '총 꺼내기', 'G'], ['shoot', '사격', ''], ['phone', '전화', 'P'],
+  ['wave', '손 흔들기', ''], ['shrug', '으쓱', ''], ['sit_stand', '앉았다 일어나기', ''], ['fall', '넘어짐', ''], ['get_up', '일어나기', ''], ['wait', '기다리기', ''],
+  ['dig', '땅 파기', ''], ['sweep', '빗자루질', ''], ['push', '밀기', '']];
+
+// ---------------------------------------------------------------- world
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setPixelRatio(Math.min(devicePixelRatio, 2)); r.setSize(innerWidth, innerHeight);
+r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.05; r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+$('v').appendChild(r.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color('#9fb6c6'); scene.fog = new THREE.Fog('#9fb6c6', 25, 110);
+const cam = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, .05, 300); cam.position.set(2.2, 2.2, 4.2);
+const ctl = new OrbitControls(cam, r.domElement); ctl.enablePan = false; ctl.minDistance = 1.2; ctl.maxDistance = 14; ctl.maxPolarAngle = Math.PI * .49; ctl.target.set(0, 1.2, 0);
+const sun = new THREE.DirectionalLight('#fff0dc', 2.8); sun.position.set(6, 10, 4); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -.0003; sun.shadow.normalBias = .03; scene.add(sun, sun.target);
+scene.add(new THREE.HemisphereLight('#cfe0ee', '#5b5a3c', .55));
+{ // field: grass tone with a faint 1 m grid so foot sliding is easy to judge, a dirt farm road through the middle
+  const c = document.createElement('canvas'); c.width = c.height = 512; const x = c.getContext('2d');
+  x.fillStyle = '#6f7d45'; x.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 9000; i++) { const g = 90 + Math.random() * 50 | 0; x.fillStyle = `rgba(${g - 20},${g + 10},${g - 50},.35)`; x.fillRect(Math.random() * 512, Math.random() * 512, 2, 2); }
+  x.strokeStyle = 'rgba(30,40,20,.35)'; x.lineWidth = 2; for (let i = 0; i <= 512; i += 128) { x.beginPath(); x.moveTo(i, 0); x.lineTo(i, 512); x.moveTo(0, i); x.lineTo(512, i); x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(50, 50); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: t, roughness: .95 })); ground.receiveShadow = true; scene.add(ground);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(4, 200).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#9a8466', roughness: 1 })); road.position.set(-6, .005, 0); road.receiveShadow = true; scene.add(road);
+  const bale = new THREE.MeshStandardMaterial({ color: '#e9e4d6', roughness: .8 });   // wrapped silage bales, the village's landmark
+  for (let i = 0; i < 14; i++) { const m = new THREE.Mesh(new THREE.CylinderGeometry(.62, .62, 1.2, 24).rotateZ(Math.PI / 2), bale); m.position.set(6 + (i % 4) * 1.4, .62, -6 - Math.floor(i / 4) * 1.5); m.castShadow = m.receiveShadow = true; scene.add(m); }
+  const shed = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 4), new THREE.MeshStandardMaterial({ color: '#5e7fa0', roughness: .7 })); shed.position.set(-14, 1.5, -10); shed.castShadow = shed.receiveShadow = true; scene.add(shed);
+}
+(async () => { try { const j = await (await fetch('sky_env.json')).json(); const b = Uint8Array.from(atob(j.data), c => c.charCodeAt(0)); const hd = new RGBELoader().parse(b.buffer);
+  const t = new THREE.DataTexture(hd.data, hd.width, hd.height, THREE.RGBAFormat, hd.type); t.flipY = true; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true; t.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = new THREE.PMREMGenerator(r).fromEquirectangular(t).texture; scene.environmentIntensity = .5; } catch (e) { console.warn(e); } })();
+
+// ---------------------------------------------------------------- loading helpers
+function glbFrom(jsonText, b64) {
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), jb = new TextEncoder().encode(jsonText);
+  const jl = jb.length + (4 - jb.length % 4) % 4, bl = bin.length + (4 - bin.length % 4) % 4, total = 28 + jl + bl;
+  const buf = new ArrayBuffer(total), dv = new DataView(buf), u8 = new Uint8Array(buf);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true); dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true);
+  u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20); dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl); return buf;
+}
+const tl = new THREE.TextureLoader();
+const animMeta = await (await fetch('anims.json')).json();
+const animG = await new GLTFLoader().parseAsync(glbFrom(await (await fetch('anim.json')).text(), (await (await fetch('anim_bin.json')).json()).data), './');
+let refPelvis = null; animG.scene.traverse(o => { if (o.name === 'pelvis') refPelvis = o.position.clone(); });
+
+async function loadPerson(id) {
+  const base = 'npc/' + id + '/';
+  const [jsonText, binJ, EX] = await Promise.all([fetch(base + 'human.json').then(x => x.text()), fetch(base + 'human_bin.json').then(x => x.json()), fetch(base + 'extras.json').then(x => x.json())]);
+  const g = await new GLTFLoader().parseAsync(glbFrom(jsonText, binJ.data), base);
+  const fringes = [], skins = [];
+  g.scene.traverse(o => {
+    if (!o.isMesh) return; o.castShadow = o.receiveShadow = true; o.frustumCulled = false;
+    const m = o.material; if (m.map) m.map.anisotropy = 8; if (EX.tints && EX.tints[m.name]) m.color.set(EX.tints[m.name]);
+    const hair = /short|long|bob|braid|ponytail|hair|eyebrow|eyelash/i.test(m.name), eye = /high-poly|low-poly|eye/i.test(m.name);
+    if (hair) {
+      m.transparent = false; m.depthWrite = true; m.alphaTest = .5; m.side = THREE.DoubleSide;
+      const brow = /eyebrow|eyelash/i.test(m.name); m.roughness = brow ? .95 : .75; m.envMapIntensity = brow ? 0 : .35;
+      if (brow) { m.specularIntensity = .1; if (/eyebrow/i.test(m.name)) m.color.setRGB(2.3, 2.1, 1.95); }
+      const soft = m.clone(); soft.alphaTest = 0; soft.transparent = true; soft.depthWrite = false; const f = o.clone(); f.material = soft; f.renderOrder = 2; f.castShadow = false; fringes.push([o.parent, f]);
+    } else if (/lens/i.test(m.name)) { const light = m.color.r + m.color.g + m.color.b > 1.5; m.transparent = true; m.opacity = light ? .12 : .88; m.depthWrite = false; m.roughness = .05; o.renderOrder = 3; }
+    else if (eye) { m.transparent = false; m.depthWrite = true; m.alphaTest = 0; m.roughness = .08; m.side = THREE.DoubleSide;
+      m.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace('#include <map_fragment>', '#include <map_fragment>\n if (vMapUv.x > .86 && vMapUv.y > .86) discard;'); }; m.customProgramCacheKey = () => 'eye-cut'; }
+    else { m.transparent = false; m.alphaTest = 0; m.opacity = 1; m.depthWrite = true;
+      const nm = (EX.normals || {})[m.name]; if (nm) { m.normalMap = tl.load(base + nm); m.normalMap.flipY = false; m.normalMap.colorSpace = THREE.NoColorSpace; }
+      if (m.name.endsWith('.body')) skins.push(o); }
+  });
+  for (const [p, f] of fringes) p.add(f);
+  for (const o of skins) { const sk = new THREE.MeshPhysicalMaterial({ map: o.material.map, roughness: .52, sheen: .35, sheenRoughness: .5, sheenColor: new THREE.Color('#ffb8a0'), clearcoat: .06, clearcoatRoughness: .45 });
+    if (EX.skinHeight) { const hm = tl.load(base + EX.skinHeight); hm.flipY = false; hm.colorSpace = THREE.NoColorSpace; sk.bumpMap = hm; sk.bumpScale = 1.4; } o.material = sk; }
+  // face +Z inside a holder (the holder is what moves and turns in the world)
+  const model = g.scene; model.updateMatrixWorld(true);
+  const bone = n => { let b = null; model.traverse(o => { if (o.isBone && o.name === n) b = o; }); return b; };
+  const wp = o => o.getWorldPosition(new THREE.Vector3());
+  const f = wp(bone('ball_l')).sub(wp(bone('foot_l'))); f.y = 0; f.normalize(); model.rotation.y = -Math.atan2(f.x, f.z); model.updateMatrixWorld(true);
+  if (wp(bone('ball_l')).sub(wp(bone('foot_l'))).z < 0) model.rotation.y += Math.PI;
+  // relaxed fingers (the capture has no finger data)
+  for (const sd of ['l', 'r']) for (const fn of ['index', 'middle', 'ring', 'pinky']) for (const j of ['01', '02', '03']) {
+    const b = bone(`${fn}_${j}_${sd}`), tip = bone(`${fn}_03_${sd}`), hand = bone('hand_' + sd); if (!b) continue; model.updateMatrixWorld(true);
+    const amt = j === '01' ? .3 : .45, d0 = wp(tip).distanceTo(wp(hand)), qb = b.quaternion.clone(); let bq = null, bd = d0;
+    for (const ax of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, 1)]) for (const sg of [1, -1]) { b.quaternion.copy(qb).multiply(new THREE.Quaternion().setFromAxisAngle(ax, sg * amt)); model.updateMatrixWorld(true); const d = wp(tip).distanceTo(wp(hand)); if (d < bd) { bd = d; bq = b.quaternion.clone(); } }
+    b.quaternion.copy(bq || qb);
+  }
+  const holder = new THREE.Group(); holder.add(model);
+  // clips: rescale the hip track from the reference skeleton to this body's hip height
+  const pel = bone('pelvis'), rest = pel.position.clone(), k = rest.length() / refPelvis.length();
+  const mixer = new THREE.AnimationMixer(model), actions = {};
+  for (const clip of animG.animations) {
+    const c = clip.clone();
+    for (const tr of c.tracks) if (tr.name === 'pelvis.position') for (let i = 0; i < tr.values.length; i += 3) {
+      tr.values[i] = rest.x + (tr.values[i] - refPelvis.x) * k; tr.values[i + 1] = rest.y + (tr.values[i + 1] - refPelvis.y) * k; tr.values[i + 2] = rest.z + (tr.values[i + 2] - refPelvis.z) * k; }
+    const a = mixer.clipAction(c); const meta = animMeta.clips[c.name] || {}; a.userData = meta;
+    if (!meta.loop) { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    actions[c.name] = a;
+  }
+  return { holder, model, mixer, actions };
+}
+
+// ---------------------------------------------------------------- player
+let P = null; const cache = {}; let current = 'ijang';
+const LOCO = { normal: [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], sneak: [['idle', 0], ['sneak', .6]], limp: [['idle', 0], ['limp', .65]], drunk: [['idle', 0], ['drunk', .5]] };
+const st = { gait: 'normal', speed: 0, phase: 0, once: null, onceName: '', yaw: 0 };
+async function choose(id) {
+  $('load').hidden = false; $('load').textContent = PEOPLE[id] + ' 부르는 중…';
+  try { cache[id] = cache[id] || await loadPerson(id); } catch (e) { $('load').textContent = '불러오지 못했습니다: ' + e.message; return; }
+  const pos = P ? P.holder.position.clone() : new THREE.Vector3(); if (P) scene.remove(P.holder);
+  P = cache[id]; current = id; P.holder.position.copy(pos); P.holder.rotation.y = st.yaw; scene.add(P.holder);
+  for (const a of Object.values(P.actions)) { a.stop(); a.enabled = true; }
+  for (const [n] of Object.values(LOCO).flat()) { const a = P.actions[n]; if (a) { a.play(); a.setEffectiveWeight(0); } }
+  st.once = null; $('load').hidden = true; sync();
+}
+function playOnce(name) {
+  if (!P || !P.actions[name]) return; const a = P.actions[name];
+  if (st.once) st.once.fadeOut(.25);
+  a.reset(); a.setEffectiveWeight(1); a.fadeIn(.25); a.play(); st.once = a; st.onceName = name; sync();
+}
+function stopOnce() { if (st.once) { st.once.fadeOut(.3); st.once = null; st.onceName = ''; sync(); } }
+
+// ---------------------------------------------------------------- input
+const keys = new Set(); const joy = { x: 0, y: 0 };
+addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return; const k = e.key.toLowerCase(); keys.add(k);
+  if (k === ' ') { e.preventDefault(); playOnce('jump'); }
+  const hit = ACTS.find(a => a[2] && a[2].toLowerCase() === k && k !== ' '); if (hit) playOnce(hit[0]);
+});
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+{ const s = $('stick'), knob = s.querySelector('i'); let id = null;
+  const move = e => { const r = s.getBoundingClientRect(); let x = (e.clientX - r.left - 60) / 50, y = (e.clientY - r.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
+  s.addEventListener('pointerdown', e => { id = e.pointerId; s.setPointerCapture(id); move(e); });
+  s.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); });
+  s.addEventListener('pointerup', () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; }); }
+
+// ---------------------------------------------------------------- UI
+function btns(host, items, onClick) { host.replaceChildren(...items.map(([v, label, key]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v;
+  b.innerHTML = label + (key ? `<kbd>${key}</kbd>` : ''); b.addEventListener('click', () => { onClick(v); b.blur(); }); return b; })); }
+btns($('people'), Object.entries(PEOPLE), choose);
+btns($('gaits'), Object.entries(GAITS), g => { st.gait = g; sync(); });
+btns($('acts'), ACTS, playOnce);
+function sync() {
+  $('people').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === current)));
+  $('gaits').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.gait)));
+  $('acts').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === st.onceName)));
+}
+
+// ---------------------------------------------------------------- update
+const clock = new THREE.Clock(), tmp = new THREE.Vector3();
+function update(dt) {
+  if (!P) return;
+  // desired move direction relative to the camera
+  let ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x;
+  let iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
+  const mag = Math.min(1, Math.hypot(ix, iz)); const moving = mag > .1;
+  const table = LOCO[st.gait], top = table[table.length - 1][1];
+  const want = moving ? (st.gait === 'normal' ? (keys.has('shift') ? 3.0 : 1.0) : top) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
+  if (moving && st.once && !(st.once.userData.loop === false && st.onceName === 'jump')) stopOnce();
+  const acc = want > st.speed ? 3.2 : 5; st.speed += Math.sign(want - st.speed) * Math.min(Math.abs(want - st.speed), acc * dt);
+  if (moving && !st.once) {
+    const camYaw = Math.atan2(cam.position.x - ctl.target.x, cam.position.z - ctl.target.z);
+    const dir = Math.atan2(ix, iz) + camYaw; let d = dir - st.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); st.yaw += d * Math.min(1, dt * 10);
+  }
+  P.holder.rotation.y = st.yaw;
+  if (!st.once || st.onceName === 'jump') { P.holder.position.x += Math.sin(st.yaw) * st.speed * dt; P.holder.position.z += Math.cos(st.yaw) * st.speed * dt; }
+  // locomotion blend by speed (piecewise linear between neighbouring clips), shared phase so feet stay in step
+  const w = {}; for (const [n] of Object.values(LOCO).flat()) w[n] = 0;
+  const s = Math.min(st.speed, top);
+  for (let i = 0; i < table.length - 1; i++) { const [n0, s0] = table[i], [n1, s1] = table[i + 1]; if (s >= s0 && s <= s1) { const t = (s - s0) / (s1 - s0); w[n0] += 1 - t; w[n1] += t; break; } }
+  if (s >= top) w[table[table.length - 1][0]] = 1;
+  const onceW = st.once ? st.once.getEffectiveWeight() : 0;
+  let rate = 0;
+  for (const [n, sp] of table) if (n !== 'idle' && w[n] > 0) { const a = P.actions[n]; const ts = THREE.MathUtils.clamp(st.speed / sp, .6, 1.5); rate += w[n] * ts / a.getClip().duration; }
+  st.phase = (st.phase + dt * rate) % 1;
+  for (const [n] of Object.values(LOCO).flat()) { const a = P.actions[n]; if (!a) continue; a.setEffectiveWeight(w[n] * (1 - onceW));
+    if (n !== 'idle') { a.timeScale = 0; a.time = st.phase * a.getClip().duration; } }
+  if (st.once && !st.once.isRunning() && st.once.userData.loop === false && st.once.time >= st.once.getClip().duration - .01) stopOnce();
+  P.mixer.update(dt);
+  // camera follow
+  tmp.copy(P.holder.position); tmp.y = 1.25; const dlt = tmp.clone().sub(ctl.target); ctl.target.add(dlt); cam.position.add(dlt);
+  sun.position.set(P.holder.position.x + 6, 10, P.holder.position.z + 4); sun.target.position.copy(P.holder.position);
+  $('hud').innerHTML = `속도 ${st.speed.toFixed(2)} m/s<br>걸음 ${GAITS[st.gait]}<br>동작 ${st.onceName ? (ACTS.find(a => a[0] === st.onceName) || [, st.onceName])[1] : (st.speed > .1 ? '이동' : '대기')}`;
+}
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+r.setAnimationLoop(() => { const dt = Math.min(clock.getDelta(), .05); update(dt); ctl.update(); r.render(scene, cam); });
+await choose('ijang');
+window.__dbg = { st, keys, get P() { return P; }, playOnce, choose, cam, ctl, update };
+</script>
