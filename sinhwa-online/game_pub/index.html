@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>신화리 온라인</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Full-bleed game view: title / help top-left, status top-right, minimap bottom-right, touch stick bottom-left. */
+:root { --ink: #eef0e6; --dim: #aab3a2; --panel: rgba(16, 20, 16, .78); --line: #3b483a; --acc: #e2cf72; --key: #283126;
+  --f: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; --m: "IBM Plex Mono", ui-monospace, monospace; color-scheme: dark }
+html, body { height: 100%; margin: 0; overflow: hidden; background: #a9bccb; color: var(--ink); font-family: var(--f); font-size: 13px }
+[hidden] { display: none !important }
+#v { position: fixed; inset: 0 } #v canvas { display: block; width: 100%; height: 100%; touch-action: none }
+.panel { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); width: min(290px, calc(100vw - 24px));
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 7px }
+.panel h1 { margin: 0; font-size: 15px } .panel h1 small { color: var(--dim); font-weight: 400; font-size: 12px; margin-left: 6px }
+.row { display: flex; flex-wrap: wrap; gap: 5px }
+button { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--key); border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; cursor: pointer }
+button[aria-pressed="true"] { background: var(--acc); color: #1b1d14; border-color: var(--acc) }
+button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
+.help { color: var(--dim); font-size: 12px; line-height: 1.6 }
+.hud { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-family: var(--m); font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums }
+#mini { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); width: 190px; height: 190px;
+  border-radius: 50%; border: 2px solid rgba(255, 255, 255, .6); background: #1d241c; overflow: hidden }
+#mini canvas { width: 100%; height: 100% }
+#load { position: fixed; inset: 0; display: grid; place-items: center; background: #a9bccb; color: #1d2a22; font-size: 15px; text-align: center; line-height: 1.7 }
+#stick { position: fixed; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .5); background: rgba(0, 0, 0, .15); touch-action: none; display: none }
+#stick i { position: absolute; left: 40px; top: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .7) }
+@media (pointer: coarse) { #stick { display: block } #mini { width: 130px; height: 130px } }
+</style>
+</head>
+<body>
+<div id="v"></div>
+<section class="panel" aria-label="게임 정보">
+  <h1>신화리 온라인<small>신화2리 · WebGPU</small></h1>
+  <div class="row" id="views"></div>
+  <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 마우스 드래그 카메라 · 휠 확대</div>
+</section>
+<div class="hud" id="hud">불러오는 중</div>
+<div id="mini"><canvas id="minic" width="380" height="380"></canvas></div>
+<div id="stick" aria-hidden="true"><i></i></div>
+<div id="load">신화리 들어가는 중…</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three/webgpu';
+import { pass, mrt, output, normalView, velocity, uniform, texture, uv, vec2, vec3, vec4, float, mix, smoothstep, clamp, fract, length, sin, cos, step as tstep, max, min,
+  positionWorld, positionLocal, cameraPosition, attribute, varying, Fn, lights, fog, densityFogFactor, color, screenUV, select } from 'three/tsl';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { ao } from 'three/addons/tsl/display/GTAONode.js';
+import { bloom } from 'three/addons/tsl/display/BloomNode.js';
+import { traa } from 'three/addons/tsl/display/TRAANode.js';
+
+const $ = id => document.getElementById(id);
+const say = t => { $('load').textContent = t; };
+window.addEventListener('error', e => { $('load').hidden = false; $('load').textContent = '오류: ' + e.message; });
+
+// ---------------------------------------------------------------- renderer (WebGPU, falls back to WebGL2 where WebGPU is missing)
+const r = new THREE.WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
+r.setPixelRatio(Math.min(devicePixelRatio, 1.5)); r.setSize(innerWidth, innerHeight);
+r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.0;
+r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+await r.init();
+$('v').appendChild(r.domElement);
+const BACKEND = r.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
+const scene = new THREE.Scene();
+const cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, .1, 6000);
+const ctl = new OrbitControls(cam, r.domElement); ctl.enablePan = false; ctl.maxPolarAngle = Math.PI * .49; ctl.minDistance = 1.5; ctl.maxDistance = 900;
+const maxAniso = r.getMaxAnisotropy ? r.getMaxAnisotropy() : 8;
+const glbFrom = (jsonText, b64) => { const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), jb = new TextEncoder().encode(jsonText);
+  const jl = jb.length + (4 - jb.length % 4) % 4, bl = bin.length + (4 - bin.length % 4) % 4, total = 28 + jl + bl, buf = new ArrayBuffer(total), dv = new DataView(buf), u8 = new Uint8Array(buf);
+  dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true); dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true); u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20);
+  dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl); return buf; };
+const tl = new THREE.TextureLoader();
+const tex = async (u, srgb = true) => { const t = await tl.loadAsync(u); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = maxAniso; return t; };
+
+// ---------------------------------------------------------------- data
+say('지형 읽는 중…');
+const [W, HJ, VB] = await Promise.all(['world.json', 'height.json', 'village/bake.json'].map(u => fetch(u).then(x => x.json())));
+const REG = VB.region;                                   // the playable area: the baked 신화2리 (game coords x east, y north)
+const hraw = Uint8Array.from(atob(HJ.data), c => c.charCodeAt(0)); const hu = new Uint16Array(hraw.buffer);
+const HW = HJ.w, HH = HJ.h, HS = HJ.step; const HF = new Float32Array(HW * HH); for (let i = 0; i < HF.length; i++) HF[i] = HJ.hmin + hu[i] * HJ.scale;
+function heightAt(x, y) {
+  let i = (x - HJ.x0) / HS, j = (y - HJ.y0) / HS; i = Math.min(Math.max(i, 0), HW - 1.001); j = Math.min(Math.max(j, 0), HH - 1.001);
+  const i0 = i | 0, j0 = j | 0, ti = i - i0, tj = j - j0, a = HF[j0 * HW + i0], b = HF[j0 * HW + i0 + 1], c = HF[(j0 + 1) * HW + i0], d = HF[(j0 + 1) * HW + i0 + 1];
+  return (a * (1 - ti) + b * ti) * (1 - tj) + (c * (1 - ti) + d * ti) * tj;
+}
+const V = (x, y, z) => new THREE.Vector3(x, z, -y);   // game -> three
+const inReg = (x, y, m = 0) => x > REG[0] + m && x < REG[2] - m && y > REG[1] + m && y < REG[3] - m;
+
+// ---------------------------------------------------------------- sky + image-based light (the same HDRI the bake used)
+say('하늘 펴는 중…');
+{ const j = await (await fetch('sky_env.json')).json(); const b = Uint8Array.from(atob(j.data), c => c.charCodeAt(0)); const hd = new RGBELoader().parse(b.buffer);
+  const t = new THREE.DataTexture(hd.data, hd.width, hd.height, THREE.RGBAFormat, hd.type); t.flipY = true; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.LinearSRGBColorSpace; t.needsUpdate = true;
+  scene.environment = t; scene.environmentIntensity = .9; }
+const skyBg = await tl.loadAsync('sky_bg.jpg'); skyBg.mapping = THREE.EquirectangularReflectionMapping; skyBg.colorSpace = THREE.SRGBColorSpace; scene.background = skyBg; scene.backgroundIntensity = 1.0;
+const FOGC = new THREE.Color('#b9c8d2');
+scene.fogNode = fog(color(FOGC), densityFogFactor(.0016));
+// sun aligned with the baked sun (Blender dir -> three), lights only characters + grass + the far terrain
+const sb = VB.sun.split(',').map(Number), SUN = new THREE.Vector3(sb[0], sb[2], -sb[1]).normalize();   // towards the sun
+const sun = new THREE.DirectionalLight('#fff0dc', 3.0); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 160 }); sun.shadow.bias = -.0004; sun.shadow.normalBias = .03;
+scene.add(sun, sun.target);
+const hemi = new THREE.HemisphereLight('#cfe0ee', '#6b6545', .55); scene.add(hemi);
+
+// ---------------------------------------------------------------- baked village (Blender Cycles lightmaps)
+say('마을 불러오는 중…');
+const LI = VB.lmax * Math.PI;
+const lmTex = async u => { const t = await tl.loadAsync('village/' + u); t.flipY = false; t.channel = 1; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
+const LMV = { ground: await lmTex('lm_ground.jpg'), build: await lmTex('lm_build.jpg') };
+const ONE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); ONE.needsUpdate = true; ONE.channel = 1;
+const mask = await tl.loadAsync('village/groundmask.png'); mask.flipY = false; mask.colorSpace = THREE.NoColorSpace;
+const paddyT = await tex('village/paddy.jpg'), gravelT = await tex('gravel.jpg');
+const NO_LIGHTS = lights([]);
+// surfaces by kind: painted corrugated steel and metal trims are glossy, painted plaster semi-gloss, asphalt / concrete a soft sheen
+function gloss(n) {
+  const nm = n.name.toLowerCase();
+  if (/roof|corrug|gutter|steel|frame|metal|pole|panel|shutter|tank|car|truck|tiller/.test(nm)) { n.roughness = Math.min(n.roughness, .32); n.metalness = Math.max(n.metalness, .45); n.envMapIntensity = 1.1; }
+  else if (/plaster|paint|tile|fac_|storefront|sign|wood/.test(nm)) { n.roughness = Math.min(n.roughness, .55); n.envMapIntensity = .45; }
+  else if (/asphalt|lane|yard|road|block|concrete|slab/.test(nm)) { n.roughness = Math.min(n.roughness, .7); n.envMapIntensity = .3; }
+  else if (/film/.test(nm)) { n.roughness = .15; n.envMapIntensity = 1.2; }
+}
+// copy a (glTF) standard material into a node material; baked surfaces take no realtime lights (the bake already has sun + sky)
+function toNode(m, baked) {
+  const n = new THREE.MeshStandardNodeMaterial();
+  for (const k of ['name', 'map', 'normalMap', 'normalScale', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'roughness', 'metalness', 'opacity', 'transparent', 'alphaTest',
+    'side', 'vertexColors', 'depthWrite', 'envMapIntensity', 'lightMap', 'lightMapIntensity', 'emissiveIntensity']) if (m[k] !== undefined) n[k] = m[k];
+  n.color.copy(m.color); if (m.emissive) n.emissive.copy(m.emissive);
+  if (baked) n.lightsNode = NO_LIGHTS;
+  return n;
+}
+function groundNode(n) {   // class mask (R dirt, G gravel, B grass, A paddy) in lightmap space: field soil, harvested paddy, dirt, gravel
+  const wp = positionWorld.xz, msk = texture(mask, uv(1)), nz = texture(paddyT, wp.mul(.021)).g, dist = positionWorld.sub(cameraPosition).length();
+  const f = vec2(wp.x.mul(.946).sub(wp.y.mul(.326)), wp.x.mul(.326).add(wp.y.mul(.946)));
+  const cell = vec2(fract(f.x.div(.30)).sub(.5), fract(f.y.div(.15)).sub(.5).mul(.5));
+  const tuft = float(1).sub(smoothstep(.07, .2, length(cell))), near = float(1).sub(smoothstep(12, 45, dist));
+  const mud = texture(paddyT, wp.mul(.23)).rgb.mul(vec3(.78, .74, .70)), stub = vec3(.62, .53, .33);
+  const straw = smoothstep(.55, .8, texture(paddyT, wp.mul(1.7).add(3.1)).r).mul(.5);
+  const pd0 = mix(mud, stub, clamp(tuft.mul(near).mul(.85).add(straw.mul(.4)), 0, 1)), pd = mix(pd0, mix(mud, stub, .28), smoothstep(30, 90, dist));
+  const base = texture(n.map, uv()).rgb.mul(vec3(.92, .9, .82));
+  const c1 = mix(base, pd, smoothstep(.25, .75, msk.a.add(nz.sub(.5).mul(.25))));
+  const c2 = mix(c1, texture(paddyT, wp.mul(.55)).rgb.mul(.92), smoothstep(.15, .85, msk.r.add(nz.sub(.5).mul(.5))));
+  const c3 = mix(c2, texture(gravelT, wp.mul(.45)).rgb.mul(.85), smoothstep(.2, .8, msk.g.add(nz.sub(.5).mul(.4))));
+  n.colorNode = vec4(c3, 1);
+}
+const [vjt, vhead] = await Promise.all([fetch('village/scene.json').then(x => x.text()), fetch('village/scene_bin.json').then(x => x.json())]);
+const vparts = await Promise.all(Array.from({ length: vhead.parts }, (_, i) => fetch(`village/scene_bin${i}.json`).then(x => x.json())));
+const gl = new GLTFLoader(); gl.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
+const vg = await gl.parseAsync(glbFrom(vjt, vparts.map(q => q.data).join('')), 'village/');
+let groundMesh = null; const conv = new Map();
+vg.scene.traverse(o => {
+  if (!o.isMesh) return;
+  o.castShadow = false; o.receiveShadow = false;
+  let p_ = o, tag = null; while (p_) { if (p_.userData && p_.userData.lm) { tag = p_.userData.lm; break; } p_ = p_.parent; }
+  if (tag === 'vc') { const g = o.geometry; if (!g.attributes.uv1) g.setAttribute('uv1', new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2)); }
+  const mats = [].concat(o.material).map(m => {
+    const key = m.uuid + '|' + tag; if (conv.has(key)) return conv.get(key);
+    if ((m.transparent || m.alphaTest > 0) && m.map && !/glass|paper|film/.test(m.name)) { m.transparent = false; m.alphaTest = .5; m.depthWrite = true; m.side = THREE.DoubleSide; }
+    if (m.map) m.map.anisotropy = maxAniso;
+    let n;
+    if (tag === 'vc') { n = toNode(m, true); n.vertexColors = !!o.geometry.attributes.color; n.lightMap = ONE; n.lightMapIntensity = LI; n.envMapIntensity = (m.roughness < .35 || m.metalness > .5) ? .6 : .05; }
+    else if (tag) { n = toNode(m, true); n.lightMap = LMV[tag]; n.lightMapIntensity = LI; n.envMapIntensity = (m.roughness < .35 || m.metalness > .3) ? .9 : .08;
+      gloss(n);
+      if (m.name === 'glass') { n.color.set('#5a6873'); n.metalness = .75; n.roughness = .04; n.envMapIntensity = 1.6; }
+      if (['g_yard', 'yard_b', 'g_lane', 'lane_b'].includes(m.name)) n.color.setScalar(.8);
+      if (m.name === 'g_ground') { groundNode(n); } }
+    else { n = toNode(m, false); if (m.name === 'film') { n.transparent = true; n.opacity = .38; n.depthWrite = false; n.side = THREE.DoubleSide; o.renderOrder = 2; } }
+    conv.set(key, n); return n; });
+  o.material = mats.length === 1 ? mats[0] : mats;
+  if (o.name === 'LM_GROUND' || (o.parent && o.parent.name === 'LM_GROUND')) groundMesh = groundMesh || o;
+});
+scene.add(vg.scene);
+// realtime character shadows on the baked ground: a shadow-only copy of the ground
+if (groundMesh) { const sc = new THREE.Mesh(groundMesh.geometry, new THREE.ShadowNodeMaterial({ opacity: .55 })); sc.applyMatrix4(groundMesh.matrixWorld); sc.receiveShadow = true; sc.renderOrder = 1;
+  sc.material.polygonOffset = true; sc.material.polygonOffsetFactor = -2; scene.add(sc); }
+
+// ---------------------------------------------------------------- far terrain outside the village (realtime lit, fades into the fog)
+{ const STEPF = 8, X0 = REG[0] - 1400, X1 = REG[2] + 1400, Y0 = REG[1] - 1400, Y1 = REG[3] + 1400, nx = Math.round((X1 - X0) / STEPF), ny = Math.round((Y1 - Y0) / STEPF);
+  const pos = new Float32Array((nx + 1) * (ny + 1) * 3), uvA = new Float32Array((nx + 1) * (ny + 1) * 2); let k = 0;
+  for (let j = 0; j <= ny; j++) for (let i = 0; i <= nx; i++) { const x = X0 + i * STEPF, y = Y0 + j * STEPF; pos[k * 3] = x; pos[k * 3 + 1] = heightAt(x, y) - .05; pos[k * 3 + 2] = -y; uvA[k * 2] = x / 7; uvA[k * 2 + 1] = y / 7; k++; }
+  const idx = [];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) { const cx = X0 + (i + .5) * STEPF, cy = Y0 + (j + .5) * STEPF; if (inReg(cx, cy, 2)) continue;
+    const a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uvA, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const gt = await tex('tex/Grass004_1K-JPG_Color.jpg'), pt = await tex('tex/Ground109_1K-JPG_Color.jpg');
+  const m = new THREE.MeshStandardNodeMaterial({ roughness: .95 });
+  const wp = positionWorld.xz, n1 = texture(pt, wp.mul(.004)).g;
+  m.colorNode = mix(texture(gt, wp.div(7)).rgb.mul(vec3(.9, .86, .66)), texture(pt, wp.div(5)).rgb.mul(.82), smoothstep(.35, .6, n1));
+  const terr = new THREE.Mesh(g, m); terr.receiveShadow = false; scene.add(terr); }
+
+// ---------------------------------------------------------------- grass blades (instanced, positions wrap around the player in the vertex stage)
+const grassCam = uniform(new THREE.Vector3()), grassTime = uniform(0);
+{ const S = 64, COUNT = 600000;
+  const hm = await tl.loadAsync('village/heightmap.png'); hm.flipY = false; hm.colorSpace = THREE.NoColorSpace; hm.minFilter = hm.magFilter = THREE.NearestFilter; hm.generateMipmaps = false;
+  const lmG = await tl.loadAsync('village/lm_ground.jpg'); lmG.flipY = false; lmG.colorSpace = THREE.NoColorSpace;
+  const base = new THREE.InstancedBufferGeometry(); const ts = [0, .3, .58, .82], P = [];
+  for (const t of ts) { const w = 1 - t * .85; P.push(-.5 * w, t, 0, .5 * w, t, 0); } P.push(0, 1, 0);
+  const I = []; for (let i = 0; i < ts.length - 1; i++) { const a = i * 2; I.push(a, a + 1, a + 3, a, a + 3, a + 2); } const last = (ts.length - 1) * 2; I.push(last, last + 1, last + 2);
+  base.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); base.setIndex(I);
+  base.setAttribute('normal', new THREE.Float32BufferAttribute(Array.from({ length: P.length / 3 }, () => [0, 1, 0]).flat(), 3));   // up: the AO pass reads blades like the ground
+  const off = new Float32Array(COUNT * 4); for (let i = 0; i < COUNT; i++) { off[i * 4] = Math.random() * S; off[i * 4 + 1] = Math.random() * S; off[i * 4 + 2] = Math.random(); off[i * 4 + 3] = Math.random(); }
+  base.setAttribute('iOff', new THREE.InstancedBufferAttribute(off, 4)); base.instanceCount = COUNT;
+  const iOff = attribute('iOff', 'vec4');
+  const reg = vec4(REG[0], REG[1], REG[2], REG[3]), hr = vec2(VB.hlo, VB.hhi);
+  const p = grassCam.xz.add(iOff.xy.sub(grassCam.xz).add(S * .5).mod(S)).sub(S * .5);       // wrap the patch around the player
+  const muv = vec2(p.x.sub(reg.x).div(reg.z.sub(reg.x)), p.y.add(reg.w).div(reg.w.sub(reg.y)));
+  const hc = texture(hm, muv).level(0), gy = hr.x.add(hc.r.mul(65280).add(hc.g.mul(255)).div(65535).mul(hr.y.sub(hr.x)));
+  const inR = tstep(0, muv.x).mul(tstep(muv.x, 1)).mul(tstep(0, muv.y)).mul(tstep(muv.y, 1));
+  const dens = texture(mask, muv).level(0).b, dist = p.sub(grassCam.xz).length(), lod = smoothstep(9, 28, dist);
+  const lmv = texture(lmG, muv).level(0).rgb;
+  const keep = inR.mul(tstep(.06, lmv.g)).mul(tstep(iOff.z, dens.pow(1.4).mul(mix(1, .45, lod)))).mul(float(1).sub(smoothstep(S * .36, S * .49, dist)));
+  const h = mix(.16, .42, fract(iOff.w.mul(7.13))).mul(mix(.7, 1.35, dens)).mul(keep);
+  const w = mix(.035, .07, fract(iOff.z.mul(13.7))).mul(mix(1, 2.3, lod)).mul(tstep(.001, keep));
+  const bp = attribute('position', 'vec3'), ang = iOff.w.mul(6.2832), dir = vec2(cos(ang), sin(ang)), side = vec2(dir.y.negate(), dir.x), t = bp.y;
+  const wind = sin(grassTime.mul(1.7).add(p.x.mul(.21)).add(p.y.mul(.17))).mul(.5).add(sin(grassTime.mul(3.3).add(p.x.mul(.9))).mul(.2));
+  const bend = fract(iOff.z.mul(31.1)).mul(.5).add(.15).add(wind.mul(.35)).mul(t).mul(t).mul(h);
+  const wpos = vec3(p.x.add(side.x.mul(bp.x).mul(w)).add(dir.x.mul(bend)), gy.sub(.03).add(t.mul(h)), p.y.add(side.y.mul(bp.x).mul(w)).add(dir.y.mul(bend)));
+  const L = varying(texture(lmG, muv).level(0).rgb.pow(2.2).mul(VB.lmax));
+  const dry = tstep(.45, fract(iOff.w.mul(3.71))).mul(fract(iOff.z.mul(5.3)).mul(.5).add(.5));
+  const gm = new THREE.MeshBasicNodeMaterial({ side: THREE.DoubleSide });
+  gm.positionNode = wpos;   // world-space (the mesh sits at the origin)
+  gm.mrtNode = mrt({ aom: float(0) });
+  const tv = varying(t);
+  gm.colorNode = vec4(mix(vec3(.035, .06, .018), mix(vec3(.22, .32, .07), vec3(.42, .36, .16), dry), smoothstep(0, 1, tv)).mul(L).mul(tv.mul(.6).add(.55)), 1);
+  { const dbg = new URLSearchParams(location.search).get('gdbg'); if (dbg === '1') gm.colorNode = vec4(L, 1); if (dbg === '2') gm.colorNode = vec4(0, 1, 0, 1); if (dbg === '3') gm.colorNode = vec4(vec3(tv), 1); }
+  const grass = new THREE.Mesh(base, gm); grass.frustumCulled = false; scene.add(grass); window.__grass = grass; }
+
+// ---------------------------------------------------------------- characters (the player + villagers standing about)
+say('주민 부르는 중…');
+const [at, ab, AM] = await Promise.all([fetch('anim.json').then(x => x.text()), fetch('anim_bin.json').then(x => x.json()), fetch('anims.json').then(x => x.json())]);
+const AG = await new GLTFLoader().parseAsync(glbFrom(at, ab.data), './');
+const uvC = uv();
+async function person(id) {
+  const base = 'npc/' + id + '/';
+  const [jt, bj, EX] = await Promise.all([fetch(base + 'human.json').then(x => x.text()), fetch(base + 'human_bin.json').then(x => x.json()), fetch(base + 'extras.json').then(x => x.json())]);
+  const g = await new GLTFLoader().parseAsync(glbFrom(jt, bj.data), base), model = g.scene;
+  model.traverse(o => { if (!o.isMesh) return; o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+    const m = o.material; if (EX.tints && EX.tints[m.name]) m.color.set(EX.tints[m.name]);
+    const n = toNode(m, false);
+    if (/short|long|bob|hair|eyebrow|eyelash/i.test(m.name)) { n.transparent = false; n.alphaTest = .5; n.depthWrite = true; n.side = THREE.DoubleSide; n.roughness = .75; o.castShadow = !/eyebrow|eyelash/i.test(m.name); }
+    else if (/lens/i.test(m.name)) { n.transparent = true; n.opacity = .12; n.depthWrite = false; }
+    else if (/high-poly/i.test(m.name)) { n.transparent = false; n.alphaTest = .5; n.roughness = .08; n.opacityNode = select(uvC.x.greaterThan(.86).and(uvC.y.greaterThan(.86)), float(0), float(1)); o.castShadow = false; }
+    else if (/facephoto/i.test(m.name)) { n.transparent = true; n.depthWrite = false; o.renderOrder = 2; o.castShadow = false; }
+    else { n.transparent = false; n.depthWrite = true; n.alphaTest = 0; }
+    o.material = n; });
+  const bone = nm => { let b = null; model.traverse(o => { if (o.isBone && o.name === nm) b = o; }); return b; }, wpv = o => o.getWorldPosition(new THREE.Vector3());
+  model.updateMatrixWorld(true); const f = wpv(bone('ball_l')).sub(wpv(bone('foot_l'))); f.y = 0; f.normalize(); model.rotation.y = -Math.atan2(f.x, f.z); model.updateMatrixWorld(true);
+  if (wpv(bone('ball_l')).sub(wpv(bone('foot_l'))).z < 0) model.rotation.y += Math.PI;
+  let refP = null; AG.scene.traverse(o => { if (o.name === 'pelvis') refP = o.position.clone(); });
+  const pel = bone('pelvis'), rest = pel.position.clone(), k = rest.length() / refP.length();
+  const mixer = new THREE.AnimationMixer(model), act = {};
+  for (const clip of AG.animations) { const c = clip.clone(); for (const tr of c.tracks) if (tr.name === 'pelvis.position') for (let i = 0; i < tr.values.length; i += 3) for (let a = 0; a < 3; a++) tr.values[i + a] = rest.getComponent(a) + (tr.values[i + a] - refP.getComponent(a)) * k;
+    act[c.name] = mixer.clipAction(c); }
+  const holder = new THREE.Group(); holder.add(model); scene.add(holder);
+  return { holder, mixer, act };
+}
+const NPCS = [['ijang', 8, -6, 2.6], ['halmeoni', 14, 9, -1.2], ['syuper', -12, -9, .8], ['anjun', 22, -18, -2.2], ['woochan', 25, -16, 2.4]];
+let P = null; const npcs = [];
+try {
+  const pl = await person('minseok');
+  for (const n of ['idle', 'walk', 'jog', 'run']) { pl.act[n].play(); pl.act[n].setEffectiveWeight(n === 'idle' ? 1 : 0); }
+  P = { ...pl, x: 6, y: -14, yaw: Math.PI, speed: 0, phase: 0 };
+} catch (e) { console.warn('player', e); }
+for (const [id, x, y, yaw] of NPCS) person(id).then(n => { n.act.idle.play(); n.act.idle.time = Math.random() * 3; n.holder.position.copy(V(x, y, heightAt(x, y))); n.holder.rotation.y = yaw; npcs.push({ ...n, x, y }); }).catch(e => console.warn(id, e));
+
+// ---------------------------------------------------------------- collisions (what the bake built inside the village)
+const colliders = [];
+function bakedBox(b) {
+  if (!inReg(b.c[0], b.c[1], 6)) return null;
+  if (Math.hypot(b.c[0], b.c[1] - 2) < 30) return null;
+  const fl = Math.max(1, b.floors || 1);
+  if (['shop', 'civic', 'barracks'].includes(b.kind) || (b.kind === 'house' && fl >= 2)) { let L = Math.max(b.l, 6), D = Math.max(b.w, 6);
+    if (b.kind === 'house') { L = Math.min(L, 22); D = Math.min(D, 14); } else if (b.kind === 'shop') { L = Math.min(L, 30); D = Math.min(D, 18); } return { l: L, w: D }; }
+  if (b.kind === 'house') return { l: Math.min(Math.max(b.l, 7.5), 17), w: Math.min(Math.max(b.w, 5.8), 10.5) };
+  if (b.kind === 'warehouse') return { l: Math.min(b.l, 46), w: Math.min(b.w, 26) };
+  return { l: Math.min(b.l, 18), w: Math.min(b.w, 11) };
+}
+for (const b of W.buildings) { const bb = bakedBox(b); if (bb) colliders.push({ c: b.c, a: b.a, hl: bb.l / 2 + .2, hw: bb.w / 2 + .2 }); }
+for (const h of W.greenhouses) if (inReg(h.c[0], h.c[1], 4) && h.l >= 10) colliders.push({ c: h.c, a: h.a, hl: Math.min(h.l, 80) / 2, hw: Math.max(2.6, Math.min(h.w / 2, 4)) });
+colliders.push({ c: [0, 2], a: .12, hl: 9.3, hw: 5.3 }, { c: [-13, 1.44], a: .12, hl: 4.2, hw: 4.2 });
+for (const [, x, y] of NPCS) colliders.push({ c: [x, y], a: 0, hl: .3, hw: .3 });
+function collide(x, y, rad = .35) {
+  for (const c of colliders) {
+    const dx0 = x - c.c[0], dy0 = y - c.c[1]; if (Math.abs(dx0) > c.hl + c.hw + 2 && Math.abs(dy0) > c.hl + c.hw + 2) continue;
+    const ca = Math.cos(c.a), sa = Math.sin(c.a); let u = dx0 * ca + dy0 * sa, v = -dx0 * sa + dy0 * ca;
+    const cu = Math.max(-c.hl, Math.min(c.hl, u)), cv = Math.max(-c.hw, Math.min(c.hw, v)), du = u - cu, dv = v - cv, d = Math.hypot(du, dv);
+    if (d < rad) { if (d > 1e-4) { u = cu + du / d * rad; v = cv + dv / d * rad; } else { if (c.hl - Math.abs(u) < c.hw - Math.abs(v)) u = Math.sign(u || 1) * (c.hl + rad); else v = Math.sign(v || 1) * (c.hw + rad); }
+      x = c.c[0] + u * ca - v * sa; y = c.c[1] + u * sa + v * ca; }
+  }
+  return [Math.min(REG[2] - 3, Math.max(REG[0] + 3, x)), Math.min(REG[3] - 3, Math.max(REG[1] + 3, y))];   // the test map ends at the village edge
+}
+
+// ---------------------------------------------------------------- minimap (the village only)
+const mini = $('minic').getContext('2d');
+const MAPIMG = (() => { const s = .9, c = document.createElement('canvas'); c.width = (REG[2] - REG[0]) * s; c.height = (REG[3] - REG[1]) * s; const g = c.getContext('2d');
+  g.fillStyle = '#6f7d55'; g.fillRect(0, 0, c.width, c.height); const X = x => (x - REG[0]) * s, Y = y => (REG[3] - y) * s;
+  for (const rd of W.roads) { g.strokeStyle = rd.w >= 8 ? '#f4f0e0' : rd.w >= 4 ? '#e0d8c0' : '#b8aa88'; g.lineWidth = Math.max(1, rd.w * s); g.beginPath(); rd.pts.forEach((p, i) => i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))); g.stroke(); }
+  g.fillStyle = '#8a8f98'; for (const c_ of colliders) { g.save(); g.translate(X(c_.c[0]), Y(c_.c[1])); g.rotate(-c_.a); g.fillRect(-c_.hl * s, -c_.hw * s, c_.hl * 2 * s, c_.hw * 2 * s); g.restore(); }
+  return { c, s }; })();
+function drawMini(x, y, yaw) {
+  const g = mini, S = 380, zoom = 1.3; g.save(); g.fillStyle = '#1d241c'; g.fillRect(0, 0, S, S); g.translate(S / 2, S / 2); g.scale(zoom, zoom);
+  g.drawImage(MAPIMG.c, -(x - REG[0]) * MAPIMG.s, -(REG[3] - y) * MAPIMG.s); g.restore();
+  for (const n of npcs) { const dx = (n.x - x) * MAPIMG.s * zoom, dy = -(n.y - y) * MAPIMG.s * zoom; if (Math.hypot(dx, dy) < S / 2 - 8) { g.fillStyle = '#e2cf72'; g.beginPath(); g.arc(S / 2 + dx, S / 2 + dy, 5, 0, 7); g.fill(); } }
+  g.save(); g.translate(S / 2, S / 2); g.rotate(-yaw + Math.PI); g.fillStyle = '#ff5a3c'; g.beginPath(); g.moveTo(0, -13); g.lineTo(8, 9); g.lineTo(-8, 9); g.closePath(); g.fill(); g.restore();
+}
+
+// ---------------------------------------------------------------- post: GTAO + bloom + temporal AA + grade (all node passes)
+const post = new THREE.RenderPipeline(r);
+const scenePass = pass(scene, cam);
+scenePass.setMRT(mrt({ output, normal: normalView, velocity, aom: float(1) }));
+const sCol = scenePass.getTextureNode('output'), sNrm = scenePass.getTextureNode('normal'), sDep = scenePass.getTextureNode('depth'), sVel = scenePass.getTextureNode('velocity');
+const aoPass = ao(sDep, sNrm, cam); aoPass.resolutionScale = .5; aoPass.radius.value = .45; aoPass.thickness.value = 1;
+const aoTerm = mix(float(1), aoPass.getTextureNode().r, scenePass.getTextureNode('aom').r.mul(.55));   // grass writes aom = 0: blades are lit by the bake, not darkened by screen-space AO
+const lit = vec4(sCol.rgb.mul(aoTerm), sCol.a);
+const glow = bloom(lit, .22, .35, .92);
+const aa = traa(lit.add(glow), sDep, sVel, cam);
+const grade = Fn(([c]) => { const l = c.rgb.dot(vec3(.2126, .7152, .0722)); let g_ = mix(vec3(l), c.rgb, 1.05);
+  const vig = float(1).sub(screenUV.sub(.5).length().mul(.55).pow(2.2)); return vec4(g_.mul(vec3(1.015, 1, .985)).mul(vig), c.a); });
+post.outputNode = grade(aa);
+
+// ---------------------------------------------------------------- input
+let mode = 'walk';
+const keys = new Set(); const joy = { x: 0, y: 0 };
+addEventListener('keydown', e => { keys.add(e.key.toLowerCase()); if ([' ', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) e.preventDefault(); });
+addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListener('blur', () => keys.clear());
+{ const s = $('stick'), knob = s.querySelector('i'); let id = null; const move = e => { const rc = s.getBoundingClientRect(); let x = (e.clientX - rc.left - 60) / 50, y = (e.clientY - rc.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
+  s.addEventListener('pointerdown', e => { id = e.pointerId; s.setPointerCapture(id); move(e); }); s.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); }); s.addEventListener('pointerup', () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; }); }
+function btns(host, items, on) { host.replaceChildren(...items.map(([v, label]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v; b.textContent = label; b.addEventListener('click', () => { on(v); b.blur(); }); return b; })); }
+function setMode(m) { mode = m; $('views').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === m)));
+  if (m === 'sky') { ctl.target.set((REG[0] + REG[2]) / 2, 0, -(REG[1] + REG[3]) / 2); cam.position.set(ctl.target.x + 260, 330, ctl.target.z + 420); ctl.update(); }
+  else if (P) placeAt(P.x, P.y); }
+function placeAt(x, y) { if (!P) return; [P.x, P.y] = collide(x, y); P.speed = 0; const t = V(P.x, P.y, heightAt(P.x, P.y) + 1.35); ctl.target.copy(t); cam.position.copy(t).add(new THREE.Vector3(3.5, 2.2, 6)); mode = 'walk'; }
+btns($('views'), [['walk', '걷기'], ['sky', '하늘에서 보기']], setMode);
+
+// ---------------------------------------------------------------- loop
+const clock = new THREE.Clock(); let frames = 0, ft0 = performance.now(), fps = 60;
+function step(dt) {
+  if (P && mode === 'walk') {
+    const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
+    const mag = Math.min(1, Math.hypot(ix, iz)), moving = mag > .1, want = moving ? (keys.has('shift') ? 3.0 : 1.0) * (joy.x || joy.y ? Math.max(mag, .4) : 1) : 0;
+    P.speed += Math.sign(want - P.speed) * Math.min(Math.abs(want - P.speed), (want > P.speed ? 3.2 : 5) * dt);
+    if (moving) { const camYaw = Math.atan2(cam.position.x - ctl.target.x, cam.position.z - ctl.target.z), dir = Math.atan2(ix, iz) + camYaw; let d = dir - P.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); P.yaw += d * Math.min(1, dt * 10); }
+    const nx = P.x + Math.sin(P.yaw) * P.speed * dt, ny = P.y - Math.cos(P.yaw) * P.speed * dt; [P.x, P.y] = collide(nx, ny);
+    const z = heightAt(P.x, P.y); P.holder.position.copy(V(P.x, P.y, z)); P.holder.rotation.y = P.yaw;
+    const table = [['idle', 0], ['walk', 1.0], ['jog', 2.3], ['run', 3.0]], w = { idle: 0, walk: 0, jog: 0, run: 0 }, s = Math.min(P.speed, 3);
+    for (let i = 0; i < 3; i++) { const [a, sa] = table[i], [b, sb] = table[i + 1]; if (s >= sa && s <= sb) { const t = (s - sa) / (sb - sa); w[a] += 1 - t; w[b] += t; break; } }
+    let rate = 0; for (const [n, sp] of table) if (n !== 'idle' && w[n] > 0) rate += w[n] * THREE.MathUtils.clamp(P.speed / sp, .6, 1.5) / P.act[n].getClip().duration;
+    P.phase = (P.phase + dt * rate) % 1;
+    for (const n in w) { P.act[n].setEffectiveWeight(w[n]); if (n !== 'idle') { P.act[n].timeScale = 0; P.act[n].time = P.phase * P.act[n].getClip().duration; } }
+    P.mixer.update(dt);
+    const tgt = V(P.x, P.y, z + 1.35), d = tgt.clone().sub(ctl.target); ctl.target.add(d); cam.position.add(d);
+    const cz = heightAt(cam.position.x, -cam.position.z) + .6; if (cam.position.y < cz) cam.position.y = cz;
+  }
+  for (const n of npcs) n.mixer.update(dt);
+  if (P) P.holder.visible = mode === 'walk';
+  ctl.update();
+  const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
+  sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN, 80); sun.target.updateMatrixWorld();
+  grassCam.value.set(focus.x, 0, focus.z); grassTime.value = performance.now() / 1000; window.__grass.visible = mode === 'walk';
+  if (P) drawMini(P.x, P.y, P.yaw);
+}
+if (P) placeAt(6, -14);
+$('load').hidden = true;
+window.__game = { cam, ctl, scene, heightAt, placeAt, setMode, step, get P() { return P; }, npcs, backend: BACKEND };
+r.setAnimationLoop(() => {
+  const dt = Math.min(clock.getDelta(), .05); step(dt); post.render();
+  frames++; const now = performance.now(); if (now - ft0 > 1000) { fps = frames * 1000 / (now - ft0); frames = 0; ft0 = now;
+    const gp = P ? `${P.x.toFixed(0)}, ${P.y.toFixed(0)}` : '-'; $('hud').innerHTML = `${Math.round(fps)} fps · ${BACKEND}<br>위치 ${gp}`; }
+});
+addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+</script>
+</body>
+</html>

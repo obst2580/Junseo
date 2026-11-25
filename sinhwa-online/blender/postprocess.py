@@ -16,6 +16,20 @@ for tag in ('ground', 'build'):
     a = np.load(os.path.join(src, f'lm_{tag}.npy')).astype(np.float32)
     a = np.flipud(a)
     a = np.nan_to_num(a, nan=0.0, posinf=LMAX, neginf=0.0)
+    # fill texels the bake never reached (under removed ground, between UV islands) from their baked neighbours,
+    # so bilinear lookups and grass at the edges don't pick up black
+    hole = a.max(-1) < 1e-5
+    if hole.any():
+        a = a.copy(); a[hole] = 0; valid = (~hole).astype(np.float32); n0 = int(hole.sum())
+        for _ in range(96):   # grow the baked texels outwards one ring at a time
+            if not hole.any(): break
+            acc = np.zeros_like(a); cnt = np.zeros(valid.shape, np.float32)
+            for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                acc += np.roll(a * valid[..., None], (dy, dx), (0, 1)); cnt += np.roll(valid, (dy, dx), (0, 1))
+            grow = hole & (cnt > 0)
+            a[grow] = acc[grow] / cnt[grow][:, None]; valid[grow] = 1; hole &= ~grow
+        if hole.any(): a[hole] = a[valid > 0].mean(0)
+        print('lightmap', tag, 'filled', n0, 'texels')
     stats[tag] = {'mean': float(a.mean()), 'p95': float(np.percentile(a, 95)), 'max': float(a.max())}
     enc = np.clip(a / LMAX, 0, 1) ** (1 / 2.2)
     im = Image.fromarray((enc * 255 + .5).astype(np.uint8), 'RGB')
