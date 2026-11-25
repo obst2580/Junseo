@@ -103,6 +103,7 @@ const B = W.bounds;
 const REGION_DIRS = ['village', 'town', 'camp'];   // 신화리 / 연무읍 / 훈련소 (each loads when the player comes near)
 const VBS = (await Promise.all(REGION_DIRS.map(d => fetch(d + '/bake.json').then(x => x.ok ? x.json() : null).catch(() => null))))
   .map((b, i) => b && { ...b, dir: REGION_DIRS[i] }).filter(Boolean);
+for (const b of VBS) for (const e of b.extra || []) W.buildings.push({ ...e, rc: null, src: 'infill' });   // infill buildings baked into a region: colliders + minimap
 const inR = (r, x, y, m = 0) => x > r[0] + m && x < r[2] - m && y > r[1] + m && y < r[3] - m;
 const inV = (x, y, m = 0) => VBS.some(b => inR(b.region, x, y, m));
 function clipRuns(list) {   // polylines outside the village, each run reaching one point into it so the joins meet

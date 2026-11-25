@@ -745,6 +745,39 @@ def front_rot(b, x, y):
         fx, fy = math.sin(cand), -math.cos(cand)   # local three +z (= Blender -y) after the Z rotation, in game coords
         if fx * to[0] + fy * to[1] > math.sin(best) * to[0] - math.cos(best) * to[1]: best = cand
     return best
+# ---- infill: small dense core — fill empty road frontage with shops / villas (town) or barracks (camp)
+INFILL = os.environ.get('INFILL', '')
+EXTRA = []
+if INFILL:
+    occ = [(b['c'][0], b['c'][1], max(b['l'], b['w']) / 2 + 2) for b in WJ['buildings'] if inreg(b['c'][0], b['c'][1], -30)]
+    occ += [(g['c'][0], g['c'][1], max(g['l'], g['w']) / 2 + 2) for g in WJ['greenhouses'] if inreg(g['c'][0], g['c'][1], -30)]
+    random.seed(11)
+    for (a_, b_, w_) in ROAD_SEGS:
+        if w_ < 3: continue
+        L = math.hypot(b_[0] - a_[0], b_[1] - a_[1]);
+        if L < 1: continue
+        ux, uy = (b_[0] - a_[0]) / L, (b_[1] - a_[1]) / L; nxv, nyv = -uy, ux
+        step_ = 13.0 if INFILL == 'town' else 22.0
+        for t in np.arange(step_ / 2, L, step_):
+            for side in (-1, 1):
+                if INFILL == 'town':
+                    big = w_ >= 6; kind = 'shop' if (big or random.random() < .35) else ('house' if random.random() < .5 else 'villa')
+                    l_, d_ = (random.uniform(10, 14), random.uniform(8, 11)) if kind != 'house' else (random.uniform(8, 11), random.uniform(6.5, 8))
+                    fl = random.choice([2, 2, 3, 3, 4]) if kind == 'shop' else (random.choice([2, 3]) if kind == 'villa' else 1)
+                else:
+                    kind = 'barracks'; l_, d_ = random.uniform(30, 50), random.uniform(12, 15); fl = random.choice([2, 3, 3, 4])
+                off = w_ / 2 + 2.5 + d_ / 2
+                cx, cy = a_[0] + ux * t + nxv * off * side, a_[1] + uy * t + nyv * off * side
+                if not inreg(cx, cy, max(l_, d_) / 2 + 3): continue
+                r_ = max(l_, d_) / 2 + 1.5
+                if any(math.hypot(cx - ox, cy - oy) < r_ + orr for ox, oy, orr in occ): continue
+                rn = road_near(cx, cy)
+                if rn and rn[0] < rn[3] / 2 + d_ / 2 + .8: continue
+                ang = math.atan2(uy, ux)
+                EXTRA.append({'c': [cx, cy], 'l': l_, 'w': d_, 'a': ang, 'kind': kind if kind != 'villa' else 'house', 'floors': fl, 'z': hget(cx, cy), 'infill': 1})
+                occ.append((cx, cy, r_))
+    WJ['buildings'] = WJ['buildings'] + EXTRA
+    print('infill', len(EXTRA))
 # ---- buildings from the satellite pass
 ROOFM = {'blue': ['roof_blue'], 'teal': ['roof_green'], 'warm': ['roof_red', 'roof_orange'], 'white': ['panel_grey', 'panel_white']}
 nh = nw = 0
@@ -1038,5 +1071,5 @@ bpy.ops.export_scene.gltf(filepath=os.path.join(OUT, 'scene.gltf'), export_forma
 print('sun_dir_blender', tuple(sun_dir))
 with open(os.path.join(OUT, 'sun.txt'), 'w') as f: f.write(','.join(f'{c:.5f}' for c in sun_dir))
 import json
-json.dump({'region': REG, **LAYOUT}, open(os.path.join(OUT, 'layout.json'), 'w'))
+json.dump({'region': REG, **LAYOUT, 'extra': [{k: e[k] for k in ('c', 'l', 'w', 'a', 'kind', 'floors', 'z')} for e in EXTRA]}, open(os.path.join(OUT, 'layout.json'), 'w'))
 print('DONE')

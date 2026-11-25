@@ -128,5 +128,5 @@ if 'region' in lay and os.environ.get('WORLD'):   # terrain height over the regi
     h = (hu[j0, i0] * (1 - ti) + hu[j0, i0 + 1] * ti) * (1 - tj) + (hu[j0 + 1, i0] * (1 - ti) + hu[j0 + 1, i0 + 1] * ti) * tj
     lo, hi = float(h.min()) - 1, float(h.max()) + 1; q = np.round((h - lo) / (hi - lo) * 65535).astype(np.uint32)
     Image.fromarray(np.dstack([(q >> 8), (q & 255), np.zeros_like(q)]).astype(np.uint8), 'RGB').save(os.path.join(dst, 'heightmap.png'))
-    b = json.load(open(os.path.join(dst, 'bake.json'))); b.update(region=lay['region'], hlo=lo, hhi=hi); json.dump(b, open(os.path.join(dst, 'bake.json'), 'w'))
+    b = json.load(open(os.path.join(dst, 'bake.json'))); b.update(region=lay['region'], hlo=lo, hhi=hi, extra=lay.get('extra', [])); json.dump(b, open(os.path.join(dst, 'bake.json'), 'w'))
     print('heightmap', lo, hi)
