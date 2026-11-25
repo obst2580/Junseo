@@ -471,10 +471,12 @@ const CLIPS = AM.clips;
 const NAMES = { minseok: '민석', ijang: '오만복 이장', halmeoni: '박순례 할머니', syuper: '슈퍼 사장님', anjun: '안준', woochan: '조우찬', jinwook: '홍진욱', parkjin: '박진' };
 const TEMPER = { ijang: 'flee', halmeoni: 'flee', syuper: 'fight', anjun: 'fight', woochan: 'fight', jinwook: 'fight', parkjin: 'fight' };
 const GANG = new Set(['anjun', 'woochan', 'jinwook', 'parkjin']);   // the four friends stick together
-const SHOUT = { fight: ['아 씨!', '너 뭐야?!', '해보자는 거지?', '오냐, 와라!', '죽고 싶냐?'], flee: ['아이고!', '사람 살려!', '경찰 불러!', '왜 이래 이 사람아!'],
-  halmeoni: ['아이고 이놈아!', '사람 살려~!', '느이 엄마한테 이를 겨!'], ijang: ['이장한테 이게 뭐 하는 짓이여!', '방송한다 너!', '아이고 허리야!'],
-  gang: ['야 건드리지 마!', '우리 애 왜 때려?', '다 덤벼!'], ko: ['으어억…', '…', '엄마…'], calm: ['에휴…', '다음엔 안 봐준다', '퉤'] };
 const pick = a => a[Math.floor(Math.random() * a.length)];
+const LINES = await fetch('lines.json').then(r => r.json()).catch(() => ({}));   // every spoken line lives in lines.json, by situation
+function speak(F, sit) {   // a line for this situation from this person (their own lines first, then the shared ones)
+  const L = LINES[sit]; if (!L || !L.lines) return; const arr = L.lines[F.id] || L.lines['*']; if (!arr || !arr.length) return;
+  const e = pick(arr); bubble(F, typeof e === 'string' ? e : e.text, typeof e === 'string' ? null : e.voice);
+}
 const FIGHT = { jab: ['잽', [.45]], cross: ['스트레이트', [.8]], hook: ['훅', [.85]], uppercut: ['어퍼컷', [1.05]], combo_12: ['원투', [.45, .8]], combo_jh: ['잽 훅', [.45, .85]],
   flurry: ['연타', [.3, .3, .3, .3, .3, .3, .3, .3, .35, .35, .4, .4, .5, 1.1]], kick_front: ['앞차기', [1.0]], kick_side: ['옆차기', [1.15]], knee: ['무릎', [.85]], jump_kick: ['날아차기', [1.6]] };
 const RANGE = { close: ['hook', 'uppercut', 'knee', 'combo_jh'], mid: ['jab', 'cross', 'combo_12', 'combo_jh', 'hook'], far: ['kick_front', 'kick_side', 'jump_kick', 'jab'] };
@@ -599,7 +601,7 @@ function judge(A, sk) {
   else if (sk.final || D.hp <= 0 || s >= 1.4 || D.meter > 4.2) { reac = 'knockdown'; w = 1; D.meter = 0; down = true; }
   else if (s >= .95 || D.meter > 2.6) { w = 1; heavy = true; if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy'; after = D.meter > 2.6 ? 'stumble' : null; }
   react(D, reac, w); D.next = after;
-  if (down) { D.down = true; D.fallAt = G.t + .85; if (D.hp <= 0 && D !== P) { bubble(D, pick(SHOUT.ko)); if (A === P && !cut) crime(D, 'ko'); } }
+  if (down) { D.down = true; D.fallAt = G.t + .85; if (D.hp <= 0 && D !== P) { speak(D, 'ko'); if (A === P && !cut) crime(D, 'ko'); } }
   const worldDir = vel.clone().applyQuaternion(D.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.copy(fwd3(A.yaw)); worldDir.normalize();
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
   FX.impact({ crit, p: hit, dir: worldDir, s: D === P ? s * .7 : s, part: fxPart, heavy, down, who: D, mine: A === P || D === P });
@@ -616,12 +618,12 @@ function note(t) { G.info = t; G.infoT = 2.5; }
 function provoke(D, A) {
   if (D === P || G.cut) return;
   if (A === P) crime(D, 'hit');
-  if (D.cop) { if (D.state !== 'police') { D.state = 'police'; } D.foe = P; if (Math.random() < .4) bubble(D, pick(COPLINE.hit)); D.atkCd = Math.min(D.atkCd, .5); return; }
+  if (D.cop) { if (D.state !== 'police') { D.state = 'police'; } D.foe = P; if (Math.random() < .4) speak(D, 'cop_hit'); D.atkCd = Math.min(D.atkCd, .5); return; }
   const mood = D.temper === 'flee' ? 'flee' : 'fight';
-  if (D.state !== mood) bubble(D, pick(SHOUT[D.id] && mood === 'flee' ? SHOUT[D.id] : SHOUT[mood]));
+  if (D.state !== mood) say(D, mood === 'flee' ? 'hit_flee' : 'hit_fight');
   D.state = mood; D.foe = A; D.fleeT = 6 + Math.random() * 3; D.atkCd = Math.min(D.atkCd, .6 + Math.random() * .6);
   if (GANG.has(D.id) && A === P) for (const o of npcs) if (o !== D && GANG.has(o.id) && o.state !== 'fight' && !o.down && Math.hypot(o.x - D.x, o.y - D.y) < 14) {
-    o.state = 'fight'; o.foe = P; o.atkCd = 1 + Math.random(); bubble(o, pick(SHOUT.gang)); }
+    o.state = 'fight'; o.foe = P; o.atkCd = 1 + Math.random(); speak(o, 'gang_join'); }
 }
 function think(n, dt) {
   if (copThink(n, dt)) return;
@@ -629,7 +631,7 @@ function think(n, dt) {
   if (n.once && !n.ending) return;   // busy swinging or reeling
   const foe = n.foe || P, d = Math.hypot(foe.x - n.x, foe.y - n.y);
   if (n.state === 'fight') {
-    if (foe.down && foe.hp <= 0 || d > 22) { n.state = 'calm'; bubble(n, pick(SHOUT.calm)); return; }
+    if (foe.down && foe.hp <= 0 || d > 22) { n.state = 'calm'; speak(n, 'fight_over'); return; }
     n.combatT = 4; turnTo(n, yawTo(n, foe), 8, dt);
     if (d > 1.2) n.want = d > 4 ? 4.6 : 1.6;
     n.atkCd -= dt;
@@ -672,7 +674,7 @@ function fightStep(dt) {
     while (F.strikes.length && F.strikes[0].done) F.strikes.shift();
     if (F.fallAt && G.t >= F.fallAt) { F.fallAt = 0; FX.fallSound(); FX.dust(wpos(F, 'pelvis').setY(heightAt(F.x, F.y) + .05)); FX.shake(.05); }
     if (F.ko > 0) { F.ko -= dt; if (F.ko <= 0) { F.ko = 0; F.hp = F === P ? 60 : 40; playOnce(F, 'getup_back', 1, .15);
-      if (F === P) { for (const n of npcs) if (n.state === 'fight') { n.state = 'calm'; bubble(n, pick(SHOUT.calm)); } $('kotext').classList.remove('on'); }
+      if (F === P) { for (const n of npcs) if (n.state === 'fight') { n.state = 'calm'; speak(n, 'fight_over'); } $('kotext').classList.remove('on'); }
       else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
     if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
     if (F !== P) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y))); F.holder.rotation.y = F.yaw; animate(F, dt); }
@@ -686,14 +688,14 @@ function fightStep(dt) {
 // ---- spoken lines as film subtitles (bottom centre, white with a dark edge). VOICE maps a line to a recording once there are some.
 const VOICE = {};   // e.g. VOICE['거기 서!'] = 'voice/cop_stop.mp3'  (per speaker: VOICE['police|거기 서!'])
 const SUB = { q: [], cur: null, t: 0 };
-function bubble(F, txt) {   // kept the old name: every caller just says a line
+function bubble(F, txt, voice) {   // every spoken line ends up here
   if (!P || !txt) return; const d = Math.hypot(F.x - P.x, F.y - P.y); if (d > 26 && F !== P) return;   // only what you could hear
-  const line = { txt, who: F, dur: Math.min(4.5, 1.6 + txt.length * .09), pri: F.cop || F === G.cut?.T ? 1 : 0 };
+  const line = { txt, voice, who: F, dur: Math.min(4.5, 1.6 + txt.length * .09), pri: F.cop || F === G.cut?.T ? 1 : 0 };
   if (!SUB.cur || line.pri >= SUB.cur.pri && SUB.t > .6) showSub(line); else if (SUB.q.length < 2) SUB.q.push(line);
 }
 function showSub(line) {
   SUB.cur = line; SUB.t = 0; const el = $('sub'); el.textContent = line.txt; el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
-  const src = VOICE[(line.who.id || '') + '|' + line.txt] || VOICE[line.txt];
+  const src = line.voice || VOICE[(line.who.id || '') + '|' + line.txt] || VOICE[line.txt];
   if (src) try { const a = new Audio(src); a.volume = THREE.MathUtils.clamp(1.2 - Math.hypot(line.who.x - P.x, line.who.y - P.y) / 26, .2, 1); a.play(); line.dur = Math.max(line.dur, 1); a.onloadedmetadata = () => { line.dur = Math.max(line.dur, a.duration + .3); }; } catch (e) {}
 }
 function subStep(dt) {
@@ -859,7 +861,6 @@ NPCS.forEach(([id, x, y, yaw]) => { const n = npcs.find(o => o.pid === id); if (
 
 // ---------------------------------------------------------------- police: wanted stars, a squad that runs in, arrests, losing them
 const COPN = ['김 순경', '이 순경', '박 경장', '최 경사', '정 순경'];
-const COPLINE = { spot: ['거기 서!', '경찰이다! 꼼짝 마!', '손 들어!', '엎드려!'], hit: ['공무집행방해야!', '지원 요청! 지원 요청!', '이 자식이!'], lost: ['어디 갔지…', '놓쳤다!', '이 근처일 텐데'], leave: ['철수!', '다음엔 안 놓친다'] };
 const WANT = { stars: 0, search: 0, spawnT: 0, crimeT: -99, busted: 0, flash: 0 };
 const cops = [];   // pool: loaded once, cloned per officer
 let copTpl = null, copLoading = null;
@@ -909,7 +910,7 @@ function copThink(n, dt) {   // returns true when it handled the officer
   n.want = 0; if (n.down || G.cut || (n.once && !n.ending)) return true;
   const d = Math.hypot(P.x - n.x, P.y - n.y);
   if (n.state === 'leave') { turnTo(n, yawTo(P, n), 5, dt); n.want = 1.6; if (d > 40) offDuty(n); return true; }
-  if (!n.spotted && d < 24) { n.spotted = true; bubble(n, pick(COPLINE.spot)); }
+  if (!n.spotted && d < 24) { n.spotted = true; speak(n, 'cop_spot'); }
   n.combatT = d < 8 ? 4 : 0; turnTo(n, yawTo(n, P), 8, dt);
   if (P.down) { n.want = d > 1.1 ? 2.2 : 0; return true; }   // walk up to cuff him
   if (d > 1.2) n.want = d > 3 ? (WANT.stars >= 3 ? 5.4 : 4.6) : 1.6;
@@ -919,7 +920,7 @@ function copThink(n, dt) {   // returns true when it handled the officer
   return true;
 }
 function busted(by) {
-  WANT.busted = 3.6; $('busted').classList.add('on'); bubble(by, '체포한다! 묵비권을 행사할 수 있…'); note(`${by.name}에게 체포됨`);
+  WANT.busted = 3.6; $('busted').classList.add('on'); speak(by, 'cop_arrest'); note(`${by.name}에게 체포됨`);
   if (document.pointerLockElement) document.exitPointerLock();
 }
 function afterBusted() {
@@ -947,7 +948,7 @@ function policeStep(dt) {
     const seen = cops.some(c => c.onDuty && !c.down && c.state === 'police' && Math.hypot(c.x - P.x, c.y - P.y) < 26);
     if (seen || G.t - WANT.crimeT < 4) WANT.search = 0; else WANT.search += dt;
     if (WANT.search > 9 + WANT.stars * 2) { WANT.search = 0; WANT.stars--; WANT.flash = .8;
-      if (!WANT.stars) { note('수배 해제'); for (const c of cops) if (c.onDuty) { c.state = 'leave'; bubble(c, pick(COPLINE.lost)); } }
+      if (!WANT.stars) { note('수배 해제'); for (const c of cops) if (c.onDuty) { c.state = 'leave'; speak(c, 'cop_lost'); } }
       else note(`수배 ${'★'.repeat(WANT.stars)} — 추적이 느슨해졌다`); }
     // arrest: down near an officer who is standing
     if (P.down && !G.cut) { const by = cops.find(c => c.onDuty && !c.down && c.state === 'police' && Math.hypot(c.x - P.x, c.y - P.y) < 2.4); if (by) busted(by); }
