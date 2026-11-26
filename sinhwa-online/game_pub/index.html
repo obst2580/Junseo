@@ -178,7 +178,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 <div id="softwarn" role="alert" hidden><b>그래픽 가속이 꺼져 있습니다</b>브라우저가 그래픽 카드 없이 CPU로 그리고 있어서 게임이 매우 느리고 메모리를 많이 씁니다. 가장 가벼운 설정(최저)으로 실행했습니다.
 <ol><li>크롬/엣지 <b>설정 → 시스템 → '그래픽 가속 사용'</b>을 켜고 브라우저를 다시 시작하세요.</li><li>그래도 같다면 <b>그래픽 드라이버</b>를 최신으로 업데이트하세요.</li><li>주소창에 <code>chrome://gpu</code> 를 입력해 WebGL이 <i>Hardware accelerated</i>인지 확인할 수 있습니다.</li></ol>
 <button type="button" id="softok">알겠어요</button></div>
-<div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bcred">지도 데이터 © OpenStreetMap contributors · 차량 모델: "Hyundai - Pother II (Bongo III)" by yunho98122810 (Sketchfab) · CC BY 4.0</div><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button><div class="bq" id="bigq"><span>그래픽</span></div></div>
+<div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bcred">지도 데이터 © OpenStreetMap contributors · 차량 모델(CC BY 4.0, Sketchfab/Objaverse): "bmw X5" tff789, "AUDI A8 (2014)" SHREEPAVAN, "2015 Audi Q7" razor24, "2020 Audi E-Tron" lplp32, "Mercedes-Benz S-Class W222" Ryan.Qin, "Mercedes Benz GLS 580" Joses2009, "Mercedes-AMG GT Black Series 2021" GY4N, "Mercedes Benz G-class W263" Lexyc16, "Tesla Model 3" David_Holiday, "Tesla Cybertruck" salphytheunemployed, "2011 Hyundai i30 FD" leeyunhe902, "2015 Hyundai Tucson" razor24, "Kia Sportage" farhad.Guli, "Daewoo Nexia/Cielo" SevKa · "Hyundai - Pother II (Bongo III)" by yunho98122810 (Sketchfab) · CC BY 4.0</div><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button><div class="bq" id="bigq"><span>그래픽</span></div></div>
 <div id="stick" aria-hidden="true"><i></i></div>
 <div id="bars"><div><div class="bl"><span>민석</span></div><div class="bb"><i id="php"></i></div></div><div id="tbar" hidden><div class="bl"><span id="tname"></span></div><div class="bb"><i id="thp"></i></div></div><div id="finfo"></div></div>
 <button type="button" id="atkpad" aria-label="공격">공격</button>
@@ -1890,6 +1890,13 @@ setTimeout(async () => {   // villagers: one at a time in the background, neares
   for (const [id, x, y, yaw] of q) { try { const n = await person(id); n.act.idle.time = Math.random() * 3; n.holder.position.copy(V(x, y, heightAt(x, y))); n.holder.rotation.y = yaw;
       Object.assign(n, { x, y, pid: id }); arm(n, id); n.yaw = yaw; n.home = [x, y, yaw]; npcs.push(n); } catch (e) { console.warn(id, e); } }
   spawnPeds();
+  const ids = CARLIST.map(c => c[0]).sort(() => Math.random() - .5), per = Math.max(1, Math.round(TRAF.NC * .7 / Math.min(ids.length, { potato: 4, low: 7, mid: 10, high: 14 }[QUAL] || 7)));
+  for (const id of ids.slice(0, { potato: 4, low: 7, mid: 10, high: 14 }[QUAL] || 7)) { try { CARGLB[id] = await window.__glbJson('cars/' + id + '.json'); CARGLB[id].traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); TRAF.addType(id, CARGLB[id], per); } catch (e) { console.warn('car', id, e); } }
+  CARGLB.ready = true;
+  // the parked Porters away from you become a mix of the real cars
+  const loaded = CARLIST.map(c => c[0]).filter(id => CARGLB[id]);
+  for (const c of cars.slice()) { if (c.driver || c.owned || c.fromTraffic || c.type !== 'truck' || Math.random() < .3 || !loaded.length || Math.hypot(c.x - P.x, c.y - P.y) < 25) continue;
+    const t = loaded[Math.floor(Math.random() * loaded.length)]; scene.remove(c.holder); cars.splice(cars.indexOf(c), 1); makeCar(t, c.x, c.y, c.yaw); }
 }, 1500);
 
 // ---------------------------------------------------------------- police: wanted stars, a squad that runs in, arrests, losing them
@@ -2263,18 +2270,18 @@ function buildTiller() {   // walking tractor + trailer: finned engine, flywheel
 const CARGLB = {};
 try { const L_ = new GLTFLoader(); L_.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
   const glbJson = async u => { const d = (await (await fetch(u)).json()).data, b = Uint8Array.from(atob(d), c => c.charCodeAt(0)); return (await L_.parseAsync(b.buffer, './')).scene; };   // .glb is not a served type: shipped as base64 in JSON
-  CARGLB.truck = await glbJson('cars/porter.json'); } catch (e) { console.warn('car models', e); }
+  CARGLB.truck = await glbJson('cars/porter.json'); window.__glbJson = glbJson; } catch (e) { console.warn('car models', e); }
 function buildFromGLB(tpl) {
   const g = tpl.clone(true), wh = [];
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   for (const n of ['wheel_FL', 'wheel_FR', 'wheel_RL', 'wheel_RR']) { const w = g.getObjectByName(n); if (!w) continue;
     const r = new THREE.Box3().setFromObject(w).getSize(new THREE.Vector3()).y / 2;
-    const piv = new THREE.Group(); piv.position.copy(w.position); const spin = new THREE.Group(); piv.add(spin); w.parent.add(piv); w.position.set(0, 0, 0); spin.add(w); wh.push({ piv, spin, r }); }
-  return { g, wh, front: [0, 1] };
+    const piv = new THREE.Group(); piv.position.copy(w.position); const spin = new THREE.Group(); piv.add(spin); w.parent.add(piv); w.position.set(0, 0, 0); spin.add(w); wh.push({ piv, spin, r: r || .33, front: n[6] === 'F' }); }
+  return { g, wh, front: wh.map((w, i) => w.front ? i : -1).filter(i => i >= 0) };   // models without separate wheels: nothing spins
 }
 function makeCar(type, x, y, yaw, paintKey) {
-  if (CARGLB.truck) type = 'truck';   // only the Porter II model is used
-  const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], pk = paintKey && P_[paintKey], b = type === 'truck' ? (CARGLB.truck ? buildFromGLB(CARGLB.truck) : buildTruck(pk || [P_.porter, P_.white][n_ % 2])) : type === 'sedan' ? buildSedan(pk || [P_.red, P_.white, P_.silver, P_.black][n_ % 4])
+  if (!CARGLB[type] && CARGLB.truck) type = 'truck';   // real models only: anything not loaded yet is a Porter
+  const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], pk = paintKey && P_[paintKey], b = CARGLB[type] && type !== 'truck' ? buildFromGLB(CARGLB[type]) : type === 'truck' ? (CARGLB.truck ? buildFromGLB(CARGLB.truck) : buildTruck(pk || [P_.porter, P_.white][n_ % 2])) : type === 'sedan' ? buildSedan(pk || [P_.red, P_.white, P_.silver, P_.black][n_ % 4])
     : type === 'hatch' ? buildHatch(pk || [P_.sky, P_.white, P_.beige][n_ % 3]) : buildTiller();
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(sp.W + .7, sp.L + .6), VM.shadow); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; sh.renderOrder = 1; b.g.add(sh);   // soft contact shadow under the car
   const holder = new THREE.Group(), body = new THREE.Group(); holder.add(body); body.add(b.g); scene.add(holder);
@@ -2282,7 +2289,7 @@ function makeCar(type, x, y, yaw, paintKey) {
   holder.position.copy(V(x, y, heightAt(x, y))); holder.rotation.y = yaw; cars.push(c); return c;
 }
 // parked along the lanes near the start: on the verge, facing along the road
-{ const spots = [], want = ['truck', 'truck', 'truck', 'truck', 'truck', 'truck', 'truck', 'truck'];   // Porter II only
+{ const spots = [], want = ['truck', 'truck', 'truck', 'truck', 'truck', 'truck', 'truck', 'truck'];   // Porters now; swapped for the real cars as they load (see swapParked)
   const seed = START; let tries = 0;
   const pts = []; for (const rd of W.roads) if (rd.w >= 3) for (let i = 0; i + 1 < rd.pts.length; i++) { const [a, b] = [rd.pts[i], rd.pts[i + 1]]; const d = Math.hypot(a[0] - seed[0], a[1] - seed[1]); if (d < 90 && d > 6) pts.push([a, b, rd.w]); }
   pts.sort((p, q) => Math.hypot(p[0][0] - seed[0], p[0][1] - seed[1]) - Math.hypot(q[0][0] - seed[0], q[0][1] - seed[1]));
@@ -2328,6 +2335,17 @@ function crashSound(s) { const a = FX.ctx(); if (!a) return; const t = a.current
 const GRAV = 9.81;
 const PHYS = { truck: { m: 1900, drive: 'rear', cg: .85, mu: .95, cs: 9 }, sedan: { m: 1300, drive: 'front', cg: .55, mu: 1.0, cs: 11 }, hatch: { m: 980, drive: 'front', cg: .55, mu: 1.0, cs: 11 },
   tiller: { m: 520, drive: 'front', cg: .6, mu: 1.1, cs: 14 } };
+const CARLIST = [   // real cars from Objaverse / Sketchfab (CC BY, see credits): [id, name in game, kind, length, width, height, model, author]
+  ['bmwx5', 'BWM X5', 'suv', 4.92, 2.0, 1.86, 'bmw X5', 'tff789'], ['a8', '아우뒤 A8', 'sedan', 5.2, 1.95, 1.48, 'AUDI A8 (2014)', 'SHREEPAVAN'], ['q7', '아우뒤 Q7', 'suv', 5.05, 1.97, 1.75, '2015 Audi Q7', 'razor24'],
+  ['etron', '아우뒤 E-트론', 'suv', 4.9, 1.94, 1.64, '2020 Audi E-Tron', 'lplp32'], ['sclass', '벤추 S', 'sedan', 5.18, 1.92, 1.48, 'Mercedes-Benz S-Class W222', 'Ryan.Qin'], ['gls', '벤추 GLS', 'suv', 5.2, 1.96, 1.92, 'Mercedes Benz GLS 580', 'Joses2009'],
+  ['amggt', '벤추 AMC GT', 'sport', 4.55, 2.0, 1.29, 'Mercedes-AMG GT Black Series 2021', 'GY4N'], ['gclass', '벤추 G', 'suv', 4.85, 1.98, 2.03, 'Mercedes Benz G-class W263', 'Lexyc16'], ['model3', '테슬러 모델3', 'sedan', 4.72, 1.93, 1.47, 'Tesla Model 3', 'David_Holiday'],
+  ['cybertruck', '사이버트럭', 'pickup', 5.68, 2.1, 1.83, 'Tesla Cybertruck', 'salphytheunemployed'], ['i30', '현다이 i30', 'hatch', 4.3, 1.8, 1.45, '2011 Hyundai i30 FD', 'leeyunhe902'], ['tucson', '현다이 투싼', 'suv', 4.48, 1.85, 1.64, '2015 Hyundai Tucson', 'razor24'],
+  ['sportage', '기야 스포티지', 'suv', 4.44, 1.85, 1.77, 'Kia Sportage (SL 2011-2014)', 'farhad.Guli'], ['nexia', '대오 넥시아', 'sedan', 4.48, 1.66, 1.41, 'Daewoo Nexia/Cielo', 'SevKa']];
+const KINDSPEC = { sedan: { maxV: 30, acc: 7.5, brake: 13, rev: 6, steer: .58, grip: 6.5, camK: 1.6, camH: 1.7, seatY: .1 }, suv: { maxV: 28, acc: 7, brake: 12, rev: 6, steer: .55, grip: 6.2, camK: 1.7, camH: 1.95, seatY: .3 },
+  sport: { maxV: 40, acc: 10, brake: 15, rev: 6, steer: .6, grip: 7.5, camK: 1.55, camH: 1.55, seatY: -.05 }, hatch: { maxV: 27, acc: 7.2, brake: 13, rev: 6, steer: .62, grip: 6.8, camK: 1.45, camH: 1.65, seatY: .1 },
+  pickup: { maxV: 32, acc: 8.5, brake: 12, rev: 6, steer: .52, grip: 6.4, camK: 1.85, camH: 2.0, seatY: .3 } };
+for (const [id, name, kind, L, W, H] of CARLIST) { const k = KINDSPEC[kind]; VSPEC[id] = { name, L, W, H, maxV: k.maxV, acc: k.acc, brake: k.brake, rev: k.rev, wb: L * .6, steer: k.steer, grip: k.grip, mass: kind === 'suv' || kind === 'pickup' ? 1.6 : 1.3, camK: k.camK, camH: k.camH, seat: [.37, k.seatY, -.15], open: false };
+  PHYS[id] = { m: kind === 'suv' ? 2100 : kind === 'pickup' ? 2900 : kind === 'sport' ? 1600 : kind === 'hatch' ? 1250 : 1700, drive: kind === 'sport' ? 'rear' : 'front', cg: kind === 'suv' || kind === 'pickup' ? .75 : .55, mu: kind === 'sport' ? 1.15 : 1.0, cs: kind === 'sport' ? 13 : 11 }; }
 function carInit(c) {
   if (c.ph) return; const sp = c.spec, k = PHYS[c.type] || PHYS.sedan, a = sp.wb / 2, t = sp.W * .42;
   c.ph = { ...k, I: k.m * (sp.L * sp.L + sp.W * sp.W) / 12 * 1.15, wheels: [[t, a, 1], [-t, a, 1], [t, -a, 0], [-t, -a, 0]] };   // [left, forward, isFront] in metres
@@ -2753,7 +2771,7 @@ const SHOPS = (() => {
   return [
     { id: 'black', name: '전당포 (암시장)', icon: '총', col: '#d8423a', x: black[0], y: black[1], items: [['bat', '야구방망이', 50000], ['knife', '칼', 90000], ['pistol', '권총', 1200000], ['ammo', '권총 탄약 24발', 60000]] },
     { id: 'pharm', name: pp ? pp.name : '약국', icon: '약', col: '#2fae5a', x: pharm[0], y: pharm[1], items: [['band', '붕대 (체력 +40)', 15000], ['med', '진통제 (체력 가득)', 40000]] },
-    { id: 'cars', name: pc ? pc.name : '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_truck', '포터 II (1톤 트럭)', 2000000]] },
+    { id: 'cars', name: pc ? pc.name : '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_truck', '포터 II (1톤 트럭)', 2000000], ['car_nexia', '대오 넥시아', 1200000], ['car_i30', '현다이 i30', 1800000], ['car_tucson', '현다이 투싼', 2600000], ['car_sportage', '기야 스포티지', 2700000], ['car_model3', '테슬러 모델3', 5200000], ['car_a8', '아우뒤 A8', 7800000], ['car_sclass', '벤추 S', 9500000], ['car_gclass', '벤추 G', 12000000], ['car_amggt', '벤추 AMC GT', 18000000], ['car_cybertruck', '사이버트럭', 15000000]] },
   ]; })();
 { const ringG = new THREE.CylinderGeometry(.9, .9, 1.1, 32, 1, true).translate(0, .55, 0), ringM = new THREE.MeshBasicMaterial({ color: '#f5c542', transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false });
   for (const sh of SHOPS) { const m = new THREE.Mesh(ringG, ringM); m.position.copy(V(sh.x, sh.y, heightAt(sh.x, sh.y) + .02)); scene.add(m); sh.mesh = m;
@@ -2778,7 +2796,7 @@ function buy(id, price) {
   else if (id === 'ammo') { SAVE.ammo += 24; note('탄약 24발 구입'); }
   else if (id === 'band') P.hp = Math.min(100, P.hp + 40);
   else if (id === 'med') P.hp = 100;
-  else if (id.startsWith('car_')) { const sh = shopOpen, n = sh.road, type = id.slice(4); let x = sh.x, y = sh.y, yaw = 0;
+  else if (id.startsWith('car_')) { const sh = shopOpen, n = sh.road, type = id.slice(4); if (type !== 'truck' && !CARGLB[type]) { (async () => { try { CARGLB[type] = await window.__glbJson('cars/' + type + '.json'); } catch (e) {} buy(id, 0); })(); return; } let x = sh.x, y = sh.y, yaw = 0;
     if (n) { const ox = -Math.sin(n.dir), oy = Math.cos(n.dir); x = n.px + ox * (n.r.w / 2 - 1.6); y = n.py + oy * (n.r.w / 2 - 1.6); yaw = Math.atan2(Math.cos(n.dir), -Math.sin(n.dir)); }
     const c = makeCar(type, x, y, yaw); c.owned = true; note(`${c.spec.name} 구입 — 길가에 세워 뒀습니다.`); closeShop(); }
   persist(); wpnUI(); renderShop(); }
@@ -2843,20 +2861,19 @@ const TRAF = (() => {
   const wheels = (wb, tw, r) => mergeGeometries([[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([x, z]) => new THREE.CylinderGeometry(r, r, .24, 12).rotateZ(Math.PI / 2).translate(x * tw, r, z * wb)));
   const part = (geo, mat, n, colors) => { const m = new THREE.InstancedMesh(geo, mat, n); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; if (colors) { for (let i = 0; i < n; i++) m.setColorAt(i, new THREE.Color('#fff')); }
     const o = new THREE.Object3D(); o.scale.set(0, 0, 0); o.updateMatrix(); for (let i = 0; i < n; i++) m.setMatrixAt(i, o.matrix); scene.add(m); return m; };
-  // the fleet is all Porter II (the one real model): its meshes instanced, one draw per mesh
-  const car = { parts: [] };
-  if (CARGLB.truck) { const tpl = CARGLB.truck; tpl.updateMatrixWorld(true);
-    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, NC); o.geometry.computeBoundingBox(); const sz = o.geometry.boundingBox.getSize(new THREE.Vector3()); im.castShadow = sz.x * sz.y * sz.z > .5; im.receiveShadow = true; im.frustumCulled = false;
-      const z = new THREE.Object3D(); z.scale.set(0, 0, 0); z.updateMatrix(); for (let i = 0; i < NC; i++) im.setMatrixAt(i, z.matrix); scene.add(im); car.parts.push({ im, local: o.matrixWorld.clone() }); }); }
-  const lamps = { head: part(mergeGeometries([-.62, .62].map(x => new THREE.BoxGeometry(.32, .14, .04).translate(x, .95, 2.74))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), NC),
-    tail: part(mergeGeometries([-.7, .7].map(x => new THREE.BoxGeometry(.18, .3, .04).translate(x, .75, -2.74))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), NC) };
-  const list = [];
-  if (car.parts.length) for (let i = 0; i < NC; i++) list.push({ kind: 'car', i, len: 5.45, w: 1.8, vmax: 0, on: false, paint: null });
-  const _o = new THREE.Object3D(), _m = new THREE.Matrix4();
-  function draw(c) {
+  // the fleet: each real model's meshes instanced (one draw per mesh); a model joins the traffic once it has loaded
+  const TYPES = {}, list = [], _o = new THREE.Object3D(), _m = new THREE.Matrix4();
+  function addType(id, tpl, n) { if (!tpl || TYPES[id] || n <= 0) return; tpl.updateMatrixWorld(true); const sp = VSPEC[id] || VSPEC.truck, L = sp.L, W = sp.W, T = { parts: [], n };
+    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, n); o.geometry.computeBoundingBox(); const sz = o.geometry.boundingBox.getSize(new THREE.Vector3()); im.castShadow = sz.x * sz.y * sz.z > .5; im.receiveShadow = true; im.frustumCulled = false;
+      const z = new THREE.Object3D(); z.scale.set(0, 0, 0); z.updateMatrix(); for (let i = 0; i < n; i++) im.setMatrixAt(i, z.matrix); scene.add(im); T.parts.push({ im, local: o.matrixWorld.clone() }); });
+    T.parts.push({ im: part(mergeGeometries([-W * .32, W * .32].map(x => new THREE.BoxGeometry(.3, .1, .04).translate(x, sp.H * .5, L / 2 + .01))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), n), local: new THREE.Matrix4() },
+      { im: part(mergeGeometries([-W * .36, W * .36].map(x => new THREE.BoxGeometry(.22, .1, .04).translate(x, sp.H * .5, -L / 2 - .01))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), n), local: new THREE.Matrix4() });
+    try { DAY.list = null; } catch (e) {}   // the clock re-collects its night-lit materials (not declared yet on the first call)
+    TYPES[id] = T; for (let i = 0; i < n; i++) list.push({ kind: 'car', type: id, i, len: L, w: W, vmax: 0, on: false }); }
+  addType('truck', CARGLB.truck, Math.max(2, Math.round(NC * .3)));
+  function draw(c) { const T = TYPES[c.type];
     _o.position.set(c.x, 0, -c.y); _o.rotation.set(0, c.yaw, 0); _o.scale.setScalar(c.on ? 1 : 0); _o.updateMatrix();
-    for (const { im, local } of car.parts) { im.setMatrixAt(c.i, _m.multiplyMatrices(_o.matrix, local)); im.instanceMatrix.needsUpdate = true; }
-    for (const k in lamps) { lamps[k].setMatrixAt(c.i, _o.matrix); lamps[k].instanceMatrix.needsUpdate = true; } }
+    for (const { im, local } of T.parts) { im.setMatrixAt(c.i, _m.multiplyMatrices(_o.matrix, local)); im.instanceMatrix.needsUpdate = true; } }
   function place(c, near) {   // onto some lane, near[0]..near[1] m from the player, with room around it
     for (let k = 0; k < 40; k++) { const q = c.kind === 'bus' ? R.filter(q => q.bus)[Math.floor(Math.random() * R.filter(q => q.bus).length)] : Math.random() < .75 ? R.filter(q => q.big)[Math.floor(Math.random() * R.filter(q => q.big).length)] : R[Math.floor(Math.random() * R.length)];
       if (!q) return false; const dir = q.oneway ? 1 : Math.random() < .5 ? 1 : -1, lane = c.kind === 'bus' ? 0 : q.bus ? 1 + Math.floor(Math.random() * (q.per - 1)) : Math.floor(Math.random() * q.per), s = Math.random() * q.L;
@@ -2905,7 +2922,7 @@ const TRAF = (() => {
       const pu = b.len / 2 - Math.abs(u), pv = b.w / 2 - Math.abs(v); if (pu <= 0 || pv <= 0) continue;
       const [nx, ny, d] = pu < pv ? [fx * Math.sign(u), fy * Math.sign(u), pu] : [lx * Math.sign(v), ly * Math.sign(v), pv]; contactImpulse(pc, null, px, py, nx, ny, d); b.v = 0; break; } }
   function wreck(c, keep = false) {   // hand this one over to the physics as a real car (same paint, same speed)
-    const type = 'truck', paint = null;
+    const type = c.type, paint = null;
     const real = makeCar(type, c.x, c.y, c.yaw, paint); real.vx = Math.sin(c.yaw) * c.v; real.vy = -Math.cos(c.yaw) * c.v; real.fromTraffic = true;
     c.on = false; draw(c); return real; }
   const near = () => { if (!P || P.car) return null; let best = null, bd = 3.2; for (const c of list) if (c.on && c.kind === 'car') { const d = Math.hypot(c.x - P.x, c.y - P.y) - 1.4; if (d < bd) { bd = d; best = c; } } return best; };
@@ -2917,7 +2934,7 @@ const TRAF = (() => {
     crime({}, 'jack'); enterCar(real); }
   for (const c of list) place(c, [12, 140]);
   for (const c of list) draw(c);
-  return { step, near, carjack, list, SIG };
+  return { step, near, carjack, list, SIG, addType, NC };
 })();
 CRIME.jack = 1;
 function trafficCleanup() {   // real cars that came out of the traffic go away once you are far from them
