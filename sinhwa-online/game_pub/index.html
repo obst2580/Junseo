@@ -580,94 +580,151 @@ const LMB = (() => {
   return { samsung_a, samsung_b, samsung_c, samsung_wing, gt, meritz, aplus, monaco };
 })();
 // ---- building kit: real depth on every facade — glass set back behind piers, fins and floor bands; storefronts under canopies; parapets, 옥탑, water tanks and plant on the roofs
-const BK = (() => {
+const BK = (() => {   // every building is its own: a facade type, its own colours and proportions, its own crown, its own name
   const noiseT = canvasTex(256, 256, (g, w, h) => noiseFill(g, w, h, '#ffffff', .1, 3500));
   const brickT = canvasTex(256, 256, (g, w, h) => { noiseFill(g, w, h, '#ffffff', .1, 900); g.strokeStyle = 'rgba(60,40,30,.45)'; g.lineWidth = 2; for (let y = 0; y < h; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (y / 16 % 2) * 24; x < w; x += 48) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 16); g.stroke(); } } });
-  const MS = new Map(), mat = (k, f) => MS.get(k) || (MS.set(k, f()), MS.get(k));
-  const stone = c => mat('s' + c, () => new THREE.MeshStandardMaterial({ map: noiseT, color: c, roughness: .82, metalness: .02 }));
-  const brick = c => mat('b' + c, () => new THREE.MeshStandardMaterial({ map: brickT, color: c, roughness: .9 }));
-  const metal = c => mat('m' + c, () => new THREE.MeshStandardMaterial({ color: c, roughness: .3, metalness: .85 }));
-  const glassTex = (tint, framed) => canvasTex(128, 128, (g, w, h) => {   // one pane per bay x floor: sky-lit glass, a frame, a transom; the odd blind half down
-    const gr = g.createLinearGradient(0, 0, w * .3, h); gr.addColorStop(0, new THREE.Color(tint).offsetHSL(0, -.05, .32).getStyle()); gr.addColorStop(.55, new THREE.Color(tint).offsetHSL(0, 0, .12).getStyle()); gr.addColorStop(1, tint); g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.moveTo(w * .1, h); g.lineTo(w * .55, 0); g.lineTo(w * .75, 0); g.lineTo(w * .3, h); g.fill();
-    if (framed) { g.strokeStyle = 'rgba(30,34,38,.9)'; g.lineWidth = 5; g.strokeRect(2, 2, w - 4, h - 4); g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.moveTo(0, h * .28); g.lineTo(w, h * .28); g.stroke(); } });
-  const glass = (tint, kind) => mat('g' + tint + kind, () => { const m = new THREE.MeshStandardMaterial({ map: glassTex(tint, kind !== 'tower'), roughness: .05, metalness: .35, envMapIntensity: 2.2, emissive: '#ffffff', emissiveMap: litTex(kind), emissiveIntensity: 0 }); m.userData.night = kind === 'tower' ? .55 : .8; return m; });
-  const PAL = { tower: { glass: ['#3f6a80', '#4d7a88', '#35556a', '#5b8796', '#46647a'], fin: ['#c5ccd2', '#8d969c', '#2a2e33', '#b9b09a'] },
-    office: { stone: ['#d9d4c7', '#bfb8aa', '#9a9fa3', '#e6e2d8', '#6e7478', '#c4b49a', '#8b8478'], glass: ['#3c5866', '#4a5f6a', '#4f5650'] },
-    shop: { stone: ['#ebe6db', '#cfc7b8', '#9aa0a5', '#f2efe8', '#7d8388', '#d6c2a0', '#c9d3d8', '#e0d2bf', '#a9b4a6'], glass: ['#3f5664', '#4b5d68', '#3a4850'] },
-    brick: { brick: ['#8a4e36', '#7a4632', '#9a6248', '#6b3b2b'], band: ['#e9e4d8', '#cfc8bb'] }, apart: { stone: ['#ece8df', '#d9d2c4', '#e4e7e9'], glass: ['#3a4a54'] } };
-  const pickOf = (a, k) => a[Math.floor(hash(k) * a.length) % a.length];
-  // geometry helpers (game coords; local box: x along the edge, z out of the wall)
+  const panelT = canvasTex(128, 128, (g, w, h) => { noiseFill(g, w, h, '#ffffff', .05, 300); g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2); });
+  const glassT = canvasTex(128, 128, (g, w, h) => { const gr = g.createLinearGradient(0, 0, w * .3, h); gr.addColorStop(0, '#dfe8ee'); gr.addColorStop(.55, '#9aa9b3'); gr.addColorStop(1, '#6d7a84'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,.14)'; g.beginPath(); g.moveTo(w * .1, h); g.lineTo(w * .55, 0); g.lineTo(w * .75, 0); g.lineTo(w * .3, h); g.fill(); g.strokeStyle = 'rgba(30,34,38,.85)'; g.lineWidth = 4; g.strokeRect(2, 2, w - 4, h - 4); });
+  const V = o => new THREE.MeshStandardMaterial({ vertexColors: true, ...o });
+  const MAT = { stone: V({ map: noiseT, roughness: .82 }), brick: V({ map: brickT, roughness: .9 }), metal: V({ roughness: .3, metalness: .85 }), panel: V({ map: panelT, roughness: .45, metalness: .35 }), roof: V({ map: noiseT, roughness: .95 }),
+    store: V({ map: STOREM.map, emissiveMap: STOREM.map, emissive: '#ffffff', emissiveIntensity: .45, roughness: .25, metalness: .2 }) };
+  const GL = {}; for (const k of ['tower', 'office', 'shop', 'apart']) { GL[k] = V({ map: glassT, roughness: .05, metalness: .4, envMapIntensity: 2.0, emissive: '#ffffff', emissiveMap: litTex(k), emissiveIntensity: 0 }); GL[k].userData.night = k === 'tower' ? .55 : .8; }
+  const col = (g, c) => { const n = g.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) { a[i * 3] = c.r; a[i * 3 + 1] = c.g; a[i * 3 + 2] = c.b; } g.setAttribute('color', new THREE.BufferAttribute(a, 3)); return g; };
+  const HSL = (h, s, l) => new THREE.Color().setHSL(((h % 1) + 1) % 1, THREE.MathUtils.clamp(s, 0, 1), THREE.MathUtils.clamp(l, 0, 1));
   const edges = ring => ring.map((a, i) => { const c = ring[(i + 1) % ring.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1, ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L; return { a, c, L, ux, uy, nx: uy, ny: -ux, ang: Math.atan2(uy, ux) }; });
   function inset(ring, d) { const E = edges(ring), n = ring.length, out = [];
-    for (let i = 0; i < n; i++) { const e0 = E[(i - 1 + n) % n], e1 = E[i], mx = e0.nx + e1.nx, my = e0.ny + e1.ny, ml = Math.hypot(mx, my) || 1, kk = Math.min(3, 2 / Math.max(.3, ml)) * d;
-      out.push([ring[i][0] - mx / ml * kk, ring[i][1] - my / ml * kk]); }
+    for (let i = 0; i < n; i++) { const e0 = E[(i - 1 + n) % n], e1 = E[i], mx = e0.nx + e1.nx, my = e0.ny + e1.ny, ml = Math.hypot(mx, my) || 1, kk = Math.min(3, 2 / Math.max(.3, ml)) * d; out.push([ring[i][0] - mx / ml * kk, ring[i][1] - my / ml * kk]); }
     return out; }
+  function fillet(ring, r) {   // rounded corners
+    const out = [], n = ring.length;
+    for (let i = 0; i < n; i++) { const p = ring[i], a = ring[(i - 1 + n) % n], b = ring[(i + 1) % n], la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]), d = Math.min(r, la / 2.2, lb / 2.2);
+      const A = [p[0] + (a[0] - p[0]) / la * d, p[1] + (a[1] - p[1]) / la * d], B = [p[0] + (b[0] - p[0]) / lb * d, p[1] + (b[1] - p[1]) / lb * d];
+      for (let k = 0; k <= 4; k++) { const t = k / 4, u = 1 - t; out.push([u * u * A[0] + 2 * u * t * p[0] + t * t * B[0], u * u * A[1] + 2 * u * t * p[1] + t * t * B[1]]); } }
+    return out; }
+  const shift = (ring, dx, dy) => ring.map(([x, y]) => [x + dx, y + dy]);
   const area = r => { let A = 0; for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; A += x1 * y2 - x2 * y1; } return A / 2; };
-  function box(put, m, e, t, out, y0, H, Lx, D, uvS = 0) {   // a box on edge e at distance t along it, its outer face 'out' metres outside the wall line
-    const g = new THREE.BoxGeometry(Lx, H, D);
-    if (uvS) { const uv = g.attributes.uv, dims = [[D, H], [D, H], [Lx, D], [Lx, D], [Lx, H], [Lx, H]]; for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0] / uvS, uv.getY(i) * dims[f][1] / uvS); } }
-    g.rotateY(e.ang); const cx = e.a[0] + e.ux * t + e.nx * (out - D / 2), cy = e.a[1] + e.uy * t + e.ny * (out - D / 2); g.translate(cx, y0 + H / 2, -cy); put(m, g); }
-  function cyl(put, m, x, y, y0, r, H, seg = 12) { put(m, new THREE.CylinderGeometry(r, r, H, seg).translate(x, y0 + H / 2, -y)); }
+  // ---- names: the real one from the map, else a made-up one no other building has
+  const NA = ['대성', '한빛', '동원', '삼정', '태영', '신우', '청담', '세화', '혜성', '금강', '한솔', '덕산', '천일', '성원', '유니', '에이스', '그랜드', '로얄', '정우', '명성', '보성', '인화', '서림', '동양', '건영', '신일', '대영', '진흥', '영창', '우성', '두원', '하이', '은성', '아주', '삼원', '경남', '대림', '화성', '선릉', '역삼', '강남제일', '중앙', '수림', '오성', '미래', '신영', '동아', '한신', '극동', '대한', '서경', '청호', '일신', '태광', '송원', '케이', '디앤에스', '제이원', '에스티', '뉴서울'];
+  const NB = ['빌딩', '타워', '프라자', '센터', '빌딩', '스퀘어', '타워', '메디컬센터', '빌딩', '오피스텔', 'B/D', '하우스'];
+  const EN = ['ACE TOWER', 'K SQUARE', 'ONE PLACE', 'THE PLATZ', 'NEXUS', 'URBAN HIVE', 'BLUE TOWER', 'PRIME', 'CENTRAL', 'STAR TOWER', 'ARK PLACE', 'IVY', 'MERIDIAN', 'FORUM'];
+  const used = new Set(); let ni = 0;
+  function nameOf(b) { if (b.name && !used.has(b.name)) { used.add(b.name); return b.name; }
+    for (let t = 0; t < 400; t++) { const k = ni++, n = hash(k * 7.31) < .12 ? EN[Math.floor(hash(k * 3.1) * EN.length)] + (t > 20 ? ' ' + (t % 9 + 2) : '') : NA[Math.floor(hash(k * 1.7) * NA.length)] + NB[Math.floor(hash(k * 5.3) * NB.length)] + (t > 60 ? ' ' + (t % 3 + 2) + '관' : '');
+      if (!used.has(n)) { used.add(n); return n; } } return ''; }
+  // name-sign atlas (filled as buildings ask for it; drawn at the end)
+  const SG = { list: [], geos: [] };
+  function nameSign(put, e, t, y, out, text, w, h, fg, bg) { SG.list.push({ text, fg, bg }); const i = SG.list.length - 1, g = new THREE.PlaneGeometry(w, h); g.userData.cell = i; g.rotateY(e.ang + Math.PI / 2 * 0);
+    const yaw = Math.atan2(e.nx, -e.ny); g.rotateY(yaw - e.ang); g.translate(e.a[0] + e.ux * t + e.nx * out, y, -(e.a[1] + e.uy * t + e.ny * out)); SG.geos.push(g); }
+  function flushSigns() {
+    if (!SG.list.length) return; const CW = 256, CH = 64, COLS = 8, rows = Math.ceil(SG.list.length / COLS), c = document.createElement('canvas'); c.width = CW * COLS; c.height = CH * rows; const g = c.getContext('2d');
+    SG.list.forEach(({ text, fg, bg }, i) => { const x = (i % COLS) * CW, y = Math.floor(i / COLS) * CH; if (bg) { g.fillStyle = bg; g.fillRect(x + 2, y + 2, CW - 4, CH - 4); }
+      let fs = 44; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; while (g.measureText(text).width > CW - 16 && fs > 14) { fs -= 2; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; }
+      g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, x + CW / 2, y + CH / 2 + 2); });
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = maxAniso;
+    for (const geo of SG.geos) { const i = geo.userData.cell, uv = geo.attributes.uv, cx = (i % COLS) / COLS, cy = 1 - (Math.floor(i / COLS) + 1) / rows; for (let k = 0; k < uv.count; k++) uv.setXY(k, cx + uv.getX(k) / COLS, cy + uv.getY(k) / rows); }
+    const m = new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: '#ffffff', emissiveIntensity: .55, alphaTest: .45, transparent: false, roughness: .4 }); m.userData.night = 1.6;
+    const me = new THREE.Mesh(mergeGeometries(SG.geos), m); _sceneAdd(me); }
   // ---- one building
-  function build(b, ring, put) {
-    const kind = b.kind === 'villa' ? 'apart' : b.kind, k0 = b.name + b.p[0][0], st = kind === 'tower' ? 'tower' : kind === 'apart' ? 'apart' : (kind === 'shop' || kind === 'office') && hash(k0 + 'b') < .25 ? 'brick' : kind;
-    const h = b.h, gf = st !== 'apart' && h > GF + 2, E = edges(ring), A = Math.abs(area(ring));
-    // style
-    const S = st === 'tower' ? { bay: 1.5 + hash(k0) * .9, pw: .14, pd: .6, bh: hash(k0 + 'h') < .5 ? .12 : 0, bd: .2, wall: metal(pickOf(PAL.tower.fin, k0)), band: metal(pickOf(PAL.tower.fin, k0)), gl: glass(pickOf(PAL.tower.glass, k0 + 'g'), 'tower'), crown: 'fins' }
-      : st === 'office' ? { bay: 2.8 + hash(k0) * 1.2, pw: .6 + hash(k0 + 'w') * .35, pd: .55, bh: 1.0 + hash(k0 + 'b') * .4, bd: .55, wall: stone(pickOf(PAL.office.stone, k0)), gl: glass(pickOf(PAL.office.glass, k0 + 'g'), 'office'), crown: 'cornice' }
-      : st === 'brick' ? { bay: 2.6 + hash(k0) * .8, pw: .55, pd: .45, bh: .75, bd: .5, wall: brick(pickOf(PAL.brick.brick, k0)), band: stone(pickOf(PAL.brick.band, k0)), gl: glass('#4a5f6a', 'shop'), crown: 'roof' }
-      : st === 'apart' ? { bay: 3.2, pw: .4, pd: .25, bh: .5, bd: .25, wall: stone(pickOf(PAL.apart.stone, k0)), gl: glass('#55707e', 'apart'), crown: 'roof', balc: true }
-      : { bay: 2.8 + hash(k0) * 1.4, pw: .35 + hash(k0 + 'w') * .3, pd: .45, bh: .7 + hash(k0 + 'b') * .45, bd: .5, wall: stone(pickOf(PAL.shop.stone, k0)), gl: glass(pickOf(PAL.shop.glass, k0 + 'g'), 'shop'), crown: 'roof', ribbon: hash(k0 + 'r') < .3 };
-    S.band = S.band || S.wall;
-    // a tall block on a wide lot steps back above a podium
-    let tRing = ring, tE = E, podTop = 0;
-    if ((st === 'tower' || st === 'office') && b.lv >= 12 && A > 450 && !b.lm) { const ins = inset(ring, 3 + hash(k0 + 's') * 2); if (Math.abs(area(ins)) > A * .4) { podTop = GF + FLOOR * (2 + Math.floor(hash(k0 + 'p') * 3)); tRing = ins; tE = edges(ins); } }
-    const facade = (rg, eg, y0, y1, S_) => {   // glass core set back, piers and floor bands at the wall line
-      const core = inset(rg, S_.pd); put(S_.gl, LMK.walls(core, y0, y1, S_.bay, FLOOR));
-      for (const e of eg) { if (e.L < 1.2) continue; const n = Math.max(1, Math.round(e.L / S_.bay));
-        for (let k = 0; k <= n; k++) { const t = k / n * e.L; if (S_.ribbon && k % 2) continue; box(put, S_.wall, e, THREE.MathUtils.clamp(t, S_.pw / 2, e.L - S_.pw / 2), 0, y0, y1 - y0, S_.pw, S_.pd, st === 'brick' ? 2 : 0); }
-        if (S_.bh) for (let y = y0 + FLOOR - S_.bh * .5; y < y1 - .4; y += FLOOR) box(put, S_.band, e, e.L / 2, .02, y, Math.min(S_.bh, y1 - y), e.L + .02, S_.bd, st === 'brick' ? 2 : 0); } };
+  function build(b, ring0, put) {
+    const R = k => hash(b.p[0][0] * 13.7 + b.p[0][1] * 7.1 + b.h + k);   // this building's dice
+    const kind = b.kind === 'villa' ? 'apart' : b.kind, h = b.h, E0 = edges(ring0), A = Math.abs(area(ring0)), signs = b.fill && !b.tall;   // 근생 with a board on every floor: keep the face flat enough
+    const TY = kind === 'apart' ? ['balcony', 'balcony', 'punched', 'panel'] : kind === 'tower' ? ['fins', 'fins', 'diagrid', 'louver', 'hfin', 'ribbon', 'stacked', 'round'] : signs ? ['punched', 'ribbon', 'panel', 'checker', 'brick', 'tile'] :
+      ['punched', 'ribbon', 'panel', 'checker', 'brick', 'louver', 'hfin', 'stacked', 'round', 'tile', 'fins'];
+    let ty = TY[Math.floor(R(1) * TY.length)]; if ((ty === 'round' || ty === 'stacked') && (A < 220 || ring0.length > 8)) ty = 'ribbon'; if (ty === 'diagrid' && b.lv < 12) ty = 'fins';
+    const ring = ty === 'round' ? fillet(ring0, 3 + R(2) * 4) : ring0, E = edges(ring);
+    // colours: each building its own
+    const stoneC = HSL(.05 + R(3) * .1, .05 + R(4) * .22, .42 + R(5) * .45), trimC = HSL(R(6), .02 + R(7) * .08, R(8) < .5 ? .85 + R(9) * .1 : .18 + R(9) * .2), glassC = HSL(.5 + R(10) * .12, .1 + R(11) * .35, .45 + R(12) * .35);
+    const metalC = [HSL(0, 0, .78), HSL(.1, .25, .62), HSL(0, 0, .2), HSL(.07, .35, .35), HSL(0, 0, .93), HSL(.58, .1, .55)][Math.floor(R(13) * 6)], brickC = HSL(.03 + R(14) * .04, .4 + R(15) * .2, .25 + R(16) * .18), accent = HSL(R(17), .5 + R(18) * .3, .45 + R(19) * .2);
+    const glass = GL[kind === 'tower' ? 'tower' : kind === 'apart' ? 'apart' : kind === 'office' ? 'office' : 'shop'];
+    const bay = 2.2 + R(20) * 2.2, dep = .3 + R(21) * .45, gf = kind !== 'apart' && h > GF + 2;
+    const box = (m, c, e, t, out, y0, H, Lx, D, rz = 0, uvS = 0) => { const g = new THREE.BoxGeometry(Lx, H, D);
+      if (uvS) { const uv = g.attributes.uv, dims = [[D, H], [D, H], [Lx, D], [Lx, D], [Lx, H], [Lx, H]]; for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0] / uvS, uv.getY(i) * dims[f][1] / uvS); } }
+      if (rz) g.rotateZ(rz); g.rotateY(e.ang); g.translate(e.a[0] + e.ux * t + e.nx * (out - D / 2), y0 + H / 2, -(e.a[1] + e.uy * t + e.ny * (out - D / 2))); put(m, col(g, c)); };
+    const core = (rg, y0, y1, d = dep) => put(glass, col(LMK.walls(inset(rg, d), y0, y1, bay, FLOOR), glassC));
+    const solid = (rg, y0, y1, m, c) => put(m, col(LMK.walls(rg, y0, y1, 2, 2), c));
+    // the facade types
+    const F = {
+      fins(rg, y0, y1) { core(rg, y0, y1); const sp = 1.1 + R(30) * 1.3, fd = .3 + R(31) * .6; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / sp)); for (let k = 0; k <= n; k++) box(MAT.metal, metalC, e, THREE.MathUtils.clamp(k / n * e.L, .08, e.L - .08), fd - dep + .02, y0, y1 - y0, .1, fd); } },
+      punched(rg, y0, y1) { core(rg, y0, y1); const pw = .4 + R(32) * .6, bh = .6 + R(33) * .8, m = R(34) < .2 ? MAT.panel : MAT.stone; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / bay));
+        for (let k = 0; k <= n; k++) box(m, stoneC, e, THREE.MathUtils.clamp(k / n * e.L, pw / 2, e.L - pw / 2), 0, y0, y1 - y0, pw, dep);
+        for (let y = y0 + FLOOR - bh * .5; y < y1 - .3; y += FLOOR) box(m, stoneC, e, e.L / 2, .01, y, Math.min(bh, y1 - y), e.L + .02, dep); } },
+      ribbon(rg, y0, y1) { core(rg, y0, y1, .2); const bh = .9 + R(35) * .8, out = signs ? 0 : .2 + R(36) * .5, m = R(37) < .5 ? MAT.panel : MAT.stone; for (const e of edges(rg)) { if (e.L < .5) continue;
+        for (let y = y0 + FLOOR - bh; y < y1 - .3; y += FLOOR) box(m, trimC, e, e.L / 2, out, y, Math.min(bh, y1 - y), e.L + out * 2, .2 + out); } },
+      panel(rg, y0, y1) { core(rg, y0, y1, .25); for (const e of edges(rg)) { if (e.L < 1) continue; let fl = 0;
+        for (let y = y0; y < y1 - .5; y += FLOOR, fl++) { let t = 0, s = 0; while (t < e.L - .2) { const L = Math.min(e.L - t, .7 + R(40 + fl * 3.1 + s * .7 + e.L) * 2.6), win = R(50 + fl * 1.3 + s * 2.9 + e.L) < .42;
+            if (!win) box(MAT.panel, stoneC.clone().offsetHSL(0, 0, (R(60 + s + fl) - .5) * .14), e, t + L / 2, 0, y, Math.min(FLOOR, y1 - y), L, .25); t += L; s++; } } } },
+      checker(rg, y0, y1) { core(rg, y0, y1, .2); const c2 = accent.clone().lerp(stoneC, .5); for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / bay)), w = e.L / n; let fl = 0;
+        for (let y = y0; y < y1 - .5; y += FLOOR, fl++) for (let k = 0; k < n; k++) if ((k + fl) % 2 === 0) box(MAT.panel, (k + fl) % 4 ? stoneC : c2, e, (k + .5) * w, 0, y, Math.min(FLOOR, y1 - y), w, .2); } },
+      brick(rg, y0, y1) { core(rg, y0, y1, .35); for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / bay));
+        for (let k = 0; k <= n; k++) box(MAT.brick, brickC, e, THREE.MathUtils.clamp(k / n * e.L, .3, e.L - .3), 0, y0, y1 - y0, .6, .35, 0, 2);
+        for (let y = y0 + FLOOR - .7; y < y1 - .3; y += FLOOR) box(R(41) < .5 ? MAT.brick : MAT.stone, R(41) < .5 ? brickC : trimC, e, e.L / 2, .02, y, .7, e.L + .02, .38, 0, 2); } },
+      tile(rg, y0, y1) { core(rg, y0, y1, .3); const tc = HSL(R(42), .05 + R(43) * .3, .55 + R(44) * .35); for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / (bay * 1.2)));
+        for (let k = 0; k <= n; k++) box(MAT.stone, tc, e, THREE.MathUtils.clamp(k / n * e.L, .4, e.L - .4), 0, y0, y1 - y0, .8 + R(45) * .5, .3);
+        for (let y = y0 + FLOOR - 1.1; y < y1 - .3; y += FLOOR) box(MAT.stone, tc, e, e.L / 2, .01, y, 1.1, e.L + .02, .3);
+        if (R(46) < .5) for (let y = y0 + FLOOR * .45; y < y1 - .3; y += FLOOR) box(MAT.metal, trimC, e, e.L / 2, .12, y, .05, e.L * .96, .1); } },
+      louver(rg, y0, y1) { core(rg, y0, y1, .4); const sp = .45 + R(47) * .4, lc = R(48) < .3 ? HSL(.08, .45, .45) : metalC; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.round(e.L / sp);
+        for (let k = 0; k <= n; k++) box(MAT.metal, lc, e, THREE.MathUtils.clamp(k / n * e.L, .05, e.L - .05), 0, y0, y1 - y0 - (R(70 + k) < .15 ? FLOOR : 0), .07, .35);
+        for (let y = y0 + FLOOR; y < y1; y += FLOOR * 3) box(MAT.metal, trimC, e, e.L / 2, .02, y - .15, .3, e.L, .45); } },
+      hfin(rg, y0, y1) { core(rg, y0, y1, .15); const fd = .6 + R(49) * .7; for (const e of edges(rg)) { if (e.L < 1) continue;
+        for (let y = y0 + FLOOR; y < y1 + .1; y += FLOOR) box(MAT.panel, trimC, e, e.L / 2, fd - .15, y - .14, .14, e.L + fd, fd);
+        const n = Math.round(e.L / 1.6); for (let k = 0; k <= n; k++) box(MAT.metal, metalC, e, THREE.MathUtils.clamp(k / n * e.L, .04, e.L - .04), 0, y0, y1 - y0, .05, .15); } },
+      diagrid(rg, y0, y1) { core(rg, y0, y1, .3); const mh = FLOOR * 2; for (const e of edges(rg)) { if (e.L < 4) continue; const n = Math.max(1, Math.round(e.L / (mh * 1.1))), w = e.L / n, ang = Math.atan2(mh, w), Ld = Math.hypot(w, mh);
+        for (let y = y0; y + mh <= y1 + .1; y += mh) for (let k = 0; k < n; k++) { const yc = y + mh / 2 - Ld / 2; box(MAT.metal, metalC, e, (k + .5) * w, 0, yc, Ld, .25, .3, Math.PI / 2 - ang); box(MAT.metal, metalC, e, (k + .5) * w, 0, yc, Ld, .25, .3, -(Math.PI / 2 - ang)); }
+        for (let y = y0; y <= y1; y += mh) box(MAT.metal, metalC, e, e.L / 2, 0, y - .12, .25, e.L, .3); } },
+      balcony(rg, y0, y1) { core(rg, y0, y1, .3); const rc = R(51) < .5 ? glassC : metalC, cS = R(52) < .5 ? stoneC : trimC; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / 3.4));
+        for (let k = 0; k <= n; k++) box(MAT.stone, cS, e, THREE.MathUtils.clamp(k / n * e.L, .25, e.L - .25), 0, y0, y1 - y0, .5, .3);
+        if (e.L > 6) for (let y = y0 + FLOOR; y < y1 - 1; y += FLOOR) { box(MAT.stone, cS, e, e.L / 2, 1.1, y - .12, .14, e.L * .82, 1.1); box(R(53) < .5 ? glass : MAT.metal, rc, e, e.L / 2, 1.1, y, .95, e.L * .82, .05); } } },
+    };
+    F.stacked = (rg, y0, y1) => { const parts = 2 + Math.floor(R(54) * 2), hs = (y1 - y0) / parts, kinds = ['punched', 'ribbon', 'fins', 'panel', 'hfin'];
+      for (let p = 0; p < parts; p++) { const dx = (R(55 + p) - .5) * 2.2, dy = (R(58 + p) - .5) * 2.2, rr = p ? inset(shift(rg, dx, dy), .4 + R(61 + p)) : rg, f = F[kinds[Math.floor(R(64 + p) * kinds.length)]];
+        f(rr, y0 + p * hs, y0 + (p + 1) * hs); put(MAT.roof, col(LMK.cap(rr, y0 + (p + 1) * hs), trimC)); } };
+    F.round = (rg, y0, y1) => F.ribbon(rg, y0, y1);
+    // massing: podium and tower, a stepped top
+    let tRing = ring, podTop = 0;
+    if ((kind === 'tower' || kind === 'office') && b.lv >= 10 && A > 380 && R(80) < .6 && ty !== 'round') { const ins = inset(ring, 2.5 + R(81) * 3); if (Math.abs(area(ins)) > A * .35) { podTop = GF + FLOOR * (2 + Math.floor(R(82) * 4)); tRing = ins; } }
+    let hBody = h, top2 = null;
+    if (b.lv >= 7 && R(83) < .45 && ty !== 'stacked') { const tr = inset(tRing, 1.6 + R(84) * 2); if (Math.abs(area(tr)) > A * .25) { hBody = h - FLOOR * (1 + Math.floor(R(85) * 3)); top2 = tr; } }
     const base = gf ? GF : 0;
-    if (gf) {   // the ground floor: shop glass well back, columns, a canopy on the street sides
-      put(STOREM, LMK.walls(inset(ring, S.pd + .45), 0, GF, 6.4, GF));
-      const front = b.front ? b.front : null;
-      for (const e of E) { if (e.L < 1.2) continue; const n = Math.max(1, Math.round(e.L / (S.bay * 2)));
-        for (let k = 0; k <= n; k++) box(put, S.wall, e, THREE.MathUtils.clamp(k / n * e.L, .3, e.L - .3), 0, 0, GF, .55, .55);
-        box(put, S.band, e, e.L / 2, .05, GF - .75, .75, e.L + .05, S.pd + .1);   // fascia
-        const nr = nearestRoad(e.a[0] + e.ux * e.L / 2 + e.nx * 2, e.a[1] + e.uy * e.L / 2 + e.ny * 2, 14);
-        if (nr && e.L > 4 && (st === 'shop' || st === 'brick' || hash(k0 + e.L) < .5)) box(put, metal('#3a3f44'), e, e.L / 2, 1.4, GF - .95, .16, e.L - .6, 1.4); } }   // canopy
-    let hBody = h, topTier = null;
-    if ((st === 'office' || st === 'shop' || st === 'brick') && b.lv >= 8 && hash(k0 + 't') < .55) { const tr = inset(podTop ? tRing : ring, 1.8 + hash(k0 + 'ti') * 1.5); if (Math.abs(area(tr)) > A * .3) { hBody = h - FLOOR * (2 + Math.floor(hash(k0 + 'tn') * 2)); topTier = tr; } }   // the top floors step back: a terrace
-    if (podTop) { facade(ring, E, base, podTop, S); put(ROOFM, LMK.cap(ring, podTop)); for (const e of E) box(put, S.band, e, e.L / 2, .05, podTop, .9, e.L, .3);
-      facade(tRing, tE, podTop, hBody, S); }
-    else facade(ring, E, base, hBody, S);
-    if (topTier) { const R0 = podTop ? tRing : ring; put(ROOFM, LMK.cap(R0, hBody)); for (const e of edges(R0)) box(put, glass('#9fbfca', 'apart'), e, e.L / 2, -.1, hBody, 1.0, e.L, .05);   // terrace with a glass rail
-      facade(topTier, edges(topTier), hBody, h, { ...S, gl: glass(pickOf(PAL.tower.glass, k0 + 'tt'), 'tower'), bh: S.bh * .6 }); tRing = topTier; }
-    if (b.lv >= 6 && st !== 'apart' && hash(k0 + 'c') < .45) { const e = E.reduce((p, q) => q.L > p.L ? q : p, E[0]);   // a full-height glass bay at one corner
-      if (e.L > 9) box(put, glass(pickOf(PAL.tower.glass, k0 + 'cg'), 'tower'), e, hash(k0 + 'cs') < .5 ? 1.3 : e.L - 1.3, .3, base, (podTop || hBody) - base, 2.6, 1.0); }
-    if (b.lv >= 5 && (st === 'office' || st === 'shop') && hash(k0 + 'f') < .4) { const e = E.reduce((p, q) => q.L > p.L ? q : p, E[0]);   // a stone fin running up the middle of the long face
-      if (e.L > 14) box(put, stone(pickOf(PAL.office.stone, k0 + 'fs')), e, e.L * (.35 + hash(k0 + 'fp') * .3), .45, base, hBody - base + 1.5, 1.2, 1.0); }
-    if (S.balc) for (const e of E) { if (e.L < 6) continue; for (let y = base + FLOOR; y < h - 1; y += FLOOR) { box(put, S.wall, e, e.L / 2, 1.0, y - .12, .14, e.L * .78, 1.0); box(put, glass('#8fb2bd', 'apart'), e, e.L / 2, 1.0, y, .95, e.L * .78, .04); } }
-    // roof
-    const top = tRing, tA = Math.abs(area(top)); put(ROOFM, LMK.cap(top, h));
-    const tops = edges(top);
-    if (S.crown === 'fins' && b.lv >= 14 && hash(k0 + 'hl') < .5) { for (const e of tops) { box(put, S.wall, e, e.L / 2, 0, h + 5.2, .9, e.L, .5); for (const t of [.25, e.L - .25]) box(put, S.wall, e, t, 0, h, 6.1, .5, .5); } }   // an open crown frame
-    else if (S.crown === 'fins') { for (const e of tops) { const n = Math.max(1, Math.round(e.L / S.bay)); for (let k = 0; k <= n; k++) box(put, S.wall, e, THREE.MathUtils.clamp(k / n * e.L, .1, e.L - .1), 0, h, 3.2, S.pw, S.pd); } }
-    else if (S.crown === 'cornice') { for (const e of tops) box(put, S.wall, e, e.L / 2, .35, h - 1.2, 1.2, e.L + .7, S.pd + .35); for (const e of tops) box(put, S.wall, e, e.L / 2, -.05, h, 1.1, e.L, .25); }
-    else for (const e of tops) box(put, S.band, e, e.L / 2, 0, h, 1.0, e.L, .22);   // parapet
-    // on the roof: plant room, stair hut (옥탑), water tank, AC units, antenna
+    if (gf) {   // the ground floor: deep shop glass, columns, fascia, a canopy on the street side
+      put(MAT.store, col(LMK.walls(inset(ring, dep + .45), 0, GF, 6.4, GF), HSL(0, 0, 1)));
+      const colC = R(86) < .5 ? stoneC : trimC, cw = .4 + R(87) * .3;
+      for (const e of E) { if (e.L < 1.2) continue; const n = Math.max(1, Math.round(e.L / (bay * (1.5 + R(88))))); for (let k = 0; k <= n; k++) box(MAT.stone, colC, e, THREE.MathUtils.clamp(k / n * e.L, cw / 2, e.L - cw / 2), 0, 0, GF, cw, cw);
+        box(MAT.panel, R(89) < .3 ? accent : trimC, e, e.L / 2, .05, GF - .7, .7, e.L + .05, dep + .1);
+        const nr = nearestRoad(e.a[0] + e.ux * e.L / 2 + e.nx * 2, e.a[1] + e.uy * e.L / 2 + e.ny * 2, 14); if (nr && e.L > 4 && R(90 + e.L) < .7) box(MAT.metal, R(91) < .5 ? metalC : accent, e, e.L / 2, 1 + R(92) * .8, GF - .95 - R(93) * .6, .14, e.L - .6, 1 + R(92) * .8); } }
+    const fac = F[ty] || F.punched;
+    if (podTop) { const pty = ['punched', 'tile', 'panel', 'ribbon'][Math.floor(R(94) * 4)]; F[pty](ring, base, podTop); put(MAT.roof, col(LMK.cap(ring, podTop), trimC)); for (const e of E) box(MAT.panel, trimC, e, e.L / 2, .05, podTop, .9, e.L, .3); fac(tRing, podTop, hBody); }
+    else fac(ring, base, hBody);
+    if (top2) { put(MAT.roof, col(LMK.cap(tRing, hBody), trimC)); for (const e of edges(tRing)) box(glass, glassC, e, e.L / 2, -.1, hBody, 1.0, e.L, .05); (R(95) < .5 ? F.fins : F.ribbon)(top2, hBody, h); tRing = top2; }
+    // corner glass bay / a feature fin
+    if (b.lv >= 6 && !signs && R(96) < .4) { const e = E.reduce((p, q) => q.L > p.L ? q : p, E[0]); if (e.L > 9) box(glass, glassC.clone().offsetHSL(0, .1, -.1), e, R(97) < .5 ? 1.3 : e.L - 1.3, .3, base, (podTop || hBody) - base, 2.6, 1.0); }
+    if (b.lv >= 5 && R(98) < .3 && ty !== 'louver') { const e = E.reduce((p, q) => q.L > p.L ? q : p, E[0]); if (e.L > 14) box(MAT.stone, accent.clone().lerp(stoneC, .6), e, e.L * (.3 + R(99) * .4), .45, base, hBody - base + 1.5, 1.0 + R(100), 1.0); }
+    // roof and crown
+    const top = tRing, tE = edges(top), tA = Math.abs(area(top)); put(MAT.roof, col(LMK.cap(top, h), HSL(0, 0, .55 + R(101) * .2)));
+    const crown = kind === 'tower' ? ['fins', 'frame', 'parapet', 'screen'][Math.floor(R(102) * 4)] : ['parapet', 'cornice', 'parapet', 'screen'][Math.floor(R(102) * 4)];
+    if (crown === 'fins') for (const e of tE) { const n = Math.max(1, Math.round(e.L / 1.6)); for (let k = 0; k <= n; k++) box(MAT.metal, metalC, e, THREE.MathUtils.clamp(k / n * e.L, .1, e.L - .1), 0, h, 2 + R(103) * 3, .12, .5); }
+    else if (crown === 'frame' && b.lv >= 12) for (const e of tE) { box(MAT.metal, metalC, e, e.L / 2, 0, h + 5, .9, e.L, .5); for (const t of [.25, e.L - .25]) box(MAT.metal, metalC, e, t, 0, h, 5.9, .5, .5); }
+    else if (crown === 'cornice') for (const e of tE) box(MAT.stone, stoneC.clone().offsetHSL(0, 0, -.08), e, e.L / 2, .4, h - 1, 1.2, e.L + .8, dep + .4);
+    else if (crown === 'screen') for (const e of tE) box(MAT.panel, trimC, e, e.L / 2, 0, h, 2.2 + R(104) * 1.5, e.L, .15);
+    else for (const e of tE) box(MAT.stone, trimC, e, e.L / 2, 0, h, 1.0, e.L, .22);
+    // roof plant: 옥탑, tanks, AC units, aerial; a hip roof on some small ones
     const inner = inset(top, Math.min(3, Math.sqrt(tA) * .25)), ib = inner.reduce((q, [x, y]) => [Math.min(q[0], x), Math.min(q[1], y), Math.max(q[2], x), Math.max(q[3], y)], [1e9, 1e9, -1e9, -1e9]);
-    const spot = (k) => { for (let t = 0; t < 8; t++) { const x = ib[0] + (ib[2] - ib[0]) * hash(k0 + k + t), y = ib[1] + (ib[3] - ib[1]) * hash(k0 + t + k * 3); if (pointInRing(x, y, inner)) return [x, y]; } return null; };
-    if (tA > 60) {
-      const e0 = tops.reduce((p, q) => q.L > p.L ? q : p, tops[0]);
-      if (h > 45) { const pr = inset(top, Math.sqrt(tA) * .22); if (Math.abs(area(pr)) > 30) { const ph = 3.5 + hash(k0 + 'ph') * 2.5; put(st === 'tower' ? S.wall : stone('#b9b4aa'), LMK.walls(pr, h, h + ph, 3, 3)); put(ROOFM, LMK.cap(pr, h + ph)); } }
-      else { const p = spot('stair'); if (p) { const g = new THREE.BoxGeometry(3.2, 2.8, 3.6); g.rotateY(e0.ang); g.translate(p[0], h + 1.4, -p[1]); put(S.band === S.wall ? stone('#d8d3c8') : S.band, g); }
-        const w = spot('tank'); if (w) cyl(put, hash(k0 + 'tk') < .5 ? metal('#cfd4d8') : stone('#3f7fc4'), w[0], w[1], h, .85, 1.7); }
-      for (let k = 0; k < Math.min(6, Math.floor(tA / 60)); k++) { const p = spot('ac' + k); if (!p) continue; const g = new THREE.BoxGeometry(1.1, .8, .7); g.rotateY(e0.ang); g.translate(p[0], h + .4, -p[1]); put(stone('#c9cbc6'), g); }
-      if (hash(k0 + 'ant') < .4) { const p = spot('ant'); if (p) cyl(put, metal('#9aa0a5'), p[0], p[1], h, .05, 5, 6); } }
+    const spot = k => { for (let t = 0; t < 8; t++) { const x = ib[0] + (ib[2] - ib[0]) * R(110 + k * 3 + t), y = ib[1] + (ib[3] - ib[1]) * R(130 + k * 5 + t); if (pointInRing(x, y, inner)) return [x, y]; } return null; };
+    const e0 = tE.reduce((p, q) => q.L > p.L ? q : p, tE[0]);
+    if (tA > 50) {
+      if (h > 45) { const pr = inset(top, Math.sqrt(tA) * (.15 + R(105) * .15)); if (Math.abs(area(pr)) > 25) { const ph = 3 + R(106) * 3.5; solid(pr, h, h + ph, R(107) < .5 ? MAT.panel : MAT.metal, R(107) < .5 ? trimC : metalC); put(MAT.roof, col(LMK.cap(pr, h + ph), trimC)); } }
+      else if (b.lv <= 5 && R(108) < .25) { const ob = LMK.obb(top), g = new THREE.ConeGeometry(Math.hypot(ob.L, ob.W) / 2 * .9, 2.5 + R(109) * 1.5, 4, 1); g.rotateY(Math.PI / 4); g.scale(ob.L / Math.hypot(ob.L, ob.W) * 1.41, 1, ob.W / Math.hypot(ob.L, ob.W) * 1.41); g.rotateY(-ob.a); g.translate(ob.cx, h + 1.2 + .8, -ob.cy); put(MAT.roof, col(g, HSL(R(9) < .5 ? .02 : .55, .4, .3))); }
+      else { const p = spot(1); if (p) { const g = new THREE.BoxGeometry(2.6 + R(111), 2.8, 3.2 + R(112)); g.rotateY(e0.ang); g.translate(p[0], h + 1.4, -p[1]); put(MAT.stone, col(g, trimC)); }
+        const w = spot(2); if (w) put(MAT.metal, col(new THREE.CylinderGeometry(.85, .85, 1.7, 12).translate(w[0], h + .85, -w[1]), R(113) < .5 ? HSL(0, 0, .82) : HSL(.58, .6, .5))); }
+      for (let k = 0; k < Math.min(6, Math.floor(tA / 70)); k++) { const p = spot(10 + k); if (!p) continue; const g = new THREE.BoxGeometry(1.1, .8, .7); g.rotateY(e0.ang); g.translate(p[0], h + .4, -p[1]); put(MAT.stone, col(g, HSL(0, 0, .8))); }
+      if (R(114) < .35) { const p = spot(30); if (p) put(MAT.metal, col(new THREE.CylinderGeometry(.05, .05, 5, 6).translate(p[0], h + 2.5, -p[1]), HSL(0, 0, .6))); } }
+    // its name: on the crown of the bigger ones, over the door of the rest
+    if (!b.bg || b.h > 30) { const nm = nameOf(b); if (nm) { const fe = E.map(e => ({ e, n: nearestRoad(e.a[0] + e.ux * e.L / 2 + e.nx * 2, e.a[1] + e.uy * e.L / 2 + e.ny * 2, 30) })).filter(q => q.n && q.e.L > 6).sort((p, q) => p.n.d - q.n.d)[0];
+      if (fe) { const e = fe.e, big = b.lv >= 10, fg = [ '#ffffff', '#e8f2ff', '#ffe9b0', '#bfe4ff', '#ffd0d0' ][Math.floor(R(120) * 5)];
+        if (big) { const tf = edges(tRing).map(q => ({ q, d: Math.abs(q.ang - e.ang) })).sort((p, q) => p.d - q.d)[0].q; nameSign(put, tf, tf.L / 2, h - 1.6, .6, nm, Math.min(tf.L * .7, 14), Math.min(tf.L * .7, 14) / 4, fg, null); }
+        else nameSign(put, e, Math.min(e.L - 1.5, 2.2), GF - .35, dep + .14, nm, 2.6, .65, '#ffffff', ['#1c2a3a', '#3b2a1c', '#202020', '#2a3a2c'][Math.floor(R(121) * 4)]); } } }
   }
-  return { build };
+  return { build, flushSigns };
 })();
 // ---- 공사장: one of the new towers on the big roads is still going up (blue netting; the crane comes later with the street furniture)
 const SITE = BLD.filter(b => b.fill && b.tall && b.h > 40).sort((p, q) => hash(p.bb[0] * 17) - hash(q.bb[0] * 17))[0];
@@ -692,7 +749,8 @@ if (SITE) { SITE.kind = 'build'; SITE.shops.length = 0;
       if (b.h > 30 && Math.abs(b.bb[2] - b.bb[0]) > 12) for (let k = 0; k < 3; k++) { const bx = new THREE.BoxGeometry(2 + hash(b.name + k) * 3, 1.6, 2 + hash(k + b.name) * 3), cx = b.bb[0] + (b.bb[2] - b.bb[0]) * (.3 + .4 * hash(k * 7 + b.h)), cy = b.bb[1] + (b.bb[3] - b.bb[1]) * (.3 + .4 * hash(k * 3 + b.lv));
         if (pointInRing(cx, cy, b.p)) { bx.translate(cx, b.h + .8, -cy); put(ROOFM, bx); } } } catch (e) {}
   }
-  for (const [m, gs] of buckets) { const me = new THREE.Mesh(mergeGeometries(gs), m); me.castShadow = true; me.receiveShadow = true; _sceneAdd(me); } }
+  for (const [m, gs] of buckets) { const me = new THREE.Mesh(mergeGeometries(gs), m); me.castShadow = true; me.receiveShadow = true; _sceneAdd(me); }
+  BK.flushSigns(); }
 function pointInRing(x, y, ring) { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi) c = !c; } return c; }
 // ---- shop signs: the names from the map, on the wall that faces the street (ground-floor fascia, then one per floor)
 const SIGNCOL = { restaurant: ['#c8321f', '#fff'], cafe: ['#4b2e1f', '#f3e3c3'], fast_food: ['#e8a21b', '#2a1a0a'], bar: ['#3a1f5c', '#ffd34d'], pub: ['#3a1f5c', '#ffd34d'], hairdresser: ['#6b2d8f', '#fff'], beauty: ['#d14d8a', '#fff'],
