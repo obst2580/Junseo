@@ -251,7 +251,7 @@ window.addEventListener('error', e => { $('load').hidden = false; $('loadmsg').t
 
 // ---------------------------------------------------------------- renderer (WebGPU, falls back to WebGL2 where WebGPU is missing)
 const r = new THREE.WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
-r.setPixelRatio(Math.min(devicePixelRatio, QL.pr)); r.setSize(...view());
+{ const [vw, vh] = view(), cap = Math.sqrt({ potato: 1e6, low: 1.6e6, mid: 2.4e6, high: 3.7e6 }[QUAL] / (vw * vh)); r.setPixelRatio(Math.min(devicePixelRatio, QL.pr, cap)); } r.setSize(...view());   // big / 4K screens: cap the pixels drawn
 r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.0;
 r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 await r.init();
@@ -1890,8 +1890,8 @@ setTimeout(async () => {   // villagers: one at a time in the background, neares
   for (const [id, x, y, yaw] of q) { try { const n = await person(id); n.act.idle.time = Math.random() * 3; n.holder.position.copy(V(x, y, heightAt(x, y))); n.holder.rotation.y = yaw;
       Object.assign(n, { x, y, pid: id }); arm(n, id); n.yaw = yaw; n.home = [x, y, yaw]; npcs.push(n); } catch (e) { console.warn(id, e); } }
   spawnPeds();
-  const ids = CARLIST.map(c => c[0]).sort((a, b) => (Math.random() + (CARLIST.find(c => c[0] === a)[2] === 'sport' ? .7 : 0)) - (Math.random() + (CARLIST.find(c => c[0] === b)[2] === 'sport' ? .7 : 0))), per = Math.max(1, Math.round(TRAF.NC * .7 / Math.min(ids.length, { potato: 4, low: 8, mid: 13, high: 20 }[QUAL] || 8)));
-  for (const id of ids.slice(0, { potato: 4, low: 8, mid: 13, high: 20 }[QUAL] || 8)) { try { CARGLB[id] = await window.__glbJson('cars/' + id + '.json'); CARGLB[id].traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); TRAF.addType(id, CARGLB[id], per); } catch (e) { console.warn('car', id, e); } }
+  const ids = CARLIST.map(c => c[0]).sort((a, b) => (Math.random() + (CARLIST.find(c => c[0] === a)[2] === 'sport' ? .7 : 0)) - (Math.random() + (CARLIST.find(c => c[0] === b)[2] === 'sport' ? .7 : 0))), per = Math.max(1, Math.round(TRAF.NC * .7 / Math.min(ids.length, { potato: 2, low: 4, mid: 7, high: 12 }[QUAL] || 4)));
+  for (const id of ids.slice(0, { potato: 2, low: 4, mid: 7, high: 12 }[QUAL] || 4)) { try { await new Promise(r => setTimeout(r, 2500)); CARGLB[id] = await window.__glbJson('cars/' + id + '.json'); CARGLB[id].traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); TRAF.addType(id, CARGLB[id], per); } catch (e) { console.warn('car', id, e); } }
   CARGLB.ready = true;
   // the parked Porters away from you become a mix of the real cars
   const loaded = CARLIST.map(c => c[0]).filter(id => CARGLB[id]);
@@ -2271,7 +2271,22 @@ const CARGLB = {};
 try { const L_ = new GLTFLoader(); L_.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
   const glbJson = async u => { const d = (await (await fetch(u)).json()).data, b = Uint8Array.from(atob(d), c => c.charCodeAt(0)); return (await L_.parseAsync(b.buffer, './')).scene; };   // .glb is not a served type: shipped as base64 in JSON
   CARGLB.truck = await glbJson('cars/porter.json'); window.__glbJson = glbJson; } catch (e) { console.warn('car models', e); }
-function buildFromGLB(tpl) {
+const CARVC = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .38, metalness: .35, envMapIntensity: 1.1 }), CARGLASS = new THREE.MeshStandardMaterial({ color: '#10181e', roughness: .05, metalness: .5, transparent: true, opacity: .75, envMapIntensity: 1.6 });
+function slimCar(tpl) {   // a downloaded car is up to ~100 meshes: merge them into a handful (textured parts by texture, plain parts into one vertex-coloured mesh, glass into one) per body / wheel
+  if (!tpl || tpl.userData.slim) return tpl; tpl.updateMatrixWorld(true);
+  const groups = [tpl]; tpl.traverse(o => { if (/^wheel_/.test(o.name)) groups.push(o); });
+  for (const G_ of groups) { const inv = new THREE.Matrix4().copy(G_.matrixWorld).invert(), buckets = new Map(), kill = [];
+    G_.traverse(o => { if (!o.isMesh) return; let q = o.parent; while (q && q !== G_) { if (/^wheel_/.test(q.name)) return; q = q.parent; }   // wheel meshes belong to their own group
+      const m = Array.isArray(o.material) ? o.material[0] : o.material; let g = o.geometry.clone().applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); g = g.index ? g.toNonIndexed() : g;
+      for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); g.morphAttributes = {};
+      if (!g.attributes.normal) g.computeVertexNormals(); const n = g.attributes.position.count; if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
+      const glassy = m.transparent && (m.opacity ?? 1) < .9 || /glass|window|lens/i.test(m.name || ''), key = m.map ? m : glassy ? CARGLASS : CARVC;
+      if (key === CARVC) { const c = new Float32Array(n * 3), col = m.color || new THREE.Color(1, 1, 1); for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; } g.setAttribute('color', new THREE.BufferAttribute(c, 3)); }
+      if (!buckets.has(key)) buckets.set(key, []); buckets.get(key).push(g); kill.push(o); });
+    for (const o of kill) if (o.parent) o.parent.remove(o);
+    for (const [m, gs] of buckets) { try { const me = new THREE.Mesh(mergeGeometries(gs), m); me.castShadow = true; me.receiveShadow = true; G_.add(me); } catch (e) { console.warn('slim', e); } } }
+  tpl.userData.slim = true; return tpl; }
+function buildFromGLB(tpl) { slimCar(tpl);
   const g = tpl.clone(true), wh = [];
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   for (const n of ['wheel_FL', 'wheel_FR', 'wheel_RL', 'wheel_RR']) { const w = g.getObjectByName(n); if (!w) continue;
@@ -2864,8 +2879,8 @@ const TRAF = (() => {
     const o = new THREE.Object3D(); o.scale.set(0, 0, 0); o.updateMatrix(); for (let i = 0; i < n; i++) m.setMatrixAt(i, o.matrix); scene.add(m); return m; };
   // the fleet: each real model's meshes instanced (one draw per mesh); a model joins the traffic once it has loaded
   const TYPES = {}, list = [], _o = new THREE.Object3D(), _m = new THREE.Matrix4();
-  function addType(id, tpl, n) { if (!tpl || TYPES[id] || n <= 0) return; tpl.updateMatrixWorld(true); const sp = VSPEC[id] || VSPEC.truck, L = sp.L, W = sp.W, T = { parts: [], n };
-    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, n); o.geometry.computeBoundingBox(); const sz = o.geometry.boundingBox.getSize(new THREE.Vector3()); im.castShadow = sz.x * sz.y * sz.z > .5; im.receiveShadow = true; im.frustumCulled = false;
+  function addType(id, tpl, n) { if (!tpl || TYPES[id] || n <= 0) return; slimCar(tpl); tpl.updateMatrixWorld(true); const sp = VSPEC[id] || VSPEC.truck, L = sp.L, W = sp.W, T = { parts: [], n };
+    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, n); o.geometry.computeBoundingBox(); const sz = o.geometry.boundingBox.getSize(new THREE.Vector3()); im.castShadow = QUAL === 'high' && sz.x * sz.y * sz.z > 2; im.receiveShadow = true; im.frustumCulled = false;
       const z = new THREE.Object3D(); z.scale.set(0, 0, 0); z.updateMatrix(); for (let i = 0; i < n; i++) im.setMatrixAt(i, z.matrix); scene.add(im); T.parts.push({ im, local: o.matrixWorld.clone() }); });
     T.parts.push({ im: part(mergeGeometries([-W * .32, W * .32].map(x => new THREE.BoxGeometry(.3, .1, .04).translate(x, sp.H * .5, L / 2 + .01))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), n), local: new THREE.Matrix4() },
       { im: part(mergeGeometries([-W * .36, W * .36].map(x => new THREE.BoxGeometry(.22, .1, .04).translate(x, sp.H * .5, -L / 2 - .01))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), n), local: new THREE.Matrix4() });
@@ -2960,7 +2975,7 @@ function dayStep(dt) {
   { const day = THREE.MathUtils.clamp((h - 5.5) / 13.5, 0, 1), el = Math.sin(day * Math.PI) * 1.05, az = day * Math.PI;   // east at dawn, south at noon, west at dusk
     if (n < .98) SUN.set(Math.cos(az) * Math.cos(Math.max(el, .05)), Math.sin(Math.max(el, .05)), Math.sin(az) * Math.cos(Math.max(el, .05)) * .8).normalize(); else SUN.set(-.35, .72, .45).normalize();   // moonlight
     const e = Math.sin((h - 6) / 12 * Math.PI) * 1.1; sky.sunPosition.value.set(Math.cos(az) * Math.cos(e), Math.sin(e), Math.sin(az) * Math.cos(e) * .8); }   // the sky goes down with the sun (dusk colours, then night)
-  if (Math.abs(n - (DAY.capN ?? -1)) > .1 && (G.t - (DAY.capT || -99) > 3 || DAY.capN === undefined || Math.abs(n - DAY.capN) > .5)) { DAY.capN = n; DAY.capT = G.t; captureEnv(); }
+  if (Math.abs(n - (DAY.capN ?? -1)) > .45 && (G.t - (DAY.capT || -99) > 20 || DAY.capN === undefined || Math.abs(n - DAY.capN) > .5)) { DAY.capN = n; DAY.capT = G.t; captureEnv(); }
   sun.intensity = 3.6 * (1 - n) + .12 * n; sun.color.copy(_cA.set('#ffe8c8').lerp(_cB.set('#ff9a5a'), dusk * .8)).lerp(_cB.set('#8fa6ff'), n * n);
   hemi.intensity = .9 * (1 - n) + .55 * n; hemi.color.set('#d8dfe6').lerp(_cA.set('#8a8fd0'), n); hemi.groundColor.set('#b0a490').lerp(_cB.set('#6a5a48'), n); scene.environmentIntensity = .42 * (1 - n) + .3 * n;   // city glow keeps the street readable
   FOGC.set('#c3d5e4').lerp(_cA.set('#e9a77c'), dusk * .55).lerp(_cB.set('#101626'), n * n); skyK.value = 1 - .93 * n; skyNight.value.setRGB(.012 * n, .016 * n, .045 * n).lerp(_cA.setRGB(.35, .14, .1), dusk * .3);
