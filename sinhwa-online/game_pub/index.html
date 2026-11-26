@@ -681,11 +681,23 @@ function targetFor(F, range = 3.2) {   // the nearest standing person in front
     const sc = d + Math.abs(angD(F.yaw, yawTo(F, o))) * .9; if (sc < bs) { bs = sc; best = o; } }
   return best;
 }
+function aimYaw() {   // where the player means to hit: the held direction, else where the camera looks (touch: where the body faces)
+  const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
+  if (Math.hypot(ix, iz) > .2) return Math.atan2(ix, iz) + CR.yaw;
+  return coarse ? P.yaw : CR.yaw + Math.PI;
+}
+function targetInDir(F, yaw, range = 3.2) {   // the opponent inside the cone you face, closest to its centre
+  let best = null, bs = 1e9;
+  for (const o of fighters()) { if (o === F || o.down) continue; const d = Math.hypot(o.x - F.x, o.y - F.y); if (d > range) continue;
+    const a = Math.abs(angD(yaw, yawTo(F, o))); if (a > (d < 1.1 ? 1.5 : 1.0)) continue; const sc = a * 2 + d * .5; if (sc < bs) { bs = sc; best = o; } }
+  return best;
+}
 function playerAttack() {
   if (!P || G.cut || P.down || WANT.busted || P.car) return;
   if (P.once && FIGHT[P.onceName] && !P.ending && P.once.time < P.once.getClip().duration * .55) { P.queued = true; return; }   // pressed mid-swing: chain the next
   if (P.once && !FIGHT[P.onceName] && !P.ending && P.onceName !== 'guard' && (P.down || P.once.time < .2)) { P.buffer = G.t; return; }   // too soon: remember the press
-  const T = targetFor(P); attack(P, chooseMove(P, T), T); P.target = T;
+  const aim = aimYaw(), T = targetInDir(P, aim); if (!T) P.yaw = aim;   // nobody there: swing that way anyway
+  attack(P, chooseMove(P, T), T); P.target = T;
 }
 // ---- contact: the striking bone against the defender's body parts
 function judge(A, sk) {
@@ -759,6 +771,7 @@ function springs(F, dt) {
 }
 function shove(F, dir3, v) { F.vel = F.vel || [0, 0]; F.vel[0] += dir3.x * v; F.vel[1] += -dir3.z * v; }   // three (x, z) -> game (x, -y)
 function physics(F, dt) {
+  if (F.airH > 0) { F.airV -= 9.81 * dt; F.airH += F.airV * dt; if (F.airH <= 0) { F.airH = 0; F.airV = 0; FX.fallSound(); FX.dust(V(F.x, F.y, heightAt(F.x, F.y) + .05)); FX.shake(.03); } }   // thrown: up, then down hard
   if (!F.vel) return; const [vx, vy] = F.vel, sp = Math.hypot(vx, vy); if (sp < .02) { F.vel[0] = F.vel[1] = 0; return; }
   const nx = F.x + vx * dt, ny = F.y + vy * dt, [cx, cy] = collide(nx, ny), lost = Math.hypot(nx - cx, ny - cy);
   F.x = cx; F.y = cy;
@@ -857,7 +870,7 @@ function fightStep(dt) {
       else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
     if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
     if (F !== P) { const far = !G.cut && Math.hypot(F.x - P.x, F.y - P.y) > QL.cull; F.holder.visible = !far;
-      if (!far) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y))); F.holder.rotation.y = F.yaw; animate(F, dt); } }
+      if (!far) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y) + (F.airH || 0))); F.holder.rotation.y = F.yaw; animate(F, dt); } }
   }
   separate(); policeStep(dt); subStep(dt);
   if (P && P.hp < 100 && G.t - P.hurtT > 5 && !P.down) P.hp = Math.min(100, P.hp + dt * 6);
@@ -884,7 +897,7 @@ function subStep(dt) {
 }
 // ---- strike gauge → execution cutscene
 function addGauge(x) { G.gauge = Math.min(100, G.gauge + x); G.gaugeIdle = 0; }
-const EXECS = [{ name: '원투 어퍼 피니시', moves: ['combo_12', 'uppercut'] }, { name: '무릎 옆차기 처형', moves: ['hook', 'knee', 'kick_side'] }, { name: '날아차기 피날레', moves: ['combo_jh', 'jump_kick'] }];
+const EXECS = [{ name: '원투 어퍼', moves: ['combo_12', 'uppercut'] }, { name: '무릎 옆차기', moves: ['knee', 'kick_side'] }, { name: '날아차기', moves: ['jump_kick'] }, { name: '훅 어퍼', moves: ['hook', 'uppercut'] }];
 function execute() {
   if (!P || G.cut || G.gauge < 100 || P.down || P.car) return;
   const T = G.execT || targetFor(P, 4); if (!T) return;
@@ -894,7 +907,7 @@ function execute() {
     const dx = n.x - T.x, dy = n.y - T.y, d = Math.hypot(dx, dy) || 1; if (d < 3.2) [n.x, n.y] = collide(T.x + dx / d * 3.2, T.y + dy / d * 3.2); }
   T.strikes.length = 0; T.lunge = null; T.state = T.temper === 'flee' ? 'flee' : 'fight'; T.yaw = yawTo(T, P); T.combatT = 4;
   crime(T, 'exec');   // a killing
-  G.cut = { E, T, step: -1, t: 0, next: .55, shot: 0, endAt: 0, scale: 1 }; note('처형: ' + E.name);
+  G.cut = { E, T, step: -1, t: 0, next: .3, shot: 0, endAt: 0, scale: 1 }; note('처형: ' + E.name);
 }
 function cutStep(dt) {
   const C = G.cut; C.t += dt * C.scale;
@@ -902,10 +915,9 @@ function cutStep(dt) {
     C.step++; const mv = C.E.moves[C.step], last = C.step === C.E.moves.length - 1; G.cutFinal = last;
     attack(P, mv, C.T); G.cutFinal = false;
     const ls = (CLIPS[mv].strikes || []).slice(-1)[0];
-    C.shot = last ? 2 : C.step % 2; C.strikeAt = C.t + (ls ? ls.t : .5); C.next = C.t + (ls ? ls.t + .32 : .8);
-    if (last) { C.finalAt = C.strikeAt; C.endAt = C.strikeAt + 3.4; } }
-  C.scale = C.finalAt && C.t > C.finalAt - .12 && C.t < C.finalAt + .4 ? .2 : 1;
-  if (C.finalAt && C.t >= C.finalAt + .4) C.shot = 3;
+    C.shot = last ? 2 : C.step % 2; C.strikeAt = C.t + (ls ? ls.t : .5); C.next = C.t + (ls ? ls.t + .1 : .5);
+    if (last) { C.finalAt = C.strikeAt; C.endAt = C.strikeAt + .38; } }   // over as soon as the body starts to drop
+  C.scale = C.finalAt && C.t > C.finalAt - .1 && C.t < C.finalAt + .2 ? .3 : 1;
   if (C.endAt && C.t >= C.endAt) { G.cut = null; document.body.classList.remove('cut'); CR.init = false; }
 }
 function segBlocked(p, q) {   // anything solid (buildings, greenhouses, poles) between the camera and what it looks at
@@ -1023,7 +1035,7 @@ const FX = (() => {
 // ---------------------------------------------------------------- fight HUD + input
 const _em = new THREE.Vector3();
 function execMark() {   // an unseen gauge: once it is full, the nearest opponent gets a button over the head
-  const T = G.gauge >= 100 && !G.cut && P && !P.down && !P.car && !WANT.busted && mode === 'walk' && !MAP.open ? targetFor(P, 4) : null; G.execT = T; const el = $('execmark');
+  const T = G.gauge >= 100 && !G.cut && P && !P.down && !P.car && !WANT.busted && mode === 'walk' && !MAP.open ? (targetInDir(P, aimYaw(), 4) || targetFor(P, 2.2)) : null; G.execT = T; const el = $('execmark');
   if (!T) { el.hidden = true; return; }
   wpos(T, 'head', _em); _em.y += .3; _em.project(cam); if (_em.z > 1) { el.hidden = true; return; }
   const [w, h] = view(); el.hidden = false; el.style.left = ((_em.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _em.y) / 2 * h) + 'px';
@@ -1059,7 +1071,7 @@ const COPN = ['김 순경', '이 순경', '박 경장', '최 경사', '정 순�
 const WANT = { stars: 0, search: 0, spawnT: 0, crimeT: -99, busted: 0, flash: 0 };
 const cops = [];   // pool: loaded once, cloned per officer
 let copTpl = null, copLoading = null;
-const CRIME = { hit: 1, ko: 2, cophit: 2, copko: 3, exec: 3 };   // minimum stars, then +1 for repeat offences while wanted
+const CRIME = { hit: 1, ko: 2, cophit: 2, copko: 3, exec: 3, kill: 3 };   // minimum stars, then +1 for repeat offences while wanted
 function crime(D, kind) {
   if (D === P || WANT.busted) return;
   const min = CRIME[D.cop ? (kind === 'ko' ? 'copko' : 'cophit') : kind], before = WANT.stars;
@@ -1122,7 +1134,7 @@ function busted(by) {
   if (document.pointerLockElement) document.exitPointerLock();
 }
 function afterBusted() {
-  $('busted').classList.remove('on'); WANT.stars = 0; WANT.search = 0; G.gauge = 0;
+  $('busted').classList.remove('on'); WANT.busted = 0; WANT.stars = 0; WANT.search = 0; G.gauge = 0;   // busted ran below zero and kept the player frozen
   for (const c of cops) if (c.onDuty) offDuty(c);
   for (const n of npcs) if (n.state === 'fight' || n.state === 'flee') { n.state = 'calm'; n.foe = null; }
   if (P.once) { P.once.stop(); P.once = null; P.onceName = ''; P.ending = false; } P.down = false; P.ko = 0; P.hp = 100; P.meter = 0; $('kotext').classList.remove('on');
@@ -1583,6 +1595,22 @@ function carPairs() {   // car against car: a corner of one inside the other
       const [nx, ny, d] = pu < pv ? [fx * Math.sign(u), fy * Math.sign(u), pu] : [lx * Math.sign(v), ly * Math.sign(v), pv];
       contactImpulse(X, Y, px, py, nx, ny, d); break; } }
 }
+function killPerson(F, by) {   // dead: stays down for good (the village clears bodies later)
+  if (F.dead) return; F.dead = true; F.deadT = 0; F.state = 'dead'; F.hp = 0; F.down = true; F.strikes.length = 0; F.lunge = null; F.ko = 0;
+  if (F.onceName !== 'knockdown') playOnce(F, 'knockdown', 1, .05);
+  if (by === P) crime(F, 'kill');
+}
+function runOver(c, F, s, mine) {   // a wheel rolling over a body: the car bumps, the body is crushed
+  const pel = wpos(F, 'pelvis'), _w = new THREE.Vector3();
+  c.wh.forEach((w, i) => { w.piv.getWorldPosition(_w); if (Math.hypot(_w.x - pel.x, _w.z - pel.z) > .5) return;
+    const key = 'crush' + i; F[key] = F[key] || -9; if (G.t - F[key] < .35) return; F[key] = G.t;
+    c.hv += .5 + s * .03; c.pv += (i < 2 ? -1 : 1) * .05; FX.shake(mine ? .03 : .01); thumpBody(Math.min(1.5, .5 + s / 10));
+    F.vel = F.vel || [0, 0]; F.vel[0] += c.vx * .15; F.vel[1] += c.vy * .15; jolt(F, 'chest', new THREE.Vector3(0, -1, 0).add(new THREE.Vector3(c.vx, 0, -c.vy).normalize()), 1.2);
+    if (F.dead) return;
+    F.hp = Math.max(0, F.hp - (14 + s * 3.2)); F.hurtT = G.t;
+    if (F.hp <= 0) killPerson(F, mine ? P : null); else if (mine) crime(F, 'ko'); });
+}
+function thumpBody(s) { FX.fallSound(); }
 function stepCar(c, dt) {
   carInit(c); const inp = carInput(c), N = 4, h = dt / N; let slip = 0;
   for (let k = 0; k < N; k++) {
@@ -1593,20 +1621,26 @@ function stepCar(c, dt) {
   if (inp.park && Math.hypot(c.vx, c.vy) < .06 && Math.abs(c.w) < .06) { c.vx = c.vy = c.w = 0; c.aLong = c.aLat = 0; }   // parked: at rest
   carCollide(c);
   const fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw); c.vf = c.vx * fx + c.vy * fy; c.vl = c.vx * Math.cos(c.yaw) + c.vy * Math.sin(c.yaw); c.yawRate = c.w; c.slip = slip;
-  // people: the car shoves walkers aside, knocks them flying at speed
-  const s = Math.hypot(c.vx, c.vy);
-  for (const F of [P, ...npcs]) { if (!F || F.car || F.dead) continue;
+  // people: shoved aside at a crawl, staggered by a bump, struck and thrown at speed, crushed under the wheels when they are down
+  const s = Math.hypot(c.vx, c.vy), mine = c === (P && P.car);
+  for (const F of [P, ...npcs]) { if (!F || F.car) continue;
+    if (F.down || F.dead) { if (s > .8) runOver(c, F, s, mine); continue; }
     if (!inCar(c, F.x, F.y, .32)) continue;
     const dx = F.x - c.x, dy = F.y - c.y, fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw), u = dx * fx + dy * fy, v = dx * Math.cos(c.yaw) + dy * Math.sin(c.yaw), hl = c.spec.L / 2 + .33, hw = c.spec.W / 2 + .33;
-    const pu = hl - Math.abs(u), pv = hw - Math.abs(v);   // push out along the shorter way
-    if (pu < pv) { F.x += fx * Math.sign(u) * pu; F.y += fy * Math.sign(u) * pu; } else { F.x += Math.cos(c.yaw) * Math.sign(v) * pv; F.y += Math.sin(c.yaw) * Math.sign(v) * pv; }
+    const pu = hl - Math.abs(u), pv = hw - Math.abs(v);   // push out along the shorter way, and the normal it was pushed along
+    let nx, ny; if (pu < pv) { nx = fx * Math.sign(u); ny = fy * Math.sign(u); F.x += nx * pu; F.y += ny * pu; } else { nx = Math.cos(c.yaw) * Math.sign(v); ny = Math.sin(c.yaw) * Math.sign(v); F.x += nx * pv; F.y += ny * pv; }
     [F.x, F.y] = collide(F.x, F.y);
-    if (s > 3 && c === P.car && !F.down && G.t - (F.runT || -9) > .8) { F.runT = G.t;   // run over
-      const d3 = new THREE.Vector3(c.vx, 0, -c.vy).normalize(); F.vel = F.vel || [0, 0]; F.vel[0] += c.vx * .7; F.vel[1] += c.vy * .7;
-      F.hp = Math.max(0, F.hp - s * 5.5); F.meter = 0; F.strikes.length = 0;
-      if (s > 6 || F.hp <= 0) { playOnce(F, 'knockdown', 1, .04); F.down = true; F.fallAt = G.t + .5; F.next = null; } else playOnce(F, 'hit_heavy', 1, .04);
-      jolt(F, 'gut', d3, Math.min(2.5, s / 5)); FX.impact({ p: wpos(F, 'spine_01'), dir: d3, s: Math.min(1.6, s / 8), part: 'body', heavy: s <= 6, down: s > 6, who: F, mine: true });
-      c.vx *= .82; c.vy *= .82; provoke(F, P); if (F.hp <= 0) { speak(F, 'ko'); crime(F, 'ko'); } }
+    const vin = c.vx * nx + c.vy * ny;   // how hard the car came at them
+    if (!mine || vin < 1.2 || G.t - (F.runT || -9) < .6) continue; F.runT = G.t;
+    const d3 = new THREE.Vector3(c.vx, 0, -c.vy).normalize(), dmg = vin < 4 ? vin * 3 : Math.pow(vin - 3, 1.6) * 2.3 + 8;   // ~30 km/h hurts, ~50 km/h kills
+    F.hp = Math.max(0, F.hp - dmg); F.meter = 0; F.strikes.length = 0; F.lunge = null; F.vel = F.vel || [0, 0]; provoke(F, P);
+    if (vin < 4) { F.vel[0] += nx * vin * .9 + c.vx * .3; F.vel[1] += ny * vin * .9 + c.vy * .3; playOnce(F, vin < 2.5 ? 'hit_chest' : 'stumble', 1, .05); }   // bumped: staggers off the bumper
+    else { F.vel[0] = c.vx * 1.05 + nx * vin * .25; F.vel[1] = c.vy * 1.05 + ny * vin * .25; F.airV = Math.min(5.5, 1.2 + vin * .3); F.airH = .01;   // struck: thrown up and along
+      playOnce(F, 'knockdown', 1, .03); F.down = true; F.fallAt = 0; F.next = null; }
+    jolt(F, 'gut', d3, Math.min(3, vin / 3.5));
+    FX.impact({ p: wpos(F, 'spine_01'), dir: d3, s: Math.min(1.8, vin / 7), part: 'body', heavy: vin >= 4, down: vin >= 4, who: F, mine: true });
+    const k = Math.min(.25, 75 / c.ph.m * .9); c.vx *= 1 - k * Math.min(1, vin / 10); c.vy *= 1 - k * Math.min(1, vin / 10); c.pv -= vin * .006; c.hv += vin * .01;   // the car feels it too
+    if (F.hp <= 0) killPerson(F, P); else crime(F, vin >= 4 ? 'ko' : 'hit');
   }
   // looks: wheels spin and steer; the body sits on springs: dives under braking, squats under power, leans out of corners, jiggles on the road
   const vf = c.vf; for (const w of c.wh) w.spin.rotation.x += vf / w.r * dt;
