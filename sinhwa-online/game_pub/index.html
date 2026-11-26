@@ -976,7 +976,7 @@ const _em = new THREE.Vector3();
 function execMark() {   // an unseen gauge: once it is full, the nearest opponent gets a button over the head
   const T = G.gauge >= 100 && !G.cut && P && !P.down && !WANT.busted && mode === 'walk' && !MAP.open ? targetFor(P, 4) : null; G.execT = T; const el = $('execmark');
   if (!T) { el.hidden = true; return; }
-  wpos(T, 'head', _em); _em.y += .42; _em.project(cam); if (_em.z > 1) { el.hidden = true; return; }
+  wpos(T, 'head', _em); _em.y += .3; _em.project(cam); if (_em.z > 1) { el.hidden = true; return; }
   const [w, h] = view(); el.hidden = false; el.style.left = ((_em.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _em.y) / 2 * h) + 'px';
   if (coarse) { el.querySelector('kbd').textContent = '처형'; el.querySelector('span').hidden = true; }
 }
