@@ -24,8 +24,8 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 .help { color: var(--dim); font-size: 12px; line-height: 1.6 }
 .hud { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 10px; font-family: var(--m); font-size: 12px; line-height: 1.6; font-variant-numeric: tabular-nums }
-#radar { position: fixed; left: calc(22px + env(safe-area-inset-left, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: 236px; cursor: pointer; z-index: 2 }
-#mini { position: relative; width: 236px; height: 150px; background: #1d241c; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.5) }
+#radar { position: fixed; left: calc(22px + env(safe-area-inset-left, 0px)); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); width: 190px; cursor: pointer; z-index: 2 }
+#mini { position: relative; width: 190px; height: 190px; background: #1d241c; overflow: hidden; box-shadow: 0 0 0 1px rgba(0,0,0,.5) }
 #stats { display: flex; gap: 3px; margin-top: 3px }
 #stats div { height: 5px; background: rgba(0,0,0,.55); position: relative; overflow: hidden }
 #stats i { position: absolute; inset: 0 auto 0 0; display: block; transition: width .25s }
@@ -116,8 +116,8 @@ body.cut #wanted { visibility: hidden }
 html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; transform-origin: 0 0; transform: rotate(90deg) }   /* portrait phone: the game is laid out landscape and turned */
 @media (pointer: coarse) {
   .hud { display: none } .panel .help { display: none } .panel { width: auto; padding: 6px 8px; gap: 5px } .panel h1 { font-size: 13px }
-  #radar { left: calc(14px + env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 160px } #mini { width: 160px; height: 100px }
-  #stick { left: calc(196px + env(safe-area-inset-left, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)) }
+  #radar { left: calc(14px + env(safe-area-inset-left, 0px)); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: 128px } #mini { width: 128px; height: 128px }
+  #stick { left: calc(164px + env(safe-area-inset-left, 0px)); bottom: calc(18px + env(safe-area-inset-bottom, 0px)) }
   #gtahelp { left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); max-width: 300px; font-size: 13px }
   #atkpad { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: 88px; height: 88px }
   #execbtn { right: calc(126px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); width: 74px; height: 74px }
@@ -139,7 +139,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
   <div class="help"><b>WASD</b> 걷기 · <b>Shift</b> 달리기 · 화면 클릭 후 <b>마우스</b>로 둘러보기(<b>Esc</b> 해제) · 휠 거리<br><b>클릭</b> 또는 <b>J</b> 공격(거리·상황 따라 기술이 바뀜) · 게이지가 차면 <b>E</b> 처형 · 달리면서 맞으면 잘 피함<br>주민을 때리면 <b>수배</b>: 경찰이 출동, 쓰러지면 체포 · 시야에서 벗어나면 별이 줄어듦</div>
 </section>
 <div class="hud" id="hud">불러오는 중</div>
-<div id="radar"><div id="mini"><canvas id="minic" width="472" height="300"></canvas></div><div id="stats"><div id="hpw"><i></i></div><div id="stw"><i></i></div></div></div>
+<div id="radar"><div id="mini"><canvas id="minic" width="380" height="380"></canvas></div><div id="stats"><div id="hpw"><i></i></div><div id="stw"><i></i></div></div></div>
 <div id="gtahelp" role="status"></div>
 <div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button></div>
 <div id="stick" aria-hidden="true"><i></i></div>
@@ -481,13 +481,13 @@ function collide(x, y, rad = .35) {
 
 // ---------------------------------------------------------------- minimap (the village only)
 const mini = $('minic').getContext('2d');
-const MAPIMG = (() => { const s = .9, c = document.createElement('canvas'); c.width = (REG[2] - REG[0]) * s; c.height = (REG[3] - REG[1]) * s; const g = c.getContext('2d');
+const MAPIMG = (() => { const s = 3, c = document.createElement('canvas'); c.width = (REG[2] - REG[0]) * s; c.height = (REG[3] - REG[1]) * s; const g = c.getContext('2d');
   g.fillStyle = '#6f7d55'; g.fillRect(0, 0, c.width, c.height); const X = x => (x - REG[0]) * s, Y = y => (REG[3] - y) * s;
   for (const rd of W.roads) { g.strokeStyle = rd.w >= 8 ? '#f4f0e0' : rd.w >= 4 ? '#e0d8c0' : '#b8aa88'; g.lineWidth = Math.max(1, rd.w * s); g.beginPath(); rd.pts.forEach((p, i) => i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))); g.stroke(); }
   g.fillStyle = '#8a8f98'; for (const c_ of colliders) { g.save(); g.translate(X(c_.c[0]), Y(c_.c[1])); g.rotate(-c_.a); g.fillRect(-c_.hl * s, -c_.hw * s, c_.hl * 2 * s, c_.hw * 2 * s); g.restore(); }
   return { c, s }; })();
 function drawMini(x, y, yaw) {
-  const g = mini, W_ = g.canvas.width, H_ = g.canvas.height, zoom = 1.3; g.save(); g.fillStyle = '#1d241c'; g.fillRect(0, 0, W_, H_); g.translate(W_ / 2, H_ / 2); g.scale(zoom, zoom);
+  const g = mini, W_ = g.canvas.width, H_ = g.canvas.height, zoom = 1.25;   // about 100 m across g.save(); g.fillStyle = '#1d241c'; g.fillRect(0, 0, W_, H_); g.translate(W_ / 2, H_ / 2); g.scale(zoom, zoom);
   g.drawImage(MAPIMG.c, -(x - REG[0]) * MAPIMG.s, -(REG[3] - y) * MAPIMG.s); g.restore();
   for (const n of npcs) { const dx = (n.x - x) * MAPIMG.s * zoom, dy = -(n.y - y) * MAPIMG.s * zoom; if (Math.abs(dx) < W_ / 2 - 6 && Math.abs(dy) < H_ / 2 - 6) { g.fillStyle = n.cop ? ((performance.now() / 250 | 0) % 2 ? '#ff3b3b' : '#3b7bff') : n.state === 'fight' ? '#ff8a3a' : '#e2cf72'; g.beginPath(); g.arc(W_ / 2 + dx, H_ / 2 + dy, 5, 0, 7); g.fill(); } }
   { const X = gx => W_ / 2 + (gx - x) * MAPIMG.s * zoom, Y = gy => H_ / 2 - (gy - y) * MAPIMG.s * zoom; drawRoute(g, X, Y, 5);
