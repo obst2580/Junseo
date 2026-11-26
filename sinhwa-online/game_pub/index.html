@@ -90,8 +90,8 @@ body.cut #atkpad, body.cut #stick, body.cut #execbtn, body.cut #radar, body.cut 
   background: radial-gradient(ellipse at center, rgba(40,0,0,.15), rgba(20,0,0,.75)); opacity: 0; transition: opacity .6s }
 #kotext.on { opacity: 1 }
 #sub { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); max-width: min(900px, calc(calc(100 * var(--vw)) - 40px)); text-align: center; pointer-events: none; z-index: 8;
-  font: 400 clamp(17px, calc(2.06 * var(--vw)), 34px)/1.4 "Noto Sans KR", var(--f); color: #fff; letter-spacing: .075em; word-break: keep-all;
-  text-shadow: 1.2px 0 0 #000, -1.2px 0 0 #000, 0 1.2px 0 #000, 0 -1.2px 0 #000, .85px .85px 0 #000, -.85px .85px 0 #000, .85px -.85px 0 #000, -.85px -.85px 0 #000, 0 1px 4px rgba(0,0,0,.7);   /* outline drawn behind the glyphs: same in every browser */
+  font: 400 clamp(17px, calc(2.06 * var(--vw)), 34px)/1.4 "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #fff; letter-spacing: .075em; word-break: keep-all;
+  text-shadow: 1.2px 0 0 #000, -1.2px 0 0 #000, 0 1.2px 0 #000, 0 -1.2px 0 #000, .85px .85px 0 #000, -.85px .85px 0 #000, .85px -.85px 0 #000, -.85px -.85px 0 #000, 0 2px 3px rgba(0,0,0,.75), 0 0 8px rgba(0,0,0,.55), 0 0 16px rgba(0,0,0,.3);   /* thin outline + a soft drop shadow, drawn behind the glyphs */
   opacity: 0; transition: opacity .15s }
 #sub.on { opacity: 1 }
 body.cut #sub { bottom: calc(min(calc(30 * var(--vh)), max(calc(9 * var(--vh)), calc((calc(100 * var(--vh)) - calc(100 * var(--vw)) / 2.39) / 2))) / 2 - .7em) }   /* in the cutscene: inside the lower black bar */
@@ -176,6 +176,7 @@ import { traa } from 'three/addons/tsl/display/TRAANode.js';
 const $ = id => document.getElementById(id);
 // phones / tablets: ask for fullscreen + a landscape lock on the first touch (Android honours it; iOS shows the rotate prompt instead)
 const coarse = matchMedia('(pointer: coarse)').matches;
+try { document.fonts.load('400 24px "Noto Sans KR"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
 const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
 const view = () => turned() ? [innerHeight, innerWidth] : [innerWidth, innerHeight];
 const toApp = e => turned() ? { x: e.clientY, y: innerWidth - e.clientX } : { x: e.clientX, y: e.clientY };   // screen -> game-space pointer
