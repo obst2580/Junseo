@@ -445,6 +445,7 @@ function rig(model, src) {
         if (far > cap) for (let i = 0; i < n; i++) { xs[i] *= cap / far; ys[i] *= cap / far; }
         c.userData.root = { t: tr.times, xs, ys }; } }
     return c; });
+  if (!src) { const ss = clips.find(c => c.name === 'sit_stand'); if (ss) clips.push(THREE.AnimationUtils.subclip(ss, 'seated', 52, 56, 30)); }   // a held seated pose for driving
   const mixer = new THREE.AnimationMixer(model), act = {};
   for (const c of clips) act[c.name] = mixer.clipAction(c);
   const holder = new THREE.Group(); holder.add(model); scene.add(holder);
@@ -608,7 +609,7 @@ function animate(F, dt) {
   springs(F, dt);
 }
 function onceDone(F) {
-  const was = F.onceName;
+  const was = F.onceName; if (was === 'seated') return;   // held while driving
   if (was === 'knockdown') {
     if (F.dead) return;   // stays where it fell
     if (F.hp <= 0) { if (!F.ko) F.ko = F === P ? 3.2 : 7 + Math.random() * 3; return; }   // out cold: lie there (clamped on the last frame)
@@ -1119,9 +1120,9 @@ function wantedUI() {
 
 // ---------------------------------------------------------------- vehicles: 1톤 트럭, 승용차, 경운기 — get in with F, arcade driving with slides, crashes, running people down
 const VSPEC = {
-  truck: { name: '1톤 트럭', L: 5.05, W: 1.78, H: 2.0, maxV: 20, acc: 5.2, brake: 11, rev: 5, wb: 2.6, steer: .58, grip: 5.5, mass: 1.7, camK: 1.75, camH: 2.1, seat: [.42, .5, .95], open: false },
-  sedan: { name: '승용차', L: 4.6, W: 1.8, H: 1.45, maxV: 27, acc: 7.2, brake: 13, rev: 6, wb: 2.7, steer: .6, grip: 6.5, mass: 1.3, camK: 1.55, camH: 1.7, seat: [.38, .02, -.05], open: false },
-  tiller: { name: '경운기', L: 4.8, W: 1.55, H: 1.4, maxV: 5.2, acc: 1.8, brake: 6, rev: 2, wb: 2.3, steer: .55, grip: 9, mass: 1.0, camK: 1.35, camH: 1.8, seat: [0, .28, -.35], open: true },
+  truck: { name: '1톤 트럭', L: 5.05, W: 1.78, H: 2.0, maxV: 20, acc: 5.2, brake: 11, rev: 5, wb: 2.6, steer: .58, grip: 5.5, mass: 1.7, camK: 1.75, camH: 2.1, seat: [.42, .62, .95], open: false },
+  sedan: { name: '승용차', L: 4.6, W: 1.8, H: 1.45, maxV: 27, acc: 7.2, brake: 13, rev: 6, wb: 2.7, steer: .6, grip: 6.5, mass: 1.3, camK: 1.55, camH: 1.7, seat: [.38, .1, -.05], open: false },
+  tiller: { name: '경운기', L: 4.8, W: 1.55, H: 1.4, maxV: 5.2, acc: 1.8, brake: 6, rev: 2, wb: 2.3, steer: .55, grip: 9, mass: 1.0, camK: 1.35, camH: 1.8, seat: [0, .3, -.4], open: true },
 };
 const cars = [];
 const VM = (() => {   // shared materials
@@ -1146,9 +1147,10 @@ function vwheel(g, r, w, x, y, z) {
 }
 function buildTruck(paint) {   // front +z, left +x
   const g = new THREE.Group(), wh = [];
-  vbox(g, 1.76, 1.25, 1.7, paint, 0, 1.33, 1.55, .1);                   // cab
-  vbox(g, 1.62, .62, .06, VM.glass, 0, 1.62, 2.38).rotation.x = -.12;   // windscreen
-  for (const s of [-1, 1]) vbox(g, .04, .5, 1.0, VM.glass, s * .885, 1.62, 1.55);
+  vbox(g, 1.76, .78, 1.7, paint, 0, 1.08, 1.55, .08);                    // cab: lower panels
+  vbox(g, 1.7, .52, 1.6, VM.glass, 0, 1.7, 1.52);                         // glasshouse
+  vbox(g, 1.78, .09, 1.7, paint, 0, 1.99, 1.52, .04);                     // roof
+  for (const [x, z] of [[.84, 2.3], [-.84, 2.3], [.84, .74], [-.84, .74], [.84, 1.35], [-.84, 1.35]]) vbox(g, .07, .52, .07, paint, x, 1.7, z);   // pillars
   vbox(g, 1.7, .45, .12, VM.dark, 0, .92, 2.42);                         // grille
   for (const s of [-1, 1]) { vbox(g, .32, .16, .06, VM.head, s * .62, 1.0, 2.44); vbox(g, .06, .14, .22, VM.dark, s * .98, 1.55, 2.15); }   // headlights, mirrors
   vbox(g, 1.8, .16, .2, VM.steel, 0, .62, 2.45);                          // bumper
@@ -1159,20 +1161,19 @@ function buildTruck(paint) {   // front +z, left +x
   for (const s of [-1, 1]) vbox(g, .2, .12, .05, VM.tail, s * .72, .78, -2.56);
   vbox(g, .5, .14, .02, VM.plate, 0, .62, -2.56);
   for (let k = 0; k < 4; k++) vbox(g, .55, .4, .45, VM.white, -.45 + (k % 2) * .9, 1.15, -1.9 + (k >> 1) * .7, .04);   // cargo boxes
-  vbox(g, 1.6, .5, .5, VM.seat, 0, 1.05, 1.15);                           // bench seat
+  vbox(g, 1.6, .4, .5, VM.seat, 0, .95, 1.15);                            // bench seat
   for (const [x, z] of [[.8, 1.65], [-.8, 1.65], [.8, -1.6], [-.8, -1.6]]) wh.push(vwheel(g, .38, .26, x, .38, z));
   return { g, wh, front: [0, 1] };
 }
 function buildSedan(paint) {
   const g = new THREE.Group(), wh = [];
   vbox(g, 1.8, .55, 4.5, paint, 0, .62, 0, .14);                           // lower body
-  vbox(g, 1.56, .5, 2.3, paint, 0, 1.12, -.25, .2);                         // cabin
-  vbox(g, 1.5, .44, .06, VM.glass, 0, 1.12, .93).rotation.x = -.55;        // windscreen
-  vbox(g, 1.5, .4, .06, VM.glass, 0, 1.12, -1.42).rotation.x = .6;         // rear window
-  for (const s of [-1, 1]) vbox(g, .04, .36, 2.0, VM.glass, s * .785, 1.14, -.25);
+  vbox(g, 1.52, .46, 2.2, VM.glass, 0, 1.11, -.25, .12);                   // glasshouse
+  vbox(g, 1.5, .07, 1.55, paint, 0, 1.36, -.3, .03);                       // roof
+  for (const [x, z, t] of [[.74, .7, -.5], [-.74, .7, -.5], [.74, -1.2, .45], [-.74, -1.2, .45], [.76, -.25, 0], [-.76, -.25, 0]]) vbox(g, .06, .5, .1, paint, x, 1.11, z).rotation.x = t;   // pillars
   for (const s of [-1, 1]) { vbox(g, .36, .12, .05, VM.head, s * .6, .72, 2.26); vbox(g, .34, .12, .05, VM.tail, s * .6, .76, -2.26); vbox(g, .06, .1, .16, VM.dark, s * .92, 1.05, .7); }
   vbox(g, 1.82, .14, .14, VM.dark, 0, .42, 2.25); vbox(g, 1.82, .14, .14, VM.dark, 0, .42, -2.25); vbox(g, .5, .12, .02, VM.plate, 0, .55, -2.33);
-  vbox(g, 1.5, .4, .5, VM.seat, 0, .72, .05); vbox(g, 1.5, .4, .5, VM.seat, 0, .72, -.9);
+  vbox(g, 1.5, .3, .5, VM.seat, 0, .5, .05); vbox(g, 1.5, .3, .5, VM.seat, 0, .5, -.9);
   for (const [x, z] of [[.8, 1.4], [-.8, 1.4], [.8, -1.35], [-.8, -1.35]]) wh.push(vwheel(g, .33, .22, x, .33, z));
   return { g, wh, front: [0, 1] };
 }
@@ -1303,7 +1304,7 @@ function nearCar() { let best = null, bd = 3.4; for (const c of cars) { const d 
 function enterCar(c) {
   if (!P || P.down || G.cut || WANT.busted || P.car) return;
   P.car = c; c.driver = P; P.strikes.length = 0; P.lunge = null; P.vel = [0, 0];
-  playOnce(P, 'sit_stand', 1, .15); P.once.timeScale = 0; P.once.time = P.once.getClip().duration * .5;   // hold the seated frame
+  playOnce(P, 'seated', 1, .2);   // a looping seated pose
   CR.distT = Math.max(CR.distT, 4.6); CR.init = false;
 }
 function exitCar() {
