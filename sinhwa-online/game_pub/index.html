@@ -194,8 +194,8 @@ const QUAL = (() => { let saved = null; try { saved = localStorage.getItem('gtkQ
   const pick = new URLSearchParams(location.search).get('q') || saved; if (['low', 'mid', 'high'].includes(pick)) return pick;
   const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 4;
   return coarse || cores <= 4 || mem <= 4 ? 'low' : cores >= 8 && mem >= 8 ? 'high' : 'mid'; })();
-const QL = { low: { pr: .8, shadow: 1024, grass: 110000, cull: 40, ao: false, bloom: false, taa: false }, mid: { pr: 1, shadow: 1024, grass: 280000, cull: 70, ao: false, bloom: true, taa: false },
-  high: { pr: 1.5, shadow: 2048, grass: 600000, cull: 140, ao: true, bloom: true, taa: true } }[QUAL];
+const QL = { low: { lm: '_2k', tex: 512, pr: .8, shadow: 1024, grass: 110000, cull: 40, ao: false, bloom: false, taa: false }, mid: { lm: '_2k', tex: 0, pr: 1, shadow: 1024, grass: 280000, cull: 70, ao: false, bloom: true, taa: false },
+  high: { lm: '', tex: 0, pr: 1.5, shadow: 2048, grass: 600000, cull: 140, ao: true, bloom: true, taa: true } }[QUAL];
 try { document.fonts.load('700 24px "GTKSub"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
 const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
 const view = () => turned() ? [innerHeight, innerWidth] : [innerWidth, innerHeight];
@@ -227,6 +227,17 @@ const glbFrom = (jsonText, b64) => { const bin = Uint8Array.from(atob(b64), c =>
   dv.setUint32(0, 0x46546C67, true); dv.setUint32(4, 2, true); dv.setUint32(8, total, true); dv.setUint32(12, jl, true); dv.setUint32(16, 0x4E4F534A, true); u8.fill(0x20, 20, 20 + jl); u8.set(jb, 20);
   dv.setUint32(20 + jl, bl, true); dv.setUint32(24 + jl, 0x004E4942, true); u8.set(bin, 28 + jl); return buf; };
 const tl = new THREE.TextureLoader();
+function shrinkTextures(root, max) {   // low tier: halve big textures as they arrive (GPU memory)
+  if (!max) return; const done = new Set();
+  root.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)) for (const k of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap']) { const t = m[k]; if (!t || done.has(t) || !t.image) continue; done.add(t);
+    const im = t.image, w = im.width, h = im.height; if (!w || Math.max(w, h) <= max) continue; const k_ = max / Math.max(w, h), c = document.createElement('canvas'); c.width = Math.max(1, w * k_ | 0); c.height = Math.max(1, h * k_ | 0);
+    try { c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); if (im.close) im.close(); t.image = c; t.needsUpdate = true; } catch (e) {} } });
+}
+function dropCPU(root) {   // the GPU has the buffers: free the JS copies (bounds computed first)
+  root.traverse(o => { if (!o.isMesh || !o.geometry || o.isSkinnedMesh) return; const g = o.geometry; if (g.userData.cpuFreed) return; if (!g.boundingSphere) g.computeBoundingSphere(); if (!g.boundingBox) g.computeBoundingBox();
+    for (const a of Object.values(g.attributes)) if (a.array && a.array.length > 4096) a.array = new a.array.constructor(0);
+    if (g.index && g.index.array.length > 4096) g.index.array = new g.index.array.constructor(0); g.userData.cpuFreed = true; });
+}
 const tex = async (u, srgb = true) => { const t = await tl.loadAsync(u); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = maxAniso; return t; };
 
 // ---------------------------------------------------------------- data
@@ -272,7 +283,7 @@ const hemi = new THREE.HemisphereLight('#cfe0ee', '#6b6545', .55); scene.add(hem
 say('마을 불러오는 중…');
 const LI = VB.lmax * Math.PI;
 const lmTex = async u => { const t = await tl.loadAsync('village/' + u); t.flipY = false; t.channel = 1; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; };
-const LMV = { ground: await lmTex('lm_ground.jpg'), build: await lmTex('lm_build.jpg') };
+const LMV = { ground: await lmTex(`lm_ground${QL.lm}.jpg`), build: await lmTex(`lm_build${QL.lm}.jpg`) };   // 2k lightmaps below the high tier: a quarter of the memory
 const ONE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); ONE.needsUpdate = true; ONE.channel = 1;
 const mask = await tl.loadAsync('village/groundmask.png'); mask.flipY = false; mask.colorSpace = THREE.NoColorSpace;
 const paddyT = await tex('village/paddy.jpg'), gravelT = await tex('gravel.jpg');
@@ -308,11 +319,11 @@ function groundNode(n) {   // class mask (R dirt, G gravel, B grass, A paddy) in
   const c3 = mix(c2, texture(gravelT, wp.mul(.45)).rgb.mul(.85), smoothstep(.2, .8, msk.g.add(nz.sub(.5).mul(.4))));
   n.colorNode = vec4(c3, 1);
 }
-const [vjt, vhead] = await Promise.all([fetch('village/scene.json').then(x => x.text()), fetch('village/scene_bin.json').then(x => x.json())]);
-const vparts = await Promise.all(Array.from({ length: vhead.parts }, (_, i) => fetch(`village/scene_bin${i}.json`).then(x => x.json())));
+let [vjt, vhead] = await Promise.all([fetch('village/scene.json').then(x => x.text()), fetch('village/scene_bin.json').then(x => x.json())]);
+let vparts = await Promise.all(Array.from({ length: vhead.parts }, (_, i) => fetch(`village/scene_bin${i}.json`).then(x => x.json())));
 const gl = new GLTFLoader(); gl.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
-const vg = await gl.parseAsync(glbFrom(vjt, vparts.map(q => q.data).join('')), 'village/');
-let groundMesh = null; const conv = new Map();
+const vg = await gl.parseAsync(glbFrom(vjt, vparts.map(q => q.data).join('')), 'village/'); vjt = vparts = null;   // let the big strings go
+let groundMesh = null; const conv = new Map(); shrinkTextures(vg.scene, QL.tex);
 vg.scene.traverse(o => {
   if (!o.isMesh) return;
   o.castShadow = false; o.receiveShadow = false;
@@ -384,7 +395,7 @@ scene.add(vg.scene);
 const grassCam = uniform(new THREE.Vector3()), grassTime = uniform(0);
 { const S = 64, COUNT = QL.grass;
   const hm = await tl.loadAsync('village/heightmap.png'); hm.flipY = false; hm.colorSpace = THREE.NoColorSpace; hm.minFilter = hm.magFilter = THREE.NearestFilter; hm.generateMipmaps = false;
-  const lmG = await tl.loadAsync('village/lm_ground.jpg'); lmG.flipY = false; lmG.colorSpace = THREE.NoColorSpace;
+  const lmG = LMV.ground;   // the same lightmap the ground uses (it used to be loaded twice)
   const base = new THREE.InstancedBufferGeometry(); const ts = [0, .3, .58, .82], P = [];
   for (const t of ts) { const w = 1 - t * .85; P.push(-.5 * w, t, 0, .5 * w, t, 0); } P.push(0, 1, 0);
   const I = []; for (let i = 0; i < ts.length - 1; i++) { const a = i * 2; I.push(a, a + 1, a + 3, a, a + 3, a + 2); } const last = (ts.length - 1) * 2; I.push(last, last + 1, last + 2);
@@ -421,14 +432,14 @@ const grassCam = uniform(new THREE.Vector3()), grassTime = uniform(0);
 
 // ---------------------------------------------------------------- characters (the player + villagers standing about)
 say('주민 부르는 중…');
-const [at, ab, AM] = await Promise.all([fetch('anim.json').then(x => x.text()), fetch('anim_bin.json').then(x => x.json()), fetch('anims.json').then(x => x.json())]);
-const AG = await new GLTFLoader().parseAsync(glbFrom(at, ab.data), './');
+let [at, ab, AM] = await Promise.all([fetch('anim.json').then(x => x.text()), fetch('anim_bin.json').then(x => x.json()), fetch('anims.json').then(x => x.json())]);
+const AG = await new GLTFLoader().parseAsync(glbFrom(at, ab.data), './'); at = ab = null;
 const FIGHTSET = new Set(['jab', 'cross', 'hook', 'uppercut', 'combo_12', 'combo_jh', 'flurry', 'kick_front', 'kick_side', 'knee', 'jump_kick']);
 const uvC = uv();
 async function person(id) {
   const base = 'npc/' + id + '/';
   const [jt, bj, EX] = await Promise.all([fetch(base + 'human.json').then(x => x.text()), fetch(base + 'human_bin.json').then(x => x.json()), fetch(base + 'extras.json').then(x => x.json())]);
-  const g = await new GLTFLoader().parseAsync(glbFrom(jt, bj.data), base), model = g.scene;
+  const g = await new GLTFLoader().parseAsync(glbFrom(jt, bj.data), base), model = g.scene; shrinkTextures(model, QL.tex);
   model.traverse(o => { if (!o.isMesh) return; o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
     const m = o.material; if (EX.tints && EX.tints[m.name]) m.color.set(EX.tints[m.name]);
     const n = toNode(m, false);
@@ -1771,8 +1782,9 @@ function step(dt) {
   mapStep(dt); if (P) drawMini(P.x, P.y, P.yaw);
 }
 if (P) placeAt(6, -14);
+{ const flip = []; vg.scene.traverse(o => { if (o.isMesh && o.frustumCulled) { flip.push(o); o.frustumCulled = false; } }); post.render(); for (const o of flip) o.frustumCulled = true; dropCPU(vg.scene); }   // upload all, then let go of the JS copies
 $('load').hidden = true;
-window.__game = { cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
