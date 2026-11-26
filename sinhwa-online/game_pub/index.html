@@ -914,7 +914,7 @@ const FX = (() => {
       for (let i = 0; i < N; i++) { if (life[i] <= 0) { size[i] = 0; continue; } life[i] -= dt; const k = kind[i];
         vel[i * 3 + 1] -= (k === 2 ? 6 : k === 3 ? -.2 : 2.5) * dt; const drag = k === 3 ? .9 : .97; vel[i * 3] *= drag; vel[i * 3 + 1] *= drag; vel[i * 3 + 2] *= drag;
         pos[i * 3] += vel[i * 3] * dt; pos[i * 3 + 1] += vel[i * 3 + 1] * dt; pos[i * 3 + 2] += vel[i * 3 + 2] * dt;
-        size[i] *= k === 3 ? 1.01 : .975;   // shrink away (normal blending: no glowing sparks) if (life[i] <= 0) size[i] = 0; }
+        size[i] *= k === 3 ? 1.01 : .975; if (life[i] <= 0) size[i] = 0; }   // shrink away (normal blending: no glowing sparks)
       posA.needsUpdate = colA.needsUpdate = sizeA.needsUpdate = true;
       if (ring.visible) { rs.t += dt; const u = rs.t / .28; ring.scale.setScalar(rs.s * (.15 + u * .9)); ring.quaternion.copy(cam.quaternion); ringMat.opacity = Math.max(0, .8 * (1 - u)); if (u >= 1) ring.visible = false; }
       if (word.life > 0) { word.life -= dt; const u = 1 - word.life / .55, pop = u < .15 ? u / .15 * 1.25 : 1.25 - .25 * Math.min(1, (u - .15) / .2);
