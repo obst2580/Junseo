@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GTK: Grand Theft Korea</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400&family=Gothic+A1:wght@400&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400&family=Gothic+A1:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 :root { --vw: 1vw; --vh: 1vh } html.rot { --vw: 1vh; --vh: 1vw }   /* viewport units that follow the turned layout */
 /* Full-bleed game view: title / help top-left, status top-right, minimap bottom-right, touch stick bottom-left. */
@@ -89,9 +89,9 @@ body.cut #atkpad, body.cut #stick, body.cut #execbtn, body.cut #radar, body.cut 
 #kotext { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font: 900 clamp(36px, calc(8 * var(--vw)), 80px) "Black Han Sans", var(--f); color: #fff; text-shadow: 0 4px 0 #400, 0 0 24px #000;
   background: radial-gradient(ellipse at center, rgba(40,0,0,.15), rgba(20,0,0,.75)); opacity: 0; transition: opacity .6s }
 #kotext.on { opacity: 1 }
-#sub { position: fixed; left: 50%; transform: translateX(-50%) scaleX(1.08);   /* glyphs a touch wider, like the reference */
+#sub { position: fixed; left: 50%; transform: translateX(-50%);
   bottom: calc(88px + env(safe-area-inset-bottom, 0px)); max-width: min(900px, calc(calc(100 * var(--vw)) - 40px)); text-align: center; pointer-events: none; z-index: 8;
-  font: 400 clamp(17px, calc(2.06 * var(--vw)), 34px)/1.4 "Gothic A1", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #fff; letter-spacing: .075em; word-break: keep-all;
+  font: 500 clamp(17px, calc(2.06 * var(--vw)), 34px)/1.4 "Gothic A1", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #fff; letter-spacing: .075em; word-break: keep-all;
   text-shadow: 1.2px 0 0 #000, -1.2px 0 0 #000, 0 1.2px 0 #000, 0 -1.2px 0 #000, .85px .85px 0 #000, -.85px .85px 0 #000, .85px -.85px 0 #000, -.85px -.85px 0 #000, 0 2px 3px rgba(0,0,0,.75), 0 0 8px rgba(0,0,0,.55), 0 0 16px rgba(0,0,0,.3);   /* thin outline + a soft drop shadow, drawn behind the glyphs */
   opacity: 0; transition: opacity .15s }
 #sub.on { opacity: 1 }
@@ -177,7 +177,7 @@ import { traa } from 'three/addons/tsl/display/TRAANode.js';
 const $ = id => document.getElementById(id);
 // phones / tablets: ask for fullscreen + a landscape lock on the first touch (Android honours it; iOS shows the rotate prompt instead)
 const coarse = matchMedia('(pointer: coarse)').matches;
-try { document.fonts.load('400 24px "Gothic A1"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
+try { document.fonts.load('500 24px "Gothic A1"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
 const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
 const view = () => turned() ? [innerHeight, innerWidth] : [innerWidth, innerHeight];
 const toApp = e => turned() ? { x: e.clientY, y: innerWidth - e.clientX } : { x: e.clientX, y: e.clientY };   // screen -> game-space pointer
