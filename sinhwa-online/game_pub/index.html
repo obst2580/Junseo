@@ -38,7 +38,14 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 #bigmap .bh { position: absolute; left: 0; right: 0; top: calc(12px + env(safe-area-inset-top, 0px)); text-align: center; color: #e9e4cf; font: 400 14px "Noto Sans KR", var(--f); pointer-events: none }
 #bigmap .bh b { font: 400 20px "Black Han Sans", var(--f); color: #f3e3a8; margin-right: 10px }
 #bigmap .bx { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); top: calc(10px + env(safe-area-inset-top, 0px)); width: 40px; height: 40px; font-size: 20px; border-radius: 50%; padding: 0 }
-#gtahelp.on { opacity: 1 } #gtahelp kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; margin: 0 2px; border: 1px solid #fff; border-radius: 3px; font: 600 13px var(--m); text-align: center }
+#gtahelp.on { opacity: 1 }
+#execmark { position: fixed; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: 0; padding: 6px; z-index: 3; pointer-events: none }
+#execmark[hidden] { display: none }
+#execmark kbd { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: rgba(0,0,0,.72); border: 2px solid #fff; color: #fff; font: 700 15px var(--m); animation: epulse 1s infinite }
+#execmark span { font: 500 12px "Noto Sans KR", var(--f); color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; letter-spacing: .1em }
+@keyframes epulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.55) } 70%, 100% { box-shadow: 0 0 0 9px rgba(255,255,255,0) } }
+@media (pointer: coarse) { #execmark { pointer-events: auto } #execmark kbd { width: 54px; height: 54px; font: 700 14px "Noto Sans KR", var(--f) } }
+body.cut #execmark { display: none } #gtahelp kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; margin: 0 2px; border: 1px solid #fff; border-radius: 3px; font: 600 13px var(--m); text-align: center }
 .panel, .hud, #bars, #gauge { display: none !important }   /* the game shows only what GTA shows */
 #mini canvas { width: 100%; height: 100% }
 #load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 40%, #2a2f26, #0d0f0b 75%); color: #e9e4cf; font-size: 15px; text-align: center; line-height: 1.7; z-index: 20 }
@@ -140,6 +147,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 <button type="button" id="atkpad" aria-label="공격">공격</button>
 <div id="gauge" hidden><div class="gl">타격 게이지</div><div class="gb"><i></i></div><div class="gr">처형 가능! <kbd>E</kbd></div></div>
 <button type="button" id="execbtn" hidden>처형</button>
+<button type="button" id="execmark" hidden aria-label="처형"><kbd>E</kbd><span>처형</span></button>
 <div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div>
 <div id="sub" role="status" aria-live="polite"></div>
 
@@ -832,7 +840,7 @@ function addGauge(x) { G.gauge = Math.min(100, G.gauge + x); G.gaugeIdle = 0; }
 const EXECS = [{ name: '원투 어퍼 피니시', moves: ['combo_12', 'uppercut'] }, { name: '무릎 옆차기 처형', moves: ['hook', 'knee', 'kick_side'] }, { name: '날아차기 피날레', moves: ['combo_jh', 'jump_kick'] }];
 function execute() {
   if (!P || G.cut || G.gauge < 100 || P.down) return;
-  const T = targetFor(P, 4); if (!T) { note('처형할 상대가 가까이 없음'); return; }
+  const T = G.execT || targetFor(P, 4); if (!T) return;
   const E = EXECS[Math.floor(Math.random() * EXECS.length)];
   G.gauge = 0; document.body.classList.add('cut'); P.queued = false; P.strikes.length = 0;
   for (const n of npcs) if (n !== T) { n.strikes.length = 0; n.lunge = null;   // bystanders back off and give the shot room
@@ -964,12 +972,21 @@ const FX = (() => {
   };
 })();
 // ---------------------------------------------------------------- fight HUD + input
+const _em = new THREE.Vector3();
+function execMark() {   // an unseen gauge: once it is full, the nearest opponent gets a button over the head
+  const T = G.gauge >= 100 && !G.cut && P && !P.down && !WANT.busted && mode === 'walk' && !MAP.open ? targetFor(P, 4) : null; G.execT = T; const el = $('execmark');
+  if (!T) { el.hidden = true; return; }
+  wpos(T, 'head', _em); _em.y += .42; _em.project(cam); if (_em.z > 1) { el.hidden = true; return; }
+  const [w, h] = view(); el.hidden = false; el.style.left = ((_em.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _em.y) / 2 * h) + 'px';
+  if (coarse) { el.querySelector('kbd').textContent = '처형'; el.querySelector('span').hidden = true; }
+}
+$('execmark').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); execute(); });
 const barsUI = () => {
   $('php').style.width = P ? P.hp + '%' : '0'; const T = P && (P.target && !P.target.down && Math.hypot(P.target.x - P.x, P.target.y - P.y) < 8 ? P.target : npcs.find(n => (n.state === 'fight' || n.state === 'police') && n.foe === P && Math.hypot(n.x - P.x, n.y - P.y) < 8));
   $('tbar').hidden = !T; if (T) { $('tname').textContent = T.name; $('thp').style.width = T.hp + '%'; }
   $('hpw').firstChild.style.width = (P ? P.hp : 0) + '%'; $('hpw').classList.toggle('low', !!P && P.hp < 30); $('stw').firstChild.style.width = (P ? P.stam : 100) + '%'; $('stw').classList.toggle('out', !!P && P.tired);
-  const full = G.gauge >= 100 && !G.cut && P && !P.down && !!targetFor(P, 4); $('execbtn').hidden = !(full && coarse);
-  const help = G.infoT > 0 ? G.info : full ? (coarse ? '<b>처형</b> 버튼을 눌러 처형' : '<kbd>E</kbd> 키를 눌러 처형') : G.introT > 0 ? G.intro : '';
+  $('execbtn').hidden = true; execMark();
+  const help = G.infoT > 0 ? G.info : G.introT > 0 ? G.intro : '';
   if (help !== G.helpShown) { G.helpShown = help; $('gtahelp').innerHTML = help; $('gtahelp').classList.toggle('on', !!help); }
   if (G.introT > 0) G.introT -= 1 / 60;
   wantedUI(); };
