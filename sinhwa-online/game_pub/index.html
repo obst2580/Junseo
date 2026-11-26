@@ -2102,6 +2102,7 @@ function buildFromGLB(tpl) {
   return { g, wh, front: [0, 1] };
 }
 function makeCar(type, x, y, yaw, paintKey) {
+  if (CARGLB.truck) type = 'truck';   // only the Porter II model is used
   const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], pk = paintKey && P_[paintKey], b = type === 'truck' ? (CARGLB.truck ? buildFromGLB(CARGLB.truck) : buildTruck(pk || [P_.porter, P_.white][n_ % 2])) : type === 'sedan' ? buildSedan(pk || [P_.red, P_.white, P_.silver, P_.black][n_ % 4])
     : type === 'hatch' ? buildHatch(pk || [P_.sky, P_.white, P_.beige][n_ % 3]) : buildTiller();
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(sp.W + .7, sp.L + .6), VM.shadow); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; sh.renderOrder = 1; b.g.add(sh);   // soft contact shadow under the car
@@ -2110,7 +2111,7 @@ function makeCar(type, x, y, yaw, paintKey) {
   holder.position.copy(V(x, y, heightAt(x, y))); holder.rotation.y = yaw; cars.push(c); return c;
 }
 // parked along the lanes near the start: on the verge, facing along the road
-{ const spots = [], want = ['sedan', 'truck', 'hatch', 'sedan', 'hatch', 'sedan', 'truck', 'sedan'];   // 강남: no tillers
+{ const spots = [], want = ['truck', 'truck', 'truck', 'truck', 'truck', 'truck', 'truck', 'truck'];   // Porter II only
   const seed = START; let tries = 0;
   const pts = []; for (const rd of W.roads) if (rd.w >= 3) for (let i = 0; i + 1 < rd.pts.length; i++) { const [a, b] = [rd.pts[i], rd.pts[i + 1]]; const d = Math.hypot(a[0] - seed[0], a[1] - seed[1]); if (d < 90 && d > 6) pts.push([a, b, rd.w]); }
   pts.sort((p, q) => Math.hypot(p[0][0] - seed[0], p[0][1] - seed[1]) - Math.hypot(q[0][0] - seed[0], q[0][1] - seed[1]));
@@ -2583,7 +2584,7 @@ const SHOPS = (() => {
   return [
     { id: 'black', name: '암시장', icon: '총', col: '#d8423a', x: black[0], y: black[1], items: [['bat', '야구방망이', 50000], ['knife', '칼', 90000], ['pistol', '권총', 1200000], ['ammo', '권총 탄약 24발', 60000]] },
     { id: 'pharm', name: '약국', icon: '약', col: '#2fae5a', x: pharm[0], y: pharm[1], items: [['band', '붕대 (체력 +40)', 15000], ['med', '진통제 (체력 가득)', 40000]] },
-    { id: 'cars', name: '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_hatch', '경차', 1500000], ['car_truck', '1톤 트럭', 2000000], ['car_sedan', '세단', 2800000]] },
+    { id: 'cars', name: '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_truck', '포터 II (1톤 트럭)', 2000000]] },
   ]; })();
 { const ringG = new THREE.CylinderGeometry(.9, .9, 1.1, 32, 1, true).translate(0, .55, 0), ringM = new THREE.MeshBasicMaterial({ color: '#f5c542', transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false });
   for (const sh of SHOPS) { const m = new THREE.Mesh(ringG, ringM); m.position.copy(V(sh.x, sh.y, heightAt(sh.x, sh.y) + .02)); scene.add(m); sh.mesh = m;
@@ -2673,33 +2674,20 @@ const TRAF = (() => {
   const wheels = (wb, tw, r) => mergeGeometries([[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([x, z]) => new THREE.CylinderGeometry(r, r, .24, 12).rotateZ(Math.PI / 2).translate(x * tw, r, z * wb)));
   const part = (geo, mat, n, colors) => { const m = new THREE.InstancedMesh(geo, mat, n); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; if (colors) { for (let i = 0; i < n; i++) m.setColorAt(i, new THREE.Color('#fff')); }
     const o = new THREE.Object3D(); o.scale.set(0, 0, 0); o.updateMatrix(); for (let i = 0; i < n; i++) m.setMatrixAt(i, o.matrix); scene.add(m); return m; };
-  const car = {
-    body: part(new RoundedBoxGeometry(1.8, .72, 4.55, 3, .16).translate(0, .62, 0), new THREE.MeshPhysicalMaterial({ color: '#fff', roughness: .4, metalness: .45, clearcoat: .8 }), NC, true),
-    cab: part((() => { const sh = new THREE.Shape(); sh.moveTo(-1.45, 0); sh.lineTo(1.0, 0); sh.quadraticCurveTo(.55, .5, .25, .6); sh.lineTo(-.85, .6); sh.quadraticCurveTo(-1.2, .5, -1.45, 0);   // side profile: raked windscreen, sloping rear glass
-      const g = new THREE.ExtrudeGeometry(sh, { depth: 1.5, bevelEnabled: true, bevelSize: .05, bevelThickness: .05, bevelSegments: 2, curveSegments: 6 }); g.translate(0, 0, -.75); g.rotateY(-Math.PI / 2); g.translate(0, .97, -.1); return g; })(), M('#0d1419', { roughness: .08, metalness: .5 }), NC),
-    wheel: part(wheels(1.38, .78, .33), M('#141414', { roughness: .8, metalness: 0 }), NC),
-    head: part(mergeGeometries([-.6, .6].map(x => new THREE.BoxGeometry(.38, .12, .05).translate(x, .78, 2.28))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), NC),
-    tail: part(mergeGeometries([-.62, .62].map(x => new THREE.BoxGeometry(.4, .12, .05).translate(x, .8, -2.28))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), NC),
-    sign: part(new THREE.BoxGeometry(.55, .22, .28).translate(0, 1.6, -.25), night(M('#ffd34a', { emissive: '#ffcc33', emissiveIntensity: 0 }), 1.5), NC) };
-  const busT = canvasTex(512, 64, (g, w, h) => { g.fillStyle = '#0a0f14'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(160,190,210,.35)'; for (let x = 6; x < w; x += 64) g.fillRect(x, 4, 54, h - 8); });
-  const bus = {
-    body: part(new RoundedBoxGeometry(2.5, 2.7, 11, 2, .2).translate(0, 1.65, 0), M('#fff', { roughness: .45 }), NB, true),
-    glass: part(new THREE.BoxGeometry(2.54, 1.0, 9.6).translate(0, 2.15, .2), new THREE.MeshStandardMaterial({ map: busT, roughness: .1, metalness: .4 }), NB),
-    roof: part(new THREE.BoxGeometry(2.3, .25, 9).translate(0, 3.1, -.6), M('#e9ecef'), NB),
-    wheel: part(wheels(3.6, 1.05, .5), M('#141414', { roughness: .8, metalness: 0 }), NB),
-    led: part(new THREE.BoxGeometry(1.7, .3, .05).translate(0, 2.85, 5.52), night(M('#3a1a00', { emissive: '#ff9a1a', emissiveIntensity: .8 }), 2.5), NB) };
-  // ---- the fleet
-  const PAINT = ['white', 'white', 'silver', 'black', 'black', 'silver', 'red', 'blue', 'beige', 'white'], PHEX = { white: '#e6e8e9', silver: '#a7adb2', black: '#1b1d20', red: '#9e1b14', blue: '#1f4f9a', beige: '#c9bfa6', orange: '#e58a28' };
-  const BUSC = ['#2d64c8', '#2d64c8', '#3aa14a', '#c8302a'];   // 간선 파랑, 지선 초록, 광역 빨강
+  // the fleet is all Porter II (the one real model): its meshes instanced, one draw per mesh
+  const car = { parts: [] };
+  if (CARGLB.truck) { const tpl = CARGLB.truck; tpl.updateMatrixWorld(true);
+    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, NC); im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false;
+      const z = new THREE.Object3D(); z.scale.set(0, 0, 0); z.updateMatrix(); for (let i = 0; i < NC; i++) im.setMatrixAt(i, z.matrix); scene.add(im); car.parts.push({ im, local: o.matrixWorld.clone() }); }); }
+  const lamps = { head: part(mergeGeometries([-.62, .62].map(x => new THREE.BoxGeometry(.32, .14, .04).translate(x, .95, 2.74))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), NC),
+    tail: part(mergeGeometries([-.7, .7].map(x => new THREE.BoxGeometry(.18, .3, .04).translate(x, .75, -2.74))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), NC) };
   const list = [];
-  for (let i = 0; i < NC; i++) { const taxi = i % 5 === 1, paint = taxi ? (i % 2 ? 'orange' : 'silver') : PAINT[i % PAINT.length]; list.push({ kind: 'car', i, taxi, suv: !taxi && i % 4 === 3, paint, len: 4.6, w: 1.8, vmax: 0, on: false }); car.body.setColorAt(i, new THREE.Color(PHEX[paint])); }
-  for (let i = 0; i < NB; i++) { list.push({ kind: 'bus', i, len: 11, w: 2.5, vmax: 0, on: false }); bus.body.setColorAt(i, new THREE.Color(BUSC[i % BUSC.length])); }
-  car.body.instanceColor.needsUpdate = true; bus.body.instanceColor.needsUpdate = true;
-  const _o = new THREE.Object3D();
-  function draw(c) { const parts = c.kind === 'bus' ? bus : car;
-    _o.position.set(c.x, 0, -c.y); _o.rotation.set(0, c.yaw, 0); if (!c.on) _o.scale.set(0, 0, 0); else if (c.suv) _o.scale.set(1.04, 1.18, 1.0); else _o.scale.set(1, 1, 1); _o.updateMatrix();
-    for (const k in parts) { if (k === 'sign' && !c.taxi) continue; parts[k].setMatrixAt(c.i, _o.matrix); parts[k].instanceMatrix.needsUpdate = true; }
-    if (c.taxi && !c.on) { car.sign.setMatrixAt(c.i, _o.matrix); car.sign.instanceMatrix.needsUpdate = true; } }
+  if (car.parts.length) for (let i = 0; i < NC; i++) list.push({ kind: 'car', i, len: 5.45, w: 1.8, vmax: 0, on: false, paint: null });
+  const _o = new THREE.Object3D(), _m = new THREE.Matrix4();
+  function draw(c) {
+    _o.position.set(c.x, 0, -c.y); _o.rotation.set(0, c.yaw, 0); _o.scale.setScalar(c.on ? 1 : 0); _o.updateMatrix();
+    for (const { im, local } of car.parts) { im.setMatrixAt(c.i, _m.multiplyMatrices(_o.matrix, local)); im.instanceMatrix.needsUpdate = true; }
+    for (const k in lamps) { lamps[k].setMatrixAt(c.i, _o.matrix); lamps[k].instanceMatrix.needsUpdate = true; } }
   function place(c, near) {   // onto some lane, near[0]..near[1] m from the player, with room around it
     for (let k = 0; k < 40; k++) { const q = c.kind === 'bus' ? R.filter(q => q.bus)[Math.floor(Math.random() * R.filter(q => q.bus).length)] : Math.random() < .75 ? R.filter(q => q.big)[Math.floor(Math.random() * R.filter(q => q.big).length)] : R[Math.floor(Math.random() * R.length)];
       if (!q) return false; const dir = q.oneway ? 1 : Math.random() < .5 ? 1 : -1, lane = c.kind === 'bus' ? 0 : q.bus ? 1 + Math.floor(Math.random() * (q.per - 1)) : Math.floor(Math.random() * q.per), s = Math.random() * q.L;
@@ -2748,7 +2736,7 @@ const TRAF = (() => {
       const pu = b.len / 2 - Math.abs(u), pv = b.w / 2 - Math.abs(v); if (pu <= 0 || pv <= 0) continue;
       const [nx, ny, d] = pu < pv ? [fx * Math.sign(u), fy * Math.sign(u), pu] : [lx * Math.sign(v), ly * Math.sign(v), pv]; contactImpulse(pc, null, px, py, nx, ny, d); b.v = 0; break; } }
   function wreck(c, keep = false) {   // hand this one over to the physics as a real car (same paint, same speed)
-    const type = 'sedan', paint = c.paint === 'orange' ? 'red' : c.paint;
+    const type = 'truck', paint = null;
     const real = makeCar(type, c.x, c.y, c.yaw, paint); real.vx = Math.sin(c.yaw) * c.v; real.vy = -Math.cos(c.yaw) * c.v; real.fromTraffic = true;
     c.on = false; draw(c); return real; }
   const near = () => { if (!P || P.car) return null; let best = null, bd = 3.2; for (const c of list) if (c.on && c.kind === 'car') { const d = Math.hypot(c.x - P.x, c.y - P.y) - 1.4; if (d < bd) { bd = d; best = c; } } return best; };
