@@ -114,6 +114,25 @@ body.cut #sub { bottom: calc(min(calc(30 * var(--vh)), max(calc(9 * var(--vh)), 
 #busted small { display: block; font: 600 clamp(13px, calc(2.2 * var(--vw)), 18px) var(--f); letter-spacing: .3em; color: #b9c8ff; margin-top: 8px }
 #busted.on { opacity: 1; animation: bflash .5s steps(2) 3 }
 @keyframes bflash { 50% { background: radial-gradient(ellipse at center, rgba(60,0,0,.25), rgba(40,0,10,.8)) } }
+#cash { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(56px + env(safe-area-inset-top, 0px)); font: 400 26px "Black Han Sans", var(--f); color: #f2f2ee; letter-spacing: .02em; -webkit-text-stroke: 1.2px rgba(0,0,0,.7); paint-order: stroke fill; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none }
+#cashpop { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(88px + env(safe-area-inset-top, 0px)); font: 400 22px "Black Han Sans", var(--f); color: #7fd36a; -webkit-text-stroke: 1px rgba(0,0,0,.7); paint-order: stroke fill; opacity: 0; pointer-events: none }
+#cashpop.on { animation: cpop 2.2s ease-out forwards } @keyframes cpop { 0% { opacity: 0; transform: translateY(6px) } 10% { opacity: 1; transform: none } 75% { opacity: 1 } 100% { opacity: 0 } }
+#wpn { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(116px + env(safe-area-inset-top, 0px)); font: 700 15px var(--f); color: #e9e6dc; text-shadow: 0 1px 3px #000; pointer-events: none }
+#xhair { position: fixed; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1.5px rgba(0,0,0,.6); pointer-events: none }
+#xhair.lock { background: #ff4a3a; width: 8px; height: 8px; margin: -4px 0 0 -4px }
+#actmark { position: fixed; transform: translate(-50%, -100%); display: flex; align-items: center; gap: 6px; padding: 5px 10px 5px 5px; background: rgba(0,0,0,.72); color: #fff; border: 0; border-radius: 6px; font: 700 14px var(--f); z-index: 5 }
+#actmark kbd { background: #f3e3a8; color: #111; border-radius: 4px; padding: 1px 7px; font: 800 14px var(--f) }
+#actmark.fixed { left: 50%; top: auto; bottom: calc(120px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) }
+#wpnbtn { position: fixed; right: calc(30px + env(safe-area-inset-right, 0px)); bottom: calc(150px + env(safe-area-inset-bottom, 0px)); padding: 8px 12px; border-radius: 22px; background: rgba(0,0,0,.6); color: #fff; border: 1px solid rgba(255,255,255,.3); font: 700 13px var(--f); z-index: 4 }
+#shop { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0,0,0,.45) }
+#shop[hidden] { display: none }
+#shop .sbox { width: min(420px, 92vw); background: rgba(14,15,14,.94); border: 1px solid rgba(255,255,255,.14); border-radius: 10px; padding: 14px; color: #eee; font: 400 14px var(--f) }
+#shop .shd { display: flex; align-items: center; gap: 10px; margin-bottom: 10px } #shop .shd b { font: 400 24px "Black Han Sans", var(--f); color: #f3e3a8 } #shop .shd span { margin-left: auto; font: 400 18px "Black Han Sans", var(--f) }
+#shop .shd button { width: 34px; height: 34px; border-radius: 50%; padding: 0 }
+#shopitems { display: grid; gap: 6px } #shopitems button { display: flex; justify-content: space-between; padding: 11px 12px; border-radius: 6px; background: rgba(255,255,255,.07); color: #eee; border: 1px solid rgba(255,255,255,.1); font: 600 15px var(--f); text-align: left }
+#shopitems button:not(:disabled):hover { background: rgba(243,227,168,.18) } #shopitems button:disabled { opacity: .45 } #shopitems b { font-weight: 800 }
+#shop .sft { margin-top: 10px; color: #999; font-size: 12px; text-align: center }
+body.cut #cash, body.cut #wpn, body.cut #actmark { visibility: hidden }
 #wanted { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(22px + env(safe-area-inset-top, 0px)); display: flex; gap: 1px; pointer-events: none }
 #wanted i { font-style: normal; font-size: 27px; line-height: 1; color: rgba(0,0,0,.35); -webkit-text-stroke: 1px rgba(255,255,255,.35); paint-order: stroke fill }
 #wanted i.on { color: #fff; -webkit-text-stroke: 1.5px rgba(0,0,0,.65); text-shadow: 0 1px 3px rgba(0,0,0,.6) }
@@ -170,7 +189,10 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 <div id="sub" role="status" aria-live="polite"></div>
 
 <div id="kotext" aria-hidden="true">기절!</div>
-<div id="busted" aria-hidden="true"><div>체포<small>연무지구대로 연행 중…</small></div></div>
+<div id="busted" aria-hidden="true"><div>체포<small>강남경찰서로 연행 중…</small></div></div>
+<div id="cash" aria-label="소지금">₩0</div><div id="cashpop" aria-hidden="true"></div><div id="wpn" hidden></div><div id="xhair" hidden aria-hidden="true"></div>
+<button type="button" id="actmark" hidden><kbd>E</kbd><span>돈 내놔</span></button><button type="button" id="wpnbtn" hidden>맨손</button>
+<div id="shop" hidden role="dialog" aria-label="상점"><div class="sbox"><div class="shd"><b id="shopname">상점</b><span id="shopcash"></span><button type="button" id="shopx" aria-label="닫기">✕</button></div><div id="shopitems"></div><div class="sft"><kbd>E</kbd> 또는 <kbd>Esc</kbd> 닫기</div></div></div>
 <div id="wanted" hidden aria-label="수배 단계"><i>★</i><i>★</i><i>★</i><i>★</i><i>★</i></div>
 <div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
 <div id="load"><div class="tc"><div class="tk">GTK</div><div class="te">Grand Theft Korea</div><div class="tko">한국의 위대한 도둑</div><div id="loadmsg">강남 들어가는 중…</div></div></div>
@@ -590,7 +612,7 @@ function solidAt(x, y, h = 0) { for (const o of nearSolids(x, y)) { if (Array.is
 
 // where things start: beside the subway exit nearest the crossroads; villagers stand about on the pavements around it
 const spotNear = (cx, cy, rmin, rmax, seed) => { for (let k = 0; k < 600; k++) { const a = hash(seed * 31 + k) * 6.283, r = rmin + hash(seed * 17 + k * 3) * (rmax - rmin), x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r; if (freeSpot(x, y, 1.0)) return [x, y]; } return [cx, cy]; };
-const START = (() => { const e = CITY.features.subway.slice().sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]))[0] || [0, 0]; return spotNear(e[0], e[1], 2, 12, 1); })();
+const START = (() => { const e = CITY.features.subway.slice().sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]))[0] || [0, 0]; return spotNear(e[0], e[1], 7, 14, 1); })();
 
 // ---------------------------------------------------------------- characters (the player + villagers standing about)
 say('주민 부르는 중…');
@@ -678,13 +700,15 @@ const MAPIMG = (() => { const s = 3, c = document.createElement('canvas'); c.wid
   for (const rd of W.roads) { g.strokeStyle = rd.kind === 'walk' ? '#4a5157' : rd.w >= 9 ? '#9aa1a6' : '#7d858b'; g.lineWidth = Math.max(1, rd.w * s); g.beginPath(); rd.pts.forEach((p, i) => i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1]))); g.stroke(); }
   for (const b of BLD) { g.fillStyle = b.h > 60 ? '#6a737a' : '#596167'; g.beginPath(); b.p.forEach(([x, y], i) => i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))); g.closePath(); g.fill(); }
   return { c, s }; })();
+function blip(g, x, y, sh, r) { g.fillStyle = sh.col; g.strokeStyle = '#fff'; g.lineWidth = r * .18; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#fff'; g.font = `400 ${r * 1.1}px "Black Han Sans", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(sh.icon, x, y + r * .08); }
 function drawMini(x, y, yaw) {
   const g = mini, W_ = g.canvas.width, H_ = g.canvas.height, zoom = 1.25;   // about 100 m across
   g.save(); g.fillStyle = '#2b3034'; g.fillRect(0, 0, W_, H_); g.translate(W_ / 2, H_ / 2); g.scale(zoom, zoom);
   g.drawImage(MAPIMG.c, -(x - REG[0]) * MAPIMG.s, -(REG[3] - y) * MAPIMG.s); g.restore();
-  for (const n of npcs) { const dx = (n.x - x) * MAPIMG.s * zoom, dy = -(n.y - y) * MAPIMG.s * zoom; if (Math.abs(dx) < W_ / 2 - 6 && Math.abs(dy) < H_ / 2 - 6) { g.fillStyle = n.cop ? ((performance.now() / 250 | 0) % 2 ? '#ff3b3b' : '#3b7bff') : n.state === 'fight' ? '#ff8a3a' : '#e2cf72'; g.beginPath(); g.arc(W_ / 2 + dx, H_ / 2 + dy, 5, 0, 7); g.fill(); } }
+  for (const n of npcs) { if (n.ped && n.state !== 'fight') continue; const dx = (n.x - x) * MAPIMG.s * zoom, dy = -(n.y - y) * MAPIMG.s * zoom; if (Math.abs(dx) < W_ / 2 - 6 && Math.abs(dy) < H_ / 2 - 6) { g.fillStyle = n.cop ? ((performance.now() / 250 | 0) % 2 ? '#ff3b3b' : '#3b7bff') : n.state === 'fight' ? '#ff8a3a' : '#e2cf72'; g.beginPath(); g.arc(W_ / 2 + dx, H_ / 2 + dy, 5, 0, 7); g.fill(); } }
   { const X = gx => W_ / 2 + (gx - x) * MAPIMG.s * zoom, Y = gy => H_ / 2 - (gy - y) * MAPIMG.s * zoom; drawRoute(g, X, Y, 5);
-    if (MAP.wp) { const px = THREE.MathUtils.clamp(X(MAP.wp[0]), 9, W_ - 9), py = THREE.MathUtils.clamp(Y(MAP.wp[1]), 9, H_ - 9); drawPin(g, px, py, 7); } }
+    if (MAP.wp) { const px = THREE.MathUtils.clamp(X(MAP.wp[0]), 9, W_ - 9), py = THREE.MathUtils.clamp(Y(MAP.wp[1]), 9, H_ - 9); drawPin(g, px, py, 7); }
+    for (const sh of SHOPS) { const px = X(sh.x), py = Y(sh.y); if (px > 8 && px < W_ - 8 && py > 8 && py < H_ - 8) blip(g, px, py, sh, 9); } }
   g.save(); g.translate(W_ / 2, H_ / 2); g.rotate(-yaw + Math.PI); g.fillStyle = '#ff5a3c'; g.beginPath(); g.moveTo(0, -13); g.lineTo(8, 9); g.lineTo(-8, 9); g.closePath(); g.fill(); g.restore();
 }
 
@@ -842,7 +866,8 @@ function targetInDir(F, yaw, range = 3.2) {   // the opponent inside the cone yo
   return best;
 }
 function playerAttack() {
-  if (!P || G.cut || P.down || WANT.busted || P.car) return;
+  if (!P || G.cut || P.down || WANT.busted || P.car || shopOpen) return;
+  if (WPN.cur === 'pistol') { shoot(); return; }
   if (P.once && FIGHT[P.onceName] && !P.ending && P.once.time < P.once.getClip().duration * .55) { P.queued = true; return; }   // pressed mid-swing: chain the next
   if (P.once && !FIGHT[P.onceName] && !P.ending && P.onceName !== 'guard' && (P.down || P.once.time < .2)) { P.buffer = G.t; return; }   // too soon: remember the press
   const aim = aimYaw(), T = targetInDir(P, aim); if (!T) P.yaw = aim;   // nobody there: swing that way anyway
@@ -878,7 +903,7 @@ function judge(A, sk) {
   const crit = cut ? !!sk.final : Math.random() < pCrit; if (crit) s *= 1.5;
   if (A === P && !cut) addGauge(s * 26 * (crit ? 1.6 : 1));
   D.meter += s; D.hurtT = G.t; D.combatT = 4;
-  D.hp = Math.max(0, D.hp - (cut ? (sk.final ? 999 : 4) : s * (D === P ? 6 : 15) * (crit ? 1.4 : 1)));
+  D.hp = Math.max(0, D.hp - (cut ? (sk.final ? 999 : 4) : s * (D === P ? 6 : 15) * (crit ? 1.4 : 1) * (A === P ? WPN.mul() : 1)));
   let reac, part;
   if (best.n === 'head') { part = upward ? '턱' : lateral ? (side === 'l' ? '왼뺨' : '오른뺨') : '얼굴'; reac = upward ? 'hit_chin' : lateral ? 'hit_face_' + side : 'hit_face'; }
   else if (best.n === 'chest') { part = '가슴'; reac = 'hit_chest'; }
@@ -891,7 +916,7 @@ function judge(A, sk) {
   react(D, reac, w, heavy || down); D.next = after;
   if (D !== P) D.atkCd = Math.max(D.atkCd, .55 + .4 * s);   // hit-stun for the AI: a clean hit buys you a beat
   if (down) { D.down = true; D.fallAt = G.t + .85;
-    if (cut && sk.final) { D.dead = true; D.deadT = 0; D.state = 'dead'; D.strikes.length = 0; }   // the execution ends a life: no getting up
+    if ((cut && sk.final) || (A === P && D.hp <= 0 && WPN.lethal())) { D.dead = true; D.deadT = 0; D.state = 'dead'; D.strikes.length = 0; if (!cut) crime(D, 'kill'); }   // the execution ends a life: no getting up
     else if (D.hp <= 0 && D !== P) { speak(D, 'ko'); if (A === P && !cut) crime(D, 'ko'); } }
   const worldDir = vel.clone().applyQuaternion(D.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.copy(fwd3(A.yaw)); worldDir.normalize();
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
@@ -946,7 +971,7 @@ function provoke(D, A) {
   if (A === P) crime(D, 'hit');
   if (D.cop) { if (D.state !== 'police') { D.state = 'police'; } D.foe = P; if (Math.random() < .4) speak(D, 'cop_hit'); D.atkCd = Math.min(D.atkCd, .5); return; }
   const mood = D.temper === 'flee' ? 'flee' : 'fight';
-  if (D.state !== mood) say(D, mood === 'flee' ? 'hit_flee' : 'hit_fight');
+  if (D.state !== mood) speak(D, mood === 'flee' ? 'hit_flee' : 'hit_fight');
   D.state = mood; D.foe = A; D.fleeT = 6 + Math.random() * 3; D.atkCd = Math.min(D.atkCd, .6 + Math.random() * .6);
   if (GANG.has(D.id) && A === P) for (const o of npcs) if (o !== D && GANG.has(o.id) && o.state !== 'fight' && !o.down && Math.hypot(o.x - D.x, o.y - D.y) < 14) {
     o.state = 'fight'; o.foe = P; o.atkCd = 1 + Math.random(); speak(o, 'gang_join'); }
@@ -1199,10 +1224,10 @@ const barsUI = () => {
   if (help !== G.helpShown) { G.helpShown = help; $('gtahelp').innerHTML = help; $('gtahelp').classList.toggle('on', !!help); }
   if (G.introT > 0) G.introT -= 1 / 60;
   wantedUI(); };
-G.intro = coarse ? '왼쪽 스틱으로 이동, <b>공격</b> 버튼으로 공격합니다.' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · <kbd>Shift</kbd> 달리기<br>화면을 클릭한 뒤 <kbd>클릭</kbd> 또는 <kbd>J</kbd> 로 공격합니다.'; G.introT = 9;
+G.intro = coarse ? '왼쪽 스틱으로 이동, <b>공격</b> 버튼으로 공격합니다.<br>행인 머리 위 <b>돈 내놔</b>를 누르면 돈을 뜯습니다.' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · <kbd>Shift</kbd> 달리기 · <kbd>클릭</kbd>/<kbd>J</kbd> 공격<br><kbd>E</kbd> 행인 위협·상점 · <kbd>1</kbd>~<kbd>4</kbd>/<kbd>Q</kbd> 무기 · <kbd>M</kbd> 지도'; G.introT = 9;
 addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === 'm' && !e.repeat && !G.cut) { toggleMap(); return; }   // M: the map
   if (k === 'escape' && MAP.open) { toggleMap(false); return; }
-  if (mode !== 'walk' || e.repeat) return; if (k === 'j') playerAttack(); if (k === 'e') execute(); });
+  if (mode !== 'walk' || e.repeat) return; if (k === 'j') playerAttack(); if (k === 'e') interact(); });
 r.domElement.addEventListener('mousedown', e => { if (e.button === 0 && document.pointerLockElement === r.domElement && mode === 'walk') playerAttack(); });
 $('atkpad').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (mode === 'walk') playerAttack(); });
 $('execbtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); execute(); });
@@ -1211,6 +1236,7 @@ setTimeout(async () => {   // villagers: one at a time in the background, neares
   const q = NPCS.slice().sort((a, b) => Math.hypot(a[1] - START[0], a[2] - START[1]) - Math.hypot(b[1] - START[0], b[2] - START[1]));
   for (const [id, x, y, yaw] of q) { try { const n = await person(id); n.act.idle.time = Math.random() * 3; n.holder.position.copy(V(x, y, heightAt(x, y))); n.holder.rotation.y = yaw;
       Object.assign(n, { x, y, pid: id }); arm(n, id); n.yaw = yaw; n.home = [x, y, yaw]; npcs.push(n); } catch (e) { console.warn(id, e); } }
+  spawnPeds();
 }, 1500);
 
 // ---------------------------------------------------------------- police: wanted stars, a squad that runs in, arrests, losing them
@@ -1223,10 +1249,10 @@ function crime(D, kind) {
   if (D === P || WANT.busted) return;
   const min = CRIME[D.cop ? (kind === 'ko' ? 'copko' : 'cophit') : kind], before = WANT.stars;
   let s = Math.max(before, min);
-  if (before >= min && kind !== 'hit') s++;                                  // a knockout or an execution while already wanted: one more star
+  if (before >= min && !['hit', 'gun', 'shot', 'mug'].includes(kind)) s++;                                  // a knockout or an execution while already wanted: one more star
   if (D.cop && kind === 'hit' && before >= 2 && G.t - WANT.crimeT > 8) s++;   // keeps on swinging at the police
   WANT.stars = Math.min(5, s); WANT.crimeT = G.t; WANT.search = 0;
-  if (WANT.stars > before) { WANT.flash = 1.2; if (!before) WANT.spawnT = 3.5; note(`수배 ${'★'.repeat(WANT.stars)} — ${WANT.stars >= 3 ? '경찰 지원 병력 출동' : '연무지구대 출동'}`); }
+  if (WANT.stars > before) { WANT.flash = 1.2; if (!before) WANT.spawnT = 3.5; note(`수배 ${'★'.repeat(WANT.stars)} — ${WANT.stars >= 3 ? '경찰 지원 병력 출동' : '강남경찰서 출동'}`); }
 }
 async function loadCop() {
   if (copTpl) return copTpl; if (!copLoading) copLoading = person('police').then(t => { t.holder.visible = false; copTpl = t; return t; }); return copLoading;
@@ -1285,7 +1311,7 @@ function afterBusted() {
   for (const c of cops) if (c.onDuty) offDuty(c);
   for (const n of npcs) if (n.state === 'fight' || n.state === 'flee') { n.state = 'calm'; n.foe = null; }
   if (P.once) { P.once.stop(); P.once = null; P.onceName = ''; P.ending = false; } P.down = false; P.ko = 0; P.hp = 100; P.meter = 0; $('kotext').classList.remove('on');
-  placeAt(START[0], START[1]); P.yaw = Math.PI; note('연무지구대 훈방 조치. 이번만 봐준다.');   // released in front of the village hall
+  placeAt(START[0], START[1]); P.yaw = Math.PI; note('강남경찰서 훈방 조치. 이번만 봐준다.');   // released in front of the village hall
 }
 let siren = null;
 function sirenStep() {   // two-tone wail from the nearest officer on duty
@@ -1897,7 +1923,8 @@ function drawBig() {
   if (!BIG) layoutBig(); const { k, dpr } = BIG, g = bg2, X = x => (x - REG[0]) * k * dpr, Y = y => (REG[3] - y) * k * dpr;
   g.drawImage(MAPIMG.c, 0, 0, big.width, big.height);
   drawRoute(g, X, Y, 5 * dpr);
-  for (const n of npcs) if (!n.dead) { g.fillStyle = n.cop ? ((performance.now() / 250 | 0) % 2 ? '#ff3b3b' : '#3b7bff') : n.state === 'fight' ? '#ff8a3a' : '#e2cf72'; g.beginPath(); g.arc(X(n.x), Y(n.y), 4 * dpr, 0, 7); g.fill(); }
+  for (const n of npcs) if (!n.dead && !(n.ped && n.state !== 'fight')) { g.fillStyle = n.cop ? ((performance.now() / 250 | 0) % 2 ? '#ff3b3b' : '#3b7bff') : n.state === 'fight' ? '#ff8a3a' : '#e2cf72'; g.beginPath(); g.arc(X(n.x), Y(n.y), 4 * dpr, 0, 7); g.fill(); }
+  for (const sh of SHOPS) blip(g, X(sh.x), Y(sh.y), sh, 9 * dpr);
   if (MAP.wp) drawPin(g, X(MAP.wp[0]), Y(MAP.wp[1]), 7 * dpr);
   if (P) { g.save(); g.translate(X(P.x), Y(P.y)); g.rotate(-P.yaw + Math.PI); g.fillStyle = '#ff5a3c'; g.strokeStyle = '#fff'; g.lineWidth = 1.5 * dpr; g.beginPath(); g.moveTo(0, -11 * dpr); g.lineTo(7 * dpr, 8 * dpr); g.lineTo(-7 * dpr, 8 * dpr); g.closePath(); g.fill(); g.stroke(); g.restore(); }
 }
@@ -1915,6 +1942,233 @@ for (const [q, label] of [['potato', '최저'], ['low', '낮음'], ['mid', '보�
 $('radar').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); toggleMap(true); });
 if (coarse) $('bighint').textContent = '눌러서 목적지 설정 · 목적지를 다시 누르면 해제';
 addEventListener('resize', () => { if (MAP.open) { layoutBig(); drawBig(); } });
+
+// ---------------------------------------------------------------- robbery: money, people walking the pavements, mugging, weapons, shops
+// ---- the wallet (kept between visits)
+const SAVE = (() => { let s = null; try { s = JSON.parse(localStorage.getItem('gtkSave') || 'null'); } catch (e) {} return Object.assign({ cash: 50000, owned: ['fist'], ammo: 0 }, s || {}); })();
+let saveT = 0; const persist = () => { saveT = .5; };
+const won = n => '₩' + Math.round(n).toLocaleString('ko-KR');
+function earn(n) { if (n <= 0) return; SAVE.cash += n; persist(); const el = $('cashpop'); el.textContent = '+' + won(n); el.classList.remove('on'); void el.offsetWidth; el.classList.add('on'); FX.coin?.(); coinSound(); }
+function spend(n) { if (SAVE.cash < n) return false; SAVE.cash -= n; persist(); return true; }
+function coinSound() { const a = FX.ctx(); if (!a) return; const t = a.currentTime; for (const [f, d] of [[1320, 0], [1760, .07]]) { const o = a.createOscillator(), g = a.createGain(); o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.08, t + d + .01); g.gain.exponentialRampToValueAtTime(.001, t + d + .25); o.connect(g).connect(a.destination); o.start(t + d); o.stop(t + d + .3); } }
+// ---- weapons: fists, bat, knife, pistol. Melee weapons multiply the blow; a knife kills; the pistol shoots what is under the crosshair
+const WPN = { cur: 'fist', nextShot: 0, list: ['fist', 'bat', 'knife', 'pistol'],
+  info: { fist: { name: '맨손', mul: 1 }, bat: { name: '야구방망이', mul: 1.9 }, knife: { name: '칼', mul: 2.3, lethal: true }, pistol: { name: '권총', mul: 1 } } };
+WPN.mul = () => WPN.info[WPN.cur].mul; WPN.lethal = () => !!WPN.info[WPN.cur].lethal;
+function equip(w) { if (!SAVE.owned.includes(w)) return; WPN.cur = w; for (const k in WMESH) WMESH[k].visible = k === w; wpnUI(); }
+function cycleWeapon() { const own = WPN.list.filter(w => SAVE.owned.includes(w)), i = own.indexOf(WPN.cur); equip(own[(i + 1) % own.length]); }
+const WMESH = (() => { const g = {}, m = (c, r = .5, mt = .2) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: mt });
+  g.bat = new THREE.Mesh(new THREE.CylinderGeometry(.035, .02, .84, 10).translate(0, .3, 0), m('#b8875a', .55));
+  g.knife = new THREE.Group(); g.knife.add(new THREE.Mesh(new THREE.BoxGeometry(.025, .11, .03).translate(0, .02, 0), m('#1b1b1d', .6)), new THREE.Mesh(new THREE.BoxGeometry(.006, .19, .035).translate(0, .17, 0), m('#d9dde0', .15, .9)));
+  g.pistol = new THREE.Group(); g.pistol.add(new THREE.Mesh(new THREE.BoxGeometry(.035, .1, .045).translate(0, -.02, 0), m('#202224', .45, .5)), new THREE.Mesh(new THREE.BoxGeometry(.03, .045, .2).translate(0, .045, .07), m('#2a2c2f', .35, .7)));
+  for (const k in g) { g[k].visible = false; g[k].traverse(o => { o.castShadow = true; }); scene.add(g[k]); } return g; })();
+const _wa = new THREE.Vector3(), _wb = new THREE.Vector3(), _wq = new THREE.Quaternion(), _wy = new THREE.Vector3(0, 1, 0);
+function weaponFollow() {   // the weapon sits in the right hand, along the forearm (pistol: barrel forward)
+  const m = WMESH[WPN.cur]; if (!m || !P) return; m.visible = !P.car && mode === 'walk'; if (!m.visible) return;
+  wpos(P, 'hand_r', _wa); wpos(P, 'lowerarm_r', _wb); const d = _wa.clone().sub(_wb).normalize();
+  m.position.copy(_wa).addScaledVector(d, .05);
+  if (WPN.cur === 'pistol') { m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), d); }
+  else { m.quaternion.setFromUnitVectors(_wy, d); if (WPN.cur === 'bat') m.position.addScaledVector(d, -.02); }
+}
+// arms by aim: rotate a bone in world space so its child points along a direction (hands up when mugged, arm out when aiming)
+const _pa = new THREE.Vector3(), _pb = new THREE.Vector3(), _pq = new THREE.Quaternion(), _pp = new THREE.Quaternion(), _pi = new THREE.Quaternion(), _id = new THREE.Quaternion(), _pt = new THREE.Quaternion();
+function pointBone(F, b, child, dir, w) {
+  const B = F.bone(b), C = F.bone(child); if (!B || !C) return;
+  B.getWorldPosition(_pa); C.getWorldPosition(_pb); const cur = _pb.sub(_pa).normalize();
+  _pt.setFromUnitVectors(cur, dir); _pq.copy(_id).slerp(_pt, w);
+  B.parent.getWorldQuaternion(_pp); _pi.copy(_pp).invert(); B.quaternion.premultiply(_pi.multiply(_pq).multiply(_pp)); B.updateMatrixWorld(true);
+}
+function armPose(F) {
+  const up = F.handsUp || 0, aim = F === P && WPN.cur === 'pistol' && !P.car && G.t - (P.aimT || -9) < 1.6 && !P.down ? 1 : 0;
+  if (up < .01 && !aim) return; F.model.updateMatrixWorld(true);
+  const f = fwd3(F.yaw), r = new THREE.Vector3(Math.cos(F.yaw), 0, -Math.sin(F.yaw));
+  if (up > .01) for (const [s, k] of [['l', -1], ['r', 1]]) { const out = r.clone().multiplyScalar(k * .9).add(new THREE.Vector3(0, .35, 0)).add(f.clone().multiplyScalar(.12)).normalize();   // elbows out at shoulder height, forearms up
+    pointBone(F, 'upperarm_' + s, 'lowerarm_' + s, out, up); pointBone(F, 'lowerarm_' + s, 'hand_' + s, new THREE.Vector3(0, 1, 0).addScaledVector(f, .1).normalize(), up); }
+  if (aim) { const d = f.clone().add(new THREE.Vector3(0, .05, 0)).normalize(); pointBone(F, 'upperarm_r', 'lowerarm_r', d, 1); pointBone(F, 'lowerarm_r', 'hand_r', d, 1); }
+}
+{ const base = animate; animate = function (F, dt) { base(F, dt); armPose(F); }; }
+// ---- the pistol
+function shotSound(far = 0) { const a = FX.ctx(); if (!a) return; const t = a.currentTime, n = a.sampleRate * .35, b = a.createBuffer(1, n, a.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 6); const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  s.buffer = b; f.type = 'lowpass'; f.frequency.value = 2600 - far * 1800; g.gain.value = .5 * (1 - far * .7); s.connect(f).connect(g).connect(a.destination); s.start(t); }
+const flash = new THREE.PointLight('#ffcf7a', 0, 6, 2); scene.add(flash);
+const flashSp = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffe0a0' })); flashSp.visible = false; scene.add(flashSp);
+function shoot() {
+  if (!P || P.down || G.cut || WANT.busted || P.car || G.t < WPN.nextShot) return;
+  if (SAVE.ammo <= 0) { note('탄약이 없습니다. 암시장에서 사세요.'); WPN.nextShot = G.t + .4; return; }
+  SAVE.ammo--; persist(); WPN.nextShot = G.t + .3; P.aimT = G.t; wpnUI();
+  P.yaw = coarse ? P.yaw : CR.yaw + Math.PI;
+  // who is under the crosshair (desktop: screen centre; touch: whoever is in front)
+  let T = aimTarget();
+  if (T) for (let k = 1; k < 10; k++) { const t = k / 10; if (solidAt(P.x + (T.x - P.x) * t, P.y + (T.y - P.y) * t, 1.3)) { T = null; break; } }   // a wall in the way takes the bullet
+  wpos(P, 'hand_r', _wa); flashSp.position.copy(_wa).addScaledVector(fwd3(P.yaw), .25); flashSp.visible = true; flash.position.copy(flashSp.position); flash.intensity = 30; setTimeout(() => { flashSp.visible = false; flash.intensity = 0; }, 50);
+  shotSound(); FX.shake(.02);
+  panic(P.x, P.y, 35); crime({}, 'gun');
+  if (!T) return;
+  const head = Math.random() < .22, dmg = head ? 100 : 38 + Math.random() * 14, dir = fwd3(yawTo(P, T));
+  T.hp = Math.max(0, T.hp - dmg); T.hurtT = G.t; provoke(T, P);
+  FX.impact({ crit: head, p: wpos(T, head ? 'head' : 'spine_03'), dir, s: 1.2, part: head ? 'head' : 'body', heavy: true, down: T.hp <= 0, who: T, mine: true });
+  if (T.hp <= 0) { react(T, 'knockdown', 1, true); T.down = true; T.fallAt = G.t + .7; if (T !== P) { T.dead = true; T.deadT = 0; T.state = 'dead'; T.strikes.length = 0; crime(T, 'kill'); } }
+  else { react(T, 'hit_heavy', 1, true); jolt(T, head ? 'head' : 'chest', dir, 1.4); shove(T, dir, 1.6); crime(T, 'shot'); }
+}
+function aimTarget() {   // soft auto-aim: the person nearest the line you face (the crosshair sits on them)
+  if (!P) return null; const yaw = coarse ? P.yaw : CR.yaw + Math.PI; let best = null, bs = 1e9;
+  for (const o of fighters()) { if (o === P || o.dead) continue; const d = Math.hypot(o.x - P.x, o.y - P.y); if (d > 40 || d < .3) continue;
+    const a = Math.abs(angD(yaw, yawTo(P, o))); if (a > Math.max(.07, Math.atan2(.9, d))) continue; const sc = a * 10 + d * .05; if (sc < bs) { bs = sc; best = o; } }
+  return best; }
+const _xh = new THREE.Vector3();
+function xhairUI() { const el = $('xhair'); if (el.hidden || !P) return; const T = aimTarget(); el.classList.toggle('lock', !!T);
+  if (T) wpos(T, 'spine_03', _xh); else { const yaw = CR.yaw + Math.PI; _xh.copy(V(P.x + Math.sin(yaw) * 14, P.y - Math.cos(yaw) * 14, 1.3)); }
+  _xh.project(cam); const [w, h] = view(); el.style.left = ((_xh.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _xh.y) / 2 * h) + 'px'; }
+// ---- people on the pavements: they walk the streets around you; the ones far behind come back somewhere ahead
+const PEDN = { potato: 6, low: 10, mid: 16, high: 22 }[QUAL] || 10;
+const PEDNAMES = ['시민', '행인', '직장인', '학생', '아저씨', '아주머니'];
+const PROAD = CITY.roads.filter(r => r.pts.length >= 2);
+const PEND = PROAD.map(r => [r.pts[0], r.pts[r.pts.length - 1]]);
+const pedOff = r => r.kind !== 'road' ? 0 : r.w >= 9 ? r.w / 2 + 3.4 : r.w / 2 + .9;
+function pedPoint(p) { const r = p.r, i = THREE.MathUtils.clamp(p.i, 0, r.pts.length - 1), a = r.pts[Math.max(0, Math.min(r.pts.length - 2, i - (p.dir < 0 ? 1 : 0)))], b = r.pts[Math.max(1, Math.min(r.pts.length - 1, i + (p.dir < 0 ? 0 : 1)))];
+  const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, o = pedOff(r) * p.side, q = r.pts[i]; return [q[0] - dy / L * o, q[1] + dx / L * o]; }
+function pedPlace(n, near) {   // a fresh spot on some pavement, between near[0] and near[1] metres from the player
+  for (let k = 0; k < 60; k++) { const r = PROAD[Math.floor(Math.random() * PROAD.length)], i = Math.floor(Math.random() * r.pts.length), side = Math.random() < .5 ? 1 : -1, p = { r, i, dir: Math.random() < .5 ? 1 : -1, side };
+    const [x, y] = pedPoint(p), d = P ? Math.hypot(x - P.x, y - P.y) : 30; if (d < near[0] || d > near[1] || !freeSpot(x, y, .6)) continue;
+    n.ped = p; n.x = x; n.y = y; n.yaw = Math.random() * 6.28; n.home = [x, y, n.yaw]; n.wallet = Math.random() < .08 ? 300000 + Math.floor(Math.random() * 400000) : 8000 + Math.floor(Math.random() * 120000);
+    n.hp = 100; n.dead = false; n.down = false; n.meter = 0; n.ko = 0; n.vel = [0, 0]; n.foe = null; n.state = 'idle'; n.callAt = 0; n.handsUp = 0; n.mug = null; n.dropped = false; n.pace = 1.15 + Math.random() * .4;
+    if (n.once) { n.once.stop(); n.once = null; n.onceName = ''; n.ending = false; }
+    n.holder.position.copy(V(x, y, heightAt(x, y))); return true; }
+  return false; }
+function pedWalk(n, dt) {
+  const p = n.ped; if (!p) return false;
+  let [tx, ty] = pedPoint({ ...p, i: p.i + p.dir });
+  if (Math.hypot(tx - n.x, ty - n.y) < 1.4) { p.i += p.dir;
+    if (p.i <= 0 || p.i >= p.r.pts.length - 1) {   // end of this street: carry on along one that starts here, else turn back
+      const here = p.r.pts[p.i <= 0 ? 0 : p.r.pts.length - 1], opts = [];
+      PROAD.forEach((r, k) => { if (r === p.r) return; const [a, b] = PEND[k]; if (Math.hypot(a[0] - here[0], a[1] - here[1]) < 10) opts.push([r, 0, 1]); else if (Math.hypot(b[0] - here[0], b[1] - here[1]) < 10) opts.push([r, r.pts.length - 1, -1]); });
+      if (opts.length && Math.random() < .8) { const [r, i, dir] = opts[Math.floor(Math.random() * opts.length)]; p.r = r; p.i = i; p.dir = dir; } else p.dir = -p.dir; }
+    [tx, ty] = pedPoint({ ...p, i: p.i + p.dir }); }
+  turnTo(n, yawTo(n, { x: tx, y: ty }), 4, dt); n.want = n.pace; n.combatT = 0; return true;
+}
+async function spawnPeds() {   // clones of the people already loaded (shared meshes, own skeletons)
+  const tpl = npcs.filter(n => !n.cop && n.clips); if (!tpl.length) return;
+  for (const n of tpl) { n.name = pick(PEDNAMES); n.temper = Math.random() < .3 ? 'fight' : 'flee'; pedPlace(n, [8, 60]); }
+  for (let k = tpl.length; k < PEDN; k++) { const s = tpl[k % tpl.length], m = SkeletonUtils.clone(s.model); m.traverse(o => { if (o.isMesh) o.material = dupMat(o.material); });
+    const c = rig(m, s); arm(c, s.pid); Object.assign(c, { pid: s.pid, name: pick(PEDNAMES), temper: Math.random() < .3 ? 'fight' : 'flee' });
+    if (!pedPlace(c, [10, 70])) { c.holder.visible = false; continue; } npcs.push(c); await new Promise(r => setTimeout(r, 60)); }
+}
+function panic(x, y, R) {   // a gunshot: everyone near runs; some ring the police
+  for (const n of npcs) { if (n.cop || n.dead || n.down || n.state === 'fight') continue; const d = Math.hypot(n.x - x, n.y - y); if (d > R) continue;
+    if (n.state !== 'flee') speak(n, 'panic'); n.state = 'flee'; n.foe = P; n.fleeT = 8 + Math.random() * 4; n.handsUp = 0; n.mug = null; if (!n.callAt && Math.random() < .3) n.callAt = G.t + 3 + Math.random() * 3; }
+}
+// ---- mugging: E at someone in front. With a weapon out they hand the wallet over; bare-handed, the tough ones hit back. Some ring the police afterwards.
+function threatTarget() {
+  if (!P || P.car || P.down || G.cut || WANT.busted) return null;
+  const range = WPN.cur === 'pistol' ? 9 : 3.4, T = targetInDir(P, coarse ? P.yaw : aimYaw(), range);
+  return T && !T.cop && T.ped && !T.mug && T.state !== 'fight' && T.wallet > 0 ? T : null;
+}
+function threaten(T) {
+  P.yaw = yawTo(P, T); if (WPN.cur === 'pistol') P.aimT = G.t;
+  const odds = { fist: T.temper === 'fight' ? .2 : .55, bat: .8, knife: .88, pistol: .97 }[WPN.cur];
+  if (Math.random() < odds) { T.mug = { t: 0 }; T.state = 'mugged'; T.want = 0; T.speed = 0; speak(T, 'mug_give'); }
+  else if (T.temper === 'fight' && WPN.cur !== 'pistol') { speak(T, 'mug_refuse'); T.state = 'fight'; T.foe = P; T.atkCd = .4; }
+  else { speak(T, 'mug_refuse'); T.state = 'flee'; T.foe = P; T.fleeT = 9; if (Math.random() < .7) T.callAt = G.t + 2.5 + Math.random() * 2; }
+}
+function pedThink(n, dt) {   // returns true when handled
+  if (!n.ped || n.cop || n.dead) return false;
+  if (n.calling) { n.want = 0; if (n.down) { n.calling = 0; return false; } if (G.t > n.calling) { n.calling = 0; crime(n, 'mug'); note('누군가 경찰에 신고했습니다.'); n.state = 'flee'; n.fleeT = 6; } return true; }
+  if (n.callAt && G.t > n.callAt && !n.down && !(n.once && !n.ending)) { n.callAt = 0; if (Math.hypot(n.x - P.x, n.y - P.y) < 60) { speak(n, 'mug_call'); playOnce(n, 'phone', 1, .3); n.calling = G.t + 3.2; n.want = 0; return true; } }
+  if (n.state === 'mugged') { const m = n.mug; m.t += dt; n.want = 0; turnTo(n, yawTo(n, P), 6, dt); n.handsUp = Math.min(1, n.handsUp + dt * 5);
+    const d = Math.hypot(P.x - n.x, P.y - n.y);
+    if (d > (WPN.cur === 'pistol' ? 14 : 6) && m.t > .6) { n.mug = null; n.handsUp = 0; n.state = 'flee'; n.foe = P; n.fleeT = 8; if (Math.random() < .8) n.callAt = G.t + 1.5; return true; }   // you walked off: they run
+    if (m.t > 1.8 && !m.paid) { m.paid = true; earn(n.wallet); n.wallet = 0; }
+    if (m.t > 2.6) { n.mug = null; n.handsUp = 0; n.state = 'flee'; n.foe = P; n.fleeT = 7 + Math.random() * 4; if (Math.random() < .55) n.callAt = G.t + 3 + Math.random() * 3; }
+    return true; }
+  n.handsUp = Math.max(0, (n.handsUp || 0) - dt * 3);
+  if (n.state === 'idle' || n.state === 'calm') { if (n.down || (n.once && !n.ending)) { n.want = 0; return true; } return pedWalk(n, dt); }
+  return false;
+}
+{ const base = think; think = function (n, dt) { if (pedThink(n, dt)) return; base(n, dt); }; }
+// ---- dropped wallets
+const DROPS = [], dropGeo = new THREE.BoxGeometry(.2, .05, .11), dropMat = new THREE.MeshStandardMaterial({ color: '#3d8f4a', roughness: .6, emissive: '#1f5a26', emissiveIntensity: .4 });
+function dropCash(x, y, n) { const m = new THREE.Mesh(dropGeo, dropMat); m.position.copy(V(x, y, heightAt(x, y) + .2)); scene.add(m); DROPS.push({ x, y, n, m, t: 0 }); }
+// ---- shops: 암시장 (weapons), 약국 (health), 중고차 (cars). Stand in the yellow ring, press E.
+const SHOPS = (() => {
+  const s = START, far = (a, b) => Math.hypot(a[0] - s[0], a[1] - s[1]) - Math.hypot(b[0] - s[0], b[1] - s[1]);
+  const black = (() => { const c = []; for (const r of CITY.roads) if (r.kind === 'road' && r.w < 7) for (const q of r.pts) { const d = Math.hypot(q[0] - s[0], q[1] - s[1]); if (d > 70 && d < 180) c.push(q); }
+    c.sort((a, b) => hash(a[0] + a[1]) - hash(b[0] + b[1])); for (const q of c) { const p = spotNear(q[0], q[1], 1.5, 5, 7); if (freeSpot(p[0], p[1], 1.2)) return p; } return spotNear(s[0], s[1], 60, 120, 8); })();
+  const ph = CITY.pois.filter(p => p.cat === 'pharmacy').sort((a, b) => far(a.xy, b.xy))[0], pharm = ph ? spotNear(ph.xy[0], ph.xy[1], 1, 8, 9) : spotNear(s[0], s[1], 30, 60, 9);
+  const cars_ = (() => { for (const r of CITY.roads) if (r.kind === 'road' && r.w >= 9) for (const q of r.pts) { const d = Math.hypot(q[0] - s[0], q[1] - s[1]); if (d > 110 && d < 220) { const n = nearestRoad(q[0], q[1], 5); if (!n) continue;
+      const ox = -Math.sin(n.dir), oy = Math.cos(n.dir), p = [n.px + ox * (n.r.w / 2 + 3.2), n.py + oy * (n.r.w / 2 + 3.2)]; if (freeSpot(p[0], p[1], 1.2)) return { p, road: n }; } } return { p: spotNear(s[0], s[1], 80, 150, 10), road: null }; })();
+  return [
+    { id: 'black', name: '암시장', icon: '총', col: '#d8423a', x: black[0], y: black[1], items: [['bat', '야구방망이', 50000], ['knife', '칼', 90000], ['pistol', '권총', 1200000], ['ammo', '권총 탄약 24발', 60000]] },
+    { id: 'pharm', name: '약국', icon: '약', col: '#2fae5a', x: pharm[0], y: pharm[1], items: [['band', '붕대 (체력 +40)', 15000], ['med', '진통제 (체력 가득)', 40000]] },
+    { id: 'cars', name: '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_hatch', '경차', 1500000], ['car_truck', '1톤 트럭', 2000000], ['car_sedan', '세단', 2800000]] },
+  ]; })();
+{ const ringG = new THREE.CylinderGeometry(.9, .9, 1.1, 32, 1, true).translate(0, .55, 0), ringM = new THREE.MeshBasicMaterial({ color: '#f5c542', transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false });
+  for (const sh of SHOPS) { const m = new THREE.Mesh(ringG, ringM); m.position.copy(V(sh.x, sh.y, heightAt(sh.x, sh.y) + .02)); scene.add(m); sh.mesh = m;
+    const t = canvasTex(256, 96, (g, w, h) => { g.fillStyle = 'rgba(0,0,0,.72)'; g.beginPath(); g.roundRect(4, 4, w - 8, h - 8, 18); g.fill(); g.fillStyle = sh.col; g.beginPath(); g.arc(48, h / 2, 30, 0, 7); g.fill();
+      g.fillStyle = '#fff'; g.font = '400 34px "Black Han Sans", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(sh.icon, 48, h / 2 + 2); g.textAlign = 'left'; g.fillText(sh.name, 92, h / 2 + 2); }, false);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: true, transparent: true })); sp.scale.set(2.2, .82, 1); sp.position.copy(V(sh.x, sh.y, 2.6)); scene.add(sp); } }
+let shopOpen = null;
+const nearShop = () => P && !P.car && !P.down ? SHOPS.find(s => Math.hypot(s.x - P.x, s.y - P.y) < 1.4) : null;
+function openShop(sh) {
+  shopOpen = sh; if (document.pointerLockElement) document.exitPointerLock(); keys.clear(); joy.x = joy.y = 0;
+  $('shop').hidden = false; $('shopname').textContent = sh.name; renderShop(); }
+function closeShop() { shopOpen = null; $('shop').hidden = true; }
+function renderShop() {
+  const sh = shopOpen; if (!sh) return; $('shopcash').textContent = won(SAVE.cash);
+  $('shopitems').replaceChildren(...sh.items.map(([id, label, price]) => { const b = document.createElement('button'); b.type = 'button';
+    const owned = WPN.info[id] && SAVE.owned.includes(id), needGun = id === 'ammo' && !SAVE.owned.includes('pistol');
+    b.innerHTML = `<span>${label}</span><b>${owned ? '보유' : needGun ? '권총 필요' : won(price)}</b>`; b.disabled = owned || needGun || SAVE.cash < price;
+    b.addEventListener('click', () => buy(id, price)); return b; })); }
+function buy(id, price) {
+  if (!spend(price)) return;
+  if (WPN.info[id]) { SAVE.owned.push(id); equip(id); note(`${WPN.info[id].name} 구입`); }
+  else if (id === 'ammo') { SAVE.ammo += 24; note('탄약 24발 구입'); }
+  else if (id === 'band') P.hp = Math.min(100, P.hp + 40);
+  else if (id === 'med') P.hp = 100;
+  else if (id.startsWith('car_')) { const sh = shopOpen, n = sh.road, type = id.slice(4); let x = sh.x, y = sh.y, yaw = 0;
+    if (n) { const ox = -Math.sin(n.dir), oy = Math.cos(n.dir); x = n.px + ox * (n.r.w / 2 - 1.6); y = n.py + oy * (n.r.w / 2 - 1.6); yaw = Math.atan2(Math.cos(n.dir), -Math.sin(n.dir)); }
+    const c = makeCar(type, x, y, yaw); c.owned = true; note(`${c.spec.name} 구입 — 길가에 세워 뒀습니다.`); closeShop(); }
+  persist(); wpnUI(); renderShop(); }
+$('shopx').addEventListener('click', closeShop);
+// ---- HUD
+function wpnUI() { $('wpn').textContent = WPN.cur === 'pistol' ? `${WPN.info.pistol.name}  ${SAVE.ammo}` : WPN.info[WPN.cur].name; $('wpn').hidden = WPN.cur === 'fist';
+  $('xhair').hidden = !(WPN.cur === 'pistol' && !coarse); $('wpnbtn').hidden = !coarse || SAVE.owned.length < 2; $('wpnbtn').textContent = WPN.info[WPN.cur].name; }
+const _am = new THREE.Vector3();
+function interactUI() {   // the context action over a head or by a shop
+  const sh = nearShop(), T = sh ? null : threatTarget(); G.actT = T; G.actShop = sh; const el = $('actmark');
+  if (sh) { el.hidden = false; el.classList.add('fixed'); el.querySelector('span').textContent = sh.name + ' 열기'; el.style.left = ''; el.style.top = ''; return; }
+  el.classList.remove('fixed');
+  if (!T || G.execT) { el.hidden = true; return; }
+  wpos(T, 'head', _am); _am.y += .35; _am.project(cam); if (_am.z > 1) { el.hidden = true; return; }
+  const [w, h] = view(); el.hidden = false; el.style.left = ((_am.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _am.y) / 2 * h) + 'px'; el.querySelector('span').textContent = '돈 내놔';
+}
+function interact() {
+  if (shopOpen) return; if (G.execT) { execute(); return; }
+  if (G.actShop) { openShop(G.actShop); return; }
+  if (G.actT) threaten(G.actT);
+}
+$('actmark').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); interact(); });
+$('wpnbtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); cycleWeapon(); });
+addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (e.repeat) return;
+  if (shopOpen) { if (k === 'escape' || k === 'e') closeShop(); return; }
+  if (mode !== 'walk') return;
+  if (k >= '1' && k <= '4') equip(WPN.list[+k - 1]); if (k === 'q') cycleWeapon(); });
+// ---- busted: the fine
+{ const base = busted; busted = function (by) { base(by); const fine = Math.round(SAVE.cash * .3); if (fine > 0) { SAVE.cash -= fine; persist(); setTimeout(() => note(`벌금 ${won(fine)}`), 3800); } }; }
+// ---- per frame
+function robberyStep(dt) {
+  if (saveT > 0 && (saveT -= dt) <= 0) try { localStorage.setItem('gtkSave', JSON.stringify(SAVE)); } catch (e) {}
+  $('cash').textContent = won(SAVE.cash);
+  weaponFollow(); interactUI(); xhairUI();
+  for (const n of npcs) { if (!n.ped || n.cop) continue;
+    if (n.down && n.hp <= 0 && n.wallet > 0 && !n.dropped) { n.dropped = true; dropCash(n.x + .4, n.y, n.wallet); n.wallet = 0; }   // knocked out: the wallet falls out
+    const d = Math.hypot(n.x - P.x, n.y - P.y);
+    if ((n.dead && n.deadT > 45 && d > 30) || (!n.dead && d > 95 && (n.state === 'idle' || n.state === 'calm') && !n.holder.visible)) { if (pedPlace(n, [45, 80])) n.holder.visible = false; } }
+  for (let i = DROPS.length - 1; i >= 0; i--) { const D = DROPS[i]; D.t += dt; D.m.rotation.y += dt * 2; D.m.position.y = heightAt(D.x, D.y) + .18 + Math.sin(D.t * 3) * .04;
+    if (P && !P.car && Math.hypot(D.x - P.x, D.y - P.y) < 1.2) { earn(D.n); scene.remove(D.m); DROPS.splice(i, 1); } else if (D.t > 120) { scene.remove(D.m); DROPS.splice(i, 1); } }
+  for (const sh of SHOPS) sh.mesh.material.opacity = .22 + Math.sin(G.t * 3) * .08;
+}
+CRIME.mug = 1; CRIME.gun = 1; CRIME.shot = 2;
 
 // ---------------------------------------------------------------- loop
 const clock = new THREE.Clock(); let frames = 0, ft0 = performance.now(), fps = 60, quality = 0;
@@ -1965,7 +2219,7 @@ function step(dt) {
     const gz = heightAt(camPos.x, -camPos.z) + .5; if (camPos.y < gz) camPos.y = gz;
     cam.position.copy(camPos); ctl.target.copy(look); cam.lookAt(look.x, look.y + CR.bob * .5, look.z); FX.applyCam(); }
   }
-  fightStep(gdt); carStep(gdt); FX.update(dt); barsUI();
+  fightStep(gdt); carStep(gdt); FX.update(dt); barsUI(); if (P) robberyStep(gdt);
   if (P) P.holder.visible = mode === 'walk';
   if (mode === 'sky') ctl.update();
   const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
@@ -1979,7 +2233,7 @@ if (P) placeAt(START[0], START[1]);
 $('load').hidden = true;
 if (SOFT) { let seen = false; try { seen = sessionStorage.getItem('gtkSoftSeen') === '1'; } catch (e) {}
   if (!seen && !navigator.webdriver) { $('softwarn').hidden = false; $('softok').addEventListener('click', () => { $('softwarn').hidden = true; try { sessionStorage.setItem('gtkSoftSeen', '1'); } catch (e) {} }); } }
-window.__game = { mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
