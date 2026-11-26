@@ -1302,6 +1302,11 @@ function rig(model, src) {
         if (far > cap) for (let i = 0; i < n; i++) { xs[i] *= cap / far; ys[i] *= cap / far; }
         c.userData.root = { t: tr.times, xs, ys }; } }
     return c; });
+  if (!src) {   // layers for fighting on the move: the arms swing the blow, the legs keep walking
+    const UP = /^(spine_02|spine_03|neck|head|clavicle|upperarm|lowerarm|hand|thumb|index|middle|ring|pinky)/, LO = /^(root|pelvis|spine_01|thigh|calf|foot|ball)/;
+    for (const c of clips.slice()) { const bn = t => t.name.split('.')[0];
+      if (FIGHTSET.has(c.name)) { const u = new THREE.AnimationClip(c.name + '_up', c.duration, c.tracks.filter(t => UP.test(bn(t)))); clips.push(u); }
+      if (['idle', 'walk', 'jog', 'run'].includes(c.name)) clips.push(new THREE.AnimationClip(c.name + '_lo', c.duration, c.tracks.filter(t => LO.test(bn(t))))); } }
   if (!src) { const ss = clips.find(c => c.name === 'sit_stand'); if (ss) clips.push(THREE.AnimationUtils.subclip(ss, 'seated', 52, 56, 30)); }   // a held seated pose for driving
   const mixer = new THREE.AnimationMixer(model), act = {};
   for (const c of clips) act[c.name] = mixer.clipAction(c);
@@ -1422,13 +1427,14 @@ const wpos = (F, n, out = new THREE.Vector3()) => F.bone(n).getWorldPosition(out
 function arm(F, id) {   // fighting state on a person
   Object.assign(F, { id, name: NAMES[id] || id, temper: TEMPER[id] || 'fight', hp: 100, meter: 0, down: false, ko: 0, once: null, onceName: '', ending: false, next: null, after: null,
     strikes: [], combatT: 0, atkCd: 1, lunge: null, speed: F.speed || 0, phase: Math.random(), want: 0, state: 'idle', lastAtk: '', lastAtkT: -9, repeat: 0, queued: false, fallAt: 0, hurtT: -9 });
-  for (const n of ['idle', 'walk', 'jog', 'run', 'guard']) { F.act[n].play(); F.act[n].setEffectiveWeight(n === 'idle' ? 1 : 0); }
+  for (const n of ['idle', 'walk', 'jog', 'run', 'guard', 'idle_lo', 'walk_lo', 'jog_lo', 'run_lo']) if (F.act[n]) { F.act[n].play(); F.act[n].setEffectiveWeight(n === 'idle' ? 1 : 0); }
+  for (const n in F.act) if (n.endsWith('_up')) { F.act[n].setLoop(THREE.LoopOnce, 1); F.act[n].clampWhenFinished = true; }
   for (const n in F.act) if (CLIPS[n] && CLIPS[n].loop === false) { F.act[n].setLoop(THREE.LoopOnce, 1); F.act[n].clampWhenFinished = true; }
 }
 // ---- animation: locomotion blend (guard stands in for idle in a fight) under one 'once' layer (attack / reaction / fall)
 const LOCO = [['idle', 0, 1], ['walk', 1.4, .954], ['jog', 3.2, 2.339], ['run', 5.5, 3.009]];
-function playOnce(F, name, w = 1, fade = .2) {
-  const a = F.act[name]; if (!a) return;
+function playOnce(F, name, w = 1, fade = .2, upper = false) {
+  const a = (upper && F.act[name + '_up']) || F.act[name]; if (!a) return; F.onceUpper = a !== F.act[name];
   if (F.once && F.once !== a) F.once.fadeOut(fade);
   a.reset(); a.setEffectiveWeight(w); a.fadeIn(fade); a.play(); F.once = a; F.onceName = name; F.ending = false; F.rootPrev = 0;
 }
@@ -1451,10 +1457,12 @@ function animate(F, dt) {
   if (F.once && !F.ending && F.once.time >= F.once.getClip().duration - .02) onceDone(F);
   if (F.once && F.ending && F.once.getEffectiveWeight() < .01) { F.once.stop(); F.once = null; F.onceName = ''; F.ending = false; }
   const ow = F.once ? F.once.getEffectiveWeight() : 0, g = F.combatT > 0 ? w.idle : 0;
-  for (const n in w) { F.act[n].setEffectiveWeight((n === 'idle' ? w.idle - g : w[n]) * (1 - ow)); if (n !== 'idle') { F.act[n].timeScale = 0; F.act[n].time = F.phase * F.act[n].getClip().duration; } }
+  const lw = F.onceUpper ? ow : 0;   // an arms-only blow: the legs stay on the locomotion
+  for (const n in w) { F.act[n].setEffectiveWeight((n === 'idle' ? w.idle - g : w[n]) * (1 - ow)); if (n !== 'idle') { F.act[n].timeScale = 0; F.act[n].time = F.phase * F.act[n].getClip().duration; }
+    const lo = F.act[n + '_lo']; if (lo) { lo.setEffectiveWeight(w[n] * lw); if (n !== 'idle') { lo.timeScale = 0; lo.time = F.act[n].time; } else lo.time = F.act.idle.time; } }
   F.act.guard.setEffectiveWeight(g * (1 - ow));
   const ra = F.once, rt0 = ra ? ra.time : 0;
-  F.update(G.hitStop > 0 ? dt * .08 : dt, .7 * (w.idle - g) * (1 - ow));   // hit-stop: a few frames of near-freeze on impact
+  F.update(dt, .7 * (w.idle - g) * (1 - ow));   // no hit-stop: blows land without freezing anybody
   if (ra && ra === F.once && ra.getClip().userData.root) rootMove(F, ra.getClip().userData.root, rt0, ra.time, ra.getEffectiveWeight());
   springs(F, dt);
 }
@@ -1472,10 +1480,11 @@ function onceDone(F) {
 // ---- attacks
 function attack(F, mv, T) {
   if (!F.act[mv] || F.down) return;
-  playOnce(F, mv, 1, .12); F.combatT = 4; F.strikes.length = 0;
+  const moving = F === P ? (Math.abs(joy.x) + Math.abs(joy.y) > .1 || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k => keys.has(k))) && F.speed > .3 : F.speed > .6;
+  playOnce(F, mv, 1, .12, moving); F.combatT = 4; F.strikes.length = 0;
   const list = CLIPS[mv].strikes || [], pw = FIGHT[mv][1], t0 = G.t;
   list.forEach((s_, i) => F.strikes.push({ t: t0 + s_.t, bone: s_.bone, follow: i > 0, power: pw[i] ?? pw[pw.length - 1] ?? .6, label: FIGHT[mv][0], final: !!(G.cutFinal && i === list.length - 1), whoosh: t0 + Math.max(0, s_.t - .14), hist: [] }));
-  if (T && list.length) { const s0 = list[0], k = F.k, depth = s0.up * k > 1.25 ? .1 : .14;   // step in so the first strike lands on the target
+  if (T && list.length && !F.onceUpper) { const s0 = list[0], k = F.k, depth = s0.up * k > 1.25 ? .1 : .14;   // step in so the first strike lands on the target
     F.lunge = { T, reach: s0.fwd * k + depth, lat: s0.lat * k, t: THREE.MathUtils.clamp(s0.t, .15, .35), max: G.cut ? 1.2 : .45 }; }   // a short step, never a jump
   F.repeat = mv === F.lastAtk ? F.repeat + 1 : 0; F.lastAtk = mv; F.lastAtkT = G.t;
 }
@@ -1656,8 +1665,8 @@ function moveFighter(F, dt) {
     let tx = L.T.x - fx * L.reach - lx * L.lat, ty = L.T.y - fy * L.reach - ly * L.lat, ddx = tx - F.x, ddy = ty - F.y; const dl = Math.hypot(ddx, ddy);
     if (dl > 1e-4 && L.max > 0) { const st = Math.min(dl, L.max, (G.cut ? 3 : 2.2) * dt); L.max -= st; [F.x, F.y] = collide(F.x + ddx / dl * st, F.y + ddy / dl * st); }
     if (L.t <= 0) F.lunge = null; }
-  else if (!(F.once && !F.ending) && Math.abs(F.speed) > .01) [F.x, F.y] = collide(F.x + Math.sin(F.yaw) * F.speed * dt, F.y - Math.cos(F.yaw) * F.speed * dt);
-  if (F.once && !F.ending) F.speed *= Math.exp(-dt * 10);
+  else if ((!(F.once && !F.ending) || F.onceUpper) && Math.abs(F.speed) > .01) [F.x, F.y] = collide(F.x + Math.sin(F.yaw) * F.speed * dt, F.y - Math.cos(F.yaw) * F.speed * dt);
+  if (F.once && !F.ending && !F.onceUpper) F.speed *= Math.exp(-dt * 10);
 }
 function separate() {
   const all = fighters().filter(f => !f.down);
@@ -2948,7 +2957,10 @@ function step(dt) {
     if (P.car) driveStep(gdt); else {
     const ix = (keys.has('d') || keys.has('arrowright') ? 1 : 0) - (keys.has('a') || keys.has('arrowleft') ? 1 : 0) + joy.x, iz = (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - (keys.has('w') || keys.has('arrowup') ? 1 : 0) + joy.y;
     const reeling = P.once && !P.ending && !FIGHT[P.onceName] && !P.down;
-    const free = !G.cut && !WANT.busted && !P.down && !(P.once && !P.ending && (FIGHT[P.onceName] || P.once.time < .3));   // walk out of a flinch after 0.3 s
+    const wantsMove = Math.abs(joy.x) + Math.abs(joy.y) > .1 || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k => keys.has(k));
+    if (wantsMove && P.once && !P.ending && FIGHT[P.onceName] && !P.onceUpper && P.act[P.onceName + '_up'] && !G.cut) {   // start moving mid-swing: hand the blow to the arms, the legs walk on
+      const up = P.act[P.onceName + '_up'], t = P.once.time; up.reset(); up.play(); up.time = t; up.setEffectiveWeight(P.once.getEffectiveWeight()); P.once.stop(); P.once = up; P.onceUpper = true; P.lunge = null; }
+    const free = !G.cut && !WANT.busted && !P.down && !(P.once && !P.ending && ((FIGHT[P.onceName] && !P.onceUpper) || (!FIGHT[P.onceName] && P.once.time < .3)));   // walk out of a flinch after 0.3 s
     if (free && reeling && (Math.abs(joy.x) + Math.abs(joy.y) > .1 || ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].some(k => keys.has(k)))) { P.ending = true; P.once.fadeOut(.15); }
     const mag = Math.min(1, Math.hypot(ix, iz)), moving = free && mag > .1;
     const wantRun = moving && (keys.has('shift') || (joy.x || joy.y) && mag > .92);   // touch: push the stick to the rim to run
