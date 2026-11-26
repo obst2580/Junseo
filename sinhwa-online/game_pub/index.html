@@ -7,13 +7,14 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
+:root { --vw: 1vw; --vh: 1vh } html.rot { --vw: 1vh; --vh: 1vw }   /* viewport units that follow the turned layout */
 /* Full-bleed game view: title / help top-left, status top-right, minimap bottom-right, touch stick bottom-left. */
 :root { --ink: #eef0e6; --dim: #aab3a2; --panel: rgba(16, 20, 16, .78); --line: #3b483a; --acc: #e2cf72; --key: #283126;
   --f: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; --m: "IBM Plex Mono", ui-monospace, monospace; color-scheme: dark }
 html, body { height: 100%; margin: 0; overflow: hidden; background: #a9bccb; color: var(--ink); font-family: var(--f); font-size: 13px }
 [hidden] { display: none !important }
 #v { position: fixed; inset: 0 } #v canvas { display: block; width: 100%; height: 100%; touch-action: none }
-.panel { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); width: min(290px, calc(100vw - 24px));
+.panel { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); width: min(290px, calc(calc(100 * var(--vw)) - 24px));
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 7px }
 .panel h1 { margin: 0; font-size: 15px } .panel h1 small { color: var(--dim); font-weight: 400; font-size: 12px; margin-left: 6px }
 .row { display: flex; flex-wrap: wrap; gap: 5px }
@@ -27,25 +28,25 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
   border-radius: 50%; border: 2px solid rgba(255, 255, 255, .6); background: #1d241c; overflow: hidden }
 #mini canvas { width: 100%; height: 100% }
 #load { position: fixed; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 40%, #2a2f26, #0d0f0b 75%); color: #e9e4cf; font-size: 15px; text-align: center; line-height: 1.7; z-index: 20 }
-#load .tk { font: 400 clamp(84px, 22vw, 200px)/.9 "Black Han Sans", var(--f); letter-spacing: .06em; color: #f3e3a8; text-shadow: 0 6px 0 #5a2a0c, 0 0 40px rgba(240,170,60,.35) }
-#load .te { font: 700 clamp(15px, 3.6vw, 26px) var(--f); letter-spacing: .42em; text-transform: uppercase; color: #e2cf72; margin-top: 10px; padding-left: .42em }
-#load .tko { font: 600 clamp(13px, 2.8vw, 18px) var(--f); letter-spacing: .5em; color: #b9b39a; margin-top: 4px; padding-left: .5em }
+#load .tk { font: 400 clamp(84px, calc(22 * var(--vw)), 200px)/.9 "Black Han Sans", var(--f); letter-spacing: .06em; color: #f3e3a8; text-shadow: 0 6px 0 #5a2a0c, 0 0 40px rgba(240,170,60,.35) }
+#load .te { font: 700 clamp(15px, calc(3.6 * var(--vw)), 26px) var(--f); letter-spacing: .42em; text-transform: uppercase; color: #e2cf72; margin-top: 10px; padding-left: .42em }
+#load .tko { font: 600 clamp(13px, calc(2.8 * var(--vw)), 18px) var(--f); letter-spacing: .5em; color: #b9b39a; margin-top: 4px; padding-left: .5em }
 #loadmsg { margin-top: 36px; font-size: 13px; color: #9aa38f; min-height: 1.7em }
 #stick { position: fixed; left: calc(24px + env(safe-area-inset-left, 0px)); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); width: 120px; height: 120px; border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, .5); background: rgba(0, 0, 0, .15); touch-action: none; display: none }
 #stick i { position: absolute; left: 40px; top: 40px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255, 255, 255, .7) }
 @media (pointer: coarse) { #stick { display: block } #mini { width: 130px; height: 130px } }
 /* fight HUD: health bars top centre, strike gauge bottom centre, touch attack above the minimap */
-#bars { background: rgba(16,20,16,.55); border-radius: 8px; padding: 6px 10px; position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px)); width: min(340px, calc(100vw - 340px)); min-width: 170px; display: grid; gap: 6px; pointer-events: none }
+#bars { background: rgba(16,20,16,.55); border-radius: 8px; padding: 6px 10px; position: fixed; left: 50%; transform: translateX(-50%); top: calc(12px + env(safe-area-inset-top, 0px)); width: min(340px, calc(calc(100 * var(--vw)) - 340px)); min-width: 170px; display: grid; gap: 6px; pointer-events: none }
 #bars .bl { display: flex; justify-content: space-between; font-size: 11.5px; color: #f1efe4; text-shadow: 0 1px 2px #000; margin-bottom: 2px }
 #bars .bb { height: 10px; border-radius: 5px; background: rgba(10,12,10,.7); border: 1px solid rgba(255,255,255,.35); overflow: hidden }
 #bars .bb i { display: block; height: 100%; background: linear-gradient(90deg, #3fa45a, #8bd36a); transition: width .2s }
 #tbar .bb i { background: linear-gradient(90deg, #b8322a, #e86a4a) }
 #finfo { text-align: center; font-size: 12px; color: #fff3d0; text-shadow: 0 1px 3px #000; min-height: 16px }
-@media (max-width: 720px) { #bars { top: auto; bottom: calc(170px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 48px) } }
+@media (max-width: 720px) { html:not(.rot) #bars { top: auto; bottom: calc(170px + env(safe-area-inset-bottom, 0px)); width: calc(calc(100 * var(--vw)) - 48px) } }
 #atkpad { position: fixed; right: calc(28px + env(safe-area-inset-right, 0px)); bottom: calc(160px + env(safe-area-inset-bottom, 0px)); width: 92px; height: 92px; border-radius: 50%; font: 700 17px var(--f); color: #1b1d14; background: var(--acc); border: 3px solid rgba(255,255,255,.7); display: none; touch-action: manipulation }
 @media (pointer: coarse) { #atkpad { display: block } }
-#gauge { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: min(360px, calc(100vw - 420px)); min-width: 170px; text-align: center; pointer-events: none }
+#gauge { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: min(360px, calc(calc(100 * var(--vw)) - 420px)); min-width: 170px; text-align: center; pointer-events: none }
 #gauge .gl { font-size: 11.5px; color: #f1efe4; text-shadow: 0 1px 2px #000; letter-spacing: .08em; margin-bottom: 4px }
 #gauge .gb { height: 12px; border-radius: 6px; background: rgba(10,12,10,.7); border: 1px solid rgba(255,255,255,.35); overflow: hidden }
 #gauge .gb i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #c94b2a, #f0a33a); transition: width .15s }
@@ -55,27 +56,27 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 @keyframes gpulse { from { filter: brightness(1) } to { filter: brightness(1.5) } }
 #execbtn { position: fixed; right: calc(132px + env(safe-area-inset-right, 0px)); bottom: calc(166px + env(safe-area-inset-bottom, 0px)); width: 80px; height: 80px; border-radius: 50%; font: 800 17px var(--f);
   color: #2a0a00; background: #ffb44a; border: 3px solid #fff3c4; animation: gpulse .5s infinite alternate }
-#lbtop, #lbbot { position: fixed; left: 0; right: 0; height: min(30vh, max(9vh, calc((100vh - 100vw / 2.39) / 2))); background: #000; pointer-events: none; z-index: 5;
+#lbtop, #lbbot { position: fixed; left: 0; right: 0; height: min(calc(30 * var(--vh)), max(calc(9 * var(--vh)), calc((calc(100 * var(--vh)) - calc(100 * var(--vw)) / 2.39) / 2))); background: #000; pointer-events: none; z-index: 5;
   transition: transform .7s cubic-bezier(.65, 0, .25, 1) .05s; box-shadow: 0 0 24px 6px rgba(0,0,0,.55) }   /* 2.39:1 cinemascope bars */
 #lbtop { top: 0; transform: translateY(-110%) } #lbbot { bottom: 0; transform: translateY(110%) }
 body.cut #lbtop, body.cut #lbbot { transform: none; transition-delay: 0s }
 body.cut .panel, body.cut .hud, body.cut #gauge, body.cut #atkpad, body.cut #stick, body.cut #execbtn, body.cut #bars, body.cut #mini { visibility: hidden }
-#cuttitle { position: fixed; left: 0; right: 0; top: 42%; text-align: center; font: 900 clamp(40px, 9vw, 96px) "Black Han Sans", var(--f); color: #fff3d0; letter-spacing: .04em;
+#cuttitle { position: fixed; left: 0; right: 0; top: 42%; text-align: center; font: 900 clamp(40px, calc(9 * var(--vw)), 96px) "Black Han Sans", var(--f); color: #fff3d0; letter-spacing: .04em;
   text-shadow: 0 4px 0 #6b1c00, 0 0 30px rgba(255,120,40,.8); opacity: 0; transform: scale(1.6); transition: opacity .25s, transform .35s cubic-bezier(.2,1.6,.4,1); pointer-events: none; z-index: 6 }
-#cuttitle small { display: block; font: 700 clamp(14px, 2.4vw, 22px) var(--f); color: #ffe2b0; letter-spacing: .3em; margin-top: 6px }
+#cuttitle small { display: block; font: 700 clamp(14px, calc(2.4 * var(--vw)), 22px) var(--f); color: #ffe2b0; letter-spacing: .3em; margin-top: 6px }
 #cuttitle.on { opacity: 1; transform: scale(1) }
-#kotext { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font: 900 clamp(36px, 8vw, 80px) "Black Han Sans", var(--f); color: #fff; text-shadow: 0 4px 0 #400, 0 0 24px #000;
+#kotext { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font: 900 clamp(36px, calc(8 * var(--vw)), 80px) "Black Han Sans", var(--f); color: #fff; text-shadow: 0 4px 0 #400, 0 0 24px #000;
   background: radial-gradient(ellipse at center, rgba(40,0,0,.15), rgba(20,0,0,.75)); opacity: 0; transition: opacity .6s }
 #kotext.on { opacity: 1 }
-#sub { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); max-width: min(900px, calc(100vw - 40px)); text-align: center; pointer-events: none; z-index: 8;
-  font: 400 clamp(17px, 2.06vw, 34px)/1.4 "Noto Sans KR", var(--f); color: #fff; letter-spacing: .075em; word-break: keep-all;
+#sub { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(88px + env(safe-area-inset-bottom, 0px)); max-width: min(900px, calc(calc(100 * var(--vw)) - 40px)); text-align: center; pointer-events: none; z-index: 8;
+  font: 400 clamp(17px, calc(2.06 * var(--vw)), 34px)/1.4 "Noto Sans KR", var(--f); color: #fff; letter-spacing: .075em; word-break: keep-all;
   -webkit-text-stroke: 1.7px #000; paint-order: stroke fill; text-shadow: 0 1px 2px rgba(0,0,0,.85), 0 0 6px rgba(0,0,0,.45); opacity: 0; transition: opacity .15s }
 #sub.on { opacity: 1 }
-body.cut #sub { bottom: calc(min(30vh, max(9vh, calc((100vh - 100vw / 2.39) / 2))) / 2 - .7em) }   /* in the cutscene: inside the lower black bar */
-@media (pointer: coarse) { #sub { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 280px); min-width: 200px } }
-#busted { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; text-align: center; font: 900 clamp(48px, 11vw, 110px) "Black Han Sans", var(--f); color: #e9f0ff; letter-spacing: .1em;
+body.cut #sub { bottom: calc(min(calc(30 * var(--vh)), max(calc(9 * var(--vh)), calc((calc(100 * var(--vh)) - calc(100 * var(--vw)) / 2.39) / 2))) / 2 - .7em) }   /* in the cutscene: inside the lower black bar */
+@media (pointer: coarse) { #sub { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); max-width: calc(calc(100 * var(--vw)) - 280px); min-width: 200px } }
+#busted { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; text-align: center; font: 900 clamp(48px, calc(11 * var(--vw)), 110px) "Black Han Sans", var(--f); color: #e9f0ff; letter-spacing: .1em;
   text-shadow: 0 4px 0 #0b1f5c, 0 0 30px rgba(60,110,255,.7); background: radial-gradient(ellipse at center, rgba(0,10,40,.2), rgba(0,6,30,.8)); opacity: 0; transition: opacity .5s; z-index: 7 }
-#busted small { display: block; font: 600 clamp(13px, 2.2vw, 18px) var(--f); letter-spacing: .3em; color: #b9c8ff; margin-top: 8px }
+#busted small { display: block; font: 600 clamp(13px, calc(2.2 * var(--vw)), 18px) var(--f); letter-spacing: .3em; color: #b9c8ff; margin-top: 8px }
 #busted.on { opacity: 1; animation: bflash .5s steps(2) 3 }
 @keyframes bflash { 50% { background: radial-gradient(ellipse at center, rgba(60,0,0,.25), rgba(40,0,10,.8)) } }
 #wanted { position: fixed; right: max(12px, env(safe-area-inset-right, 0px)); top: calc(78px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; gap: 2px; padding: 4px 8px; border-radius: 8px; background: rgba(16,20,16,.6); pointer-events: none }
@@ -92,16 +93,17 @@ body.cut #wanted { visibility: hidden }
 @keyframes rot { 0%, 25% { transform: rotate(0) } 60%, 100% { transform: rotate(-90deg) } }
 #rotate b { display: block; font: 400 26px "Black Han Sans", var(--f); color: #f3e3a8; margin-bottom: 8px } #rotate p { margin: 0 0 18px; color: #aab3a2; line-height: 1.6 }
 #rotate button { font-size: 15px; padding: 10px 16px; background: var(--acc); color: #1b1d14; border: 0; border-radius: 8px; font-weight: 700 }
-@media (pointer: coarse) and (orientation: portrait) { #rotate { display: grid } }
+#app { position: fixed; inset: 0 }
+html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; transform-origin: 0 0; transform: rotate(90deg) }   /* portrait phone: the game is laid out landscape and turned */
 @media (pointer: coarse) {
   .hud { display: none } .panel .help { display: none } .panel { width: auto; padding: 6px 8px; gap: 5px } .panel h1 { font-size: 13px }
   #mini { top: calc(10px + env(safe-area-inset-top, 0px)); bottom: auto; width: 108px; height: 108px }
   #wanted { top: calc(124px + env(safe-area-inset-top, 0px)) }
   #atkpad { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: 88px; height: 88px }
   #execbtn { right: calc(126px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); width: 74px; height: 74px }
-  #sub { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); max-width: calc(100vw - 320px); min-width: 220px; font-size: clamp(15px, 2.4vw, 22px) }
-  #gauge { width: min(300px, calc(100vw - 340px)) }
-  #bars { width: min(300px, calc(100vw - 420px)) }
+  #sub { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); max-width: calc(calc(100 * var(--vw)) - 320px); min-width: 220px; font-size: clamp(15px, calc(2.4 * var(--vw)), 22px) }
+  #gauge { width: min(300px, calc(calc(100 * var(--vw)) - 340px)) }
+  #bars { width: min(300px, calc(calc(100 * var(--vw)) - 420px)) }
 }
 #fxflash, #fxvig { position: fixed; inset: 0; pointer-events: none; opacity: 0 }
 #fxflash { background: radial-gradient(circle at 50% 45%, rgba(255,250,235,.95), rgba(255,240,210,.55) 45%, rgba(255,230,200,0) 80%) }
@@ -109,6 +111,7 @@ body.cut #wanted { visibility: hidden }
 </style>
 </head>
 <body>
+<div id="app">
 <div id="v"></div>
 <section class="panel" aria-label="게임 정보">
   <h1>GTK<small>한국의 위대한 도둑 · 신화2리</small></h1>
@@ -124,13 +127,14 @@ body.cut #wanted { visibility: hidden }
 <button type="button" id="execbtn" hidden>처형</button>
 <div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
 <div id="sub" role="status" aria-live="polite"></div>
-<div id="rotate"><div><div class="ph" aria-hidden="true"></div><b>가로로 돌려주세요</b><p>GTK는 가로 화면에서 플레이합니다.</p><button type="button" id="landbtn">가로 전체화면으로</button></div></div>
+
 <div id="kotext" aria-hidden="true">기절!</div>
 <div id="busted" aria-hidden="true"><div>체포<small>연무지구대로 연행 중…</small></div></div>
 <div id="wanted" hidden aria-label="수배 단계"><span>수배</span><i>★</i><i>★</i><i>★</i><i>★</i><i>★</i></div>
 <div id="fxflash" aria-hidden="true"></div><div id="fxvig" aria-hidden="true"></div>
 <div id="load"><div class="tc"><div class="tk">GTK</div><div class="te">Grand Theft Korea</div><div class="tko">한국의 위대한 도둑</div><div id="loadmsg">신화리 들어가는 중…</div></div></div>
 
+</div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.webgpu.js","three/webgpu":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.webgpu.js","three/tsl":"https://cdn.jsdelivr.net/npm/three@0.184.0/build/three.tsl.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.184.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three/webgpu';
@@ -148,24 +152,29 @@ import { traa } from 'three/addons/tsl/display/TRAANode.js';
 const $ = id => document.getElementById(id);
 // phones / tablets: ask for fullscreen + a landscape lock on the first touch (Android honours it; iOS shows the rotate prompt instead)
 const coarse = matchMedia('(pointer: coarse)').matches;
+const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
+const view = () => turned() ? [innerHeight, innerWidth] : [innerWidth, innerHeight];
+const toApp = e => turned() ? { x: e.clientY, y: innerWidth - e.clientX } : { x: e.clientX, y: e.clientY };   // screen -> game-space pointer
+function applyTurn() { document.documentElement.classList.toggle('rot', turned()); }
+applyTurn();
 async function goLandscape() {
   try { if (!document.fullscreenElement && document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: 'hide' }); } catch (e) {}
   try { await screen.orientation?.lock?.('landscape'); } catch (e) {}
 }
-if (coarse) { addEventListener('pointerdown', goLandscape, { once: true }); document.getElementById('landbtn').addEventListener('click', e => { e.stopPropagation(); goLandscape(); }); }
+if (coarse) addEventListener('pointerdown', goLandscape, { once: true });   // where the browser allows it (Android, outside a frame) it really goes fullscreen landscape
 const say = t => { $('loadmsg').textContent = t; };
 window.addEventListener('error', e => { $('load').hidden = false; $('loadmsg').textContent = '오류: ' + e.message; });
 
 // ---------------------------------------------------------------- renderer (WebGPU, falls back to WebGL2 where WebGPU is missing)
 const r = new THREE.WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
-r.setPixelRatio(Math.min(devicePixelRatio, 1.5)); r.setSize(innerWidth, innerHeight);
+r.setPixelRatio(Math.min(devicePixelRatio, 1.5)); r.setSize(...view());
 r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.0;
 r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 await r.init();
 $('v').appendChild(r.domElement);
 const BACKEND = r.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
 const scene = new THREE.Scene();
-const cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, .1, 6000);
+const cam = new THREE.PerspectiveCamera(50, view()[0] / view()[1], .1, 6000);
 const ctl = new OrbitControls(cam, r.domElement); ctl.enablePan = false; ctl.maxPolarAngle = Math.PI * .49; ctl.minDistance = 1.5; ctl.maxDistance = 900;
 const maxAniso = r.getMaxAnisotropy ? r.getMaxAnisotropy() : 8;
 const glbFrom = (jsonText, b64) => { const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0)), jb = new TextEncoder().encode(jsonText);
@@ -481,7 +490,7 @@ let mode = 'walk';
 const keys = new Set(); const joy = { x: 0, y: 0 };
 addEventListener('keydown', e => { keys.add(e.key.toLowerCase()); if ([' ', 'arrowup', 'arrowdown'].includes(e.key.toLowerCase())) e.preventDefault(); });
 addEventListener('keyup', e => keys.delete(e.key.toLowerCase())); addEventListener('blur', () => keys.clear());
-{ const s = $('stick'), knob = s.querySelector('i'); let id = null; const move = e => { const rc = s.getBoundingClientRect(); let x = (e.clientX - rc.left - 60) / 50, y = (e.clientY - rc.top - 60) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
+{ const s = $('stick'), knob = s.querySelector('i'); let id = null; const move = e => { const rc = s.getBoundingClientRect(), c = toApp({ clientX: rc.left + rc.width / 2, clientY: rc.top + rc.height / 2 }), q = toApp(e); let x = (q.x - c.x) / 50, y = (q.y - c.y) / 50; const l = Math.hypot(x, y); if (l > 1) { x /= l; y /= l; } joy.x = x; joy.y = y; knob.style.transform = `translate(${x * 40}px,${y * 40}px)`; };
   s.addEventListener('pointerdown', e => { id = e.pointerId; s.setPointerCapture(id); move(e); }); s.addEventListener('pointermove', e => { if (e.pointerId === id) move(e); }); s.addEventListener('pointerup', () => { id = null; joy.x = joy.y = 0; knob.style.transform = ''; }); }
 // ---------------------------------------------------------------- third-person camera rig (over the right shoulder, lags behind, swings back behind you)
 const CR = { yaw: Math.PI * .85, pitch: .32, dist: 4.6, distT: 4.6, lastLook: -9, pivot: new THREE.Vector3(), fov: 50, bob: 0, jolt: 0, init: false };
@@ -489,8 +498,8 @@ const lookBy = (dx, dy) => { CR.yaw -= dx * .0042; CR.pitch = THREE.MathUtils.cl
 { const el = r.domElement; let drag = null;
   el.addEventListener('click', () => { if (mode === 'walk' && document.pointerLockElement !== el && matchMedia('(pointer: fine)').matches) el.requestPointerLock?.(); });
   addEventListener('mousemove', e => { if (document.pointerLockElement === el && mode === 'walk') lookBy(e.movementX, e.movementY); });
-  el.addEventListener('pointerdown', e => { if (mode === 'walk' && document.pointerLockElement !== el) { drag = [e.clientX, e.clientY, e.pointerId]; } });
-  addEventListener('pointermove', e => { if (drag && e.pointerId === drag[2]) { lookBy(e.clientX - drag[0], e.clientY - drag[1]); drag[0] = e.clientX; drag[1] = e.clientY; } });
+  el.addEventListener('pointerdown', e => { if (mode === 'walk' && document.pointerLockElement !== el) { const q = toApp(e); drag = [q.x, q.y, e.pointerId]; } });
+  addEventListener('pointermove', e => { if (drag && e.pointerId === drag[2]) { const q = toApp(e); lookBy(q.x - drag[0], q.y - drag[1]); drag[0] = q.x; drag[1] = q.y; } });
   addEventListener('pointerup', e => { if (drag && e.pointerId === drag[2]) drag = null; });
   el.addEventListener('wheel', e => { if (mode === 'walk') { CR.distT = THREE.MathUtils.clamp(CR.distT * (1 + Math.sign(e.deltaY) * .12), 2.2, 10); e.preventDefault(); } }, { passive: false }); }
 function btns(host, items, on) { host.replaceChildren(...items.map(([v, label]) => { const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v; b.textContent = label; b.addEventListener('click', () => { on(v); b.blur(); }); return b; })); }
@@ -1100,7 +1109,7 @@ function step(dt) {
 }
 if (P) placeAt(6, -14);
 $('load').hidden = true;
-window.__game = { WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
@@ -1121,7 +1130,7 @@ r.setAnimationLoop(() => {
       if (quality === 3) { aoMix.value = 0; r.setPixelRatio(.8); } }
     const gp = P ? `${P.x.toFixed(0)}, ${P.y.toFixed(0)}` : '-'; $('hud').innerHTML = `${Math.round(fps)} fps · ${BACKEND}${quality ? ' · 품질 ' + (3 - quality) : ''}<br>위치 ${gp}`; }
 });
-addEventListener('resize', () => { r.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+addEventListener('resize', () => { applyTurn(); const [w, h] = view(); r.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); });
 </script>
 </body>
 </html>
