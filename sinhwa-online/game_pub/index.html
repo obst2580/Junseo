@@ -114,6 +114,7 @@ body.cut #sub { bottom: calc(min(calc(30 * var(--vh)), max(calc(9 * var(--vh)), 
 #busted small { display: block; font: 600 clamp(13px, calc(2.2 * var(--vw)), 18px) var(--f); letter-spacing: .3em; color: #b9c8ff; margin-top: 8px }
 #busted.on { opacity: 1; animation: bflash .5s steps(2) 3 }
 @keyframes bflash { 50% { background: radial-gradient(ellipse at center, rgba(60,0,0,.25), rgba(40,0,10,.8)) } }
+#clock { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(140px + env(safe-area-inset-top, 0px)); font: 700 13px var(--f); color: #e9e6dc; text-shadow: 0 1px 3px #000; pointer-events: none; opacity: .85 }
 #cash { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(56px + env(safe-area-inset-top, 0px)); font: 400 26px "Black Han Sans", var(--f); color: #f2f2ee; letter-spacing: .02em; -webkit-text-stroke: 1.2px rgba(0,0,0,.7); paint-order: stroke fill; text-shadow: 0 1px 3px rgba(0,0,0,.6); pointer-events: none }
 #cashpop { position: fixed; right: calc(26px + env(safe-area-inset-right, 0px)); top: calc(88px + env(safe-area-inset-top, 0px)); font: 400 22px "Black Han Sans", var(--f); color: #7fd36a; -webkit-text-stroke: 1px rgba(0,0,0,.7); paint-order: stroke fill; opacity: 0; pointer-events: none }
 #cashpop.on { animation: cpop 2.2s ease-out forwards } @keyframes cpop { 0% { opacity: 0; transform: translateY(6px) } 10% { opacity: 1; transform: none } 75% { opacity: 1 } 100% { opacity: 0 } }
@@ -190,7 +191,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 
 <div id="kotext" aria-hidden="true">기절!</div>
 <div id="busted" aria-hidden="true"><div>체포<small>강남경찰서로 연행 중…</small></div></div>
-<div id="cash" aria-label="소지금">₩0</div><div id="cashpop" aria-hidden="true"></div><div id="wpn" hidden></div><div id="xhair" hidden aria-hidden="true"></div>
+<div id="clock" aria-label="시각">19:18</div><div id="cash" aria-label="소지금">₩0</div><div id="cashpop" aria-hidden="true"></div><div id="wpn" hidden></div><div id="xhair" hidden aria-hidden="true"></div>
 <button type="button" id="actmark" hidden><kbd>E</kbd><span>돈 내놔</span></button><button type="button" id="wpnbtn" hidden>맨손</button>
 <div id="shop" hidden role="dialog" aria-label="상점"><div class="sbox"><div class="shd"><b id="shopname">상점</b><span id="shopcash"></span><button type="button" id="shopx" aria-label="닫기">✕</button></div><div id="shopitems"></div><div class="sft"><kbd>E</kbd> 또는 <kbd>Esc</kbd> 닫기</div></div></div>
 <div id="wanted" hidden aria-label="수배 단계"><i>★</i><i>★</i><i>★</i><i>★</i><i>★</i></div>
@@ -290,18 +291,19 @@ say('하늘 펴는 중…');
 { const j = await (await fetch('sky_env.json')).json(); const b = Uint8Array.from(atob(j.data), c => c.charCodeAt(0)); const hd = new RGBELoader().parse(b.buffer);
   const t = new THREE.DataTexture(hd.data, hd.width, hd.height, THREE.RGBAFormat, hd.type); t.flipY = true; t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
   t.mapping = THREE.EquirectangularReflectionMapping; t.colorSpace = THREE.LinearSRGBColorSpace; t.needsUpdate = true;
-  scene.environment = t; scene.environmentIntensity = .9; }
+  scene.environment = t; scene.environmentIntensity = 1.1; }
 const skyBg = await tl.loadAsync('sky_bg.jpg'); skyBg.colorSpace = THREE.SRGBColorSpace;
-const FOGC = new THREE.Color('#b9c8d2');
-scene.backgroundNode = mix(color(FOGC), texture(skyBg, equirectUV(positionWorldDirection)).rgb, smoothstep(-.02, .06, positionWorldDirection.y));
-const fogDensity = uniform(.0011);
-scene.fogNode = fog(color(FOGC), densityFogFactor(fogDensity));
+const FOGC = new THREE.Color('#c3d5e4');
+const fogU = uniform(FOGC), skyK = uniform(1), skyNight = uniform(new THREE.Color(0, 0, 0));   // set by the clock (see dayStep)
+scene.backgroundNode = mix(fogU, texture(skyBg, equirectUV(positionWorldDirection)).rgb.mul(skyK).add(skyNight), smoothstep(-.02, .06, positionWorldDirection.y));
+const fogDensity = uniform(.0008);
+scene.fogNode = fog(fogU, densityFogFactor(fogDensity));
 // sun aligned with the baked sun (Blender dir -> three), lights only characters + grass + the far terrain
 const SUN = new THREE.Vector3(-.45, .78, .44).normalize();   // afternoon sun from the south-west
-const sun = new THREE.DirectionalLight('#fff0dc', 3.0); sun.castShadow = QL.shadow > 0; sun.shadow.mapSize.set(QL.shadow || 512, QL.shadow || 512);
+const sun = new THREE.DirectionalLight('#ffe8c8', 3.6); sun.castShadow = QL.shadow > 0; sun.shadow.mapSize.set(QL.shadow || 512, QL.shadow || 512);
 Object.assign(sun.shadow.camera, { left: -34, right: 34, top: 34, bottom: -34, near: 1, far: 420 }); sun.shadow.bias = -.0004; sun.shadow.normalBias = .03;
 scene.add(sun, sun.target);
-const hemi = new THREE.HemisphereLight('#cfe0ee', '#8a8780', .7); scene.add(hemi);
+const hemi = new THREE.HemisphereLight('#c4dcf4', '#a89a86', .9); scene.add(hemi);
 
 // ---------------------------------------------------------------- city: 강남역 일대 (OpenStreetMap) — roads, buildings with real heights, shop signs, street furniture
 say('도시 짓는 중…');
@@ -328,6 +330,7 @@ function roadMat(lanes, oneway, w) {
     g.fillStyle = '#e8e8e2'; g.fillRect(L(.015), 0, 3, H_); if (oneway) { g.fillStyle = '#e0b62a'; g.fillRect(L(.985) - 7, 0, 3, H_); g.fillRect(L(.985) - 1, 0, 3, H_); } else g.fillRect(L(.985) - 3, 0, 3, H_);
     if (!oneway && n >= 2) { g.fillStyle = '#e0b62a'; g.fillRect(L(.5) - 5, 0, 3, H_); g.fillRect(L(.5) + 2, 0, 3, H_);
       const bus = n >= 8 ? [n / 2 - 1, n / 2 + 1] : [];   // 강남대로: 중앙버스전용차로
+      if (bus.length) { g.fillStyle = '#9c3b30'; g.fillRect(L(bus[0] / n) + 2, 0, L(1 / n) - 4, H_); g.fillRect(L(.5) + 6, 0, L(1 / n) - 8, H_); }   // red bus-lane paving
       for (let i = 1; i < n; i++) if (Math.abs(i / n - .5) > .01) { if (bus.includes(i)) { g.fillStyle = '#2a63c9'; g.fillRect(L(i / n) - 3, 0, 5, H_); } else dash(i / n, '#e8e8e2'); } }
     else for (let i = 1; i < n; i++) dash(i / n, '#e8e8e2'); });
   const m = new THREE.MeshStandardMaterial({ map: t, roughness: .78, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }); roadMats.set(key, m); return m;
@@ -386,12 +389,12 @@ const FILLCATS = Object.keys(FILLNAMES);
   for (const [i, j] of order) { if (occ[i * NY + j] || made > 340) continue;
     const x = REG[0] + (i + .5) * R, y = REG[1] + (j + .5) * R, n = nearestRoad(x, y, 60); if (!n) continue;
     const ux = Math.cos(n.dir), uy = Math.sin(n.dir), big = n.r.w >= 9, s = hash(x * 3 + y);
-    for (const [fw, fd] of [[18, 16], [14, 14], [11, 12], [9, 10], [7, 9]]) {   // biggest lot that fits, facing the road
+    for (const [fw, fd] of big ? [[26, 20], [22, 18], [18, 16], [14, 14], [11, 12]] : [[18, 16], [14, 14], [11, 12], [9, 10], [7, 9]]) {   // biggest lot that fits, facing the road
       const w = fw * (.85 + s * .3), d = fd * (.85 + hash(y * 5 - x) * .3), ring = [[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]].map(([a, b]) => [x + a * ux - b * uy, y + a * uy + b * ux]);
       if (!freeRect(ring)) continue;
-      const lv = big ? 6 + Math.floor(s * 9) : 3 + Math.floor(hash(x - y * 2) * 5), h = lv * 3.4 + 1.4, kind = lv >= 13 ? 'office' : hash(x + y) < .18 ? 'villa' : 'shop';
+      const lv = big ? 12 + Math.floor(s * 12) : 3 + Math.floor(hash(x - y * 2) * 5), h = lv * 3.4 + 1.4, kind = big ? (hash(x * 7) < .55 ? 'tower' : 'office') : hash(x + y) < .18 ? 'villa' : 'shop';   // 강남대로: glass and stone office towers; back streets: 근생
       const shops = []; if (kind !== 'villa') for (let k = 0; k < Math.min(lv, 2 + Math.floor(hash(x * y) * 4)); k++) { const cat = FILLCATS[Math.floor(hash(x + k * 13 + y) * FILLCATS.length)], L = FILLNAMES[cat]; shops.push([L[Math.floor(hash(k + x * 9) * L.length)], cat]); }
-      const bb = gapOf(ring); BLD.push({ p: ring, h, lv, name: '', kind, shops, bb, fill: true });
+      const bb = gapOf(ring); BLD.push({ p: ring, h, lv, name: '', kind, shops, bb, fill: true, tall: big });
       mark(bb[0] - 1.6, bb[1] - 1.6, bb[2] + 1.6, bb[3] + 1.6, (px, py) => { for (let a = 0; a < 4; a++) { const p = ring[a], q = ring[(a + 1) % 4], dx = q[0] - p[0], dy = q[1] - p[1], L2 = dx * dx + dy * dy, t = THREE.MathUtils.clamp(((px - p[0]) * dx + (py - p[1]) * dy) / L2, 0, 1); if (Math.hypot(p[0] + dx * t - px, p[1] + dy * t - py) < 1.6) return true; } return pointInRing(px, py, ring); });
       made++; break; } }
   // the low mapped buildings are the same kind of 근생 block: give them a board on every floor too
@@ -402,6 +405,8 @@ const FILLCATS = Object.keys(FILLNAMES);
 const BAY = 3.2, FLOOR = 3.4, GF = 4.4;
 function facadeTex(kind, v) {
   return canvasTex(256, 256, (g, w, h) => {
+    if (kind === 'brick') { noiseFill(g, w, h, v % 2 ? '#7b4632' : '#8a5a40', .08, 900); g.strokeStyle = 'rgba(40,20,12,.35)'; g.lineWidth = 1; for (let y = 0; y < h; y += 8) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (y / 8 % 2) * 12; x < w; x += 24) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 8); g.stroke(); } }
+      g.fillStyle = '#d8d3c8'; g.fillRect(w * .1, h * .2, w * .8, h * .58); const gr = g.createLinearGradient(0, h * .22, 0, h * .76); gr.addColorStop(0, '#6c8290'); gr.addColorStop(1, '#2a3640'); g.fillStyle = gr; g.fillRect(w * .13, h * .23, w * .74, h * .52); g.fillStyle = '#d8d3c8'; g.fillRect(w * .49, h * .23, w * .02, h * .52); return; }
     const pal = { tower: ['#2c4652', '#26383f', '#3a4d55', '#1f3340'], office: ['#b9b6ad', '#8f9499', '#c9c1b2', '#a3a8ab'], shop: ['#d8d1c2', '#c2b8a8', '#e2ddd3', '#b4aa9a'], apart: ['#e6e1d7', '#d9d4ca', '#efe9de', '#cfc8bb'], villa: ['#a8553e', '#c6b59a', '#9b4b36', '#d8cdb9'] }[kind];
     const base = pal[v % 4];
     if (kind === 'tower') {   // curtain wall: glass panes, thin aluminium mullions
@@ -423,8 +428,16 @@ const storeTex = canvasTex(512, 256, (g, w, h) => { noiseFill(g, w, h, '#2b3238'
   g.fillStyle = 'rgba(30,34,38,.85)'; g.fillRect(w * .74, h * .26, w * .2, h * .74); g.fillStyle = 'rgba(255,250,236,.5)'; g.fillRect(w * .755, h * .29, w * .17, h * .71); g.fillStyle = '#c9ced1'; g.fillRect(w * .9, h * .55, 4, h * .14);
   g.fillStyle = 'rgba(255,255,255,.1)'; g.fillRect(w * .04, h * .22, w * .12, h * .78); });
 const roofTex = canvasTex(256, 256, (g, w, h) => noiseFill(g, w, h, '#8e8f8a', .1, 2500));
+const LIT = {}; function litTex(kind) {   // which windows have their lights on (4 bays x 4 floors per tile)
+  if (LIT[kind]) return LIT[kind];
+  const win = kind === 'tower' ? [.04, .05, .92, .82] : kind === 'apart' ? [.12, .2, .76, .5] : kind === 'office' ? [.06, .18, .88, .58] : kind === 'villa' ? [.25, .25, .5, .45] : [.1, .2, .8, .52];
+  const t = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#000'; g.fillRect(0, 0, w, h); const c = w / 4;
+    for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { const r = Math.random(); if (r > (kind === 'tower' || kind === 'office' ? .3 : .26)) continue;
+      g.fillStyle = r < .08 ? '#9fc4ff' : r < .18 ? '#fff3d8' : '#ffd79a'; g.globalAlpha = .35 + Math.random() * .45; if (kind === 'tower') { const k = 2 + Math.floor(Math.random() * 3); for (let q = 0; q < k; q++) g.fillRect(i * c + c * (.08 + q * .9 / k), j * c + c * .12, c * .9 / k - 3, c * .62); } else g.fillRect(i * c + c * win[0], j * c + c * win[1], c * win[2], c * win[3]); } g.globalAlpha = 1; });
+  t.repeat.set(.25, .25); return (LIT[kind] = t); }
 const FMAT = {}; const fmat = (kind, v) => { const k = kind + v; if (FMAT[k]) return FMAT[k];
   const m = kind === 'tower' ? new THREE.MeshStandardMaterial({ map: facadeTex(kind, v), metalness: .75, roughness: .12, envMapIntensity: 1.3 }) : new THREE.MeshStandardMaterial({ map: facadeTex(kind, v), roughness: .8, metalness: .05 });
+  if (kind !== 'brick') { m.emissiveMap = litTex(kind); m.emissive.set('#ffffff'); m.emissiveIntensity = 0; m.userData.night = kind === 'tower' ? .55 : .8; } else { m.emissiveMap = litTex('shop'); m.emissive.set('#ffffff'); m.emissiveIntensity = 0; m.userData.night = .8; }
   return (FMAT[k] = m); };
 const STOREM = new THREE.MeshStandardMaterial({ map: storeTex, roughness: .25, metalness: .2, emissiveMap: storeTex, emissive: '#ffffff', emissiveIntensity: .45 }), ROOFM = new THREE.MeshStandardMaterial({ map: roofTex, roughness: .95 });
 // ---- landmarks: the towers people know are built by hand on their real footprints (OSM), not extruded
@@ -465,7 +478,7 @@ const LMK = (() => {
       if (!o.nobar) { g.fillRect(0, h - 3, w, 3); g.fillRect(0, 0, w, 2); }
       if (o.hband) { g.fillStyle = o.hband; g.fillRect(0, h * .46, w, 4); }
     });
-    const m = new THREE.MeshStandardMaterial({ map: t, metalness: o.metal ?? .7, roughness: o.rough ?? .12, envMapIntensity: 1.4, color: o.tint || '#ffffff' });
+    const m = new THREE.MeshStandardMaterial({ map: t, metalness: o.metal ?? .7, roughness: o.rough ?? .12, envMapIntensity: 1.4, color: o.tint || '#ffffff', emissive: '#ffffff', emissiveMap: litTex('tower'), emissiveIntensity: 0 }); m.userData.night = .5;
     CW.set(k, m); return m; }
   const solid = (col, rough = .7, metal = .05) => new THREE.MeshStandardMaterial({ color: col, roughness: rough, metalness: metal });
   return { obb, loc, rectRing, ccw, walls, cap, nonIdx, curtain, solid };
@@ -559,11 +572,16 @@ const LMB = (() => {
       if (voids.has(i + ',' + j + ',' + (k - 1))) hz(WOOD, i, j, y0, false); } };
   return { samsung_a, samsung_b, samsung_c, samsung_wing, gt, meritz, aplus, monaco };
 })();
+// ---- 공사장: one of the new towers on the big roads is still going up (blue netting; the crane comes later with the street furniture)
+const SITE = BLD.filter(b => b.fill && b.tall && b.h > 40).sort((p, q) => hash(p.bb[0] * 17) - hash(q.bb[0] * 17))[0];
+if (SITE) { SITE.kind = 'build'; SITE.shops.length = 0;
+  const netT = canvasTex(128, 128, (g, w, h) => { g.fillStyle = '#2f6fc0'; g.fillRect(0, 0, w, h); g.strokeStyle = 'rgba(200,225,255,.35)'; g.lineWidth = 1; for (let k = 0; k < w; k += 6) { g.beginPath(); g.moveTo(k, 0); g.lineTo(k, h); g.stroke(); g.beginPath(); g.moveTo(0, k); g.lineTo(w, k); g.stroke(); } g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(0, h - 10, w, 10); });
+  SITE.mat = new THREE.MeshStandardMaterial({ map: netT, roughness: .95 }); }
 { const buckets = new Map(), put = (m, g) => { if (!buckets.has(m)) buckets.set(m, []); buckets.get(m).push(g); };
   for (const b of BLD) {
     if (b.lm && LMB[b.lm]) { try { LMB[b.lm](b, put); continue; } catch (e) { console.warn('landmark', b.lm, e); } }
     const ring = b.p.slice(); if (THREE.ShapeUtils.isClockWise(ring.map(([x, y]) => new THREE.Vector2(x, y)))) ring.reverse();   // counter-clockwise: walls face out
-    const v = Math.floor(hash(b.name + b.p[0]) * 4), gfOn = b.kind !== 'apart' && b.kind !== 'villa' && b.h > GF + 2, wallM = fmat(b.kind, v);
+    const v = Math.floor(hash(b.name + b.p[0]) * 4), kindF = (b.kind === 'shop' || b.kind === 'office') && hash(b.bb[0] * 9 + b.bb[1]) < .28 ? 'brick' : b.kind, gfOn = !b.mat && b.kind !== 'apart' && b.kind !== 'villa' && b.h > GF + 2, wallM = b.mat || fmat(kindF, v);
     const wall = (y0, y1, m, vScale, vOff, bay = BAY) => { const pos = [], uv = [], idx = []; let acc = 0;
       for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < .05) continue; const o = pos.length / 3;
         pos.push(a[0], y0, -a[1], c[0], y0, -c[1], c[0], y1, -c[1], a[0], y1, -a[1]); const u0 = acc / bay, u1 = (acc + L) / bay; acc += L;
@@ -597,7 +615,7 @@ const SIGNCOL = { restaurant: ['#c8321f', '#fff'], cafe: ['#4b2e1f', '#f3e3c3'],
       faces.push({ sc: (n ? n.d : 40) - Math.min(L, 15) * .2 + (facing ? 0 : 8), a, c, L, mx, my, nx, ny, ang: Math.atan2(c[1] - a[1], c[0] - a[0]), d: n ? n.d : 40, facing }); }
     if (!faces.length) continue; faces.sort((p, q) => p.sc - q.sc); const best = faces[0]; b.front = best;
     const use = b.fill ? faces.filter(f => f === best || (f.facing && f.d < 14 && f.L >= 6)).slice(0, 2) : [best];
-    use.forEach((f, fi) => { const floors = b.fill ? Math.min(b.lv, 6) : Math.min(b.shops.length, Math.max(1, Math.min(b.lv, 6)));   // 근생 빌딩: a full-width board on every floor of every street face
+    use.forEach((f, fi) => { const floors = b.tall ? Math.min(b.lv, 2) : b.fill ? Math.min(b.lv, 6) : Math.min(b.shops.length, Math.max(1, Math.min(b.lv, 6)));   // 근생 빌딩: a full-width board on every floor of every street face
       for (let k = 0; k < floors; k++) { const nm = b.shops[(k + fi) % b.shops.length][0], i = seen.get(nm); if (i === undefined) continue;
         const sw = b.fill ? f.L * (k ? .84 : .9) : Math.min(f.L * .8, k ? 5 : 7.5), sh = b.fill ? (k ? 1.05 : 1.2) : k ? .9 : 1.1;
         const geo = new THREE.PlaneGeometry(sw, sh), uv = geo.attributes.uv, cx = (i % COLS) / COLS, cy = 1 - (Math.floor(i / COLS) + 1) / rows;
@@ -613,7 +631,9 @@ function along(r, every, side, fn) { let acc = every / 2; for (let i = 0; i + 1 
 const freeSpot = (x, y, r = 1) => inReg(x, y, 2) && !BLD.some(b => x > b.bb[0] - r && x < b.bb[2] + r && y > b.bb[1] - r && y < b.bb[3] + r && pointInRing(x, y, b.p)) && !CITY.roads.some(rd => rd.kind === 'road' && distToRoad(rd, x, y) < rd.w / 2 + .4);
 function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.length; i++) { const [a, b] = [rd.pts[i], rd.pts[i + 1]], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = THREE.MathUtils.clamp(((x - a[0]) * dx + (y - a[1]) * dy) / L2, 0, 1); d = Math.min(d, Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y)); } return d; }
 { const lampG = mergeGeometries([new THREE.CylinderGeometry(.08, .11, 8, 8).translate(0, 4, 0), new THREE.BoxGeometry(.08, .08, 2.2).translate(0, 7.9, 1.05), new THREE.BoxGeometry(.32, .14, .6).translate(0, 7.85, 2.1)]);
-  const treeTrunk = new THREE.CylinderGeometry(.13, .18, 3.2, 7).translate(0, 1.6, 0), treeTop = new THREE.IcosahedronGeometry(1.7, 1).scale(.82, 1.6, .82).translate(0, 4.9, 0);   // 은행나무: narrow and upright
+  const treeTrunk = new THREE.CylinderGeometry(.1, .17, 4.6, 7).translate(0, 2.3, 0);
+  const treeTop = mergeGeometries([[0, 5.6, 0, 1.75], [1.1, 4.9, .3, 1.25], [-1.0, 5.0, -.4, 1.3], [.2, 6.6, -.5, 1.15], [-.3, 4.6, 1.05, 1.1], [.6, 5.9, .9, 1.0]].map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, 2).translate(x, y, z)));
+  const leafT = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#4c7a2c'; g.fillRect(0, 0, w, h); for (let k = 0; k < 1800; k++) { const l = 28 + Math.random() * 34; g.fillStyle = `hsl(${88 + Math.random() * 22},${45 + Math.random() * 20}%,${l}%)`; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 3 + Math.random() * 4, 2 + Math.random() * 2, Math.random() * 3, 0, 7); g.fill(); } });
   const lamps = [], trees = [];
   for (const r of CITY.roads) { if (r.kind !== 'road' || r.w < 9) continue;
     along(r, 30, 1.0, (x, y, a, s) => { if (freeSpot(x, y, .5)) lamps.push([x, y, a + (s > 0 ? Math.PI / 2 : -Math.PI / 2)]); });
@@ -621,8 +641,10 @@ function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.leng
   const inst = (geo, mat, list, f) => { const m = new THREE.InstancedMesh(geo, mat, list.length), o = new THREE.Object3D(); list.forEach((it, i) => { f(o, it); o.updateMatrix(); m.setMatrixAt(i, o.matrix); }); m.castShadow = true; m.receiveShadow = true; _sceneAdd(m); return m; };
   const metal = new THREE.MeshStandardMaterial({ color: '#4c5257', roughness: .5, metalness: .6 });
   inst(lampG, metal, lamps, (o, [x, y, a]) => { o.position.set(x, 0, -y); o.rotation.set(0, a, 0); });
+  { const lm = new THREE.MeshStandardMaterial({ color: '#fff6e0', emissive: '#ffd9a0', emissiveIntensity: 0, roughness: .3 }); lm.userData.night = 4; inst(new THREE.BoxGeometry(.28, .05, .52).translate(0, 7.77, 2.1), lm, lamps, (o, [x, y, a]) => { o.position.set(x, 0, -y); o.rotation.set(0, a, 0); }); }
   inst(treeTrunk, new THREE.MeshStandardMaterial({ color: '#5a4636', roughness: .9 }), trees, (o, [x, y]) => { o.position.set(x, 0, -y); o.rotation.set(0, hash(x) * 6, 0); o.scale.setScalar(.85 + hash(y) * .4); });
-  inst(treeTop, new THREE.MeshStandardMaterial({ color: '#5f8c3a', roughness: .85, flatShading: true }), trees, (o, [x, y]) => { o.position.set(x, 0, -y); o.rotation.set(0, hash(x + 1) * 6, 0); o.scale.setScalar(.85 + hash(y) * .4); });
+  const topM = inst(treeTop, new THREE.MeshStandardMaterial({ map: leafT, color: '#ffffff', roughness: .9 }), trees, (o, [x, y]) => { o.position.set(x, 0, -y); o.rotation.set(0, hash(x + 1) * 6, 0); o.scale.setScalar(.85 + hash(y) * .4); });
+  trees.forEach(([x, y], k) => topM.setColorAt(k, new THREE.Color().setHSL(.24 + hash(x * 3) * .06, .45 + hash(y) * .2, .55 + hash(x + y) * .25))); topM.instanceColor.needsUpdate = true;
   for (const [x, y] of lamps) PROPS.push([x, y, .25]); for (const [x, y] of trees) PROPS.push([x, y, .35]);
   // traffic signals at the crossings of the big roads: a pole with a mast arm over the road
   const sigs = []; for (const [x, y] of CITY.features.crossing) { const n = nearestRoad(x, y); if (!n || n.r.w < 9) continue;
@@ -639,10 +661,6 @@ function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.leng
   const shel = CITY.features.bus_stop.filter(([x, y]) => freeSpot(x, y, .5)), subw = CITY.features.subway.filter(([x, y]) => inReg(x, y, 2));
   const shG = mergeGeometries([new THREE.BoxGeometry(4.2, .12, 1.6).translate(0, 2.55, 0), new THREE.BoxGeometry(4.2, 2.4, .06).translate(0, 1.25, -.72), new THREE.BoxGeometry(3.4, .1, .45).translate(0, .5, -.45)]);
   inst(shG, new THREE.MeshStandardMaterial({ color: '#3f6f8f', roughness: .4, metalness: .4 }), shel, (o, [x, y]) => { const n = nearestRoad(x, y, 30); o.position.set(x, 0, -y); o.rotation.set(0, n ? n.dir : 0, 0); });
-  const swT = canvasTex(256, 64, (g, w, h) => { g.fillStyle = '#1e7a3c'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = '400 34px "Black Han Sans", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('2 강남역', w / 2, h / 2 + 2); }, false);
-  const swG = mergeGeometries([new THREE.BoxGeometry(3.2, .15, 5).translate(0, 2.7, 0), new THREE.BoxGeometry(.1, 2.7, 5).translate(1.55, 1.35, 0), new THREE.BoxGeometry(.1, 2.7, 5).translate(-1.55, 1.35, 0), new THREE.BoxGeometry(3.2, 1.0, .1).translate(0, 2.2, -2.45)]);
-  inst(swG, new THREE.MeshStandardMaterial({ color: '#7d8a86', roughness: .4, metalness: .5, transparent: true, opacity: .85 }), subw, (o, [x, y]) => { const n = nearestRoad(x, y, 40); o.position.set(x, 0, -y); o.rotation.set(0, n ? n.dir : 0, 0); });
-  inst(new THREE.PlaneGeometry(2.6, .65), new THREE.MeshStandardMaterial({ map: swT, emissiveMap: swT, emissive: '#fff', emissiveIntensity: .4 }), subw, (o, [x, y]) => { const n = nearestRoad(x, y, 40); o.position.set(x, 3.15, -y); o.rotation.set(0, n ? n.dir : 0, 0); o.translateZ(2.5); });
   for (const [x, y] of shel) PROPS.push([x, y, 1.6]); }
 // ---- 한국 거리: 세로간판, 전봇대와 전선, 종량제 봉투, 실외기, 교회 십자가, 편의점 앞 파라솔, 배달 오토바이, 공공자전거, 볼라드
 { const kinst = (geo, mat, list, f, shadow = true) => { if (!list.length) return; const m = new THREE.InstancedMesh(geo, mat, list.length), o = new THREE.Object3D(); list.forEach((it, i) => { o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); f(o, it); o.updateMatrix(); m.setMatrixAt(i, o.matrix); }); m.castShadow = shadow; m.receiveShadow = true; _sceneAdd(m); };
@@ -650,18 +668,24 @@ function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.leng
   const yawOf = (dx, dy) => Math.atan2(dx, -dy);   // three yaw that points local +z along game (dx, dy)
   // ---- 세로간판: tall boxes sticking out from the street wall of the low shop buildings, names written top to bottom
   const vNames = [], vSeen = new Map(), vList = [];
-  for (const b of BLD) { if (!b.front || b.h > 40 || b.lv < 3 || b.shops.length < 2 || hash(b.p[0][0] * 7) < .35) continue;
-    const [n, cat] = b.shops[1]; if (!vSeen.has(n)) { if (vNames.length >= 48) continue; vSeen.set(n, vNames.length); vNames.push([n, cat]); }
-    const f = b.front, end = hash(b.p[0][1]) < .5 ? .08 : .92, x = f.a[0] + (f.c[0] - f.a[0]) * end + f.nx * .55, y = f.a[1] + (f.c[1] - f.a[1]) * end + f.ny * .55, H = Math.min(b.h - GF - 1, 3.4 * Math.min(4, b.lv - 1));
-    vList.push({ x, y, ang: Math.atan2(f.c[1] - f.a[1], f.c[0] - f.a[0]), H, y0: GF + .4, i: vSeen.get(n) }); }
+  const aframes = [];
+  for (const b of BLD) { if (!b.front || b.h > 45 || b.lv < 3 || !b.shops.length) continue;
+    const f = b.front, nV = Math.min(b.shops.length + 1, 1 + Math.floor(hash(b.p[0][0] * 7) * 3)), ts = nV === 1 ? [hash(b.p[0][1]) < .5 ? .07 : .93] : nV === 2 ? [.07, .93] : [.07, .5, .93];   // a cluster of tall signs along the front
+    ts.forEach((t, k) => { const [n, cat] = b.shops[(k + 1) % b.shops.length]; if (!vSeen.has(n)) { if (vNames.length >= 112) return; vSeen.set(n, vNames.length); vNames.push([n, cat]); }
+      const x = f.a[0] + (f.c[0] - f.a[0]) * t + f.nx * .55, y = f.a[1] + (f.c[1] - f.a[1]) * t + f.ny * .55, H = Math.min(b.h - GF - 1, 3.4 * Math.min(4 + (k % 2), b.lv - 1) - (k === 1 ? 1.5 : 0));
+      vList.push({ x, y, ang: Math.atan2(f.c[1] - f.a[1], f.c[0] - f.a[0]), H, y0: GF + .4 + (k === 1 ? 1.2 : 0), i: vSeen.get(n) }); });
+    if (hash(b.bb[0] * 3 + b.bb[1]) < .55) { const t = .25 + hash(b.bb[3]) * .5, x = f.a[0] + (f.c[0] - f.a[0]) * t + f.nx * 1.3, y = f.a[1] + (f.c[1] - f.a[1]) * t + f.ny * 1.3; if (freeSpot(x, y, .4)) aframes.push({ x, y, f, i: vSeen.get(b.shops[0][0]) ?? vSeen.get(b.shops[(1) % b.shops.length][0]) }); } }
   if (vList.length) { const CW = 64, CH = 320, cols = 16, at = document.createElement('canvas'); at.width = CW * cols; at.height = CH * Math.ceil(vNames.length / cols); const g = at.getContext('2d');
-    vNames.forEach(([n, cat], i) => { const [bg, fg] = SIGNCOL[cat] || ['#c8321f', '#fff'], x = (i % cols) * CW, y = Math.floor(i / cols) * CH; g.fillStyle = bg; g.fillRect(x, y, CW, CH); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 3; g.strokeRect(x + 3, y + 3, CW - 6, CH - 6);
+    vNames.forEach(([n, cat], i) => { let [bg, fg] = SIGNCOL[cat] || ['#c8321f', '#fff']; if (hash(n) < .4) { bg = '#14142a'; fg = `hsl(${Math.floor(hash(n + 1) * 360)},95%,72%)`; } const x = (i % cols) * CW, y = Math.floor(i / cols) * CH; g.fillStyle = bg; g.fillRect(x, y, CW, CH); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 3; g.strokeRect(x + 3, y + 3, CW - 6, CH - 6);
       const ch = [...n.replace(/\s/g, '')].slice(0, 7), fs = Math.min(44, (CH - 24) / ch.length * .92); g.fillStyle = fg; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       ch.forEach((c, k) => g.fillText(c, x + CW / 2, y + 12 + (k + .5) * (CH - 24) / ch.length)); });
     const tx = new THREE.CanvasTexture(at); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = maxAniso; const rows = at.height / CH, gs = [];
     for (const v of vList) { const geo = new THREE.BoxGeometry(.22, v.H, .85), uv = geo.attributes.uv, cx = (v.i % cols) / cols, cy = 1 - (Math.floor(v.i / cols) + 1) / rows;
       for (let j = 0; j < uv.count; j++) uv.setXY(j, cx + uv.getX(j) / cols, cy + uv.getY(j) / rows);
       geo.rotateY(-v.ang); geo.translate(v.x, v.y0 + v.H / 2, -v.y); gs.push(geo); }   // thin across the street, broad faces seen from along the pavement
+    for (const a of aframes) { if (a.i === undefined) continue; const cx = (a.i % cols) / cols, cy = 1 - (Math.floor(a.i / cols) + 1) / rows;
+      for (const s_ of [1, -1]) { const geo = new THREE.BoxGeometry(.5, 1.0, .03), uv = geo.attributes.uv; for (let j = 0; j < uv.count; j++) uv.setXY(j, cx + uv.getX(j) / cols, cy + .35 / rows + uv.getY(j) * .5 / rows);
+        geo.translate(0, .5, 0); geo.rotateX(.2 * s_); geo.translate(0, 0, .1 * s_); geo.rotateY(Math.atan2(a.f.nx, -a.f.ny)); geo.translate(a.x, 0, -a.y); gs.push(geo); } PROPS.push([a.x, a.y, .35]); }   // 입간판: an A-frame by the door
     const me = new THREE.Mesh(mergeGeometries(gs), new THREE.MeshStandardMaterial({ map: tx, emissiveMap: tx, emissive: '#ffffff', emissiveIntensity: .45, roughness: .4 })); me.castShadow = true; _sceneAdd(me); }
   // ---- 전봇대 and the wires between them, on the back streets; 종량제 봉투 piled at the foot of some
   const poles = [], wires = [], bags = [];
@@ -725,6 +749,129 @@ function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.leng
     for (const s of [1, -1]) { const ox = -Math.sin(n.dir) * s, oy = Math.cos(n.dir) * s; for (const k of [-1.6, 0, 1.6]) { const px = n.px + ox * (n.r.w / 2 + .45) + Math.cos(n.dir) * k, py = n.py + oy * (n.r.w / 2 + .45) + Math.sin(n.dir) * k; if (freeSpot(px, py, .2)) bol.push([px, py]); } } }
   kinst(new THREE.CylinderGeometry(.11, .13, .8, 10).translate(0, .4, 0), M('#c9c6bd', .8), bol, (o, [x, y]) => o.position.set(x, 0, -y));
   for (const [x, y] of bol) PROPS.push([x, y, .15]);
+}
+// ---- 강남대로: LED 전광판, 병원 라이트박스 스택, 화단, 점자블록, 가로등 배너, 도로 표지판, 지하철 입구
+const SCREENS = [];   // LED screens cycle their ads (see robberyStep)
+{ const kinst = (geo, mat, list, f, shadow = true) => { if (!list.length) return null; const m = new THREE.InstancedMesh(geo, mat, list.length), o = new THREE.Object3D(); list.forEach((it, i) => { o.position.set(0, 0, 0); o.rotation.set(0, 0, 0); o.scale.set(1, 1, 1); f(o, it, i); o.updateMatrix(); m.setMatrixAt(i, o.matrix); }); m.castShadow = shadow; m.receiveShadow = true; _sceneAdd(m); return m; };
+  const M = (c, r = .6, mt = .1, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: mt, ...o });
+  const FONT = (px, w = 400) => `${w} ${px}px "Black Han Sans", "Noto Sans KR", sans-serif`;
+  const bigRoadFace = (b, maxD = 26) => {   // the longest wall of b that looks onto a big road
+    let best = null; const r = b.p;
+    for (let i = 0; i < r.length; i++) { const a = r[i], c = r[(i + 1) % r.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < 9) continue; const mx = (a[0] + c[0]) / 2, my = (a[1] + c[1]) / 2, n = nearestRoad(mx, my, maxD); if (!n || n.r.w < 9) continue;
+      let nx = c[1] - a[1], ny = -(c[0] - a[0]); const nl = Math.hypot(nx, ny); nx /= nl; ny /= nl; if (pointInRing(mx + nx * .5, my + ny * .5, r)) { nx = -nx; ny = -ny; }
+      if ((n.px - mx) * nx + (n.py - my) * ny <= 0) continue; const sc = L - n.d * .5; if (!best || sc > best.sc) best = { sc, a, c, L, mx, my, nx, ny, ang: Math.atan2(c[1] - a[1], c[0] - a[0]) }; }
+    return best; };
+  const onWall = (f, t, y, out = .25) => [f.a[0] + (f.c[0] - f.a[0]) * t + f.nx * out, y, -(f.a[1] + (f.c[1] - f.a[1]) * t + f.ny * out)];
+  const faceYaw = f => Math.atan2(f.nx, -f.ny);
+  // ---- LED media screens on the towers along the big roads near the station
+  const ADS = [
+    (g, w, h) => { const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#ffd1e3'); gr.addColorStop(1, '#b9a2ff'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      const rg = g.createRadialGradient(w * .3, h * .5, 10, w * .3, h * .5, h * .55); rg.addColorStop(0, '#fff6f2'); rg.addColorStop(1, 'rgba(255,240,245,0)'); g.fillStyle = rg; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#f2c7b5'; g.beginPath(); g.ellipse(w * .3, h * .52, h * .22, h * .3, 0, 0, 7); g.fill(); g.fillStyle = '#3a2430'; g.beginPath(); g.ellipse(w * .3, h * .3, h * .26, h * .18, 0, Math.PI, 0); g.fill();
+      g.fillStyle = '#5a2a55'; g.font = FONT(64); g.fillText('GLOW 세럼', w * .55, h * .45); g.font = FONT(30); g.fillText('수분 72시간 · NEW', w * .56, h * .62); },
+    (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#1b1446'); gr.addColorStop(1, '#6a3cc8'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 26; i++) { const x = i * w / 26, bh = h * (.25 + ((i * 37) % 11) / 18); g.fillStyle = `rgba(${150 + i * 3},${120 + i * 2},255,.55)`; g.fillRect(x, h - bh, w / 30, bh); }
+      g.fillStyle = '#fff'; g.font = FONT(110); g.textAlign = 'center'; g.fillText('강남', w / 2, h * .48); g.font = FONT(36); g.fillText('GANGNAM', w / 2, h * .66); g.textAlign = 'left'; },
+    (g, w, h) => { g.fillStyle = '#07070d'; g.fillRect(0, 0, w, h); for (let i = 0; i < 5; i++) { const gr = g.createLinearGradient(w * (.1 + i * .2), 0, w * .5, h); gr.addColorStop(0, `hsla(${200 + i * 30},90%,65%,.55)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.beginPath(); g.moveTo(w * (.1 + i * .2) - 20, 0); g.lineTo(w * (.1 + i * .2) + 20, 0); g.lineTo(w * .5 + 120, h); g.lineTo(w * .5 - 120, h); g.fill(); }
+      g.fillStyle = '#fff'; g.font = FONT(70); g.textAlign = 'center'; g.fillText('WORLD TOUR', w / 2, h * .45); g.font = FONT(40); g.fillStyle = '#ffd84d'; g.fillText('2026 · 서울 잠실', w / 2, h * .64); g.textAlign = 'left'; },
+    (g, w, h) => { g.fillStyle = '#0d0f14'; g.fillRect(0, 0, w, h); const gr = g.createLinearGradient(w * .55, 0, w * .85, h); gr.addColorStop(0, '#4fd1ff'); gr.addColorStop(1, '#7b3cff'); g.fillStyle = gr; g.beginPath(); g.roundRect(w * .6, h * .1, w * .22, h * .8, 26); g.fill();
+      g.fillStyle = '#fff'; g.font = FONT(66); g.fillText('NEXT PHONE', w * .06, h * .45); g.font = FONT(32); g.fillStyle = '#9fb4c8'; g.fillText('새로운 시작, 지금 만나보세요', w * .06, h * .62); },
+    (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#ffb43a'); gr.addColorStop(1, '#ff6a1f'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.arc((i * 97) % w, (i * 53) % h, 6 + (i % 5) * 4, 0, 7); g.fill(); }
+      g.fillStyle = '#fff'; g.font = FONT(72); g.fillText('시원하게', w * .07, h * .45); g.font = FONT(44); g.fillText('오렌지 에이드', w * .07, h * .65); },
+    (g, w, h) => { g.fillStyle = '#d7192a'; g.fillRect(0, 0, w, h); g.fillStyle = '#fff'; g.font = FONT(96); g.textAlign = 'center'; g.fillText('SUMMER SALE', w / 2, h * .48); g.font = FONT(48); g.fillText('최대 70%', w / 2, h * .7); g.textAlign = 'left'; },
+  ];
+  const AW = 512, AH = 288, atl = document.createElement('canvas'); atl.width = AW; atl.height = AH * ADS.length; const ag = atl.getContext('2d'); ag.textBaseline = 'middle';
+  ADS.forEach((d, i) => { ag.save(); ag.translate(0, i * AH); ag.beginPath(); ag.rect(0, 0, AW, AH); ag.clip(); d(ag, AW, AH); ag.restore(); });
+  const cands = BLD.filter(b => b.h >= 28 && Math.hypot((b.bb[0] + b.bb[2]) / 2, (b.bb[1] + b.bb[3]) / 2) < 240).map(b => [b, bigRoadFace(b)]).filter(([, f]) => f && f.L >= 12)
+    .sort((p, q) => hash(p[0].bb[0] * 3) - hash(q[0].bb[0] * 3)).slice(0, 12);
+  for (const [b, f] of cands) { const w = Math.min(f.L * .72, 22), h = w * .5625, y = Math.min(b.h - h / 2 - 3, GF + 5 + h / 2 + hash(b.bb[1]) * 14);
+    const t = new THREE.CanvasTexture(atl); t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(1, 1 / ADS.length); const k = Math.floor(hash(b.bb[2]) * ADS.length); t.offset.set(0, 1 - (k + 1) / ADS.length);
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ color: '#000', emissive: '#fff', emissiveMap: t, emissiveIntensity: 1.5, roughness: .3 }));
+    m.position.set(...onWall(f, .5, y, .3)); m.rotation.y = faceYaw(f); _sceneAdd(m);
+    const fr = new THREE.Mesh(new THREE.BoxGeometry(w + .5, h + .5, .25), M('#15171a', .4, .5)); fr.position.set(...onWall(f, .5, y, .15)); fr.rotation.y = faceYaw(f); _sceneAdd(fr);
+    SCREENS.push({ t, k, at: hash(b.bb[3]) * 7 }); }
+  // ---- 병원 건물: a column of glowing light boxes, one per floor, on the street face
+  const CL = ['강남성형외과', '피부과', '치과', '안과', '한의원', '정형외과', '내과', 'PC방', '노래방', '필라테스', '영어학원', '수학학원', '네일', '헤어', '라식·라섹', '탈모클리닉', '보톡스', '성형외과', '이비인후과', '산부인과'];
+  const BW = 256, BH = 144, cols = 8, rowsN = Math.ceil(CL.length / cols), la = document.createElement('canvas'); la.width = BW * cols; la.height = BH * rowsN; const lg = la.getContext('2d');
+  CL.forEach((n, i) => { const x = (i % cols) * BW, y = Math.floor(i / cols) * BH, hue = [270, 300, 200, 330, 180][i % 5];
+    lg.fillStyle = '#12122a'; lg.fillRect(x, y, BW, BH); lg.strokeStyle = `hsl(${hue},90%,70%)`; lg.lineWidth = 4; lg.strokeRect(x + 6, y + 6, BW - 12, BH - 12);
+    let fs = 60; lg.font = FONT(fs); while (lg.measureText(n).width > BW - 34 && fs > 22) { fs -= 3; lg.font = FONT(fs); }
+    lg.shadowColor = `hsl(${hue},100%,70%)`; lg.shadowBlur = 14; lg.fillStyle = '#ffffff'; lg.textAlign = 'center'; lg.textBaseline = 'middle'; lg.fillText(n, x + BW / 2, y + BH / 2 + 3); lg.shadowBlur = 0; });
+  const lt = new THREE.CanvasTexture(la); lt.colorSpace = THREE.SRGBColorSpace; lt.anisotropy = maxAniso; const gs = [];
+  for (const b of BLD) { if (b.lm || b.h < 18 || b.h > 95 || hash(b.bb[0] * 11 + b.bb[3]) < .35) continue; const f = bigRoadFace(b, 24); if (!f) continue;
+    const t = hash(b.bb[1] * 5) < .5 ? .1 : .9, top = Math.min(b.lv, 11);
+    for (let k = 2; k <= top; k++) { const i = Math.floor(hash(b.bb[0] + k * 7.3) * CL.length), geo = new THREE.BoxGeometry(2.1, 1.18, .3), uv = geo.attributes.uv, cx = (i % cols) / cols, cy = 1 - (Math.floor(i / cols) + 1) / rowsN;
+      for (let j = 0; j < uv.count; j++) uv.setXY(j, cx + uv.getX(j) / cols, cy + uv.getY(j) / rowsN);
+      geo.rotateY(faceYaw(f)); geo.translate(...onWall(f, t, GF + (k - 2) * FLOOR + FLOOR * .5, .3)); gs.push(geo); } }
+  if (gs.length) _sceneAdd(new THREE.Mesh(mergeGeometries(gs), new THREE.MeshStandardMaterial({ color: '#000', emissive: '#fff', emissiveMap: lt, emissiveIntensity: 1.25, map: lt, roughness: .35 })));
+  // ---- the pavements of the big roads: flower planters, yellow tactile paving, banners on the lamp posts
+  const planters = [], tactile = [], banners = [];
+  for (const r of CITY.roads) { if (r.kind !== 'road' || r.w < 9) continue;
+    along(r, 23, 3.1, (x, y, a) => { if (freeSpot(x, y, 1.3)) planters.push([x, y, a, hash(x * y)]); });
+    along(r, 30, 1.0, (x, y, a, s) => { if (freeSpot(x, y, .5)) banners.push([x, y, a + (s > 0 ? Math.PI / 2 : -Math.PI / 2)]); });
+    for (const s of [1, -1]) for (let i = 0; i + 1 < r.pts.length; i++) { const p = r.pts[i], q = r.pts[i + 1], L = Math.hypot(q[0] - p[0], q[1] - p[1]); if (L < 4) continue; const ux = (q[0] - p[0]) / L, uy = (q[1] - p[1]) / L, o = (r.w / 2 + 4.6) * s;
+      for (let d = 1; d < L - 1; d += 2) { const x = p[0] + ux * d - uy * o, y = p[1] + uy * d + ux * o; if (freeSpot(x, y, .3)) tactile.push([x, y, Math.atan2(uy, ux)]); } } }
+  kinst(new THREE.BoxGeometry(2.2, .6, .8).translate(0, .3, 0), M('#5d6166', .7, .15), planters, (o, [x, y, a]) => { o.position.set(x, 0, -y); o.rotation.y = a; });
+  kinst(mergeGeometries([new THREE.SphereGeometry(.42, 8, 6).scale(2.3, .5, .85).translate(0, .66, 0)]), M('#3d6b2a', .9), planters, (o, [x, y, a]) => { o.position.set(x, 0, -y); o.rotation.y = a; }, false);
+  const fl = kinst(mergeGeometries([-.75, -.35, .05, .45, .8].flatMap((u, k) => [new THREE.IcosahedronGeometry(.16, 0).translate(u, .82 + (k % 2) * .05, (k % 3 - 1) * .15), new THREE.IcosahedronGeometry(.13, 0).translate(u + .18, .8, -(k % 3 - 1) * .18)])), M('#ffffff', .7), planters, (o, [x, y, a]) => { o.position.set(x, 0, -y); o.rotation.y = a; }, false);
+  if (fl) { const cols_ = ['#e86aa8', '#b06ae8', '#f2d64b', '#ff7a5c', '#f0f0f0']; planters.forEach((p, i) => fl.setColorAt(i, new THREE.Color(cols_[Math.floor(p[3] * cols_.length)]))); fl.instanceColor.needsUpdate = true; }
+  for (const [x, y] of planters) PROPS.push([x, y, .9]);
+  const tacT = canvasTex(64, 64, (g, w, h) => { g.fillStyle = '#e2b422'; g.fillRect(0, 0, w, h); g.fillStyle = '#c99c12'; for (let i = 0; i < 4; i++) g.fillRect(4 + i * 15, 0, 6, h); }, true);
+  kinst(new THREE.PlaneGeometry(2, .32).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: tacT, roughness: .8, polygonOffset: true, polygonOffsetFactor: -2 }), tactile, (o, [x, y, a]) => { o.position.set(x, .03, -y); o.rotation.y = a; }, false);
+  const banT = canvasTex(128, 320, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#2a2a5a'); gr.addColorStop(1, '#151530'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#c9c4ff'; g.font = FONT(22); g.textAlign = 'center'; g.fillText('GANGNAM', w / 2, 40); g.fillStyle = '#fff'; g.font = FONT(52); g.fillText('강남', w / 2, 100);
+    g.fillStyle = 'rgba(180,170,255,.6)'; for (let i = 0; i < 9; i++) { const bh = 40 + ((i * 29) % 70); g.fillRect(10 + i * 12, h - 20 - bh, 9, bh); } }, false);
+  kinst(new THREE.PlaneGeometry(.62, 1.55).translate(.42, 5.4, 0), new THREE.MeshStandardMaterial({ map: banT, side: THREE.DoubleSide, roughness: .7 }), banners, (o, [x, y, a]) => { o.position.set(x, 0, -y); o.rotation.y = a; }, false);
+  // ---- 도로 표지판: blue name boards hung over the big roads at their crossings
+  const ROM = { 강남대로: 'Gangnam-daero', 테헤란로: 'Teheran-ro', 서초대로: 'Seocho-daero' }, gantries = [], done = {};
+  for (const [x, y] of CITY.features.signals.concat(CITY.features.crossing)) { const n = nearestRoad(x, y, 6); if (!n || n.r.w < 9 || !ROM[n.r.name] || (done[n.r.name] || 0) >= 3) continue;
+    if (gantries.some(gq => Math.hypot(gq.x - x, gq.y - y) < 60)) continue; const ox = -Math.sin(n.dir), oy = Math.cos(n.dir), px = n.px + ox * (n.r.w / 2 + 1.4), py = n.py + oy * (n.r.w / 2 + 1.4);
+    if (!freeSpot(px, py, .4)) continue; done[n.r.name] = (done[n.r.name] || 0) + 1; gantries.push({ x: px, y: py, ox, oy, dir: n.dir, name: n.r.name, L: Math.min(n.r.w * .45, 9) }); }
+  for (const gq of gantries) { const t = canvasTex(512, 160, (g, w, h) => { g.fillStyle = '#1d4fa3'; g.fillRect(0, 0, w, h); g.strokeStyle = '#fff'; g.lineWidth = 6; g.strokeRect(8, 8, w - 16, h - 16);
+      g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = FONT(58); g.fillText(gq.name, w / 2, h * .46); g.font = '600 26px "Noto Sans KR", sans-serif'; g.fillText(ROM[gq.name], w / 2, h * .78); g.textAlign = 'left'; g.font = FONT(30); g.fillText('←', 24, h * .5); g.textAlign = 'right'; g.fillText('→', w - 24, h * .5); }, false);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.16, .2, 7.2, 10).translate(0, 3.6, 0), M('#6f7478', .5, .6)); pole.position.set(gq.x, 0, -gq.y); _sceneAdd(pole);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.14, .14, gq.L), M('#6f7478', .5, .6)); arm.position.set(gq.x - gq.ox * gq.L / 2, 6.9, -(gq.y - gq.oy * gq.L / 2)); arm.rotation.y = Math.atan2(-gq.ox, gq.oy); _sceneAdd(arm);
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 1.06), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide, roughness: .5, emissive: '#ffffff', emissiveMap: t, emissiveIntensity: .15 }));
+    sg.position.set(gq.x - gq.ox * (gq.L - 1.6), 6.25, -(gq.y - gq.oy * (gq.L - 1.6))); sg.rotation.y = Math.atan2(Math.cos(gq.dir), -Math.sin(gq.dir)); _sceneAdd(sg); PROPS.push([gq.x, gq.y, .3]); }
+  // ---- 지하철 입구: a stairwell going down behind glass railings, the line-2 board over it
+  const subw = CITY.features.subway.filter(([x, y]) => inReg(x, y, 2)).map(([x, y, ref]) => { const n = nearestRoad(x, y, 40); return { x, y, ref, yaw: n ? Math.atan2(Math.cos(n.dir), -Math.sin(n.dir)) : 0 }; });
+  const stairT = canvasTex(128, 256, (g, w, h) => { for (let i = 0; i < 16; i++) { const v = 150 - i * 8; g.fillStyle = `rgb(${v},${v + 4},${v + 8})`; g.fillRect(0, i * h / 16, w, h / 16); g.fillStyle = `rgb(${v + 40},${v + 40},${v + 40})`; g.fillRect(0, i * h / 16, w, 3); } g.fillStyle = 'rgba(255,250,235,.85)'; g.fillRect(0, h - 26, w, 26); }, false);
+  const ent = { stair: new THREE.PlaneGeometry(2.3, 4.8).rotateX(-Math.PI / 2).translate(0, .04, 0),
+    curb: mergeGeometries([new THREE.BoxGeometry(.3, .32, 5.2).translate(1.3, .16, 0), new THREE.BoxGeometry(.3, .32, 5.2).translate(-1.3, .16, 0), new THREE.BoxGeometry(2.9, .32, .3).translate(0, .16, -2.55)]),
+    glass: mergeGeometries([new THREE.BoxGeometry(.03, .9, 5).translate(1.3, .78, 0), new THREE.BoxGeometry(.03, .9, 5).translate(-1.3, .78, 0), new THREE.BoxGeometry(2.6, .9, .03).translate(0, .78, -2.55)]),
+    rail: mergeGeometries([new THREE.CylinderGeometry(.03, .03, 5, 8).rotateX(Math.PI / 2).translate(1.3, 1.26, 0), new THREE.CylinderGeometry(.03, .03, 5, 8).rotateX(Math.PI / 2).translate(-1.3, 1.26, 0), new THREE.CylinderGeometry(.03, .03, 2.6, 8).rotateZ(Math.PI / 2).translate(0, 1.26, -2.55),
+      new THREE.CylinderGeometry(.025, .025, 4.6, 8).rotateX(Math.PI / 2 - .5).translate(.95, -.2, .3), new THREE.CylinderGeometry(.025, .025, 4.6, 8).rotateX(Math.PI / 2 - .5).translate(-.95, -.2, .3)]),
+    post: mergeGeometries([new THREE.BoxGeometry(.12, 2.6, .12).translate(1.2, 1.3, -2.7), new THREE.BoxGeometry(.12, 2.6, .12).translate(-1.2, 1.3, -2.7)]), board: new THREE.BoxGeometry(2.7, .72, .12).translate(0, 2.55, -2.7) };
+  const sT = canvasTex(512, 136, (g, w, h) => { g.fillStyle = '#16191e'; g.fillRect(0, 0, w, h); g.fillStyle = '#33a23d'; g.beginPath(); g.arc(62, h / 2, 40, 0, 7); g.fill(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = FONT(56); g.fillText('2', 62, h / 2 + 3);
+    g.textAlign = 'left'; g.font = FONT(58); g.fillText('강남역', 120, h * .42); g.font = '600 24px "Noto Sans KR", sans-serif'; g.fillStyle = '#b9c0c8'; g.fillText('Gangnam Station', 122, h * .78);
+    g.fillStyle = '#d3203a'; g.beginPath(); g.arc(w - 62, h / 2, 38, 0, 7); g.fill(); g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = FONT(44); g.fillText('D', w - 62, h / 2 + 3); }, false);
+  const put = (o, s) => { o.position.set(s.x, 0, -s.y); o.rotation.y = s.yaw; };
+  kinst(ent.stair, new THREE.MeshStandardMaterial({ map: stairT, roughness: .6, emissive: '#ffffff', emissiveMap: stairT, emissiveIntensity: .25, polygonOffset: true, polygonOffsetFactor: -2 }), subw, put, false);
+  kinst(ent.curb, M('#8a8d90', .45, .1), subw, put); kinst(ent.glass, M('#b9d6dc', .05, .2, { transparent: true, opacity: .28, depthWrite: false }), subw, put, false);
+  kinst(ent.rail, M('#d9dde0', .15, 1), subw, put); kinst(ent.post, M('#2b2f33', .4, .6), subw, put);
+  kinst(ent.board, new THREE.MeshStandardMaterial({ map: sT, emissive: '#ffffff', emissiveMap: sT, emissiveIntensity: .6, roughness: .4 }), subw, put);
+  for (const s of subw) for (const z of [-1.7, 0, 1.7]) PROPS.push([s.x + Math.sin(s.yaw) * z, s.y - Math.cos(s.yaw) * z, 1.35]);
+
+  // ---- 옥상 광고판: steel frames with an ad on the roofs of the mid-rise blocks along the big roads
+  for (const b of BLD) { if (b.lm || b.h < 14 || b.h > 70 || hash(b.bb[2] * 5 + b.bb[1]) > .3) continue; const f = bigRoadFace(b, 30); if (!f || f.L < 10) continue;
+    const w = Math.min(f.L * .8, 14), h = w * .42, t = new THREE.CanvasTexture(atl); t.colorSpace = THREE.SRGBColorSpace; t.repeat.set(1, 1 / ADS.length); const k = Math.floor(hash(b.bb[0] * 2) * ADS.length); t.offset.set(0, 1 - (k + 1) / ADS.length);
+    const c = onWall(f, .5, b.h + 1.6 + h / 2, -1.2), yaw = faceYaw(f), m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, emissive: '#fff', emissiveMap: t, emissiveIntensity: .25, roughness: .5 }));
+    m.position.set(...c); m.rotation.y = yaw; _sceneAdd(m); SCREENS.push({ t, k, at: 999, roof: m.material });
+    const fr = new THREE.Group(); fr.add(new THREE.Mesh(new THREE.BoxGeometry(w + .3, h + .3, .2).translate(0, 0, -.12), M('#3a3d40', .5, .6)));
+    for (const u of [-w * .35, 0, w * .35]) fr.add(new THREE.Mesh(new THREE.BoxGeometry(.18, 1.6 + h / 2, .18).translate(u, -(1.6 + h / 2) / 2 - h / 2 + .8, -.4), M('#3a3d40', .5, .6)), new THREE.Mesh(new THREE.BoxGeometry(.14, .14, 2.2).rotateX(.6).translate(u, -h / 2, -1.2), M('#3a3d40', .5, .6)));
+    fr.position.set(...c); fr.rotation.y = yaw; _sceneAdd(fr); }
+  // ---- 공사장: one tower going up behind blue netting, a tower crane beside it
+  { const site = SITE;
+    if (site) {
+      const latT = canvasTex(64, 64, (g, w, h) => { g.clearRect(0, 0, w, h); g.strokeStyle = '#e7b416'; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6); g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h); g.moveTo(w, 0); g.lineTo(0, h); g.stroke(); });
+      const latM = new THREE.MeshStandardMaterial({ map: latT, alphaTest: .5, side: THREE.DoubleSide, roughness: .6, metalness: .3 });
+      const cx = site.bb[2] + 4, cy = (site.bb[1] + site.bb[3]) / 2, H = site.h + 22, crane = new THREE.Group();
+      const mast = new THREE.BoxGeometry(1.8, H, 1.8), mu = mast.attributes.uv; for (let k = 0; k < mu.count; k++) mu.setXY(k, mu.getX(k), mu.getY(k) * H / 1.8); crane.add(new THREE.Mesh(mast.translate(0, H / 2, 0), latM));
+      const jib = new THREE.BoxGeometry(46, 1.6, 1.6), ju = jib.attributes.uv; for (let k = 0; k < ju.count; k++) ju.setXY(k, ju.getX(k) * 46 / 1.6, ju.getY(k)); crane.add(new THREE.Mesh(jib.translate(10, H + .8, 0), latM));
+      crane.add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 2, 2.2).translate(0, H - 1.2, 1.9), M('#e7b416', .5, .2)), new THREE.Mesh(new THREE.BoxGeometry(5, 2.4, 2).translate(-10, H - .4, 0), M('#8b8f93', .8)));
+      crane.add(new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 22, 4).translate(24, H - 11, 0), M('#222', .6)));
+      crane.position.set(cx, 0, -cy); crane.rotation.y = hash(cx) * 6; _sceneAdd(crane); PROPS.push([cx, cy, 1.4]); } }
 }
 // ---- skyline beyond the playable area: plain towers fading into the haze
 { const gs = new Map(); const add = (m, g) => { if (!gs.has(m)) gs.set(m, []); gs.get(m).push(g); };
@@ -854,7 +1001,7 @@ if (QL.ao) { const sNrm = scenePass.getTextureNode('normal'), aoPass = ao(sDep, 
   lit = vec4(sCol.rgb.mul(aoTerm), sCol.a); }
 const glowed = QL.bloom ? lit.add(bloom(lit, .18, .3, 2.6)) : lit;   // only real highlights (sun glints on glass / steel) bloom
 const aa = QL.taa ? traa(glowed, sDep, scenePass.getTextureNode('velocity'), cam) : fxaa(glowed);   // temporal AA on high, cheap FXAA otherwise
-const grade = Fn(([c]) => { const l = c.rgb.dot(vec3(.2126, .7152, .0722)); let g_ = mix(vec3(l), c.rgb, 1.05);
+const grade = Fn(([c]) => { const l = c.rgb.dot(vec3(.2126, .7152, .0722)); let g_ = mix(vec3(l), c.rgb, 1.22); g_ = g_.sub(.5).mul(1.06).add(.5).max(0);
   const vig = float(1).sub(screenUV.sub(.5).length().mul(.55).pow(2.2)); return vec4(g_.mul(vec3(1.015, 1, .985)).mul(vig), c.a); });
 post.outputNode = grade(aa);
 
@@ -1173,8 +1320,9 @@ function fightStep(dt) {
       if (F === P) { for (const n of npcs) if (n.state === 'fight') { n.state = 'calm'; speak(n, 'fight_over'); } $('kotext').classList.remove('on'); }
       else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
     if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
-    if (F !== P) { const far = !G.cut && Math.hypot(F.x - P.x, F.y - P.y) > QL.cull; F.holder.visible = !far;
-      if (!far) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y) + (F.airH || 0))); F.holder.rotation.y = F.yaw; animate(F, dt); } }
+    if (F !== P) { const dd = Math.hypot(F.x - P.x, F.y - P.y), far = !G.cut && dd > (F.ped ? Math.max(QL.cull * 1.8, 70) : QL.cull); F.holder.visible = !far;
+      if (!far) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y) + (F.airH || 0))); F.holder.rotation.y = F.yaw; F.animAcc = (F.animAcc || 0) + dt;
+        if (dd < 28 || G.cut || F.animAcc > (dd > 50 ? .1 : .05)) { animate(F, F.animAcc); F.animAcc = 0; } } }   // far walkers: fewer pose updates
   }
   separate(); policeStep(dt); subStep(dt);
   if (P && P.hp < 100 && G.t - P.hurtT > 5 && !P.down) P.hp = Math.min(100, P.hp + dt * 6);
@@ -1354,7 +1502,7 @@ const barsUI = () => {
   if (help !== G.helpShown) { G.helpShown = help; $('gtahelp').innerHTML = help; $('gtahelp').classList.toggle('on', !!help); }
   if (G.introT > 0) G.introT -= 1 / 60;
   wantedUI(); };
-G.intro = coarse ? '왼쪽 스틱으로 이동, <b>공격</b> 버튼으로 공격합니다.<br>행인 머리 위 <b>돈 내놔</b>를 누르면 돈을 뜯습니다.' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · <kbd>Shift</kbd> 달리기 · <kbd>클릭</kbd>/<kbd>J</kbd> 공격<br><kbd>E</kbd> 행인 위협·상점 · <kbd>1</kbd>~<kbd>4</kbd>/<kbd>Q</kbd> 무기 · <kbd>M</kbd> 지도'; G.introT = 9;
+G.intro = coarse ? '왼쪽 스틱으로 이동, <b>공격</b> 버튼으로 공격합니다.<br>행인 머리 위 <b>돈 내놔</b>를 누르면 돈을 뜯습니다.' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · <kbd>Shift</kbd> 달리기 · <kbd>클릭</kbd>/<kbd>J</kbd> 공격<br><kbd>E</kbd> 행인 위협·상점 · <kbd>1</kbd>~<kbd>4</kbd>/<kbd>Q</kbd> 무기 · <kbd>M</kbd> 지도 · <kbd>N</kbd> 낮/저녁/밤'; G.introT = 9;
 addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === 'm' && !e.repeat && !G.cut) { toggleMap(); return; }   // M: the map
   if (k === 'escape' && MAP.open) { toggleMap(false); return; }
   if (mode !== 'walk' || e.repeat) return; if (k === 'j') playerAttack(); if (k === 'e') interact(); });
@@ -2151,15 +2299,15 @@ function xhairUI() { const el = $('xhair'); if (el.hidden || !P) return; const T
   if (T) wpos(T, 'spine_03', _xh); else { const yaw = CR.yaw + Math.PI; _xh.copy(V(P.x + Math.sin(yaw) * 14, P.y - Math.cos(yaw) * 14, 1.3)); }
   _xh.project(cam); const [w, h] = view(); el.style.left = ((_xh.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _xh.y) / 2 * h) + 'px'; }
 // ---- people on the pavements: they walk the streets around you; the ones far behind come back somewhere ahead
-const PEDN = { potato: 6, low: 10, mid: 16, high: 22 }[QUAL] || 10;
+const PEDN = { potato: 8, low: 16, mid: 26, high: 36 }[QUAL] || 16;
 const PEDNAMES = ['시민', '행인', '직장인', '학생', '아저씨', '아주머니'];
 const PROAD = CITY.roads.filter(r => r.pts.length >= 2);
-const PEND = PROAD.map(r => [r.pts[0], r.pts[r.pts.length - 1]]);
+const PEND = PROAD.map(r => [r.pts[0], r.pts[r.pts.length - 1]]), PBIG = PROAD.filter(r => r.kind === 'road' && r.w >= 9);
 const pedOff = r => r.kind !== 'road' ? 0 : r.w >= 9 ? r.w / 2 + 3.4 : r.w / 2 + .9;
 function pedPoint(p) { const r = p.r, i = THREE.MathUtils.clamp(p.i, 0, r.pts.length - 1), a = r.pts[Math.max(0, Math.min(r.pts.length - 2, i - (p.dir < 0 ? 1 : 0)))], b = r.pts[Math.max(1, Math.min(r.pts.length - 1, i + (p.dir < 0 ? 0 : 1)))];
   const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1, o = pedOff(r) * p.side, q = r.pts[i]; return [q[0] - dy / L * o, q[1] + dx / L * o]; }
 function pedPlace(n, near) {   // a fresh spot on some pavement, between near[0] and near[1] metres from the player
-  for (let k = 0; k < 60; k++) { const r = PROAD[Math.floor(Math.random() * PROAD.length)], i = Math.floor(Math.random() * r.pts.length), side = Math.random() < .5 ? 1 : -1, p = { r, i, dir: Math.random() < .5 ? 1 : -1, side };
+  for (let k = 0; k < 60; k++) { const r = Math.random() < .7 ? PBIG[Math.floor(Math.random() * PBIG.length)] : PROAD[Math.floor(Math.random() * PROAD.length)], i = Math.floor(Math.random() * r.pts.length), side = Math.random() < .5 ? 1 : -1, p = { r, i, dir: Math.random() < .5 ? 1 : -1, side };
     const [x, y] = pedPoint(p), d = P ? Math.hypot(x - P.x, y - P.y) : 30; if (d < near[0] || d > near[1] || !freeSpot(x, y, .6)) continue;
     n.ped = p; n.x = x; n.y = y; n.yaw = Math.random() * 6.28; n.home = [x, y, n.yaw]; n.wallet = Math.random() < .08 ? 300000 + Math.floor(Math.random() * 400000) : 8000 + Math.floor(Math.random() * 120000);
     n.hp = 100; n.dead = false; n.down = false; n.meter = 0; n.ko = 0; n.vel = [0, 0]; n.foe = null; n.state = 'idle'; n.callAt = 0; n.handsUp = 0; n.mug = null; n.dropped = false; n.pace = 1.15 + Math.random() * .4;
@@ -2297,9 +2445,27 @@ function robberyStep(dt) {
   for (let i = DROPS.length - 1; i >= 0; i--) { const D = DROPS[i]; D.t += dt; D.m.rotation.y += dt * 2; D.m.position.y = heightAt(D.x, D.y) + .18 + Math.sin(D.t * 3) * .04;
     if (P && !P.car && Math.hypot(D.x - P.x, D.y - P.y) < 1.2) { earn(D.n); scene.remove(D.m); DROPS.splice(i, 1); } else if (D.t > 120) { scene.remove(D.m); DROPS.splice(i, 1); } }
   for (const sh of SHOPS) sh.mesh.material.opacity = .22 + Math.sin(G.t * 3) * .08;
+  for (const sc of SCREENS) if ((sc.at -= dt) <= 0) { sc.at = 7; sc.k = (sc.k + 1) % 6; sc.t.offset.y = 1 - (sc.k + 1) / 6; }
 }
 CRIME.mug = 1; CRIME.gun = 1; CRIME.shot = 2;
 
+// ---------------------------------------------------------------- the clock: day → dusk → night (1 game hour = 40 s); N skips ahead
+const DAY = { h: 19.3, rate: 1 / 40, n: -1, list: null };
+const nightFill = new THREE.PointLight('#ffd6a8', 0, 14, 1.6); scene.add(nightFill);   // shop windows and street lamps light the people near you
+const _cA = new THREE.Color(), _cB = new THREE.Color();
+function dayStep(dt) {
+  DAY.h = (DAY.h + dt * DAY.rate) % 24; const h = DAY.h;
+  const n = h >= 7 && h < 17 ? 0 : h >= 17 && h < 19.6 ? (h - 17) / 2.6 : h >= 5 && h < 7 ? 1 - (h - 5) / 2 : 1, dusk = Math.max(0, 1 - Math.abs(h - 18.4) / 1.4);
+  if (P) nightFill.position.copy(P.holder.position); nightFill.position.y += 3.2;
+  $('clock').textContent = `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.floor(h % 1 * 60)).padStart(2, '0')}`;
+  if (Math.abs(n - DAY.n) < .002 && DAY.list) return; DAY.n = n;
+  if (!DAY.list) { DAY.list = []; const seen = new Set(); scene.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const m of ms) if (m && !seen.has(m) && (m.userData.night || (m.emissiveMap && m.emissiveIntensity > 0))) { seen.add(m); DAY.list.push([m, m.emissiveIntensity, m.userData.night || 0]); } }); }
+  for (const [m, base, nightOnly] of DAY.list) m.emissiveIntensity = nightOnly ? nightOnly * n : base * (1 + 1.8 * n);
+  sun.intensity = 3.6 * (1 - n) + .12 * n; sun.color.copy(_cA.set('#ffe8c8').lerp(_cB.set('#ff9a5a'), dusk * .8)).lerp(_cB.set('#8fa6ff'), n * n);
+  hemi.intensity = .9 * (1 - n) + .55 * n; hemi.color.set('#c4dcf4').lerp(_cA.set('#8a8fd0'), n); hemi.groundColor.set('#a89a86').lerp(_cB.set('#6a5a48'), n); scene.environmentIntensity = 1.1 * (1 - n) + .32 * n;   // city glow keeps the street readable
+  FOGC.set('#c3d5e4').lerp(_cA.set('#e9a77c'), dusk * .55).lerp(_cB.set('#101626'), n * n); skyK.value = 1 - .93 * n; skyNight.value.setRGB(.012 * n, .016 * n, .045 * n).lerp(_cA.setRGB(.35, .14, .1), dusk * .3);
+  r.toneMappingExposure = 1 + .25 * n; nightFill.intensity = 9 * n; }
+addEventListener('keydown', e => { if (e.key.toLowerCase() === 'n' && !e.repeat && mode === 'walk') { DAY.h = DAY.h < 12 ? 18.4 : DAY.h < 19 ? 21.5 : 12; DAY.n = -1; } });
 // ---------------------------------------------------------------- loop
 const clock = new THREE.Clock(); let frames = 0, ft0 = performance.now(), fps = 60, quality = 0;
 function step(dt) {
@@ -2349,12 +2515,12 @@ function step(dt) {
     const gz = heightAt(camPos.x, -camPos.z) + .5; if (camPos.y < gz) camPos.y = gz;
     cam.position.copy(camPos); ctl.target.copy(look); cam.lookAt(look.x, look.y + CR.bob * .5, look.z); FX.applyCam(); }
   }
-  fightStep(gdt); carStep(gdt); FX.update(dt); barsUI(); if (P) robberyStep(gdt);
+  fightStep(gdt); carStep(gdt); FX.update(dt); barsUI(); if (P) robberyStep(gdt); dayStep(dt);
   if (P) P.holder.visible = mode === 'walk';
   if (mode === 'sky') ctl.update();
   const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
   sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN, 80); sun.target.updateMatrixWorld();
-  fogDensity.value = mode === 'sky' ? .0005 : .0011;
+  fogDensity.value = mode === 'sky' ? .0005 : .0008;
   // (no grass in the city)
   mapStep(dt); if (P) drawMini(P.x, P.y, P.yaw);
 }
@@ -2363,7 +2529,7 @@ if (P) placeAt(START[0], START[1]);
 $('load').hidden = true;
 if (SOFT) { let seen = false; try { seen = sessionStorage.getItem('gtkSoftSeen') === '1'; } catch (e) {}
   if (!seen && !navigator.webdriver) { $('softwarn').hidden = false; $('softok').addEventListener('click', () => { $('softwarn').hidden = true; try { sessionStorage.setItem('gtkSoftSeen', '1'); } catch (e) {} }); } }
-window.__game = { SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
