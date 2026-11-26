@@ -38,6 +38,7 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 #bigmap { position: fixed; inset: 0; z-index: 20; background: rgba(8,10,8,.92); display: none }
 #bigmap.on { display: block } #bigmap canvas { position: absolute; cursor: crosshair; box-shadow: 0 0 0 1px rgba(255,255,255,.25) }
 #bigmap .bh { position: absolute; left: 0; right: 0; top: calc(12px + env(safe-area-inset-top, 0px)); text-align: center; color: #e9e4cf; font: 400 14px "Noto Sans KR", var(--f); pointer-events: none }
+#bigmap .bcred { position: absolute; left: 0; right: 0; bottom: calc(6px + env(safe-area-inset-bottom, 0px)); text-align: center; color: #8d9488; font: 400 11px var(--f); pointer-events: none }
 #bigmap .bh b { font: 400 20px "Black Han Sans", var(--f); color: #f3e3a8; margin-right: 10px }
 #bigmap .bx { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); top: calc(10px + env(safe-area-inset-top, 0px)); width: 40px; height: 40px; font-size: 20px; border-radius: 50%; padding: 0 }
 #gtahelp.on { opacity: 1 }
@@ -148,7 +149,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 <div class="hud" id="hud">불러오는 중</div>
 <div id="radar"><div id="mini"><canvas id="minic" width="380" height="380"></canvas></div><div id="stats"><div id="hpw"><i></i></div><div id="stw"><i></i></div></div></div>
 <div id="gtahelp" role="status"></div>
-<div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button></div>
+<div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bcred">차량 모델: "Hyundai - Pother II (Bongo III)" by yunho98122810 (Sketchfab) · CC BY 4.0</div><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button></div>
 <div id="stick" aria-hidden="true"><i></i></div>
 <div id="bars"><div><div class="bl"><span>민석</span></div><div class="bb"><i id="php"></i></div></div><div id="tbar" hidden><div class="bl"><span id="tname"></span></div><div class="bb"><i id="thp"></i></div></div><div id="finfo"></div></div>
 <button type="button" id="atkpad" aria-label="공격">공격</button>
@@ -1122,7 +1123,7 @@ function wantedUI() {
 
 // ---------------------------------------------------------------- vehicles: 1톤 트럭, 승용차, 경운기 — get in with F, arcade driving with slides, crashes, running people down
 const VSPEC = {
-  truck: { name: '1톤 트럭', L: 5.05, W: 1.78, H: 2.0, maxV: 20, acc: 5.2, brake: 11, rev: 5, wb: 2.6, steer: .58, grip: 5.5, mass: 1.7, camK: 1.75, camH: 2.1, seat: [.42, .62, .95], open: false },
+  truck: { name: '1톤 탑차', L: 5.45, W: 1.78, H: 2.41, maxV: 20, acc: 5.0, brake: 11, rev: 5, wb: 3.0, steer: .58, grip: 5.5, mass: 1.9, camK: 1.85, camH: 2.4, seat: [.4, .62, 1.45], open: false },
   sedan: { name: '준중형 세단', L: 4.6, W: 1.8, H: 1.45, maxV: 27, acc: 7.2, brake: 13, rev: 6, wb: 2.7, steer: .6, grip: 6.5, mass: 1.3, camK: 1.55, camH: 1.7, seat: [.36, .1, -.1], open: false },
   hatch: { name: '경차', L: 3.65, W: 1.62, H: 1.5, maxV: 22, acc: 6.4, brake: 12, rev: 5, wb: 2.36, steer: .66, grip: 7, mass: 1.0, camK: 1.38, camH: 1.6, seat: [.36, .12, -.15], open: false },
   tiller: { name: '경운기', L: 4.8, W: 1.55, H: 1.4, maxV: 5.2, acc: 1.8, brake: 6, rev: 2, wb: 2.3, steer: .55, grip: 9, mass: 1.0, camK: 1.35, camH: 1.8, seat: [0, .3, -.4], open: true },
@@ -1382,8 +1383,20 @@ function buildTiller() {   // walking tractor + trailer: finned engine, flywheel
   wh.push(vwheel(g, .3, .16, .84, .3, -1.55, 'steel')); wh.push(vwheel(g, .3, .16, -.84, .3, -1.55, 'steel'));
   return { g, wh, front: [], pivot: true };
 }
+// real models (CC BY, see the credits on the map screen): wheels come split out as wheel_FL/FR/RL/RR with the hub as origin
+const CARGLB = {};
+try { const L_ = new GLTFLoader(); L_.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
+  CARGLB.truck = (await L_.loadAsync('cars/porter.glb')).scene; } catch (e) { console.warn('car models', e); }
+function buildFromGLB(tpl) {
+  const g = tpl.clone(true), wh = [];
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  for (const n of ['wheel_FL', 'wheel_FR', 'wheel_RL', 'wheel_RR']) { const w = g.getObjectByName(n); if (!w) continue;
+    const r = new THREE.Box3().setFromObject(w).getSize(new THREE.Vector3()).y / 2;
+    const piv = new THREE.Group(); piv.position.copy(w.position); const spin = new THREE.Group(); piv.add(spin); w.parent.add(piv); w.position.set(0, 0, 0); spin.add(w); wh.push({ piv, spin, r }); }
+  return { g, wh, front: [0, 1] };
+}
 function makeCar(type, x, y, yaw) {
-  const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], b = type === 'truck' ? buildTruck([P_.porter, P_.white][n_ % 2]) : type === 'sedan' ? buildSedan([P_.red, P_.white, P_.silver, P_.black][n_ % 4])
+  const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], b = type === 'truck' ? (CARGLB.truck ? buildFromGLB(CARGLB.truck) : buildTruck([P_.porter, P_.white][n_ % 2])) : type === 'sedan' ? buildSedan([P_.red, P_.white, P_.silver, P_.black][n_ % 4])
     : type === 'hatch' ? buildHatch([P_.sky, P_.white, P_.beige][n_ % 3]) : buildTiller();
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(sp.W + .7, sp.L + .6), VM.shadow); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; sh.renderOrder = 1; b.g.add(sh);   // soft contact shadow under the car
   const holder = new THREE.Group(), body = new THREE.Group(); holder.add(body); body.add(b.g); scene.add(holder);
