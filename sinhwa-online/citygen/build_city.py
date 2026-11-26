@@ -28,7 +28,8 @@ def area(p):
     return abs(sum(p[i][0] * p[i - 1][1] - p[i - 1][0] * p[i][1] for i in range(len(p)))) / 2
 # ---- buildings
 out_b = []
-for tg, p, _ in ways:
+LM = {'8311185': 'samsung_c', '8311184': 'samsung_b', '8311183': 'samsung_a', '301605795': 'gt', '19640833': 'monaco', '379232116': 'meritz', '19639969': 'aplus'}
+for (tg, p, _), wid in zip(ways, [w.get('id') for w in t.iter('way')]):
     if 'building' not in tg or len(p) < 4: continue
     if tg.get('building') in ('roof', 'construction') or tg.get('location') == 'underground' or tg.get('layer', '0').startswith('-'): continue
     ring = p[:-1] if p[0] == p[-1] else p
@@ -39,22 +40,27 @@ for tg, p, _ in ways:
     if not lv: lv = max(1, round(h / 3.4))
     kind = 'tower' if h >= 45 else 'office' if h >= 22 else 'shop'
     if tg.get('building') in ('apartments', 'residential') or '오피스텔' in tg.get('name', '') or '아파트' in tg.get('name', ''): kind = 'apart' if h >= 22 else 'villa'
-    out_b.append({'p': ring, 'h': round(h, 1), 'lv': int(lv), 'name': tg.get('name', ''), 'kind': kind, 'shops': []})
+    out_b.append({'p': ring, 'h': round(h, 1), 'lv': int(lv), 'name': tg.get('name', ''), 'kind': kind, 'shops': [], 'id': 'w' + wid, **({'lm': LM[wid]} if wid in LM else {})})
 # ---- multipolygon buildings (relations): each closed outer ring becomes a building with the relation's tags
 wayby = {w.get('id'): w for w in t.iter('way')}
 for r in t.iter('relation'):
     tg = {x.get('k'): x.get('v') for x in r.iter('tag')}
     if tg.get('type') != 'multipolygon' or 'building' not in tg: continue
+    rings = []
     for m in r.iter('member'):
         if m.get('type') != 'way' or m.get('role') != 'outer' or m.get('ref') not in wayby: continue
         p = [nodes[nd.get('ref')] for nd in wayby[m.get('ref')].iter('nd') if nd.get('ref') in nodes]
         if len(p) < 4 or p[0] != p[-1]: continue
-        ring = p[:-1]; A = area(ring)
-        if A < 12: continue
-        lv = num(tg.get('building:levels')); h = num(tg.get('height'))
-        if not h: h = (lv or (3 if A < 150 else 5 if A < 400 else 8)) * 3.4 + 1
-        if not lv: lv = max(1, round(h / 3.4))
-        out_b.append({'p': ring, 'h': round(h, 1), 'lv': int(lv), 'name': tg.get('name', ''), 'kind': 'tower' if h >= 45 else 'office' if h >= 22 else 'shop', 'shops': []})
+        if area(p[:-1]) >= 12: rings.append(p[:-1])
+    if not rings: continue
+    lv = num(tg.get('building:levels')); h = num(tg.get('height'))
+    rid = r.get('id')
+    if rid in LM:   # a landmark: one entry, footprint = its biggest ring, every outer ring kept for the hand-built model
+        rings.sort(key=area, reverse=True)
+        out_b.append({'p': rings[0], 'rings': rings, 'h': round(h or 100, 1), 'lv': int(lv or 25), 'name': tg.get('name', ''), 'kind': 'tower', 'shops': [], 'id': 'r' + rid, 'lm': LM[rid]}); continue
+    for ring in rings:
+        A = area(ring); hh = h or (lv or (3 if A < 150 else 5 if A < 400 else 8)) * 3.4 + 1; ll = lv or max(1, round(hh / 3.4))
+        out_b.append({'p': ring, 'h': round(hh, 1), 'lv': int(ll), 'name': tg.get('name', ''), 'kind': 'tower' if hh >= 45 else 'office' if hh >= 22 else 'shop', 'shops': [], 'id': 'r' + rid})
 # ---- shops / amenities -> the building they sit in (or the nearest one)
 def inside(pt, ring):
     x, y = pt; c = False
