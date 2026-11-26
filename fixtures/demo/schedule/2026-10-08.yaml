@@ -1,0 +1,15 @@
+- time: '10:00'
+  title: 국무회의 — 지역의료법 개정안 의결
+  category: 정부
+  note: 공공의대 설립 근거
+  expected: 의결이 확실시된다는 관측입니다.
+- time: '14:00'
+  title: 국회 본회의 — 플랫폼노동자 기본법 표결
+  category: 국회
+  note: 새한당 표결 불참 검토
+  expected: 의석 분포상 가결이 유력하다는 전망입니다.
+- time: '14:00'
+  title: 서울중앙지법 — 새한당 전 의원 A씨 정치자금 1심 선고
+  category: 사법
+  note: 검찰 징역 2년 구형
+  expected: 유죄 선고 가능성이 높다는 관측입니다.

@@ -1,0 +1,150 @@
+# build.py가 생성 — 직접 수정하지 말 것
+routes:
+- match: https://www\.yna\.co\.kr/rss/politics\.xml
+  file: rss/yna_politics.xml
+- match: https://www\.yna\.co\.kr/rss/economy\.xml
+  file: rss/yna_economy.xml
+- match: https://www\.yna\.co\.kr/rss/international\.xml
+  file: rss/yna_intl.xml
+- match: https://feeds\.bbci\.co\.uk/news/world/rss\.xml
+  file: rss/bbc.xml
+- match: https://press\.example\.go\.kr/rss/press\.xml
+  file: rss/press.xml
+- match: (openapi\.naver\.com/v1/search/news\.json|naverapihub\.apigw\.ntruss\.com/search/v1/news)
+  generate: naver_news
+  data: naver/index.json
+- match: https://damoang\.net/free\?page=1
+  file: community/다모앙.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/list\?code=politic\&page=1
+  file: community/보배드림.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/zboard\.php\?id=politics\&page=1
+  file: community/뽐뿌.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot\?page=1
+  file: community/더쿠.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7960573$
+  file: community/다모앙/7960573.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7276152$
+  file: community/다모앙/7276152.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7403141$
+  file: community/다모앙/7403141.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7539017$
+  file: community/다모앙/7539017.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7166668$
+  file: community/다모앙/7166668.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7848702$
+  file: community/다모앙/7848702.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7337502$
+  file: community/다모앙/7337502.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7197069$
+  file: community/다모앙/7197069.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7508829$
+  file: community/다모앙/7508829.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7660561$
+  file: community/다모앙/7660561.html
+  content_type: text/html; charset=utf-8
+- match: https://damoang\.net/free/7250674$
+  file: community/다모앙/7250674.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=8037316\&bm=1$
+  file: community/보배드림/8037316.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7141100\&bm=1$
+  file: community/보배드림/7141100.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7696419\&bm=1$
+  file: community/보배드림/7696419.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7450902\&bm=1$
+  file: community/보배드림/7450902.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7032265\&bm=1$
+  file: community/보배드림/7032265.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7916747\&bm=1$
+  file: community/보배드림/7916747.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.bobaedream\.co\.kr/view\?code=politic\&No=7071880\&bm=1$
+  file: community/보배드림/7071880.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7962166$
+  file: community/뽐뿌/7962166.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7907521$
+  file: community/뽐뿌/7907521.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=8018140$
+  file: community/뽐뿌/8018140.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7146176$
+  file: community/뽐뿌/7146176.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7443918$
+  file: community/뽐뿌/7443918.html
+  content_type: text/html; charset=utf-8
+- match: https://www\.ppomppu\.co\.kr/zboard/view\.php\?id=politics\&page=1\&no=7215919$
+  file: community/뽐뿌/7215919.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7393242$
+  file: community/더쿠/7393242.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7368727$
+  file: community/더쿠/7368727.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7801153$
+  file: community/더쿠/7801153.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7521624$
+  file: community/더쿠/7521624.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7362577$
+  file: community/더쿠/7362577.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7716567$
+  file: community/더쿠/7716567.html
+  content_type: text/html; charset=utf-8
+- match: https://theqoo\.net/hot/7164647$
+  file: community/더쿠/7164647.html
+  content_type: text/html; charset=utf-8
+- match: /robots\.txt$
+  generate: robots_allow
+- match: youtube/v3/playlistItems
+  params:
+    playlistId: UUcompAAAAAAAAAAAAAAAAAA
+  file: youtube/playlist_UCcompAAAAAAAAAAAAAAAAAA.json
+- match: youtube/v3/playlistItems
+  params:
+    playlistId: UUcompBBBBBBBBBBBBBBBBBB
+  file: youtube/playlist_UCcompBBBBBBBBBBBBBBBBBB.json
+- match: youtube/v3/videos
+  params:
+    part: snippet,statistics
+  generate: youtube_stats
+  data: youtube/stats.json
+- match: youtube/v3/videos
+  generate: youtube_videos
+- match: youtube/v3/search
+  generate: youtube_search
+- match: googleapis\.com/customsearch/v1
+  generate: google_image
+- match: (openapi\.naver\.com/v1/search/image|naverapihub\.apigw\.ntruss\.com/search/v1/image)
+  generate: naver_image
+- match: commons\.wikimedia\.org/w/api\.php
+  generate: wikimedia
+- match: img\.example\.com/
+  generate: image
+- match: hooks\.slack\.com/
+  file: slack_ok.txt
+  content_type: text/plain

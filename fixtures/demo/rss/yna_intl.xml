@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>연합뉴스 국제 (시연용 가상 피드)</title>
+    <link>https://news.example-yna.kr/</link>
+    <description>studio 시연 fixture — 실존 기사 아님</description>
+    <item>
+      <title>뉴욕증시 급락…나스닥 2.4% 하락</title>
+      <link>https://news.example-yna.kr/article/20261008/2be0270029</link>
+      <description>뉴욕증시가 7일(현지시간) 기술주 매도가 깊어지며 급락했다. 나스닥지수는 2.4% 떨어졌다. 인공지능 투자 과열 우려가 매도를 부른 원인으로 꼽힌다.</description>
+      <pubDate>Thu, 08 Oct 2026 05:10:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>국제유가, 중동 긴장에 4% 급등</title>
+      <link>https://news.example-yna.kr/article/20261008/f4f3093c99</link>
+      <description>국제유가가 7일(현지시간) 중동 긴장 고조에 4% 급등했다. 산유국 감산 연장 가능성도 유가를 끌어올렸다. 국내 휘발유 가격도 다음 주부터 오를 전망이다.</description>
+      <pubDate>Thu, 08 Oct 2026 03:40:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>미 하원, 임시예산안 가결…셧다운 피해</title>
+      <link>https://news.example-yna.kr/article/20261008/e2ba5fbbd7</link>
+      <description>미국 하원이 7일(현지시간) 임시예산안을 가결해 연방정부 셧다운을 피했다. 국경 예산을 둘러싼 이견은 12월 본예산 협상으로 넘어갔다. 대통령 서명만 남았다.</description>
+      <pubDate>Thu, 08 Oct 2026 02:30:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>뉴욕증시, 기술주 약세에 하락…나스닥 1.2% 내려</title>
+      <link>https://news.example-yna.kr/article/20261007/4591a95587</link>
+      <description>뉴욕증시가 6일(현지시간) 기술주 약세에 하락 마감했다. 나스닥지수는 1.2% 내렸다. 국채 금리 상승이 부담으로 작용했다.</description>
+      <pubDate>Wed, 07 Oct 2026 05:00:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>유엔 안보리, 북한 탄도미사일 발사 규탄 논의</title>
+      <link>https://news.example-yna.kr/article/20261007/2354b3b884</link>
+      <description>유엔 안전보장이사회가 북한의 탄도미사일 발사를 규탄하는 논의에 착수했다. 북한이 동해상으로 탄도미사일을 발사한 데 따른 것이다. 한미일은 공동성명 문안을 조율했다. 중국과 러시아의 반대로 결의 채택은 어려울 전망이다.</description>
+      <pubDate>Wed, 07 Oct 2026 03:20:00 +0900</pubDate>
+    </item>
+    <item>
+      <title>미 상원, 셧다운 시한 앞두고 임시예산안 처리</title>
+      <link>https://news.example-yna.kr/article/20261007/533dadd2ba</link>
+      <description>미국 상원이 6일(현지시간) 연방정부 셧다운 시한을 몇 시간 앞두고 임시예산안을 통과시켰다. 예산 협상이 결렬 직전까지 간 것은 국경 예산을 둘러싼 이견 때문이다. 하원 표결을 거치면 셧다운은 피하게 된다.</description>
+      <pubDate>Wed, 07 Oct 2026 01:10:00 +0900</pubDate>
+    </item>
+  </channel>
+</rss>

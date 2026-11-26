@@ -1,0 +1,152 @@
+# studio 공통 채널 설정 (topicradar · newsclip이 함께 읽는다)
+channel:
+  name: 정치는푸르다           # 롱폼 오른쪽 위·발언 카드·끝 화면에 뜨는 채널 이름
+  youtube_channel_id: ""
+  stance: "친이재명 시선의 정치 채널. 이재명 대통령을 공격하지 않고 대통령과 정부의 국정 방향을 지지하되, 무조건 민주당 편은 아니다 — 문제가 민주당 안에 있으면(대통령과 엇박자, 지도부의 판단 착오, 개혁 지연) 친이재명 지지층의 눈으로 짚고, 국민의힘·극우 세력의 문제면 그쪽을 짚는다. 원인을 억지로 상대 진영 탓으로 돌리지 않는다. 다룰 주제와 시선은 커뮤니티 글·댓글·공감 수로 정하고, 사실은 기사로 받친다. 연관 주제 2~3개를 묶은 10분 영상과 주제 하나를 빠르게 다루는 3분 영상."
+  categories: [국회, 정부, 사법, 선거, 외교안보, 국제, 경제, 노동, 복지]
+  competitors: []            # 경쟁 채널 ID(UC...) — 영상을 모아 같은 주제에 붙여 둠(점수에는 안 넣음)
+  past_titles: []            # 업로드 후 자동 추가
+  slack_webhook: ""
+
+sources:
+  # 국내 RSS. 주소는 docs/sources.md 참고 — 이 환경에선 접속 검증을 못 했으니 첫 collect 결과 표의
+  # '실패' 줄로 확인하세요(피드 하나가 실패해도 나머지는 계속 수집됩니다).
+  rss:
+    - {name: 연합뉴스 정치, url: "https://www.yna.co.kr/rss/politics.xml", kind: domestic, category: 국회}
+    - {name: 연합뉴스 북한, url: "https://www.yna.co.kr/rss/northkorea.xml", kind: domestic, category: 외교안보}
+    - {name: 연합뉴스 경제, url: "https://www.yna.co.kr/rss/economy.xml", kind: domestic, category: 경제}
+    - {name: 연합뉴스 사회, url: "https://www.yna.co.kr/rss/society.xml", kind: domestic}
+    # 정부 보도자료: 정책브리핑(korea.kr) RSS는 2026-07-01 공지로 제공 중단 → 부처별 RSS를 확인해 kind: press로 추가
+    # - {name: 기획재정부 보도자료, url: "<부처 RSS 주소>", kind: press, category: 정부}
+  overseas_rss:
+    - {name: 연합뉴스 국제, url: "https://www.yna.co.kr/rss/international.xml", category: 국제}
+    - {name: BBC World, url: "https://feeds.bbci.co.uk/news/world/rss.xml", category: 국제}
+    - {name: NYT World, url: "https://rss.nytimes.com/services/xml/rss/nyt/World.xml", category: 국제}
+    - {name: Guardian World, url: "https://www.theguardian.com/world/rss", category: 국제}
+    - {name: Al Jazeera, url: "https://www.aljazeera.com/xml/rss/all.xml", category: 국제}
+    - {name: NPR World, url: "https://feeds.npr.org/1004/rss.xml", category: 국제}
+  # 네이버 뉴스 검색어(검색어당 최신 100건). 정치 중심으로 두고 경제는 최소로.
+  naver_queries: [국회 본회의, 국정감사, 대통령실, 국무회의, 법사위, 검찰 수사, 법원 선고, 헌법재판소, 여론조사, 공천, 외교부, 북한 미사일, 노동 입법, 연금 개혁]
+  kogl: []                   # KTV 국민방송, 국회방송 등 공공누리 영상 API (2차)
+
+images:
+  # 가점만, 제한 없음. 접미사 일치(go.kr → moef.go.kr 포함). 정당 도메인은 사용 전 확인.
+  preferred_domains: [wikimedia.org, go.kr, assembly.go.kr, theminjoo.kr, peoplepowerparty.kr, rebuildingkoreaparty.kr, reformparty.kr, justice21.org, jinboparty.com]
+  blocked_domains: []        # 비워둠. 필요 시 사용자가 추가
+  # 사진 검색에 섞여 나오는 유튜브 썸네일은 쓰지 않는다(2026-10 사용자 결정 — 큰 제목 글씨 썸네일).
+  # 뉴스 기사에 실린 영상 썸네일(16:9에 큰 글씨)도 받은 뒤 거른다(newsclip.download.text_heavy)
+  youtube_thumb_channels: []
+
+videos:
+  preferred_channels: [KTV 국민방송, 국회방송, NATV, 대한민국 정부, 더불어민주당, 국민의힘, 조국혁신당, 개혁신당, 진보당]
+  blocked_channels: [KBS News, MBCNEWS, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, TV CHOSUN, 채널A, MBN]   # Content ID 회피
+
+budget:
+  google_cse_per_day: 90       # 무료 100회 중 여유 10
+  youtube_search_per_day: 80   # search.list 1회 = 100 units, 하루 10,000 units 중 8,000
+  naver_per_day: 20000
+
+# timeline.xml에 깔 글자 트랙. 자막은 넣지 않는다(프리미어에서 직접 하거나 안 씀).
+timeline:
+  subtitles: false             # 대본 자막(음성에 맞춘 줄 자막) 트랙
+  attribution: true            # 출처 표시(왼쪽 위) — 끄면 사진·영상 출처를 영상에 밝히지 않음
+  long_edit: true              # 10분 묶음은 완성 편집(음성·자막·카드·효과음·배경음악) — 프리미어에서 열고 내보내기만
+
+voice:                         # 타입캐스트 API로 음성 만들기(키는 환경 변수 TYPECAST_API_KEY)
+  name: 이겸                   # 목소리 이름
+  voice_id: ""                 # 알면 tc_… 를 적는다(비우면 이름으로 찾음)
+  model: ssfm-v30
+  tempo: 1.0                   # 읽는 속도 0.5~2.0 — 제작실에서 영상마다 바꿀 수 있음
+  remove_silence_ms: null      # 문장 사이 쉼(ms)만 남기기. 비우면 그대로
+
+clustering:
+  generic_tokens: []           # 어디에나 나와 주제 연결 근거로 약하게만 칠 말(주요 정당명은 기본 포함)
+
+script:
+  tone: 확신형+입담형           # 확신형+입담형 | 확신형 | 해설형 (형식 규칙은 동일, 목소리만 바뀜)
+  chars_per_minute: 600        # 대본 길이 기준(분당 글자 수): 10분 묶음 ≈ 6,000자, 3분 단독 ≈ 1,800자. 타입캐스트 음성이 실제로 분당 560자 안팎이라 이 값이면 길이가 맞는다
+  # 대본 끝에 언제나 붙이는 마무리 인사(따로 한 단락)
+  fixed_hashtags: [정치, 정치뉴스]       # 해시태그 고정(맨 앞)
+  outro: 더 나은 대한민국을 위해서 정치는푸르다 채널 구독해주시고, 매일 새로운 정치 소식으로 찾아뵙겠습니다.
+  shorts_outro: "정치는푸르다, 구독과 좋아요 눌러주시고 다음 소식도 받아보세요."   # 세로 쇼츠 끝 인사(구독 + 좋아요, 1분이라 짧게)
+  like_ask: "타 진영에서 싫어요를 많이 누르는 바람에 저희 영상이 잘 노출되지 않고 있습니다. 여러분이 좋아요 한 번 눌러 주시면 큰 힘이 됩니다."   # 10분·3분 대본 중간(둘째 주제 앞)에 프로그램이 넣는 좋아요 부탁
+
+# 다룰 주제(반응)와 채널의 주장(의견) = 진보 성향 커뮤니티 정치 게시판. 사실 근거로는 쓰지 않는다(사실은 기사).
+# 목록: 제목·댓글 수·추천 수·시각 / 반응 큰 글 detail_posts개(기본 8): 본문 앞부분·댓글 내용·댓글 공감 수(닉네임은 저장 안 함).
+# 이 개발 환경에서는 사이트 접속이 막혀 주소를 직접 확인하지 못했다 → 처음에 `topicradar probe`(화면: 설정 → 게시판 점검)로 꼭 확인.
+#   post_pattern: 목록 HTML의 글 링크 정규식 / politics_filter: 자유게시판처럼 섞인 곳은 정치 어휘로 거름
+#   comment_pattern·vote_pattern: 목록의 댓글 수·추천 수 정규식(그룹1=숫자) / 페이지 자리: 1부터 {page}, 0부터 {page0}
+#   body_selector·comment_selector·vote_selector: 글 상세의 본문·댓글 하나·공감 수 위치(예: "div.post_article", "div.comment_row").
+#     비우면 자동으로 찾는다(가장 긴 글 덩어리 = 본문, class에 comment·reply·cmt가 든 반복 요소 = 댓글). probe 결과가 이상하면 지정.
+communities:
+  - name: 다모앙
+    list_url: "https://damoang.net/free?page={page}"
+    post_pattern: "damoang\\.net/free/\\d+"
+    politics_filter: true      # 별도 정치 게시판 없음 → 자유게시판에서 정치글만
+    enabled: false             # 2026-10 점검: 사이트가 프로그램 접속을 막음(403)
+    note: "사이트가 프로그램 접속을 막고 있습니다(403) — 풀리면 켜기"
+  - name: 보배드림
+    list_url: "https://www.bobaedream.co.kr/list?code=politic&page={page}"
+    post_pattern: "/view\\?code=politic&No=\\d+"
+    comment_pattern: "class=\"totreply\">(\\d+)<"   # 확인 필요
+    pages: 4                   # 첫 쪽 위에는 며칠 된 인기글이 붙어 있고, 하루치를 다 보려면 4쪽까지
+    # 글 상세: 베스트 댓글(ul#best_cmt_reply) + 댓글(ul#cmt_reply의 li.re). 이름·시각은 dt, 추천·반대는 .updownbox
+    canonical_url: true        # 글 주소의 &rtn=… 꼬리를 뗀다
+    body_selector: ".bodyCont"
+    comment_selector: "#best_cmt_reply li, #cmt_reply li.re"
+    comment_strip_selector: "dt, .updownbox, .replynum_on, .replynum"
+    vote_selector: ".updownbox .first"
+  - name: 뽐뿌
+    list_url: "https://www.ppomppu.co.kr/zboard/zboard.php?id=news_pol_eco&page={page}"
+    post_pattern: "view\\.php\\?id=news_pol_eco.*?no=\\d+"
+    canonical_url: true        # 옆 칸 '오늘 조회수 TOP3'가 같은 글을 다른 주소로 다시 건다
+    # 정치뉴스 게시판(뽐뿌 첫 화면의 '정치뉴스'): 글은 언론 기사(제목 = 헤드라인), 커뮤니티 의견은 댓글.
+    # 목록 링크 안에 제목·요약·조회수·시각이 한 덩어리라 제목·댓글 수·공감을 따로 집는다.
+    title_pattern: "<strong>(.*?)(?:<span class=\"list_comment2\">|</strong>)"
+    comment_pattern: "class=\"list_comment2\">(\\d+)<"
+    vote_pattern: "gcon up\"><img[^>]*>(\\d+)"
+    # 글 상세: 댓글은 화면에서 따로 불러와서, 처음부터 보이는 '핫코멘트'(공감 많은 댓글)만 읽는다(닉네임은 뺀다)
+    comment_selector: ".hot_comment_list a"
+    comment_strip_selector: "b"
+    comment_vote_regex: "(\\d[\\d,]*)\\s+\\d+\\s*$"
+    note: "정치뉴스 게시판 — 글은 기사, 의견은 댓글(핫코멘트)로 잽니다"
+    pages: 4                   # 하루치를 다 보려면 4쪽까지
+  - name: 더쿠
+    list_url: "https://theqoo.net/hot?page={page}"
+    post_pattern: "theqoo\\.net/hot/\\d+"
+    politics_filter: true      # HOT에 '정치' 카테고리가 있음 → 카테고리 주소를 확인하면 그 주소로 바꾸고 필터 끄기
+    pages: 3                   # 정치글이 섞여 있어(점검: 23개 중 3개) 3쪽까지
+  - name: 루리웹
+    list_url: "https://bbs.ruliweb.com/community/board/300148?page={page}"
+    post_pattern: "/community/board/300148/read/\\d+\\?"   # 끝에 ?가 붙은 것만 — 맨 위 BEST 칸(댓글·시각 없음)은 빼고 본 목록만
+    canonical_url: true
+    politics_filter: false     # 정치 게시판(잡담 말머리가 섞이지만 반응이 작아 묶을 때 빠진다 — 은어 제목이 많아 낱말 거르기는 정치글도 뺀다)
+    title_pattern: "^\\s*([^<]+?)\\s*(?:<|$)"
+    comment_pattern: "class=\"num_reply\"[^>]*>\\s*\\((\\d+)\\)"
+    vote_pattern: "class=\"recomd\"\\s*>\\s*(\\d+)"
+    body_selector: "div.view_content"
+    comment_selector: "div.comment_view span.text"   # 댓글 글만(닉네임·신고 버튼 빼고)
+    vote_selector: ".like_value"
+    pages: 8                   # 10분에 한 쪽(28개)씩 올라와 8쪽까지
+    note: "정치 유게(북유게) — 2026-10 추가. 다모앙·더쿠·오유가 클라우드 접속을 막아 대신"
+  - name: 클리앙
+    list_url: "https://www.clien.net/service/board/park"
+    post_pattern: "/service/board/park/\\d+"
+    canonical_url: true        # 글 주소의 ?od=… 를 떼야 robots.txt가 허용한다
+    body_selector: ".post_article"
+    comment_selector: "div.comment_row"
+    comment_strip_selector: ".comment_info"   # 닉네임·메모·IP·버튼 줄(글쓴이 정보는 저장하지 않는다)
+    vote_selector: ".comment_symph"
+    politics_filter: true      # 모두의공원(자유게시판)
+    pages: 1                   # robots.txt가 '?'가 붙은 주소(2쪽부터 ?po=1)를 막아 첫 쪽만 읽는다
+  - name: 오늘의유머
+    list_url: "https://www.todayhumor.co.kr/board/list.php?table=sisa&page={page}"
+    post_pattern: "view\\.php\\?table=sisa.*?no=\\d+"
+    # 시사게시판. 2026-10 점검: 목록·본문 정상
+
+# 주제판: 원할 때 '지금 뜨는 주제'를 100% 커뮤니티 반응(글 수 + 댓글/20 + 공감/10)으로 줄 세운다.
+board:
+  window_hours: 24             # 최근 몇 시간의 커뮤니티 글로 판을 짤지
+  min_posts: 2                 # 판에 올릴 최소 글 수(글 하나라도 반응도 50 이상이면 올림)
+  size: 20                     # 판에 보여 줄 주제 수
+  derived_queries: 10          # 커뮤니티 화제로 만든 네이버 뉴스 검색어 수(사실 근거 기사 확보용)

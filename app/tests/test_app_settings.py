@@ -1,0 +1,296 @@
+"""설정 탭: 키(.env), 채널 값·말투·게시판(주석 보존 줄 단위 수정), 원문 검사 저장, 게시판 점검, 자동 실행."""
+
+import os
+import threading
+from datetime import datetime
+
+from studio_app.auto import AutoRunner
+from studio_app.jobs import Busy, JobRunner
+from studio_core.config import KST, Settings, load_channel, set_channel_value, set_community_enabled
+from studio_core.envfile import mask, read_env, set_env
+
+
+def test_keys_roundtrip(client, root):
+    s = client.get("/api/settings").json()
+    keys = {k["key"]: k for k in s["keys"]}
+    assert keys["NAVER_CLIENT_ID"]["set"] and not keys["ANTHROPIC_API_KEY"]["set"]
+    r = client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-test-123456789"}})
+    assert r.json()["ok"]
+    env = (root / ".env").read_text(encoding="utf-8")
+    assert (
+        "ANTHROPIC_API_KEY=sk-ant-test-123456789" in env and "NAVER_CLIENT_ID=" in env
+    )  # .env.example에서 시작
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-test-123456789"
+    keys = {k["key"]: k for k in client.get("/api/settings").json()["keys"]}
+    assert keys["ANTHROPIC_API_KEY"]["masked"] == "••••6789"
+    assert client.put("/api/settings/keys", json={"values": {"PATH": "x"}}).status_code == 400
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": ""}})
+    assert "ANTHROPIC_API_KEY" not in os.environ
+
+
+def test_channel_tone_community_raw(client, root):
+    r = client.put(
+        "/api/settings/channel",
+        json={
+            "youtube_channel_id": "UCmine",
+            "competitors": ["UCa", "UCb"],
+            "slack_webhook": "",
+            "tone": "해설형",
+        },
+    )
+    assert r.json()["ok"]
+    cfg = load_channel(Settings(root=root))
+    assert cfg.channel.youtube_channel_id == "UCmine" and cfg.channel.competitors == ["UCa", "UCb"]
+    assert cfg.script.tone == "해설형"
+    assert client.put("/api/settings/channel", json={"tone": "막말형"}).status_code == 400
+    # 영상 길이(분당 글자 수)와 주제판 구간
+    assert client.put("/api/settings/channel", json={"chars_per_minute": 330, "window_hours": 12}).json()[
+        "ok"
+    ]
+    cfg = load_channel(Settings(root=root))
+    assert cfg.script.chars_per_minute == 330 and cfg.board.window_hours == 12
+    info = client.get("/api/settings").json()
+    assert info["channel"]["chars_per_minute"] == 330 and info["channel"]["window_hours"] == 12
+    assert info["formats"]["long"] == {"name": "10분 묶음", "minutes": 10.0}
+    # timeline.xml: 자막 기본 끔, 출처 표시 기본 켬 — 화면에서 바꿈
+    assert info["channel"]["subtitles"] is False and info["channel"]["attribution"] is True
+    assert client.put("/api/settings/channel", json={"subtitles": True, "attribution": False}).json()["ok"]
+    tl = load_channel(Settings(root=root)).timeline
+    assert tl.subtitles is True and tl.attribution is False
+    assert client.put("/api/settings/channel", json={"chars_per_minute": 50}).status_code == 400
+    assert client.put("/api/settings/channel", json={"window_hours": 200}).status_code == 400
+    assert client.put("/api/settings/community", json={"name": "더쿠", "enabled": False}).json()["ok"]
+    comm = {c["name"]: c["enabled"] for c in client.get("/api/settings").json()["communities"]}
+    assert comm["더쿠"] is False and comm["다모앙"] is True
+    assert client.put("/api/settings/community", json={"name": "없는곳", "enabled": False}).status_code == 400
+    raw = client.get("/api/settings").json()["raw"]
+    assert client.put("/api/settings/raw", json={"text": "channel: [깨진"}).status_code == 400
+    assert client.put("/api/settings/raw", json={"text": "board:\n  window_hours: 많이\n"}).status_code == 400
+    assert (root / "channel.yaml").read_text(encoding="utf-8") == raw  # 실패하면 그대로
+    assert client.put("/api/settings/raw", json={"text": raw.replace("UCmine", "UCnew")}).json()["ok"]
+    assert load_channel(Settings(root=root)).channel.youtube_channel_id == "UCnew"
+
+
+def test_probe_job_writes_status(client, root):
+    job = client.post("/api/jobs/probe", json={}).json()
+    assert job["status"] == "done"
+    res = {r["name"]: r for r in job["result"]["results"]}
+    assert res["보배드림"]["ok"] and res["보배드림"]["posts"] > 0 and res["보배드림"]["samples"]
+    assert (root / "data" / "probe.json").exists()
+    probe = client.get("/api/settings").json()["probe"]
+    assert probe["results"] and probe["checked_label"].startswith("10월 10일")
+    assert not any("게시판 점검" in x for x in client.get("/api/status").json()["setup"])
+
+
+def test_yaml_line_edits_keep_comments(tmp_path):
+    (tmp_path / "channel.yaml").write_text(
+        '# 머리 주석\nchannel:\n  youtube_channel_id: ""   # 내 채널\n  competitors:\n    - UCold\n  slack_webhook: ""\n'
+        'communities:\n  - name: 가\n    list_url: "https://a.example/{page}"\n    post_pattern: "/v/\\\\d+"\n'
+        '  - name: 나\n    list_url: "https://b.example/{page}"\n    post_pattern: "/v/\\\\d+"\n    enabled: false   # 확인 전\n',
+        encoding="utf-8",
+    )
+    st = Settings(root=tmp_path)
+    set_channel_value(st, "channel", "youtube_channel_id", "UC1")
+    set_channel_value(st, "channel", "competitors", ["UC2", "UC3"])
+    set_channel_value(st, "script", "tone", "확신형")  # 없는 구역은 추가
+    set_community_enabled(st, "가", False)
+    set_community_enabled(st, "나", True)
+    text = (tmp_path / "channel.yaml").read_text(encoding="utf-8")
+    assert "# 머리 주석" in text and "# 내 채널" in text and "# 확인 전" in text and "UCold" not in text
+    cfg = load_channel(st)
+    assert cfg.channel.competitors == ["UC2", "UC3"] and cfg.script.tone == "확신형"
+    assert [(c.name, c.enabled) for c in cfg.communities] == [("가", False), ("나", True)]
+
+
+def test_envfile(tmp_path, monkeypatch):
+    tpl = tmp_path / ".env.example"
+    tpl.write_text("# 키\nA_KEY=\n# B_KEY=예시\n", encoding="utf-8")
+    env = tmp_path / ".env"
+    monkeypatch.delenv("B_KEY", raising=False)
+    set_env(env, {"A_KEY": "1", "B_KEY": "2", "C_KEY": "3"}, template=tpl)
+    assert env.read_text(encoding="utf-8") == "# 키\nA_KEY=1\nB_KEY=2\nC_KEY=3\n"
+    assert read_env(env) == {"A_KEY": "1", "B_KEY": "2", "C_KEY": "3"} and os.environ["B_KEY"] == "2"
+    assert mask("") == "" and mask("short") == "••••" and mask("abcdefghijk") == "••••hijk"
+    for k in ("A_KEY", "B_KEY", "C_KEY"):
+        monkeypatch.delenv(k, raising=False)
+
+
+def test_auto_runner(tmp_path):
+    fired = []
+    ar = AutoRunner(tmp_path / "app.json", lambda now: fired.append(now) or True)
+    at = datetime(2026, 10, 8, 17, 5, tzinfo=KST)
+    assert ar.tick(at) is None  # 꺼져 있음
+    assert ar.set_enabled(True)["enabled"]
+    assert ar.tick(at) == "2026-10-08 17:00" and ar.tick(at) is None  # 같은 시각은 한 번
+    assert ar.tick(datetime(2026, 10, 8, 17, 40, tzinfo=KST)) is None  # 유예 시간 지남
+    assert ar.tick(datetime(2026, 10, 8, 18, 5, tzinfo=KST)) is None  # 짝수 시는 쉼(2시간마다)
+    assert ar.tick(datetime(2026, 10, 9, 7, 1, tzinfo=KST)) == "2026-10-09 07:00"
+    assert ar.tick(datetime(2026, 10, 9, 5, 31, tzinfo=KST)) is None  # 새벽은 쉼
+    assert len(fired) == 2
+    busy = AutoRunner(tmp_path / "b.json", lambda now: False)
+    busy.set_enabled(True)
+    assert busy.tick(at) is None and busy.state()["done"] == []  # 다른 작업 중이면 다음 점검에서
+    info = ar.info()
+    assert info["times"] == ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00", "21:00", "23:00"]
+    assert info["next"]
+
+
+def test_auto_endpoint(client):
+    assert client.put("/api/settings/auto", json={"enabled": True}).json()["enabled"]
+    assert client.get("/api/status").json()["auto"]["enabled"]
+
+
+SLOW_JOBS = """
+import time
+
+
+def slow(settings, say, seconds):
+    say("시작")
+    time.sleep(seconds)
+    return {"ok": True, "root": str(settings.root)}
+
+
+def boom(settings, say):
+    raise ValueError("일부러 실패")
+
+
+def quiet_exit(settings, say):
+    import os
+
+    os._exit(3)
+"""
+
+
+def _wait(job, timeout=30.0):
+    import time
+
+    end = time.time() + timeout
+    while job.status == "running" and time.time() < end:
+        time.sleep(0.05)
+    return job
+
+
+def test_job_runner_process_done_busy_cancel(tmp_path, monkeypatch):
+    (tmp_path / "slowjobs.py").write_text(SLOW_JOBS, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    settings = Settings(root=tmp_path)
+    runner = JobRunner()
+    done = _wait(runner.start("t", "빠른 작업", "slowjobs:slow", settings, seconds=0))
+    assert done.status == "done" and done.result["ok"] and any("시작" in x for x in done.log)
+    assert done.result["root"] == str(tmp_path)
+    job = runner.start("t", "느린 작업", "slowjobs:slow", settings, seconds=60)
+    try:
+        runner.start("t2", "두 번째", "slowjobs:slow", settings, seconds=0)
+        raise AssertionError("Busy가 나야 함")
+    except Busy as e:
+        assert "느린 작업" in str(e)
+    for _ in range(200):  # 작업 프로세스가 뜰 때까지
+        if any("시작" in x for x in job.log):
+            break
+        threading.Event().wait(0.05)
+    assert job.as_dict()["cancellable"]
+    assert runner.cancel() is job
+    _wait(job, 10)
+    assert job.status == "cancelled" and any("중지" in x for x in job.log) and not runner.busy()
+    assert runner.cancel() is None
+    bad = _wait(runner.start("x", "실패 작업", "slowjobs:boom", settings))
+    assert bad.status == "error" and "일부러 실패" in bad.error
+    odd = _wait(runner.start("x", "이상 종료", "slowjobs:quiet_exit", settings))
+    assert odd.status == "error" and "코드 3" in odd.error
+
+
+def test_job_runner_inline_errors():
+    bad = JobRunner(inline=True).start("x", "실패 작업", lambda settings, say: 1 / 0, None)
+    assert bad.status == "error" and "ZeroDivisionError" in bad.error and bad.as_dict()["elapsed"] >= 0
+
+
+def test_worker_encoding_roundtrip():
+    import json
+    from datetime import date, datetime
+
+    from studio_app import worker
+
+    raw = json.dumps(
+        {"d": date(2026, 10, 8), "t": datetime(2026, 10, 8, 17, 0, tzinfo=KST)}, default=worker.encode
+    )
+    back = json.loads(raw, object_hook=worker.decode)
+    assert back["d"] == date(2026, 10, 8) and back["t"].hour == 17
+    assert worker.resolve("job_collect").__name__ == "job_collect"
+    try:
+        json.dumps({"x": object()}, default=worker.encode)
+        raise AssertionError("TypeError가 나야 함")
+    except TypeError:
+        pass
+
+
+def test_cancel_endpoint(root, monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from studio_app.server import create_app
+
+    (tmp_path / "slowjobs.py").write_text(SLOW_JOBS, encoding="utf-8")
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path))
+    app = create_app(Settings(root=root), auto=False)
+    with TestClient(app, headers={"X-Studio": "1"}) as c:
+        assert c.post("/api/jobs/cancel").status_code == 409
+        job = app.state.runner.start("slot", "편성", "slowjobs:slow", Settings(root=root), seconds=60)
+        for _ in range(200):
+            if any("시작" in x for x in job.log):
+                break
+            threading.Event().wait(0.05)
+        r = c.post("/api/jobs/cancel")
+        assert r.status_code == 200 and r.json()["id"] == job.id
+        _wait(job, 10)
+        assert c.get("/api/jobs/current").json()["job"]["status"] == "cancelled"
+
+
+def test_cli_main(root, monkeypatch, capsys):
+    import uvicorn
+
+    from studio_app import cli
+
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: calls.append((app, kw)))
+    monkeypatch.setattr(cli.webbrowser, "open", lambda url: calls.append(url))
+    monkeypatch.setattr(cli, "_running", lambda url: False)
+    monkeypatch.setattr("studio_app.server.AutoRunner.start", lambda self: None)
+    cli.main(["--no-browser", "--port", "8799"])
+    assert calls[0][1] == {"host": "127.0.0.1", "port": 8799, "log_level": "warning"}
+    assert "http://127.0.0.1:8799/" in capsys.readouterr().out
+    monkeypatch.setattr(cli, "_running", lambda url: True)
+    cli.main(["--port", "8799"])
+    assert calls[-1] == "http://127.0.0.1:8799/" and "이미 켜져" in capsys.readouterr().out
+
+
+def test_running_probe_false():
+    from studio_app.cli import _running
+
+    assert _running("http://127.0.0.1:9/") is False
+
+
+def test_rejected_claude_key_is_shown(client, root):
+    from studio_core.llm import auth_marker
+
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-expired-0000"}})
+    st = Settings(root=root)
+    auth_marker(st).write_text("AuthenticationError: 401", encoding="utf-8")
+    status = client.get("/api/status").json()
+    # STUDIO_LLM=offline인 테스트 환경에서도 거부 표시는 설정 안내에 뜬다
+    assert any("거부" in x for x in status["setup"])
+    auth_marker(st).write_text(
+        "키가 맞지 않습니다(오타이거나 삭제·만료된 키)\nAuthenticationError: 401", encoding="utf-8"
+    )
+    assert any("거부됐습니다: 키가 맞지 않습니다" in x for x in client.get("/api/status").json()["setup"])
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-new-1111"}})
+    assert not auth_marker(st).exists()
+    # 키 모양이 틀리면 저장하지 않는다(관리자 키·다른 서비스 키)
+    r = client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "sk-ant-admin01-xyz"}})
+    assert r.status_code == 400 and "관리자 키" in r.json()["error"]
+    assert (
+        client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": "AIza-google"}}).status_code
+        == 400
+    )
+    # 연결 확인: 테스트 환경은 오프라인 모드라 호출 없이 안내만
+    t = client.post("/api/settings/test-claude").json()
+    assert t["ok"] is False and "오프라인 모드" in t["message"]
+    client.put("/api/settings/keys", json={"values": {"ANTHROPIC_API_KEY": ""}})

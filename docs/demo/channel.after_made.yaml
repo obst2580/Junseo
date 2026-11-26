@@ -1,0 +1,38 @@
+# 시연용 channel.yaml — 피드 URL은 fixture 전송계층이 가로챈다(실제 접속 없음).
+channel:
+  youtube_channel_id: "UCdemoOWNCHANNEL0000000000"
+  stance: "진보 커뮤니티의 목소리를 대신 전하는 정치 채널. 다룰 주제와 채널의 주장은 커뮤니티 글·댓글·공감 수로 정하고, 사실은 기사로 받친다. 연관 주제 2~3개를 묶은 10분 영상과 주제 하나를 빠르게 다루는 3분 영상."
+  categories: [국회, 정부, 사법, 선거, 외교안보, 국제, 경제, 노동, 복지]
+  competitors: [UCcompAAAAAAAAAAAAAAAAAA, UCcompBBBBBBBBBBBBBBBBBB]
+  past_titles: ["플랫폼노동자 기본법 본회의 통과 축하합니다 + 새한당 본회의 표결 불참 검토", "A씨 정치자금 선고 연기 이게 말이 됩니까", "새한당 지지율 3주 연속 하락 여론조사"]   # 업로드 후 자동 추가
+  slack_webhook: "https://hooks.slack.com/services/DEMO/DEMO/DEMO"
+sources:
+  rss:
+    - {name: 연합뉴스 정치, url: "https://www.yna.co.kr/rss/politics.xml", kind: domestic, category: 국회}
+    - {name: 연합뉴스 경제, url: "https://www.yna.co.kr/rss/economy.xml", kind: domestic, category: 경제}
+    - {name: 정부 보도자료(가상), url: "https://press.example.go.kr/rss/press.xml", kind: press, category: 정부}
+  overseas_rss:
+    - {name: 연합뉴스 국제, url: "https://www.yna.co.kr/rss/international.xml", category: 국제}
+    - {name: BBC World, url: "https://feeds.bbci.co.uk/news/world/rss.xml", category: 국제}
+  naver_queries: [국회, 플랫폼노동자 기본법, 국정감사, 지역의료, 정치자금 재판, 새한당, 환율, 택배노조]
+images:
+  preferred_domains: [wikimedia.org, go.kr, assembly.go.kr]
+  blocked_domains: []
+videos:
+  preferred_channels: [KTV 국민방송, 국회방송 NATV, 가상정당 공식채널]
+  blocked_channels: [KBS News, MBCNEWS, SBS 뉴스, JTBC News, YTN, 연합뉴스TV, TV CHOSUN, 채널A, MBN]
+clustering:
+  generic_tokens: [새한당, 한빛당]   # 가상 정당명: 어디에나 나와서 연결 근거로 약하게만 친다
+
+script:
+  tone: 확신형+입담형
+
+communities:
+  - {name: 다모앙, list_url: "https://damoang.net/free?page={page}", post_pattern: "damoang\\.net/free/\\d+", politics_filter: true}
+  - {name: 보배드림, list_url: "https://www.bobaedream.co.kr/list?code=politic&page={page}", post_pattern: "/view\\?code=politic&No=\\d+", comment_pattern: "class=\"totreply\">(\\d+)<", vote_pattern: "class=\"recomm\">(\\d+)<", comment_selector: "div.commentArea li"}
+  - {name: 뽐뿌, list_url: "https://www.ppomppu.co.kr/zboard/zboard.php?id=politics&page={page}", post_pattern: "(view|zboard)\\.php\\?id=politics.*no=\\d+", comment_pattern: "class=\"baseList-c\">(\\d+)<"}
+  - {name: 더쿠, list_url: "https://theqoo.net/hot?page={page}", post_pattern: "theqoo\\.net/hot/\\d+", politics_filter: true, comment_pattern: "class=\"replyNum\">(\\d+)<"}
+board:
+  window_hours: 24
+  min_posts: 2
+  derived_queries: 10
