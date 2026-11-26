@@ -752,6 +752,7 @@ if (SITE) { SITE.kind = 'build'; SITE.shops.length = 0;
   for (const [m, gs] of buckets) { const me = new THREE.Mesh(mergeGeometries(gs), m); me.castShadow = true; me.receiveShadow = true; _sceneAdd(me); }
   BK.flushSigns(); }
 function pointInRing(x, y, ring) { let c = false; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) { const [xi, yi] = ring[i], [xj, yj] = ring[j]; if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi) c = !c; } return c; }
+const SHOP_SIGNS = false;   // for now only the places you can walk into have signs (see PLACES)
 // ---- shop signs: the names from the map, on the wall that faces the street (ground-floor fascia, then one per floor)
 const SIGNCOL = { restaurant: ['#c8321f', '#fff'], cafe: ['#4b2e1f', '#f3e3c3'], fast_food: ['#e8a21b', '#2a1a0a'], bar: ['#3a1f5c', '#ffd34d'], pub: ['#3a1f5c', '#ffd34d'], hairdresser: ['#6b2d8f', '#fff'], beauty: ['#d14d8a', '#fff'],
   bank: ['#1f4fa0', '#fff'], convenience: ['#1d8a4a', '#fff'], clinic: ['#1b7a8c', '#fff'], dentist: ['#1b7a8c', '#fff'], pharmacy: ['#1d8a4a', '#fff'], cinema: ['#111', '#ff4040'], nightclub: ['#0d0d1a', '#38e0ff'],
@@ -779,7 +780,7 @@ const SIGNCOL = { restaurant: ['#c8321f', '#fff'], cafe: ['#4b2e1f', '#f3e3c3'],
         const y = k ? GF + (k - 1) * FLOOR + FLOOR * .55 : GF - .55, off = b.fill || !k ? 0 : (k % 2 ? -.18 : .18) * f.L;
         geo.rotateY(Math.atan2(f.nx, -f.ny));   // +z of the plane -> the wall's outward normal (game x, y -> three x, -z)
         geo.translate(f.mx + f.nx * .12 + Math.cos(f.ang) * off, y, -(f.my + f.ny * .12 + Math.sin(f.ang) * off)); gs.push(geo); } }); }
-  if (gs.length) { const me = new THREE.Mesh(mergeGeometries(gs), sm); _sceneAdd(me); } }
+  if (SHOP_SIGNS && gs.length) { const me = new THREE.Mesh(mergeGeometries(gs), sm); _sceneAdd(me); } }
 // ---- street furniture (instanced): lamps and trees along the big roads, signals at crossings, bus shelters, subway entrances
 const PROPS = [], TREEPOS = [];   // [x, y, r] small solid things for collisions; street trees
 function along(r, every, side, fn) { let acc = every / 2; for (let i = 0; i + 1 < r.pts.length; i++) { const a = r.pts[i], b = r.pts[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]), dx = (b[0] - a[0]) / L, dy = (b[1] - a[1]) / L;
@@ -831,7 +832,7 @@ function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.leng
       const x = f.a[0] + (f.c[0] - f.a[0]) * t + f.nx * .55, y = f.a[1] + (f.c[1] - f.a[1]) * t + f.ny * .55, H = Math.min(b.h - GF - 1, 3.4 * Math.min(4 + (k % 2), b.lv - 1) - (k === 1 ? 1.5 : 0));
       vList.push({ x, y, ang: Math.atan2(f.c[1] - f.a[1], f.c[0] - f.a[0]), H, y0: GF + .4 + (k === 1 ? 1.2 : 0), i: vSeen.get(n) }); });
     if (hash(b.bb[0] * 3 + b.bb[1]) < .55) { const t = .25 + hash(b.bb[3]) * .5, x = f.a[0] + (f.c[0] - f.a[0]) * t + f.nx * 1.3, y = f.a[1] + (f.c[1] - f.a[1]) * t + f.ny * 1.3; if (freeSpot(x, y, .4)) aframes.push({ x, y, f, i: vSeen.get(b.shops[0][0]) ?? vSeen.get(b.shops[(1) % b.shops.length][0]) }); } }
-  if (vList.length) { const CW = 64, CH = 320, cols = 16, at = document.createElement('canvas'); at.width = CW * cols; at.height = CH * Math.ceil(vNames.length / cols); const g = at.getContext('2d');
+  if (SHOP_SIGNS && vList.length) { const CW = 64, CH = 320, cols = 16, at = document.createElement('canvas'); at.width = CW * cols; at.height = CH * Math.ceil(vNames.length / cols); const g = at.getContext('2d');
     vNames.forEach(([n, cat], i) => { let [bg, fg] = SIGNCOL[cat] || ['#c8321f', '#fff']; if (hash(n) < .4) { bg = '#14142a'; fg = `hsl(${Math.floor(hash(n + 1) * 360)},95%,72%)`; } const x = (i % cols) * CW, y = Math.floor(i / cols) * CH; g.fillStyle = bg; g.fillRect(x, y, CW, CH); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 3; g.strokeRect(x + 3, y + 3, CW - 6, CH - 6);
       const ch = [...n.replace(/\s/g, '')].slice(0, 7), fs = Math.min(44, (CH - 24) / ch.length * .92); g.fillStyle = fg; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       ch.forEach((c, k) => g.fillText(c, x + CW / 2, y + 12 + (k + .5) * (CH - 24) / ch.length)); });
@@ -960,7 +961,7 @@ const SCREENS = [];   // LED screens cycle their ads (see robberyStep)
     for (let k = 2; k <= top; k++) { const i = Math.floor(hash(b.bb[0] + k * 7.3) * CL.length), geo = new THREE.BoxGeometry(2.1, 1.18, .3), uv = geo.attributes.uv, cx = (i % cols) / cols, cy = 1 - (Math.floor(i / cols) + 1) / rowsN;
       for (let j = 0; j < uv.count; j++) uv.setXY(j, cx + uv.getX(j) / cols, cy + uv.getY(j) / rowsN);
       geo.rotateY(faceYaw(f)); geo.translate(...onWall(f, t, GF + (k - 2) * FLOOR + FLOOR * .5, .3)); gs.push(geo); } }
-  if (gs.length) _sceneAdd(new THREE.Mesh(mergeGeometries(gs), new THREE.MeshStandardMaterial({ color: '#000', emissive: '#fff', emissiveMap: lt, emissiveIntensity: 1.25, map: lt, roughness: .35 })));
+  if (SHOP_SIGNS && gs.length) _sceneAdd(new THREE.Mesh(mergeGeometries(gs), new THREE.MeshStandardMaterial({ color: '#000', emissive: '#fff', emissiveMap: lt, emissiveIntensity: 1.25, map: lt, roughness: .35 })));
   // ---- the pavements of the big roads: flower planters, yellow tactile paving, banners on the lamp posts
   const planters = [], tactile = [], banners = [];
   for (const r of CITY.roads) { if (r.kind !== 'road' || r.w < 9) continue;
@@ -1065,6 +1066,66 @@ const SCREENS = [];   // LED screens cycle their ads (see robberyStep)
       crane.add(new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 22, 4).translate(24, H - 11, 0), M('#222', .6)));
       crane.position.set(cx, 0, -cy); crane.rotation.y = hash(cx) * 6; _sceneAdd(crane); PROPS.push([cx, cy, 1.4]); } }
 }
+// ---- 상호작용 장소: the only shop signs in town. The real convenience stores and banks from the map (their own names and colours), plus the pharmacy, the pawnshop (the black market's front) and the used-car dealer
+const PLACES = [];
+{ // GTA-style: the real brand's look, a name one letter off. [match, kind, parody brand, what to replace, style, mark]
+  const BR = [
+    [/GS25/, 'conv', 'GS52', /GS25/, 'gs', 'GS52'], [/^CU/, 'conv', 'CV', /^CU/, 'cu', 'CV'], [/세븐일레븐/, 'conv', '에잇일레븐', /세븐일레븐/, 'seven', '8'], [/위드미|이마트24/, 'conv', '이모트42', /위드미|이마트24/, 'emart', '42'],
+    [/KB국민/, 'bank', 'KD국민은행', /KB국민은행/, 'kb', 'KD'], [/NH농협/, 'bank', 'NH농엽은행', /NH농협은행/, 'nh', 'NH'], [/스탠다드차타드|SC/, 'bank', 'SC제이은행', /한국스탠다드차타드은행/, 'sc', 'SC'],
+    [/하나은행/, 'bank', '하니은행', /하나은행/, 'hana', '하니'], [/IBK기업/, 'bank', 'IBX기업은행', /IBK기업은행/, 'ibk', 'IBX'], [/우리은행/, 'bank', '우린은행', /우리은행/, 'woori', '우린'], [/산업은행/, 'bank', 'KDP산엄은행', /산업은행/, 'kdb', 'KDP']];
+  function txt(g, t, cx, cy, maxW, col, fs0) { let fs = fs0; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; while (g.measureText(t).width > maxW && fs > 16) { fs -= 2; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; } g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, cx, cy); }
+  function star(g, cx, cy, r) { g.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * .45 : r; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); g.fill(); }
+  const STY = {   // fascia painters and the projecting-sign colours, after each brand's real sign
+    gs: { bg: '#0aa3e0', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0aa3e0'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x, y + h - 10, w, 4); txt(g, n, x + w / 2, y + h / 2, w - 40, '#fff', 56); } },
+    cu: { bg: '#652d90', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#652d90'; g.fillRect(x, y, w, h); g.fillStyle = '#8dc63f'; g.fillRect(x, y, 26, h); g.beginPath(); g.arc(x + w - 34, y + 26, 10, 0, 7); g.fill(); txt(g, n, x + w / 2 + 10, y + h / 2, w - 90, '#fff', 56); } },
+    seven: { bg: '#ffffff', fg: '#00843d', draw: (g, x, y, w, h, n) => { g.fillStyle = '#fff'; g.fillRect(x, y, w, h); for (const [c, k] of [['#f58220', 0], ['#00843d', 1], ['#e31837', 2]]) { g.fillStyle = c; g.fillRect(x, y + 14 + k * 24, 60, 16); g.fillRect(x + w - 60, y + 14 + k * 24, 60, 16); } txt(g, n, x + w / 2, y + h / 2, w - 150, '#00843d', 50); } },
+    emart: { bg: '#ffd400', fg: '#1d1d1b', draw: (g, x, y, w, h, n) => { g.fillStyle = '#ffd400'; g.fillRect(x, y, w, h); g.fillStyle = '#1d1d1b'; g.fillRect(x, y + h - 14, w, 8); txt(g, n, x + w / 2, y + h / 2 - 3, w - 40, '#1d1d1b', 54); } },
+    kb: { bg: '#ffbc00', fg: '#545045', draw: (g, x, y, w, h, n) => { g.fillStyle = '#ffbc00'; g.fillRect(x, y, w, h); g.fillStyle = '#5b5446'; g.fillRect(x, y, 110, h); g.fillStyle = '#ffbc00'; star(g, x + 55, y + h / 2, 26); txt(g, n, x + 110 + (w - 110) / 2, y + h / 2, w - 140, '#4a4438', 52); } },
+    nh: { bg: '#00a651', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#00a651'; g.fillRect(x, y, w, h); g.fillStyle = '#ffd400'; g.fillRect(x, y + h - 16, w, 8); g.fillStyle = '#0072bc'; g.fillRect(x, y + h - 8, w, 8); txt(g, n, x + w / 2, y + h / 2 - 6, w - 40, '#fff', 52); } },
+    sc: { bg: '#0473ea', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0473ea'; g.fillRect(x, y, w, h); g.fillStyle = '#38d200'; g.beginPath(); g.moveTo(x, y + h); g.lineTo(x + 90, y); g.lineTo(x + 120, y); g.lineTo(x + 30, y + h); g.fill(); txt(g, n, x + w / 2 + 30, y + h / 2, w - 160, '#fff', 50); } },
+    hana: { bg: '#008485', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#008485'; g.fillRect(x, y, w, h); g.fillStyle = '#e60028'; g.beginPath(); g.arc(x + 54, y + h / 2, 24, 0, 7); g.fill(); txt(g, n, x + w / 2 + 30, y + h / 2, w - 140, '#fff', 54); } },
+    ibk: { bg: '#0055a5', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0055a5'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x, y + 8, w, 3); txt(g, n, x + w / 2, y + h / 2 + 2, w - 40, '#fff', 54); } },
+    woori: { bg: '#0067ac', fg: '#fff', draw: (g, x, y, w, h, n) => { const gr = g.createLinearGradient(x, y, x + w, y); gr.addColorStop(0, '#0067ac'); gr.addColorStop(1, '#0089cf'); g.fillStyle = gr; g.fillRect(x, y, w, h); g.strokeStyle = '#7fd3f7'; g.lineWidth = 8; g.beginPath(); g.arc(x + 58, y + h + 6, 42, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); txt(g, n, x + w / 2 + 30, y + h / 2, w - 140, '#fff', 54); } },
+    kdb: { bg: '#1a3b73', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#1a3b73'; g.fillRect(x, y, w, h); g.fillStyle = '#c8a24a'; g.fillRect(x, y + h - 12, w, 6); txt(g, n, x + w / 2, y + h / 2 - 2, w - 40, '#fff', 52); } },
+    pharm: { bg: '#1d8a4a', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#1d8a4a'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x + 34, y + h / 2 - 8, 44, 16); g.fillRect(x + 48, y + h / 2 - 22, 16, 44); txt(g, n, x + w / 2 + 30, y + h / 2, w - 140, '#fff', 56); } },
+    pawn: { bg: '#141414', fg: '#ffcf3a', draw: (g, x, y, w, h, n) => { g.fillStyle = '#141414'; g.fillRect(x, y, w, h); g.strokeStyle = '#c0262d'; g.lineWidth = 6; g.strokeRect(x + 6, y + 6, w - 12, h - 12); txt(g, n, x + w / 2, y + h / 2, w - 60, '#ffcf3a', 52); } },
+    cars: { bg: '#22324a', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#22324a'; g.fillRect(x, y, w, h); g.fillStyle = '#ffd24a'; g.fillRect(x, y, w, 10); txt(g, n, x + w / 2, y + h / 2 + 4, w - 40, '#fff', 50); } } };
+  const used = new Set();
+  // the wall of a real building nearest a point that looks onto a street; a 7 m stretch of it for the shop
+  function frontAt(x, y, minL = 6) { let best = null;
+    for (const b of BLD) { if (b.bg || b.lm || b.h < GF + 2 || used.has(b)) continue; if (x < b.bb[0] - 30 || x > b.bb[2] + 30 || y < b.bb[1] - 30 || y > b.bb[3] + 30) continue; const r = b.p;
+      for (let i = 0; i < r.length; i++) { const a = r[i], c = r[(i + 1) % r.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < minL) continue; const ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L;
+        let nx = uy, ny = -ux; const mx = (a[0] + c[0]) / 2, my = (a[1] + c[1]) / 2; if (pointInRing(mx + nx * .5, my + ny * .5, r)) { nx = -nx; ny = -ny; }
+        const t = THREE.MathUtils.clamp((x - a[0]) * ux + (y - a[1]) * uy, Math.min(4, L / 2), Math.max(L - 4, L / 2)), px = a[0] + ux * t, py = a[1] + uy * t, rd = nearestRoad(px + nx * 3, py + ny * 3, 16);
+        if (!rd || !freeSpot(px + nx * 1.6, py + ny * 1.6, .4)) continue; const d = Math.hypot(px - x, py - y) + rd.d * .3; if (!best || d < best.d) best = { d, b, px, py, ux, uy, nx, ny, L, t }; } }
+    if (best) used.add(best.b); return best; }
+  const list = [];
+  for (const p of CITY.pois) { if (!inReg(p.xy[0], p.xy[1], 4)) continue; const br = BR.find(q => q[0].test(p.name)); if (!br) continue; if (p.cat !== 'convenience' && p.cat !== 'bank') continue;
+    const f = frontAt(p.xy[0], p.xy[1]), nm = p.name.replace(br[3], br[2]).replace(/^(GS52|CV|에잇일레븐|이모트42)\s*/, '$1 ').trim(); if (f) list.push({ kind: br[1], name: nm, sty: br[4], mark: br[5], f }); }
+  const e0 = CITY.features.subway.slice().sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]))[0] || [0, 0];
+  const pickFront = (dmin, dmax, small, seed) => { const c = BLD.filter(b => !b.bg && !b.lm && b.h > GF + 2 && !used.has(b)).map(b => [b, Math.hypot((b.bb[0] + b.bb[2]) / 2 - e0[0], (b.bb[1] + b.bb[3]) / 2 - e0[1])]).filter(([, d]) => d > dmin && d < dmax).sort((p, q) => hash(p[0].bb[0] * seed) - hash(q[0].bb[0] * seed));
+    for (const [b] of c) { const cx = (b.bb[0] + b.bb[2]) / 2, cy = (b.bb[1] + b.bb[3]) / 2, n = nearestRoad(cx, cy, 40); if (!n || (small ? n.r.w >= 9 : n.r.w < 9)) continue; const f = frontAt(n.px, n.py); if (f && f.b === b) return f; if (f) used.delete(f.b); } return null; };
+  const ph = pickFront(20, 90, false, 3.3) || pickFront(20, 140, true, 3.3); if (ph) list.push({ kind: 'pharm', id: 'pharm', name: '강남역약국', sty: 'pharm', mark: '약', f: ph });
+  const pw = pickFront(60, 150, true, 7.7); if (pw) list.push({ kind: 'pawn', id: 'black', name: '대성 전당포 · 금은방', sty: 'pawn', mark: '전당', f: pw });
+  const cd = pickFront(70, 170, false, 5.1) || pickFront(40, 200, true, 5.1); if (cd) list.push({ kind: 'cars', id: 'cars', name: '강남 중고차 매매', sty: 'cars', mark: 'CAR', f: cd });
+  // the lettering: one atlas, a long fascia cell and a square mark cell per place
+  const FW = 512, FH = 96, MW = 128, at = document.createElement('canvas'); at.width = FW + MW; at.height = FH * Math.max(1, list.length); const g = at.getContext('2d');
+  list.forEach((p, i) => { const y = i * FH, st = STY[p.sty]; st.draw(g, 0, y, FW, FH, p.name);
+    g.fillStyle = st.bg; g.fillRect(FW, y, MW, FH); txt(g, p.mark, FW + MW / 2, y + FH / 2 - (p.kind === 'bank' ? 8 : 0), MW - 16, st.fg, p.mark.length > 2 ? 38 : 54);
+    if (p.kind === 'bank') { g.fillStyle = st.fg; g.font = '600 16px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText('365 코너', FW + MW / 2, y + FH - 14); } });
+  const tex = new THREE.CanvasTexture(at); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = maxAniso;
+  const uvMap = (geo, u0, u1, v0, v1) => { const uv = geo.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, u0 + uv.getX(k) * (u1 - u0), v0 + uv.getY(k) * (v1 - v0)); return geo; };
+  const gs = [], frames = [];
+  list.forEach((p, i) => { const f = p.f, yaw = Math.atan2(f.nx, -f.ny), ang = Math.atan2(f.uy, f.ux), w = Math.min(8, f.L * .8), v0 = 1 - (i + 1) / list.length, v1 = 1 - i / list.length, put = (geo, along, out, y) => { geo.rotateY(yaw); geo.translate(f.px + f.ux * along + f.nx * out, y, -(f.py + f.uy * along + f.ny * out)); gs.push(geo); };
+    put(uvMap(new THREE.PlaneGeometry(w, 1.05), 0, FW / (FW + MW), v0, v1), 0, 1.62, GF + .6);   // the fascia above the shop front (over any canopy), proud of the facade
+    const fb = new THREE.BoxGeometry(w + .2, 1.25, .4); fb.rotateY(yaw); fb.translate(f.px + f.nx * 1.4, GF + .6, -(f.py + f.ny * 1.4)); frames.push(fb);   // a lit box on brackets, clear of any fins or canopy
+    for (const u of [-w * .35, w * .35]) { const br_ = new THREE.BoxGeometry(.08, .08, 1.3); br_.rotateY(yaw); br_.translate(f.px + f.ux * u + f.nx * .6, GF + .6, -(f.py + f.uy * u + f.ny * .6)); frames.push(br_); }
+    const side = w / 2 + .1, mk = uvMap(new THREE.BoxGeometry(.16, .95, .95), FW / (FW + MW), 1, v0, v1);   // the projecting sign, seen from along the pavement
+    mk.rotateY(ang); mk.translate(f.px + f.ux * side + f.nx * 1.3, GF + 2.2, -(f.py + f.uy * side + f.ny * 1.3)); gs.push(mk);
+    PLACES.push({ kind: p.kind, id: p.id, name: p.name, x: f.px + f.nx * 1.6, y: f.py + f.ny * 1.6, door: [f.px, f.py], n: [f.nx, f.ny], b: f.b }); });
+  if (gs.length) { const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: .5, roughness: .35 }); m.userData.night = 1.4; _sceneAdd(new THREE.Mesh(mergeGeometries(gs), m));
+    _sceneAdd(new THREE.Mesh(mergeGeometries(frames), new THREE.MeshStandardMaterial({ color: '#2a2d31', roughness: .4, metalness: .6 }))); }
+  console.log('places', PLACES.map(p => p.name).join(', ')); }
 // ---- 연석: granite kerbs along both edges of every road, open at the crossings and the junctions
 { const gs = [], cross = CITY.features.crossing.concat(CITY.features.signals);
   const ends = CITY.roads.filter(r => r.kind === 'road').flatMap(r => [r.pts[0], r.pts[r.pts.length - 1]]);
@@ -2576,15 +2637,13 @@ function dropCash(x, y, n) { const m = new THREE.Mesh(dropGeo, dropMat); m.posit
 // ---- shops: 암시장 (weapons), 약국 (health), 중고차 (cars). Stand in the yellow ring, press E.
 const SHOPS = (() => {
   const s = START, far = (a, b) => Math.hypot(a[0] - s[0], a[1] - s[1]) - Math.hypot(b[0] - s[0], b[1] - s[1]);
-  const black = (() => { const c = []; for (const r of CITY.roads) if (r.kind === 'road' && r.w < 7) for (const q of r.pts) { const d = Math.hypot(q[0] - s[0], q[1] - s[1]); if (d > 70 && d < 180) c.push(q); }
-    c.sort((a, b) => hash(a[0] + a[1]) - hash(b[0] + b[1])); for (const q of c) { const p = spotNear(q[0], q[1], 1.5, 5, 7); if (freeSpot(p[0], p[1], 1.2)) return p; } return spotNear(s[0], s[1], 60, 120, 8); })();
-  const ph = CITY.pois.filter(p => p.cat === 'pharmacy').sort((a, b) => far(a.xy, b.xy))[0], pharm = ph ? spotNear(ph.xy[0], ph.xy[1], 1, 8, 9) : spotNear(s[0], s[1], 30, 60, 9);
-  const cars_ = (() => { for (const r of CITY.roads) if (r.kind === 'road' && r.w >= 9) for (const q of r.pts) { const d = Math.hypot(q[0] - s[0], q[1] - s[1]); if (d > 110 && d < 220) { const n = nearestRoad(q[0], q[1], 5); if (!n) continue;
-      const ox = -Math.sin(n.dir), oy = Math.cos(n.dir), p = [n.px + ox * (n.r.w / 2 + 3.2), n.py + oy * (n.r.w / 2 + 3.2)]; if (freeSpot(p[0], p[1], 1.2)) return { p, road: n }; } } return { p: spotNear(s[0], s[1], 80, 150, 10), road: null }; })();
+  const at = id => PLACES.find(p => p.id === id), pb = at('black'), pp = at('pharm'), pc = at('cars');
+  const black = pb ? [pb.x, pb.y] : spotNear(s[0], s[1], 60, 120, 8), pharm = pp ? [pp.x, pp.y] : spotNear(s[0], s[1], 30, 60, 9);
+  const cars_ = pc ? { p: [pc.x, pc.y], road: nearestRoad(pc.x, pc.y, 30) } : { p: spotNear(s[0], s[1], 80, 150, 10), road: null };
   return [
-    { id: 'black', name: '암시장', icon: '총', col: '#d8423a', x: black[0], y: black[1], items: [['bat', '야구방망이', 50000], ['knife', '칼', 90000], ['pistol', '권총', 1200000], ['ammo', '권총 탄약 24발', 60000]] },
-    { id: 'pharm', name: '약국', icon: '약', col: '#2fae5a', x: pharm[0], y: pharm[1], items: [['band', '붕대 (체력 +40)', 15000], ['med', '진통제 (체력 가득)', 40000]] },
-    { id: 'cars', name: '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_truck', '포터 II (1톤 트럭)', 2000000]] },
+    { id: 'black', name: '전당포 (암시장)', icon: '총', col: '#d8423a', x: black[0], y: black[1], items: [['bat', '야구방망이', 50000], ['knife', '칼', 90000], ['pistol', '권총', 1200000], ['ammo', '권총 탄약 24발', 60000]] },
+    { id: 'pharm', name: pp ? pp.name : '약국', icon: '약', col: '#2fae5a', x: pharm[0], y: pharm[1], items: [['band', '붕대 (체력 +40)', 15000], ['med', '진통제 (체력 가득)', 40000]] },
+    { id: 'cars', name: pc ? pc.name : '중고차', icon: '차', col: '#3a7bd8', x: cars_.p[0], y: cars_.p[1], road: cars_.road, items: [['car_truck', '포터 II (1톤 트럭)', 2000000]] },
   ]; })();
 { const ringG = new THREE.CylinderGeometry(.9, .9, 1.1, 32, 1, true).translate(0, .55, 0), ringM = new THREE.MeshBasicMaterial({ color: '#f5c542', transparent: true, opacity: .32, side: THREE.DoubleSide, depthWrite: false });
   for (const sh of SHOPS) { const m = new THREE.Mesh(ringG, ringM); m.position.copy(V(sh.x, sh.y, heightAt(sh.x, sh.y) + .02)); scene.add(m); sh.mesh = m;
@@ -2842,7 +2901,7 @@ if (P) placeAt(START[0], START[1]);
 $('load').hidden = true;
 if (SOFT) { let seen = false; try { seen = sessionStorage.getItem('gtkSoftSeen') === '1'; } catch (e) {}
   if (!seen && !navigator.webdriver) { $('softwarn').hidden = false; $('softok').addEventListener('click', () => { $('softwarn').hidden = true; try { sessionStorage.setItem('gtkSoftSeen', '1'); } catch (e) {} }); } }
-window.__game = { r_: r, SUN, sun, sky, envRT, scene_: scene, TRAF, DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { PLACES, r_: r, SUN, sun, sky, envRT, scene_: scene, TRAF, DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
