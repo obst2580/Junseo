@@ -39,6 +39,8 @@ button:focus-visible { outline: 2px solid var(--acc); outline-offset: 1px }
 #bigmap.on { display: block } #bigmap canvas { position: absolute; cursor: crosshair; box-shadow: 0 0 0 1px rgba(255,255,255,.25) }
 #bigmap .bh { position: absolute; left: 0; right: 0; top: calc(12px + env(safe-area-inset-top, 0px)); text-align: center; color: #e9e4cf; font: 400 14px "Noto Sans KR", var(--f); pointer-events: none }
 #bigmap .bcred { position: absolute; left: 0; right: 0; bottom: calc(6px + env(safe-area-inset-bottom, 0px)); text-align: center; color: #8d9488; font: 400 11px var(--f); pointer-events: none }
+#bigmap .bq { position: absolute; left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(10px + env(safe-area-inset-top, 0px)); display: flex; gap: 4px; align-items: center; color: #aab3a2; font-size: 12px }
+#bigmap .bq span { margin-right: 4px }
 #bigmap .bh b { font: 400 20px "Black Han Sans", var(--f); color: #f3e3a8; margin-right: 10px }
 #bigmap .bx { position: absolute; right: calc(14px + env(safe-area-inset-right, 0px)); top: calc(10px + env(safe-area-inset-top, 0px)); width: 40px; height: 40px; font-size: 20px; border-radius: 50%; padding: 0 }
 #gtahelp.on { opacity: 1 }
@@ -149,7 +151,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 <div class="hud" id="hud">불러오는 중</div>
 <div id="radar"><div id="mini"><canvas id="minic" width="380" height="380"></canvas></div><div id="stats"><div id="hpw"><i></i></div><div id="stw"><i></i></div></div></div>
 <div id="gtahelp" role="status"></div>
-<div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bcred">차량 모델: "Hyundai - Pother II (Bongo III)" by yunho98122810 (Sketchfab) · CC BY 4.0</div><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button></div>
+<div id="bigmap" aria-label="지도"><canvas id="bigc"></canvas><div class="bcred">차량 모델: "Hyundai - Pother II (Bongo III)" by yunho98122810 (Sketchfab) · CC BY 4.0</div><div class="bh"><b>지도</b><span id="bighint">클릭해서 목적지 설정 · 목적지를 다시 누르면 해제 · M 닫기</span></div><button type="button" class="bx" id="bigx" aria-label="지도 닫기">✕</button><div class="bq" id="bigq"><span>그래픽</span></div></div>
 <div id="stick" aria-hidden="true"><i></i></div>
 <div id="bars"><div><div class="bl"><span>민석</span></div><div class="bb"><i id="php"></i></div></div><div id="tbar" hidden><div class="bl"><span id="tname"></span></div><div class="bb"><i id="thp"></i></div></div><div id="finfo"></div></div>
 <button type="button" id="atkpad" aria-label="공격">공격</button>
@@ -182,10 +184,18 @@ import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
 import { ao } from 'three/addons/tsl/display/GTAONode.js';
 import { bloom } from 'three/addons/tsl/display/BloomNode.js';
 import { traa } from 'three/addons/tsl/display/TRAANode.js';
+import { fxaa } from 'three/addons/tsl/display/FXAANode.js';
 
 const $ = id => document.getElementById(id);
 // phones / tablets: ask for fullscreen + a landscape lock on the first touch (Android honours it; iOS shows the rotate prompt instead)
 const coarse = matchMedia('(pointer: coarse)').matches;
+// graphics tier: ?q=low|mid|high, else the saved choice, else a guess from the machine (phones and 4-core / 4 GB laptops start on low)
+const QUAL = (() => { let saved = null; try { saved = localStorage.getItem('gtkQuality'); } catch (e) {}
+  const pick = new URLSearchParams(location.search).get('q') || saved; if (['low', 'mid', 'high'].includes(pick)) return pick;
+  const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 4;
+  return coarse || cores <= 4 || mem <= 4 ? 'low' : cores >= 8 && mem >= 8 ? 'high' : 'mid'; })();
+const QL = { low: { pr: .8, shadow: 1024, grass: 110000, cull: 40, ao: false, bloom: false, taa: false }, mid: { pr: 1, shadow: 1024, grass: 280000, cull: 70, ao: false, bloom: true, taa: false },
+  high: { pr: 1.5, shadow: 2048, grass: 600000, cull: 140, ao: true, bloom: true, taa: true } }[QUAL];
 try { document.fonts.load('700 24px "GTKSub"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
 const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
 const view = () => turned() ? [innerHeight, innerWidth] : [innerWidth, innerHeight];
@@ -202,7 +212,7 @@ window.addEventListener('error', e => { $('load').hidden = false; $('loadmsg').t
 
 // ---------------------------------------------------------------- renderer (WebGPU, falls back to WebGL2 where WebGPU is missing)
 const r = new THREE.WebGPURenderer({ antialias: false, powerPreference: 'high-performance', forceWebGL: new URLSearchParams(location.search).has('webgl') });
-r.setPixelRatio(Math.min(devicePixelRatio, 1.5)); r.setSize(...view());
+r.setPixelRatio(Math.min(devicePixelRatio, QL.pr)); r.setSize(...view());
 r.toneMapping = THREE.AgXToneMapping; r.toneMappingExposure = 1.0;
 r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
 await r.init();
@@ -253,7 +263,7 @@ const fogDensity = uniform(.0016);
 scene.fogNode = fog(color(FOGC), densityFogFactor(fogDensity));
 // sun aligned with the baked sun (Blender dir -> three), lights only characters + grass + the far terrain
 const sb = VB.sun.split(',').map(Number), SUN = new THREE.Vector3(sb[0], sb[2], -sb[1]).normalize();   // towards the sun
-const sun = new THREE.DirectionalLight('#fff0dc', 3.0); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+const sun = new THREE.DirectionalLight('#fff0dc', 3.0); sun.castShadow = true; sun.shadow.mapSize.set(QL.shadow, QL.shadow);
 Object.assign(sun.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 160 }); sun.shadow.bias = -.0004; sun.shadow.normalBias = .03;
 scene.add(sun, sun.target);
 const hemi = new THREE.HemisphereLight('#cfe0ee', '#6b6545', .55); scene.add(hemi);
@@ -372,7 +382,7 @@ scene.add(vg.scene);
 
 // ---------------------------------------------------------------- grass blades (instanced, positions wrap around the player in the vertex stage)
 const grassCam = uniform(new THREE.Vector3()), grassTime = uniform(0);
-{ const S = 64, COUNT = 600000;
+{ const S = 64, COUNT = QL.grass;
   const hm = await tl.loadAsync('village/heightmap.png'); hm.flipY = false; hm.colorSpace = THREE.NoColorSpace; hm.minFilter = hm.magFilter = THREE.NearestFilter; hm.generateMipmaps = false;
   const lmG = await tl.loadAsync('village/lm_ground.jpg'); lmG.flipY = false; lmG.colorSpace = THREE.NoColorSpace;
   const base = new THREE.InstancedBufferGeometry(); const ts = [0, .3, .58, .82], P = [];
@@ -461,9 +471,7 @@ try {
   const pl = await person('minseok');
   P = { ...pl, x: 6, y: -14, yaw: Math.PI, speed: 0, phase: 0 };
 } catch (e) { console.warn('player', e); }
-let nDone = 0;
-await Promise.all(NPCS.map(([id, x, y, yaw]) => person(id).then(n => { n.act.idle.time = Math.random() * 3; n.holder.position.copy(V(x, y, heightAt(x, y))); n.holder.rotation.y = yaw; npcs.push(Object.assign(n, { x, y, pid: id })); })
-  .catch(e => console.warn(id, e)).finally(() => say(`주민 부르는 중… ${++nDone}/${NPCS.length}`))));   // everyone is in place before the game starts
+// villagers stream in after the game has started (see the loader at the end)
 
 // ---------------------------------------------------------------- collisions (what the bake built inside the village)
 const colliders = [];
@@ -511,14 +519,15 @@ function drawMini(x, y, yaw) {
 // ---------------------------------------------------------------- post: GTAO + bloom + temporal AA + grade (all node passes)
 const post = new THREE.RenderPipeline(r);
 const scenePass = pass(scene, cam);
-scenePass.setMRT(mrt({ output, normal: normalView, velocity, aom: float(1) }));
-const sCol = scenePass.getTextureNode('output'), sNrm = scenePass.getTextureNode('normal'), sDep = scenePass.getTextureNode('depth'), sVel = scenePass.getTextureNode('velocity');
-const aoPass = ao(sDep, sNrm, cam); aoPass.resolutionScale = .5; aoPass.radius.value = .45; aoPass.thickness.value = 1;
+scenePass.setMRT(QL.ao || QL.taa ? mrt({ output, normal: normalView, velocity, aom: float(1) }) : mrt({ output, aom: float(1) }));   // low tiers skip the normal/velocity buffers
+const sCol = scenePass.getTextureNode('output'), sDep = scenePass.getTextureNode('depth');
 const aoMix = uniform(.55);
-const aoTerm = mix(float(1), aoPass.getTextureNode().r, scenePass.getTextureNode('aom').r.mul(aoMix));   // grass writes aom = 0: blades are lit by the bake, not darkened by screen-space AO
-const lit = vec4(sCol.rgb.mul(aoTerm), sCol.a);
-const glow = bloom(lit, .18, .3, 2.6);   // only real highlights (sun glints on glass / steel) bloom
-const aa = traa(lit.add(glow), sDep, sVel, cam);
+let lit = sCol;
+if (QL.ao) { const sNrm = scenePass.getTextureNode('normal'), aoPass = ao(sDep, sNrm, cam); aoPass.resolutionScale = .5; aoPass.radius.value = .45; aoPass.thickness.value = 1;
+  const aoTerm = mix(float(1), aoPass.getTextureNode().r, scenePass.getTextureNode('aom').r.mul(aoMix));   // grass writes aom = 0: blades are lit by the bake, not darkened by screen-space AO
+  lit = vec4(sCol.rgb.mul(aoTerm), sCol.a); }
+const glowed = QL.bloom ? lit.add(bloom(lit, .18, .3, 2.6)) : lit;   // only real highlights (sun glints on glass / steel) bloom
+const aa = QL.taa ? traa(glowed, sDep, scenePass.getTextureNode('velocity'), cam) : fxaa(glowed);   // temporal AA on high, cheap FXAA otherwise
 const grade = Fn(([c]) => { const l = c.rgb.dot(vec3(.2126, .7152, .0722)); let g_ = mix(vec3(l), c.rgb, 1.05);
   const vig = float(1).sub(screenUV.sub(.5).length().mul(.55).pow(2.2)); return vec4(g_.mul(vec3(1.015, 1, .985)).mul(vig), c.a); });
 post.outputNode = grade(aa);
@@ -824,7 +833,8 @@ function fightStep(dt) {
       if (F === P) { for (const n of npcs) if (n.state === 'fight') { n.state = 'calm'; speak(n, 'fight_over'); } $('kotext').classList.remove('on'); }
       else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
     if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
-    if (F !== P) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y))); F.holder.rotation.y = F.yaw; animate(F, dt); }
+    if (F !== P) { const far = !G.cut && Math.hypot(F.x - P.x, F.y - P.y) > QL.cull; F.holder.visible = !far;
+      if (!far) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y))); F.holder.rotation.y = F.yaw; animate(F, dt); } }
   }
   separate(); policeStep(dt); subStep(dt);
   if (P && P.hp < 100 && G.t - P.hurtT > 5 && !P.down) P.hp = Math.min(100, P.hp + dt * 6);
@@ -962,6 +972,7 @@ const FX = (() => {
     guard({ p, dir, dodge }) {
       if (!dodge) { thump(.25, 'body'); camK.vel.addScaledVector(dir, .25); shake.a = Math.max(shake.a, .005); } },
     ctx() { return ac; }, whoosh, fallSound, shake(a) { shake.a = Math.max(shake.a, a); },
+    sparks(p, s) { emit(p, 4 + Math.round(Math.min(s, 20)), { dir: new THREE.Vector3(0, .8, 0), spread: 1.3, speed: 2.5 + s * .12, life: .35, size: .025, color: [1.0, .72, .3], kind: 0 }); },
     smoke(p) { emit(p, 3, { dir: new THREE.Vector3(0, .6, 0), spread: .8, speed: .9, life: 1.1, size: .45, color: [.72, .72, .72], kind: 3 }); },
     dust(p) { emit(p, 40, { dir: new THREE.Vector3(0, .5, 0), spread: 1.2, speed: 1.3, life: .9, size: .22, color: [.38, .33, .26], kind: 3 }); },
     timeScale() { return slowT > 0 ? slow : 1; },
@@ -1014,7 +1025,11 @@ r.domElement.addEventListener('mousedown', e => { if (e.button === 0 && document
 $('atkpad').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (mode === 'walk') playerAttack(); });
 $('execbtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); execute(); });
 if (P) arm(P, 'minseok');
-NPCS.forEach(([id, x, y, yaw]) => { const n = npcs.find(o => o.pid === id); if (n) { arm(n, id); n.yaw = yaw; n.home = [x, y, yaw]; } });
+setTimeout(async () => {   // villagers: one at a time in the background, nearest first, after the first frames are on screen
+  const q = NPCS.slice().sort((a, b) => Math.hypot(a[1] - 6, a[2] + 14) - Math.hypot(b[1] - 6, b[2] + 14));
+  for (const [id, x, y, yaw] of q) { try { const n = await person(id); n.act.idle.time = Math.random() * 3; n.holder.position.copy(V(x, y, heightAt(x, y))); n.holder.rotation.y = yaw;
+      Object.assign(n, { x, y, pid: id }); arm(n, id); n.yaw = yaw; n.home = [x, y, yaw]; npcs.push(n); } catch (e) { console.warn(id, e); } }
+}, 1500);
 
 // ---------------------------------------------------------------- police: wanted stars, a squad that runs in, arrests, losing them
 const COPN = ['김 순경', '이 순경', '박 경장', '최 경사', '정 순경'];
@@ -1401,7 +1416,7 @@ function makeCar(type, x, y, yaw) {
     : type === 'hatch' ? buildHatch([P_.sky, P_.white, P_.beige][n_ % 3]) : buildTiller();
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(sp.W + .7, sp.L + .6), VM.shadow); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; sh.renderOrder = 1; b.g.add(sh);   // soft contact shadow under the car
   const holder = new THREE.Group(), body = new THREE.Group(); holder.add(body); body.add(b.g); scene.add(holder);
-  const c = { type, spec: sp, holder, body, wh: b.wh, front: b.front, x, y, yaw, vx: 0, vy: 0, steer: 0, pitch: 0, roll: 0, pv: 0, rv: 0, hp: 100, driver: null, throttle: 0 };
+  const c = { type, spec: sp, holder, body, wh: b.wh, front: b.front, x, y, yaw, vx: 0, vy: 0, w: 0, steer: 0, pitch: 0, roll: 0, pv: 0, rv: 0, heave: 0, hv: 0, bump: 0, hp: 100, driver: null, throttle: 0 };
   holder.position.copy(V(x, y, heightAt(x, y))); holder.rotation.y = yaw; cars.push(c); return c;
 }
 // parked along the lanes near the start: on the verge, facing along the road
@@ -1447,38 +1462,114 @@ function horn(c) { const a = FX.ctx(); if (!a) return; const t = a.currentTime, 
   for (const f of c.type === 'tiller' ? [330] : [410, 520]) { const o = a.createOscillator(); o.type = 'square'; o.frequency.value = f; const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1600; o.connect(lp).connect(g); o.start(t); o.stop(t + .6); } }
 function crashSound(s) { const a = FX.ctx(); if (!a) return; const t = a.currentTime, n = a.createBufferSource(), b = a.createBuffer(1, a.sampleRate * .5 | 0, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / d.length * 6);
   n.buffer = b; const f = a.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900 + s * 120; const g = a.createGain(); g.gain.value = Math.min(1, .25 + s * .05); n.connect(f).connect(g).connect(a.destination); n.start(t); }
-function driveCar(c, dt) {
-  const sp = c.spec;
-  const throttleIn = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - joy.y;
-  const steerIn = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0) - joy.x;
-  const hand = keys.has(' ');
-  const fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw), lx = Math.cos(c.yaw), ly = Math.sin(c.yaw);
-  let vf = c.vx * fx + c.vy * fy, vl = c.vx * lx + c.vy * ly;
-  const th = THREE.MathUtils.clamp(throttleIn, -1, 1); c.throttle = Math.abs(th);
-  if (th > 0) vf += (vf < -.3 ? sp.brake : sp.acc * (1 - Math.max(0, vf) / sp.maxV)) * th * dt;   // forward, or braking out of reverse
-  else if (th < 0) vf += (vf > .3 ? -sp.brake : -sp.acc * .7 * (1 - Math.max(0, -vf) / sp.rev)) * -th * dt;
-  else vf -= Math.sign(vf) * Math.min(Math.abs(vf), (1.2 + Math.abs(vf) * .04) * dt);   // rolling resistance
-  if (hand) vf -= Math.sign(vf) * Math.min(Math.abs(vf), sp.brake * .6 * dt);
-  const steerT = THREE.MathUtils.clamp(steerIn, -1, 1) * sp.steer * (1 - Math.min(.55, Math.abs(vf) / 40));   // less lock at speed
-  c.steer += (steerT - c.steer) * Math.min(1, dt * 7);
-  const yawRate = vf / sp.wb * Math.tan(c.steer); c.yaw += yawRate * dt;   // steer > 0 = left: d(forward)/d(yaw) is the left vector
-  // grip: sideways speed bleeds off; less so on the handbrake (slides)
-  vl *= Math.exp(-dt * (hand ? 1.4 : sp.grip));
-  const nfx = Math.sin(c.yaw), nfy = -Math.cos(c.yaw), nlx = Math.cos(c.yaw), nly = Math.sin(c.yaw);
-  c.vx = nfx * vf + nlx * vl; c.vy = nfy * vf + nly * vl; c.vf = vf; c.vl = vl; c.yawRate = yawRate;
+// ---- vehicle dynamics: a planar rigid body on four tyres (slip-angle lateral force, friction circle, load transfer), impulse collisions with spin, sprung body
+const GRAV = 9.81;
+const PHYS = { truck: { m: 1900, drive: 'rear', cg: .85, mu: .95, cs: 9 }, sedan: { m: 1300, drive: 'front', cg: .55, mu: 1.0, cs: 11 }, hatch: { m: 980, drive: 'front', cg: .55, mu: 1.0, cs: 11 },
+  tiller: { m: 520, drive: 'front', cg: .6, mu: 1.1, cs: 14 } };
+function carInit(c) {
+  if (c.ph) return; const sp = c.spec, k = PHYS[c.type] || PHYS.sedan, a = sp.wb / 2, t = sp.W * .42;
+  c.ph = { ...k, I: k.m * (sp.L * sp.L + sp.W * sp.W) / 12 * 1.15, wheels: [[t, a, 1], [-t, a, 1], [t, -a, 0], [-t, -a, 0]] };   // [left, forward, isFront] in metres
+  c.w = 0; c.aLong = 0; c.aLat = 0; c.heave = 0; c.hv = 0; c.bump = 0;
+}
+function carInput(c) {
+  if (c !== (P && P.car)) return { th: 0, st: 0, hand: false, park: true };
+  const th = (keys.has('w') || keys.has('arrowup') ? 1 : 0) - (keys.has('s') || keys.has('arrowdown') ? 1 : 0) - joy.y;
+  const st = (keys.has('a') || keys.has('arrowleft') ? 1 : 0) - (keys.has('d') || keys.has('arrowright') ? 1 : 0) - joy.x;
+  return { th: THREE.MathUtils.clamp(th, -1, 1), st: THREE.MathUtils.clamp(st, -1, 1), hand: keys.has(' '), park: false };
+}
+function carForces(c, inp, dt) {   // one substep of tyre forces -> linear + angular acceleration
+  const sp = c.spec, ph = c.ph, m = ph.m, fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw), lx = Math.cos(c.yaw), ly = Math.sin(c.yaw);
+  const vLong = c.vx * fx + c.vy * fy;
+  // driver: throttle drives, the opposite pedal brakes (then reverses), steering lock eases off with speed
+  const steerT = inp.st * sp.steer / (1 + Math.abs(vLong) * vLong * .012);   // full lock when parking, a few degrees at speed
+  c.steer += (steerT - c.steer) * Math.min(1, dt * 4.5);
+  let drive = 0, brake = 0;
+  if (inp.th > 0) { if (vLong < -.5) brake = inp.th; else drive = inp.th * m * sp.acc * Math.max(0, 1 - Math.max(0, vLong) / sp.maxV); }
+  else if (inp.th < 0) { if (vLong > .5) brake = -inp.th; else drive = inp.th * m * sp.acc * .6 * Math.max(0, 1 - Math.max(0, -vLong) / sp.rev); }
+  c.throttle = Math.abs(inp.th);
+  const nDrive = ph.drive === 'rear' ? [2, 3] : [0, 1];
+  // load transfer from last step's accelerations (nose dives under braking, squats under power)
+  const base = m * GRAV / 4, dLong = m * c.aLong * ph.cg / sp.wb / 2, dLat = m * c.aLat * ph.cg / (sp.W * .84) / 2;
+  let Fx = 0, Fy = 0, T = 0, slipMax = 0;
+  ph.wheels.forEach(([wl, wf, front], i) => {
+    const rx = lx * wl + fx * wf, ry = ly * wl + fy * wf;                       // wheel offset in game coords
+    const vpx = c.vx - c.w * ry, vpy = c.vy + c.w * rx;                         // its velocity (v + w x r)
+    const d = front ? c.steer : 0, cf = Math.cos(d), sf = Math.sin(d);
+    const hx = fx * cf + lx * sf, hy = fy * cf + ly * sf, sx = lx * cf - fx * sf, sy = ly * cf - fy * sf;   // wheel heading / its left
+    const vl = vpx * hx + vpy * hy, vs = vpx * sx + vpy * sy;
+    const Fz = Math.max(base * .15, base + (front ? -dLong : dLong) + (wl > 0 ? -dLat : dLat));
+    let mu = ph.mu * (inp.hand && !front ? .55 : 1);
+    const alpha = Math.atan2(vs, Math.abs(vl) + .8);
+    let fy_ = -ph.cs * Fz * alpha;                                             // cornering force grows with load and slip angle
+    let fx_ = 0;
+    if (nDrive.includes(i)) fx_ += drive / 2;
+    if (brake) fx_ -= Math.sign(vl) * Math.min(Math.abs(vl) * m * 4, sp.brake * m / 4 * brake);
+    if (inp.park || (inp.hand && !front)) fx_ -= Math.sign(vl) * Math.min(Math.abs(vl) * m * 6, mu * Fz * (inp.park ? 1 : .8));   // locked wheels
+    fx_ -= vl * 22;                                                              // rolling resistance per wheel
+    const lim = mu * Fz, mag = Math.hypot(fx_, fy_);
+    if (mag > lim) { fx_ *= lim / mag; fy_ *= lim / mag; slipMax = Math.max(slipMax, mag / lim - 1); }   // friction circle: past it, the tyre slides
+    const wx = hx * fx_ + sx * fy_, wy = hy * fx_ + sy * fy_;
+    Fx += wx; Fy += wy; T += rx * wy - ry * wx;
+  });
+  const sp_ = Math.hypot(c.vx, c.vy); Fx -= c.vx * sp_ * .42; Fy -= c.vy * sp_ * .42;   // air drag
+  return { ax: Fx / m, ay: Fy / m, aw: T / ph.I, slip: slipMax };
+}
+function contactImpulse(A, B, px, py, nx, ny, depth) {   // A pushed along n (away from B); B a car or null (static world)
+  const e = .22, muF = .5;
+  const rAx = px - A.x, rAy = py - A.y, vAx = A.vx - A.w * rAy, vAy = A.vy + A.w * rAx;
+  let vBx = 0, vBy = 0, rBx = 0, rBy = 0, invB = 0, IB = 1e9;
+  if (B) { rBx = px - B.x; rBy = py - B.y; vBx = B.vx - B.w * rBy; vBy = B.vy + B.w * rBx; invB = 1 / B.ph.m; IB = B.ph.I; }
+  const rvx = vAx - vBx, rvy = vAy - vBy, vn = rvx * nx + rvy * ny;
+  const rnA = rAx * ny - rAy * nx, rnB = rBx * ny - rBy * nx;
+  if (vn < 0) {
+    const j = -(1 + e) * vn / (1 / A.ph.m + rnA * rnA / A.ph.I + invB + rnB * rnB / IB);
+    A.vx += j * nx / A.ph.m; A.vy += j * ny / A.ph.m; A.w += rnA * j / A.ph.I;
+    if (B) { B.vx -= j * nx * invB; B.vy -= j * ny * invB; B.w -= rnB * j / IB; }
+    const tx = -ny, ty = nx, vt = rvx * tx + rvy * ty, rtA = rAx * ty - rAy * tx, rtB = rBx * ty - rBy * tx;   // scraping friction along the wall
+    const jt = THREE.MathUtils.clamp(-vt / (1 / A.ph.m + rtA * rtA / A.ph.I + invB + rtB * rtB / IB), -muF * j, muF * j);
+    A.vx += jt * tx / A.ph.m; A.vy += jt * ty / A.ph.m; A.w += rtA * jt / A.ph.I;
+    if (B) { B.vx -= jt * tx * invB; B.vy -= jt * ty * invB; B.w -= rtB * jt / IB; }
+    carImpact(A, -vn, px, py, nx, ny, Math.abs(vt)); if (B) carImpact(B, -vn, px, py, -nx, -ny, Math.abs(vt));
+  }
+  const share = B ? .5 : 1; A.x += nx * depth * share; A.y += ny * depth * share; if (B) { B.x -= nx * depth * .5; B.y -= ny * depth * .5; }
+}
+function carImpact(c, s, px, py, nx, ny, scrape) {   // what a hit looks, sounds and feels like
+  const near = Math.hypot(c.x - P.x, c.y - P.y) < 40;
+  if (scrape > 3 && near && Math.random() < .5) FX.sparks(V(px, py, heightAt(px, py) + .45), scrape);
+  if (s < 1.2) return;
+  const lx = Math.cos(c.yaw), ly = Math.sin(c.yaw), fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw);
+  c.pv += (nx * fx + ny * fy) * s * .09; c.rv -= (nx * lx + ny * ly) * s * .07; c.hv += s * .05;   // the body rocks away from the blow
+  if (G.t - (c.crashT || -9) > .15) { c.crashT = G.t; if (near) crashSound(Math.min(s * 2, 25)); }
+  if (s > 2.5) { c.hp = Math.max(0, c.hp - s * 1.6); if (near) { FX.sparks(V(px, py, heightAt(px, py) + .5), s * 1.5); FX.shake(Math.min(.16, .012 * s * (c === (P && P.car) ? 1.6 : .5))); } }
+  if (c === (P && P.car) && s > 8) { P.hp = Math.max(1, P.hp - (s - 8) * 2.2); P.hurtT = G.t; }
+}
+function carCollide(c) {   // world: the sample points on the footprint that ended up inside a wall push the car out, with spin
+  for (let it = 0; it < 2; it++) {
+    let worst = null;
+    if (!inReg(c.x, c.y, 4)) { const [qx, qy] = collide(c.x, c.y, 0); const dx = qx - c.x, dy = qy - c.y, d = Math.hypot(dx, dy) || 1; worst = { px: c.x, py: c.y, nx: dx / d, ny: dy / d, d: Math.hypot(qx - c.x, qy - c.y) }; }
+    for (const [px, py] of carCorners(c)) { const [qx, qy] = collide(px, py, .05), dx = qx - px, dy = qy - py, d = Math.hypot(dx, dy); if (d > .02 && (!worst || d > worst.d)) worst = { px, py, nx: dx / d, ny: dy / d, d }; }
+    if (!worst) break; contactImpulse(c, null, worst.px, worst.py, worst.nx, worst.ny, worst.d);
+  }
+}
+function carPairs() {   // car against car: a corner of one inside the other
+  for (let i = 0; i < cars.length; i++) for (let j = i + 1; j < cars.length; j++) { const A = cars[i], B = cars[j];
+    if (Math.hypot(A.x - B.x, A.y - B.y) > (A.spec.L + B.spec.L) / 2 + .2) continue;
+    for (const [X, Y] of [[A, B], [B, A]]) for (const [px, py] of carCorners(X)) { if (!inCar(Y, px, py)) continue;
+      const dx = px - Y.x, dy = py - Y.y, fx = Math.sin(Y.yaw), fy = -Math.cos(Y.yaw), lx = Math.cos(Y.yaw), ly = Math.sin(Y.yaw), u = dx * fx + dy * fy, v = dx * lx + dy * ly;
+      const pu = Y.spec.L / 2 - Math.abs(u), pv = Y.spec.W / 2 - Math.abs(v);   // out of Y the shorter way
+      const [nx, ny, d] = pu < pv ? [fx * Math.sign(u), fy * Math.sign(u), pu] : [lx * Math.sign(v), ly * Math.sign(v), pv];
+      contactImpulse(X, Y, px, py, nx, ny, d); break; } }
 }
 function stepCar(c, dt) {
-  if (c !== (P && P.car)) {   // parked or abandoned: roll to a stop
-    const s = Math.hypot(c.vx, c.vy); if (s > .01) { const k = Math.max(0, s - 3 * dt) / s; c.vx *= k; c.vy *= k; } else { c.vx = c.vy = 0; } c.throttle = 0; c.steer *= .9; }
-  else driveCar(c, dt);
-  const nx = c.x + c.vx * dt, ny = c.y + c.vy * dt, hit = carHitsWall(c, nx, ny, c.yaw);
-  if (hit) {
-    const s = Math.hypot(c.vx, c.vy);
-    if (s > 3) { FX.shake(Math.min(.12, .015 * s)); crashSound(s); c.hp = Math.max(0, c.hp - s * 1.5); if (c === P.car && s > 9) { P.hp = Math.max(1, P.hp - (s - 9) * 2); P.hurtT = G.t; } }
-    if (hit !== true) { hit.vx += c.vx * .55 * c.spec.mass / hit.spec.mass; hit.vy += c.vy * .55 * c.spec.mass / hit.spec.mass; }   // shunt the other car
-    c.vx *= -.25; c.vy *= -.25;
-    if (carHitsWall(c, c.x, c.y, c.yaw)) { const a = Math.random() * 6.28; c.x += Math.cos(a) * .05; c.y += Math.sin(a) * .05; }   // wedged: wriggle free
-  } else { c.x = nx; c.y = ny; }
+  carInit(c); const inp = carInput(c), N = 4, h = dt / N; let slip = 0;
+  for (let k = 0; k < N; k++) {
+    const f = carForces(c, inp, h); c.vx += f.ax * h; c.vy += f.ay * h; c.w += f.aw * h;
+    c.x += c.vx * h; c.y += c.vy * h; c.yaw += c.w * h; slip = Math.max(slip, f.slip);
+    const fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw); c.aLong = f.ax * fx + f.ay * fy; c.aLat = f.ax * Math.cos(c.yaw) + f.ay * Math.sin(c.yaw);
+  }
+  if (inp.park && Math.hypot(c.vx, c.vy) < .06 && Math.abs(c.w) < .06) { c.vx = c.vy = c.w = 0; c.aLong = c.aLat = 0; }   // parked: at rest
+  carCollide(c);
+  const fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw); c.vf = c.vx * fx + c.vy * fy; c.vl = c.vx * Math.cos(c.yaw) + c.vy * Math.sin(c.yaw); c.yawRate = c.w; c.slip = slip;
   // people: the car shoves walkers aside, knocks them flying at speed
   const s = Math.hypot(c.vx, c.vy);
   for (const F of [P, ...npcs]) { if (!F || F.car || F.dead) continue;
@@ -1494,13 +1585,17 @@ function stepCar(c, dt) {
       jolt(F, 'gut', d3, Math.min(2.5, s / 5)); FX.impact({ p: wpos(F, 'spine_01'), dir: d3, s: Math.min(1.6, s / 8), part: 'body', heavy: s <= 6, down: s > 6, who: F, mine: true });
       c.vx *= .82; c.vy *= .82; provoke(F, P); if (F.hp <= 0) { speak(F, 'ko'); crime(F, 'ko'); } }
   }
-  // looks: wheels spin and steer, the body pitches and rolls on springs
-  const vf = c.vf || 0; for (const w of c.wh) w.spin.rotation.x += vf / w.r * dt;
+  // looks: wheels spin and steer; the body sits on springs: dives under braking, squats under power, leans out of corners, jiggles on the road
+  const vf = c.vf; for (const w of c.wh) w.spin.rotation.x += vf / w.r * dt;
   for (const i of c.front) c.wh[i].piv.rotation.y = c.steer;
-  const ap = -(vf - (c.pvf || 0)) / Math.max(dt, 1e-3) * .006, ar = -(c.yawRate || 0) * vf * .004; c.pvf = vf;
-  c.pv += ((THREE.MathUtils.clamp(ap, -.06, .06) - c.pitch) * 60 - c.pv * 9) * dt; c.pitch += c.pv * dt;
-  c.rv += ((THREE.MathUtils.clamp(ar, -.07, .07) - c.roll) * 60 - c.rv * 9) * dt; c.roll += c.rv * dt;
-  c.body.rotation.set(c.pitch, 0, c.roll);
+  const sp_ = Math.hypot(c.vx, c.vy); c.bump += sp_ * dt;
+  const rough = (c.type === 'tiller' ? .03 : c.type === 'truck' ? .012 : .008) * Math.min(1, sp_ / 8);
+  const tp = THREE.MathUtils.clamp(-c.aLong * .009, -.07, .07) + rough * Math.sin(c.bump * 3.1) * .6, tr = THREE.MathUtils.clamp(c.aLat * .011, -.08, .08) + rough * Math.sin(c.bump * 2.3 + 1) * .5;
+  const th = rough * (Math.sin(c.bump * 4.7) * .6 + Math.sin(c.bump * 1.9) * .4);
+  c.pv += ((tp - c.pitch) * 80 - c.pv * 7) * dt; c.pitch += c.pv * dt;
+  c.rv += ((tr - c.roll) * 80 - c.rv * 7) * dt; c.roll += c.rv * dt;
+  c.hv += ((th - c.heave) * 120 - c.hv * 9) * dt; c.heave += c.hv * dt;
+  c.body.rotation.set(c.pitch, 0, c.roll); c.body.position.y = c.heave;
   c.holder.position.copy(V(c.x, c.y, heightAt(c.x, c.y))); c.holder.rotation.y = c.yaw;
 }
 // ---- getting in and out
@@ -1539,7 +1634,7 @@ const SKID = (() => { const N = 900, pos = new Float32Array(N * 12), geo = new T
 let screech = null;
 function skidStep(c, dt) {
   const sp = Math.hypot(c.vx, c.vy), slip = Math.abs(c.vl || 0), braking = c === (P && P.car) && (keys.has(' ') || ((keys.has('s') || keys.has('arrowdown')) && (c.vf || 0) > 4));
-  const k = c.type === 'tiller' ? 0 : THREE.MathUtils.clamp((slip - 1.6) / 3, 0, 1) + (braking && sp > 4 ? .6 : 0);
+  const k = c.type === 'tiller' ? 0 : THREE.MathUtils.clamp((slip - 1.6) / 3, 0, 1) + THREE.MathUtils.clamp((c.slip || 0) * 2.5, 0, 1) * Math.min(1, sp / 5) + (braking && sp > 4 ? .6 : 0);
   c.skidK = k;
   const rear = c.wh.slice(2, 4), _w = new THREE.Vector3();
   rear.forEach((w, i) => { w.piv.getWorldPosition(_w); _w.y = 0; const last = c.skidLast && c.skidLast[i];
@@ -1550,7 +1645,7 @@ function screechSound(k) { const a = FX.ctx(); if (!a) return;
   if (!screech) { const b = a.createBuffer(1, a.sampleRate, a.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     const n = a.createBufferSource(); n.buffer = b; n.loop = true; const f = a.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1900; f.Q.value = 6; const g = a.createGain(); g.gain.value = 0; n.connect(f).connect(g).connect(a.destination); n.start(); screech = { g, f }; }
   screech.g.gain.setTargetAtTime(Math.min(.16, k * .14), a.currentTime, .06); screech.f.frequency.setTargetAtTime(1700 + Math.random() * 500, a.currentTime, .05); }
-function carStep(dt) { for (const c of cars) { stepCar(c, dt); skidStep(c, dt); } screechSound(P && P.car ? P.car.skidK || 0 : 0); }
+function carStep(dt) { for (const c of cars) stepCar(c, dt); carPairs(); for (const c of cars) skidStep(c, dt); screechSound(P && P.car ? P.car.skidK || 0 : 0); }
 addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (e.repeat || mode !== 'walk' || MAP.open) return;
   if (k === 'f') { if (P.car) exitCar(); else { const c = nearCar(); if (c) enterCar(c); } }
   if (k === 'h' && P.car) horn(P.car); });
@@ -1611,6 +1706,8 @@ big.addEventListener('pointerdown', e => { e.stopPropagation(); if (!BIG) return
   else { MAP.wp = [gx, gy]; MAP.route = P ? routeTo(P.x, P.y, gx, gy) : null; MAP.routeT = 1; }
   drawBig(); });
 $('bigx').addEventListener('click', e => { e.stopPropagation(); toggleMap(false); });
+for (const [q, label] of [['low', '낮음'], ['mid', '보통'], ['high', '높음']]) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('aria-pressed', String(q === QUAL));
+  b.addEventListener('click', e => { e.stopPropagation(); if (q === QUAL) return; try { localStorage.setItem('gtkQuality', q); } catch (e_) {} location.reload(); }); $('bigq').appendChild(b); }
 $('radar').addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); toggleMap(true); });
 if (coarse) $('bighint').textContent = '눌러서 목적지 설정 · 목적지를 다시 누르면 해제';
 addEventListener('resize', () => { if (MAP.open) { layoutBig(); drawBig(); } });
@@ -1692,9 +1789,9 @@ r.setAnimationLoop(() => {
   step(dt); post.render();
   frames++; const now = performance.now(); if (now - ft0 > 1000) { fps = frames * 1000 / (now - ft0); frames = 0; ft0 = now;
     if (fps < 32 && quality < 3 && !navigator.webdriver) { quality++;   // too slow: lower resolution, then grass, then AO
-      if (quality === 1) r.setPixelRatio(1);
-      if (quality === 2) window.__grass.geometry.instanceCount = 250000;
-      if (quality === 3) { aoMix.value = 0; r.setPixelRatio(.8); } }
+      if (quality === 1) r.setPixelRatio(Math.min(r.getPixelRatio(), QL.pr * .85));
+      if (quality === 2) window.__grass.geometry.instanceCount = Math.round(QL.grass * .45);
+      if (quality === 3) { aoMix.value = 0; r.setPixelRatio(Math.min(r.getPixelRatio(), .65)); sun.castShadow = QUAL !== 'low'; } }
     const gp = P ? `${P.x.toFixed(0)}, ${P.y.toFixed(0)}` : '-'; $('hud').innerHTML = `${Math.round(fps)} fps · ${BACKEND}${quality ? ' · 품질 ' + (3 - quality) : ''}<br>위치 ${gp}`; }
 });
 addEventListener('resize', () => { applyTurn(); const [w, h] = view(); r.setSize(w, h); cam.aspect = w / h; cam.updateProjectionMatrix(); });
