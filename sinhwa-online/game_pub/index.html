@@ -361,8 +361,141 @@ const FMAT = {}; const fmat = (kind, v) => { const k = kind + v; if (FMAT[k]) re
   const m = kind === 'tower' ? new THREE.MeshStandardMaterial({ map: facadeTex(kind, v), metalness: .75, roughness: .12, envMapIntensity: 1.3 }) : new THREE.MeshStandardMaterial({ map: facadeTex(kind, v), roughness: .8, metalness: .05 });
   return (FMAT[k] = m); };
 const STOREM = new THREE.MeshStandardMaterial({ map: storeTex, roughness: .25, metalness: .3, emissiveMap: storeTex, emissive: '#2a2216', emissiveIntensity: .6 }), ROOFM = new THREE.MeshStandardMaterial({ map: roofTex, roughness: .95 });
+// ---- landmarks: the towers people know are built by hand on their real footprints (OSM), not extruded
+// helpers work in game coords (x east, y north, metres); three = (x, height, -y)
+const LMK = (() => {
+  const obb = (ring) => {   // the tightest rectangle around a footprint: centre, long-axis angle, length, width
+    let best = null;
+    for (let i = 0; i < ring.length; i++) { const [ax, ay] = ring[i], [bx, by] = ring[(i + 1) % ring.length], a = Math.atan2(by - ay, bx - ax), c = Math.cos(a), s = Math.sin(a);
+      let u0 = 1e9, u1 = -1e9, v0 = 1e9, v1 = -1e9; for (const [x, y] of ring) { const u = x * c + y * s, v = -x * s + y * c; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+      const A = (u1 - u0) * (v1 - v0); if (!best || A < best.A) { const uc = (u0 + u1) / 2, vc = (v0 + v1) / 2; best = { A, a, cx: uc * c - vc * s, cy: uc * s + vc * c, L: u1 - u0, W: v1 - v0 }; } }
+    if (best.W > best.L) { best.a += Math.PI / 2; [best.L, best.W] = [best.W, best.L]; }
+    return best; };
+  const loc = (o, u, v) => { const c = Math.cos(o.a), s = Math.sin(o.a); return [o.cx + u * c - v * s, o.cy + u * s + v * c]; };   // local (along, across) -> game
+  const rectRing = (o, u, v, L, W) => [[u - L / 2, v - W / 2], [u + L / 2, v - W / 2], [u + L / 2, v + W / 2], [u - L / 2, v + W / 2]].map(([a, b]) => loc(o, a, b));
+  const ccw = (ring) => { const r = ring.slice(); let A = 0; for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; A += x1 * y2 - x2 * y1; } return A < 0 ? r.reverse() : r; };
+  // walls of a ring between two heights; u runs in metres along the wall / bay, v in metres / floor -> one texture tile per bay x floor
+  function walls(ring, y0, y1, bay = 3.2, fl = 3.4, vOff = 0) {
+    ring = ccw(ring); const pos = [], uv = [], idx = []; let acc = 0;
+    for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < .02) continue; const o = pos.length / 3;
+      pos.push(a[0], y0, -a[1], c[0], y0, -c[1], c[0], y1, -c[1], a[0], y1, -a[1]); const u0 = acc / bay, u1 = (acc + L) / bay; acc += L;
+      uv.push(u0, (y0 + vOff) / fl, u1, (y0 + vOff) / fl, u1, (y1 + vOff) / fl, u0, (y1 + vOff) / fl); idx.push(o, o + 1, o + 2, o, o + 2, o + 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); return g; }
+  function cap(ring, y, down = false) {
+    ring = ccw(ring); const tri = THREE.ShapeUtils.triangulateShape(ring.map(([x, z]) => new THREE.Vector2(x, z)), []), pos = [], uv = [];
+    for (const [x, z] of ring) { pos.push(x, y, -z); uv.push(x / 8, z / 8); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.setIndex(tri.flat().map((i, k) => tri[Math.floor(k / 3)][(down ? [0, 1, 2] : [0, 2, 1])[k % 3]])); g.computeVertexNormals(); return g; }
+  const nonIdx = (g) => { const n = g.index ? g.toNonIndexed() : g; if (!n.attributes.normal) n.computeVertexNormals(); return n; };
+  // curtain wall: glass with mullions (one tile = one bay x one floor); 'spandrel' is the opaque band at the slab, 'fin' a vertical fin colour
+  const CW = new Map();
+  function curtain(o) {
+    const k = JSON.stringify(o); if (CW.has(k)) return CW.get(k);
+    const t = canvasTex(256, 256, (g, w, h) => {
+      const gr = g.createLinearGradient(0, 0, w * .3, h); gr.addColorStop(0, o.glass2 || o.glass); gr.addColorStop(1, o.glass); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(w * .05, h * .08, w * .4, h * .5);
+      if (o.spandrel) { g.fillStyle = o.spandrel; g.fillRect(0, h * (1 - (o.sp || .22)), w, h * (o.sp || .22)); }
+      g.fillStyle = o.mull || '#aab4b8'; const n = o.div || 2; for (let i = 0; i <= n; i++) g.fillRect(i * w / n - (o.mw || 3), 0, (o.mw || 3) * 2, h);
+      g.fillRect(0, h - 3, w, 3); g.fillRect(0, 0, w, 2);
+      if (o.hband) { g.fillStyle = o.hband; g.fillRect(0, h * .46, w, 4); }
+    });
+    const m = new THREE.MeshStandardMaterial({ map: t, metalness: o.metal ?? .7, roughness: o.rough ?? .12, envMapIntensity: 1.4, color: o.tint || '#ffffff' });
+    CW.set(k, m); return m; }
+  const solid = (col, rough = .7, metal = .05) => new THREE.MeshStandardMaterial({ color: col, roughness: rough, metalness: metal });
+  return { obb, loc, rectRing, ccw, walls, cap, nonIdx, curtain, solid };
+})();
+// ---- the landmark models. Each gets the building (real OSM footprint rings) and put(material, geometry).
+const LMB = (() => {
+  const { obb, loc, rectRing, walls, cap, curtain, solid } = LMK;
+  const LOBBY = curtain({ glass: '#1d262c', glass2: '#3d4c57', mull: '#9aa3a8', div: 1, mw: 4, metal: .5 });
+  const ROOFG = solid('#7d7f7c', .95), DARK = solid('#26292c', .6, .2);
+  const prism = (put, ring, y0, y1, m, bay, fl, roof = ROOFG) => { put(m, walls(ring, y0, y1, bay, fl)); if (roof) put(roof, cap(ring, y1)); };
+  // walls whose top follows a plane sloping along the footprint's long axis (KPF's sliced crowns); roof follows it
+  function sloped(put, ring, y0, H, drop, o, m, bay, fl, dir = 1) {
+    ring = LMK.ccw(ring); const c = Math.cos(o.a), s = Math.sin(o.a), top = ([x, y]) => { const u = ((x - o.cx) * c + (y - o.cy) * s) / o.L * dir; return H - drop * (u + .5); };
+    const pos = [], uv = [], idx = []; let acc = 0;
+    for (let i = 0; i < ring.length; i++) { const a = ring[i], b = ring[(i + 1) % ring.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]); if (L < .02) continue; const k = pos.length / 3, ta = top(a), tb = top(b);
+      pos.push(a[0], y0, -a[1], b[0], y0, -b[1], b[0], tb, -b[1], a[0], ta, -a[1]); const u0 = acc / bay, u1 = (acc + L) / bay; acc += L;
+      uv.push(u0, y0 / fl, u1, y0 / fl, u1, tb / fl, u0, ta / fl); idx.push(k, k + 1, k + 2, k, k + 2, k + 3); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); put(m, g);
+    const r = cap(ring, 0), p = r.attributes.position; for (let i = 0; i < p.count; i++) p.setY(i, top([p.getX(i), -p.getZ(i)]) - .3); r.computeVertexNormals(); put(ROOFG, r);
+    // the glass runs on past the roof as a screen: a thin parapet band
+    put(m, (() => { const q = walls(ring, 0, 1, bay, fl), pp = q.attributes.position; for (let i = 0; i < pp.count; i++) { const x = pp.getX(i), y = -pp.getZ(i), t = top([x, y]); pp.setY(i, pp.getY(i) > .5 ? t + 2.2 : t - .3); } q.computeVertexNormals(); return q; })()); }
+  // a skin through a stack of rings with matching vertex counts (GT's undulating floors)
+  function loft(put, levels, m, bay, fl) {
+    const n = levels[0].ring.length, pos = [], uv = [], idx = [];
+    for (let l = 0; l < levels.length; l++) { const { ring, y } = levels[l]; let acc = 0;
+      for (let i = 0; i <= n; i++) { const p = ring[i % n]; if (i) { const q = ring[i - 1]; acc += Math.hypot(p[0] - q[0], p[1] - q[1]); } pos.push(p[0], y, -p[1]); uv.push(acc / bay, y / fl); } }
+    for (let l = 0; l + 1 < levels.length; l++) for (let i = 0; i < n; i++) { const a = l * (n + 1) + i, b = a + 1, c = a + n + 1, d = c + 1; idx.push(a, b, d, a, d, c); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals(); put(m, g); }
+  const roundRect = (o, du, dv, L, W, r, seg = 5) => { const out = [], cs = [[L / 2 - r, W / 2 - r, 0], [-L / 2 + r, W / 2 - r, 1], [-L / 2 + r, -W / 2 + r, 2], [L / 2 - r, -W / 2 + r, 3]];
+    for (const [cu, cv, q] of cs) for (let k = 0; k <= seg; k++) { const t = (q + k / seg) * Math.PI / 2; out.push(loc(o, du + cu + Math.cos(t) * r, dv + cv + Math.sin(t) * r)); } return out; };
+
+  // Samsung Town (KPF 2008): each tower is two glass slabs slid past each other, one with tight vertical fins, one banded; crowns sliced on a slant
+  const SAMV = curtain({ glass: '#56717f', glass2: '#9ab2c0', mull: '#c4cacf', div: 4, mw: 2.2, metal: .75 });
+  const SAMH = curtain({ glass: '#4c6676', glass2: '#86a0b0', mull: '#aab3b9', div: 1, mw: 2, spandrel: '#8996a0', sp: .34, metal: .7 });
+  const twin = (put, ring, H, H2, podH) => { const o = obb(ring); prism(put, ring, 0, podH, LOBBY, 3, podH, ROOFG);
+    const a = rectRing(o, -o.L * .07, -o.W * .2, o.L * .86, o.W * .58), b = rectRing(o, o.L * .07, o.W * .2, o.L * .86, o.W * .56);
+    put(SAMV, walls(a, podH, H - o.L * .1, 1.6, 4.2)); sloped(put, a, H - o.L * .1 - .01, H, o.L * .14, o, SAMV, 1.6, 4.2, 1);
+    put(SAMH, walls(b, podH, H2 - o.L * .1, 3.2, 4.2)); sloped(put, b, H2 - o.L * .1 - .01, H2, o.L * .12, o, SAMH, 3.2, 4.2, -1); };
+  const samsung_c = (b, put) => { const [pod, r1, r2, r3] = b.rings; prism(put, pod, 0, 12, LOBBY, 3, 6);
+    const o = obb(r1); put(SAMV, walls(r1, 12, 203 - 16, 1.6, 4.2)); sloped(put, r1, 203 - 16, 203, 18, o, SAMV, 1.6, 4.2, 1);
+    if (r2) { const o2 = obb(r2); put(SAMH, walls(r2, 12, 186 - 14, 3.2, 4.2)); sloped(put, r2, 186 - 14, 186, 15, o2, SAMH, 3.2, 4.2, -1); }
+    if (r3) prism(put, r3, 0, 34, SAMH, 3.2, 4.2); };
+  const samsung_a = (b, put) => twin(put, b.p, 151, 140, 10);
+  const samsung_b = (b, put) => twin(put, b.p, 151, 143, 10);
+  const samsung_wing = (b, put) => { for (const r of b.rings) prism(put, r, 0, 42, SAMH, 3.2, 4.2); };
+
+  // GT Tower East (2011): blue glass on black verticals; every floor plate slides up to 3 m along a diagonal, about 2.5 waves over the height
+  const GTM = curtain({ glass: '#3a6688', glass2: '#7ea6c4', mull: '#141618', div: 2, mw: 2.6, metal: .8, rough: .08 });
+  const gt = (b, put) => { const o = obb(b.p), L = o.L - 4, W = o.W - 4, H = 130, base = 9, n = 24, fl = (H - base - 6) / n, steps = [];
+    for (let k = 0; k <= n * 2; k++) { const y = base + k * fl / 2, d = 1.5 * Math.sin((y - base) / 48 * 2 * Math.PI), du = d * .7071, dv = d * .7071; steps.push({ ring: roundRect(o, du, dv, L, W, 5), y }); }
+    put(LOBBY, walls(roundRect(o, 0, 0, L - 3, W - 3, 4), 0, base, 3, base)); put(DARK, cap(roundRect(o, 0, 0, L + 2, W + 2, 6), base));   // set-back lobby under a canopy
+    loft(put, steps, GTM, 1.5, fl); const last = steps[steps.length - 1]; const top = steps.map(s => s).pop();
+    put(GTM, walls(top.ring, top.y, H, 1.5, fl)); put(ROOFG, cap(top.ring, H - .6)); };
+
+  // Meritz Tower (KEATING, 2005): black granite piers, low-e glass, a 'sky window' punched through the crown
+  const MRT = curtain({ glass: '#4a5a66', glass2: '#7d8f9b', mull: '#1e1e20', div: 3, mw: 9, metal: .5, rough: .2 });
+  const GRAN = solid('#1f2022', .35, .25);
+  const meritz = (b, put) => { const o = obb(b.p), L = Math.min(o.L, 44), W = Math.min(o.W, 34), body = rectRing(o, 0, 0, L, W), H = 143;
+    put(LOBBY, walls(rectRing(o, 0, 0, L - 2, W - 2), 0, 9, 3, 9)); prism(put, rectRing(o, 0, 0, L + 6, W + 6), 0, 1.2, GRAN, 3, 3, GRAN);
+    put(MRT, walls(body, 9, H - 20, 3, 4.2)); put(GRAN, cap(body, H - 20));
+    const pw = L * .2, pd = W * .2;   // four granite corner piers frame the open window, then the top slab
+    for (const [su, sv] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) prism(put, rectRing(o, su * (L - pw) / 2, sv * (W - pd) / 2, pw, pd), H - 20, H - 4, GRAN, 3, 4, null);
+    prism(put, body, H - 4, H, GRAN, 3, 4, ROOFG); put(GRAN, cap(body, H - 4, true)); };
+
+  // A+ Asset Tower: dark blue glass, the parts step down from the street
+  const APL = curtain({ glass: '#2c465e', glass2: '#5f7f9b', mull: '#7d8b96', div: 2, mw: 2.5 });
+  const aplus = (b, put) => { const hs = [102, 88, 72, 50, 30]; b.rings.forEach((r, i) => { put(LOBBY, walls(r, 0, 6, 3, 6)); prism(put, r, 6, hs[i] || 30, APL, 1.6, 4.2); }); };
+
+  // Boutique Monaco (Mass Studies, 2008): a white grid block with fifteen volumes left out as sky gardens lined in wood; braced podium
+  const MON = curtain({ glass: '#353d44', glass2: '#5d6870', mull: '#dedcd6', div: 2, mw: 12, spandrel: '#dedcd6', sp: .28, metal: .2, rough: .35 });
+  const WOOD = new THREE.MeshStandardMaterial({ color: '#a0784f', roughness: .8 }), GREEN = solid('#4f7a3a', .95);
+  const BRACE = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#2e353b'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e2e0da'; g.lineWidth = 14; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h); g.moveTo(w, 0); g.lineTo(0, h); g.stroke(); g.strokeRect(0, 0, w, h); });
+  const BRM = new THREE.MeshStandardMaterial({ map: BRACE, roughness: .4, metalness: .3 });
+  const monaco = (b, put) => { const o = obb(b.p), cu = 6, cv = 6, cf = 2, H = 117, pod = 5 * 4.2, flH = (H - pod) / 22, NU = Math.round(o.L / cu), NV = Math.round(o.W / cv), NF = Math.ceil(22 / cf);
+    const du = o.L / NU, dv = o.W / NV, ch = flH * cf; put(BRM, walls(b.p, 0, pod, 8, pod)); put(ROOFG, cap(b.p, pod));
+    const inside = (i, j) => pointInRing(...loc(o, -o.L / 2 + (i + .5) * du, -o.W / 2 + (j + .5) * dv), b.p);
+    const S = new Set(); for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) if (inside(i, j)) for (let k = 0; k < NF; k++) S.add(i + ',' + j + ',' + k);
+    const has = (i, j, k) => S.has(i + ',' + j + ',' + k), perim = [...S].map(s => s.split(',').map(Number)).filter(([i, j, k]) => k >= 1 && k < NF - 1 && (!has(i + 1, j, k) || !has(i - 1, j, k) || !has(i, j + 1, k) || !has(i, j - 1, k)));
+    const voids = new Set(); for (let n = 0, t = 0; n < 15 && t < 400; t++) { const [i, j, k] = perim[Math.floor(hash('mon' + t) * perim.length)], tall = 1 + Math.floor(hash('h' + t) * 2);
+      if ([...Array(tall)].some((_, q) => voids.has(i + ',' + j + ',' + (k + q)) || k + q >= NF - 1)) continue; for (let q = 0; q < tall; q++) voids.add(i + ',' + j + ',' + (k + q)); n++; }
+    for (const v of voids) S.delete(v);
+    const P = (i, j) => loc(o, -o.L / 2 + i * du, -o.W / 2 + j * dv);
+    const quad = (m, a, c, y0, y1, uOff) => { const L = Math.hypot(c[0] - a[0], c[1] - a[1]), g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute([a[0], y0, -a[1], c[0], y0, -c[1], c[0], y1, -c[1], a[0], y1, -a[1]], 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute([uOff, y0 / flH, uOff + L / 3, y0 / flH, uOff + L / 3, y1 / flH, uOff, y1 / flH], 2)); g.setIndex([0, 1, 2, 0, 2, 3]); g.computeVertexNormals(); put(m, g); };
+    const hz = (m, i, j, y, up) => { const r = [P(i, j), P(i + 1, j), P(i + 1, j + 1), P(i, j + 1)]; put(m, cap(r, y, !up)); };
+    for (const s of S) { const [i, j, k] = s.split(',').map(Number), y0 = pod + k * ch, y1 = y0 + ch;
+      const face = (ni, nj, a, c, uo) => { if (has(ni, nj, k)) return; quad(voids.has(ni + ',' + nj + ',' + k) ? WOOD : MON, a, c, y0, y1, uo); };
+      // faces wound so they look out of the cell (ccw seen from outside)
+      face(i, j - 1, P(i, j), P(i + 1, j), i * du / 3); face(i + 1, j, P(i + 1, j), P(i + 1, j + 1), j * dv / 3); face(i, j + 1, P(i + 1, j + 1), P(i, j + 1), i * du / 3); face(i - 1, j, P(i, j + 1), P(i, j), j * dv / 3);
+      if (!has(i, j, k + 1)) hz(voids.has(i + ',' + j + ',' + (k + 1)) ? GREEN : ROOFG, i, j, y1, true);
+      if (voids.has(i + ',' + j + ',' + (k - 1))) hz(WOOD, i, j, y0, false); } };
+  return { samsung_a, samsung_b, samsung_c, samsung_wing, gt, meritz, aplus, monaco };
+})();
 { const buckets = new Map(), put = (m, g) => { if (!buckets.has(m)) buckets.set(m, []); buckets.get(m).push(g); };
   for (const b of BLD) {
+    if (b.lm && LMB[b.lm]) { try { LMB[b.lm](b, put); continue; } catch (e) { console.warn('landmark', b.lm, e); } }
     const ring = b.p.slice(); if (THREE.ShapeUtils.isClockWise(ring.map(([x, y]) => new THREE.Vector2(x, y)))) ring.reverse();   // counter-clockwise: walls face out
     const v = Math.floor(hash(b.name + b.p[0]) * 4), gfOn = b.kind !== 'apart' && b.kind !== 'villa' && b.h > GF + 2, wallM = fmat(b.kind, v);
     const wall = (y0, y1, m, vScale, vOff) => { const pos = [], uv = [], idx = []; let acc = 0;

@@ -28,7 +28,7 @@ def area(p):
     return abs(sum(p[i][0] * p[i - 1][1] - p[i - 1][0] * p[i][1] for i in range(len(p)))) / 2
 # ---- buildings
 out_b = []
-LM = {'8311185': 'samsung_c', '8311184': 'samsung_b', '8311183': 'samsung_a', '301605795': 'gt', '19640833': 'monaco', '379232116': 'meritz', '19639969': 'aplus'}
+LM = {'8311185': 'samsung_c', '8311184': 'samsung_b', '8311183': 'samsung_wing', '504227059': 'samsung_a', '301605795': 'gt', '19640833': 'monaco', '379232116': 'meritz', '19639969': 'aplus'}
 for (tg, p, _), wid in zip(ways, [w.get('id') for w in t.iter('way')]):
     if 'building' not in tg or len(p) < 4: continue
     if tg.get('building') in ('roof', 'construction') or tg.get('location') == 'underground' or tg.get('layer', '0').startswith('-'): continue
