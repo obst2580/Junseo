@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GTK: Grand Theft Korea</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400&family=Gothic+A1:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400&family=Gothic+A1:wght@500;700;800&family=IBM+Plex+Sans+KR:wght@400;600;700&family=Noto+Sans+KR:wght@500;700;900&family=Nunito:wght@900&family=Montserrat:wght@600;700;800&family=Archivo+Black&family=Poppins:wght@300;800&family=Do+Hyeon&family=Sunflower:wght@700&family=Nanum+Myeongjo:wght@700;800&family=Song+Myung&family=Gowun+Dodum&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* subtitles: HY둥근고딕 where the machine has it (Korean Windows with Office / Hancom), otherwise the look-alike 나눔스퀘어라운드 (OFL) shipped with the game */
 @font-face { font-family: "GTKSub"; font-weight: 700; font-display: swap; src: url(fonts/NanumSquareRoundB.woff2) format("woff2") }   /* 나눔스퀘어라운드 굵게 (OFL): same on every device */
@@ -286,7 +286,7 @@ const W = { roads: CITY.roads, buildings: [], greenhouses: [] };
 const heightAt = () => 0, demAt = () => 0;   // flat enough
 const V = (x, y, z) => new THREE.Vector3(x, z, -y);   // game -> three
 const inReg = (x, y, m = 0) => x > REG[0] + m && x < REG[2] - m && y > REG[1] + m && y < REG[3] - m;
-try { await Promise.race([document.fonts.load('400 40px "Black Han Sans"', '강남역'), new Promise(r => setTimeout(r, 2500))]); } catch (e) {}   // sign lettering
+try { await Promise.race([Promise.all(['400 40px "Black Han Sans"', '900 40px Nunito', '800 40px Montserrat', '400 40px "Archivo Black"', '800 40px Poppins', '300 40px Poppins', '800 40px "Gothic A1"', '700 40px "Gothic A1"', '700 40px "IBM Plex Sans KR"', '400 40px "IBM Plex Sans KR"', '400 40px "Do Hyeon"', '700 40px Sunflower', '800 40px "Nanum Myeongjo"', '400 40px "Song Myung"', '900 40px "Noto Sans KR"', '700 40px "Noto Sans KR"', '500 40px "Noto Sans KR"'].map(f => document.fonts.load(f, '강남역GS52가나다은행大成'))), new Promise(r => setTimeout(r, 2500))]); } catch (e) {}   // sign lettering
 
 // ---------------------------------------------------------------- sky + image-based light (the same HDRI the bake used)
 say('하늘 펴는 중…');
@@ -1068,28 +1068,80 @@ const SCREENS = [];   // LED screens cycle their ads (see robberyStep)
 }
 // ---- 상호작용 장소: the only shop signs in town. The real convenience stores and banks from the map (their own names and colours), plus the pharmacy, the pawnshop (the black market's front) and the used-car dealer
 const PLACES = [];
-{ // GTA-style: the real brand's look, a name one letter off. [match, kind, parody brand, what to replace, style, mark]
+{
+  // GTA-style: the real brand's look, a name one letter off. Each brand its own lettering and layout.
   const BR = [
     [/GS25/, 'conv', 'GS52', /GS25/, 'gs', 'GS52'], [/^CU/, 'conv', 'CV', /^CU/, 'cu', 'CV'], [/세븐일레븐/, 'conv', '에잇일레븐', /세븐일레븐/, 'seven', '8'], [/위드미|이마트24/, 'conv', '이모트42', /위드미|이마트24/, 'emart', '42'],
     [/KB국민/, 'bank', 'KD국민은행', /KB국민은행/, 'kb', 'KD'], [/NH농협/, 'bank', 'NH농엽은행', /NH농협은행/, 'nh', 'NH'], [/스탠다드차타드|SC/, 'bank', 'SC제이은행', /한국스탠다드차타드은행/, 'sc', 'SC'],
     [/하나은행/, 'bank', '하니은행', /하나은행/, 'hana', '하니'], [/IBK기업/, 'bank', 'IBX기업은행', /IBK기업은행/, 'ibk', 'IBX'], [/우리은행/, 'bank', '우린은행', /우리은행/, 'woori', '우린'], [/산업은행/, 'bank', 'KDP산엄은행', /산업은행/, 'kdb', 'KDP']];
-  function txt(g, t, cx, cy, maxW, col, fs0) { let fs = fs0; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; while (g.measureText(t).width > maxW && fs > 16) { fs -= 2; g.font = `400 ${fs}px "Black Han Sans", sans-serif`; } g.fillStyle = col; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, cx, cy); }
+  const SIGNFONTS = ['900 40px Nunito', '800 40px Montserrat', '400 40px "Archivo Black"', '800 40px Poppins', '800 40px "Gothic A1"', '700 40px "IBM Plex Sans KR"', '400 40px "Do Hyeon"', '700 40px Sunflower', '800 40px "Nanum Myeongjo"', '400 40px "Song Myung"', '400 40px "Black Han Sans"', '700 40px "Gowun Dodum"', '400 40px Jua', '900 40px "Noto Sans KR"'];
+  // txt(g, text, cx, cy, maxW, colour, size, font = 'weight family', align, spacing)
+  function txt(g, t, cx, cy, maxW, col, fs0, font = '400 "Black Han Sans"', align = 'center', sp = 0) { const [w, ...fam] = font.split(' '), F = s => `${w} ${s}px ${fam.join(' ')}, "Noto Sans KR", sans-serif`; let fs = fs0;
+    g.letterSpacing = sp + 'px'; g.font = F(fs); while (g.measureText(t).width > maxW && fs > 12) { fs -= 2; g.font = F(fs); } g.fillStyle = col; g.textAlign = align; g.textBaseline = 'middle'; g.fillText(t, cx, cy); const W = g.measureText(t).width; g.letterSpacing = '0px'; return W; }
   function star(g, cx, cy, r) { g.beginPath(); for (let k = 0; k < 10; k++) { const a = -Math.PI / 2 + k * Math.PI / 5, rr = k % 2 ? r * .45 : r; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); g.fill(); }
-  const STY = {   // fascia painters and the projecting-sign colours, after each brand's real sign
-    gs: { bg: '#0aa3e0', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0aa3e0'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x, y + h - 10, w, 4); txt(g, n, x + w / 2, y + h / 2, w - 40, '#fff', 56); } },
-    cu: { bg: '#652d90', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#652d90'; g.fillRect(x, y, w, h); g.fillStyle = '#8dc63f'; g.fillRect(x, y, 26, h); g.beginPath(); g.arc(x + w - 34, y + 26, 10, 0, 7); g.fill(); txt(g, n, x + w / 2 + 10, y + h / 2, w - 90, '#fff', 56); } },
-    seven: { bg: '#ffffff', fg: '#00843d', draw: (g, x, y, w, h, n) => { g.fillStyle = '#fff'; g.fillRect(x, y, w, h); for (const [c, k] of [['#f58220', 0], ['#00843d', 1], ['#e31837', 2]]) { g.fillStyle = c; g.fillRect(x, y + 14 + k * 24, 60, 16); g.fillRect(x + w - 60, y + 14 + k * 24, 60, 16); } txt(g, n, x + w / 2, y + h / 2, w - 150, '#00843d', 50); } },
-    emart: { bg: '#ffd400', fg: '#1d1d1b', draw: (g, x, y, w, h, n) => { g.fillStyle = '#ffd400'; g.fillRect(x, y, w, h); g.fillStyle = '#1d1d1b'; g.fillRect(x, y + h - 14, w, 8); txt(g, n, x + w / 2, y + h / 2 - 3, w - 40, '#1d1d1b', 54); } },
-    kb: { bg: '#ffbc00', fg: '#545045', draw: (g, x, y, w, h, n) => { g.fillStyle = '#ffbc00'; g.fillRect(x, y, w, h); g.fillStyle = '#5b5446'; g.fillRect(x, y, 110, h); g.fillStyle = '#ffbc00'; star(g, x + 55, y + h / 2, 26); txt(g, n, x + 110 + (w - 110) / 2, y + h / 2, w - 140, '#4a4438', 52); } },
-    nh: { bg: '#00a651', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#00a651'; g.fillRect(x, y, w, h); g.fillStyle = '#ffd400'; g.fillRect(x, y + h - 16, w, 8); g.fillStyle = '#0072bc'; g.fillRect(x, y + h - 8, w, 8); txt(g, n, x + w / 2, y + h / 2 - 6, w - 40, '#fff', 52); } },
-    sc: { bg: '#0473ea', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0473ea'; g.fillRect(x, y, w, h); g.fillStyle = '#38d200'; g.beginPath(); g.moveTo(x, y + h); g.lineTo(x + 90, y); g.lineTo(x + 120, y); g.lineTo(x + 30, y + h); g.fill(); txt(g, n, x + w / 2 + 30, y + h / 2, w - 160, '#fff', 50); } },
-    hana: { bg: '#008485', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#008485'; g.fillRect(x, y, w, h); g.fillStyle = '#e60028'; g.beginPath(); g.arc(x + 54, y + h / 2, 24, 0, 7); g.fill(); txt(g, n, x + w / 2 + 30, y + h / 2, w - 140, '#fff', 54); } },
-    ibk: { bg: '#0055a5', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0055a5'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x, y + 8, w, 3); txt(g, n, x + w / 2, y + h / 2 + 2, w - 40, '#fff', 54); } },
-    woori: { bg: '#0067ac', fg: '#fff', draw: (g, x, y, w, h, n) => { const gr = g.createLinearGradient(x, y, x + w, y); gr.addColorStop(0, '#0067ac'); gr.addColorStop(1, '#0089cf'); g.fillStyle = gr; g.fillRect(x, y, w, h); g.strokeStyle = '#7fd3f7'; g.lineWidth = 8; g.beginPath(); g.arc(x + 58, y + h + 6, 42, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); txt(g, n, x + w / 2 + 30, y + h / 2, w - 140, '#fff', 54); } },
-    kdb: { bg: '#1a3b73', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#1a3b73'; g.fillRect(x, y, w, h); g.fillStyle = '#c8a24a'; g.fillRect(x, y + h - 12, w, 6); txt(g, n, x + w / 2, y + h / 2 - 2, w - 40, '#fff', 52); } },
-    pharm: { bg: '#1d8a4a', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#1d8a4a'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x + 34, y + h / 2 - 8, 44, 16); g.fillRect(x + 48, y + h / 2 - 22, 16, 44); txt(g, n, x + w / 2 + 30, y + h / 2, w - 140, '#fff', 56); } },
-    pawn: { bg: '#141414', fg: '#ffcf3a', draw: (g, x, y, w, h, n) => { g.fillStyle = '#141414'; g.fillRect(x, y, w, h); g.strokeStyle = '#c0262d'; g.lineWidth = 6; g.strokeRect(x + 6, y + 6, w - 12, h - 12); txt(g, n, x + w / 2, y + h / 2, w - 60, '#ffcf3a', 52); } },
-    cars: { bg: '#22324a', fg: '#fff', draw: (g, x, y, w, h, n) => { g.fillStyle = '#22324a'; g.fillRect(x, y, w, h); g.fillStyle = '#ffd24a'; g.fillRect(x, y, w, 10); txt(g, n, x + w / 2, y + h / 2 + 4, w - 40, '#fff', 50); } } };
+  function brushed(g, x, y, w, h, base) { g.fillStyle = base; g.fillRect(x, y, w, h); for (let k = 0; k < 260; k++) { g.fillStyle = `rgba(${Math.random() < .5 ? '255,255,255' : '0,0,0'},${Math.random() * .08})`; g.fillRect(x, y + Math.random() * h, w, 1); }
+    const gr = g.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, 'rgba(255,255,255,.25)'); gr.addColorStop(.5, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,255,255,.18)'); g.fillStyle = gr; g.fillRect(x, y, w, h); }
+  function stoneSlab(g, x, y, w, h, base) { g.fillStyle = base; g.fillRect(x, y, w, h); for (let k = 0; k < 900; k++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .12})`; g.fillRect(x + Math.random() * w, y + Math.random() * h, 1.5, 1.5); } }
+  function glowTxt(g, t, cx, cy, maxW, col, glow, fs, font, align = 'center', sp = 0, blur = 18) { g.save(); g.shadowColor = glow; g.shadowBlur = blur; txt(g, t, cx, cy, maxW, col, fs, font, align, sp); g.shadowBlur = blur / 2; const W = txt(g, t, cx, cy, maxW, col, fs, font, align, sp); g.restore(); return W; }
+  function bevelTxt(g, t, cx, cy, maxW, col, side, fs, font, align = 'center', sp = 0) { for (let k = 5; k >= 1; k--) txt(g, t, cx + k * .6, cy + k, maxW, side, fs, font, align, sp); return txt(g, t, cx, cy, maxW, col, fs, font, align, sp); }   // channel letters: a lit face over a deep return
+  function finish(g, x, y, w, h) {   // the lit acrylic box: a gloss at the top, a darker lower edge, a thin aluminium frame
+    let gr = g.createLinearGradient(0, y, 0, y + h); gr.addColorStop(0, 'rgba(255,255,255,.22)'); gr.addColorStop(.42, 'rgba(255,255,255,.04)'); gr.addColorStop(.43, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(0,0,0,.14)'); g.fillStyle = gr; g.fillRect(x, y, w, h);
+    g.strokeStyle = 'rgba(40,44,48,.85)'; g.lineWidth = 4; g.strokeRect(x + 2, y + 2, w - 4, h - 4); g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1; g.strokeRect(x + 5, y + 5, w - 10, h - 10); }
+  const MARK = {   // the projecting sign: the brand's own emblem
+    kb: (g, x, y, w, h) => { g.fillStyle = '#5b5446'; g.fillRect(x + w / 2 - 30, y + 10, 60, 56); g.fillStyle = '#ffbc00'; star(g, x + w / 2, y + 38, 22); },
+    nh: (g, x, y, w, h) => { g.fillStyle = '#00a651'; g.beginPath(); g.ellipse(x + w / 2 - 10, y + h / 2 - 12, 11, 20, -.5, 0, 7); g.fill(); g.fillStyle = '#0072bc'; g.beginPath(); g.ellipse(x + w / 2 + 8, y + h / 2 - 5, 11, 20, .5, 0, 7); g.fill(); },
+    hana: (g, x, y, w, h) => { g.fillStyle = '#e60028'; g.beginPath(); g.arc(x + w / 2, y + h / 2 - 8, 20, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x + w / 2, y + h / 2 - 8, 8, 0, 7); g.fill(); },
+    woori: (g, x, y, w, h) => { g.strokeStyle = '#7fd3f7'; g.lineWidth = 7; g.beginPath(); g.arc(x + w / 2, y + h / 2 + 10, 28, Math.PI * 1.08, Math.PI * 1.92); g.stroke(); g.strokeStyle = '#fff'; g.lineWidth = 4; g.beginPath(); g.arc(x + w / 2, y + h / 2 + 10, 16, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); },
+    pharm: (g, x, y, w, h) => { g.fillStyle = '#fff'; g.fillRect(x + w / 2 - 26, y + h / 2 - 9, 52, 18); g.fillRect(x + w / 2 - 9, y + h / 2 - 26, 18, 52); } };
+  function drawMark(g, x, y, w, h, sty, mark, bank) { const st = STY[sty]; g.fillStyle = st.bg; g.fillRect(x, y, w, h);
+    if (MARK[sty]) MARK[sty](g, x, y, w, h); else txt(g, mark, x + w / 2, y + h / 2 - (bank ? 8 : 0), w - 16, st.fg, mark.length > 2 ? 38 : 54, st.mf);
+    if (bank) { g.fillStyle = st.fg; g.font = '600 16px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('365 코너', x + w / 2, y + h - 14); }
+    finish(g, x, y, w, h); }
+  const branch = n => n.replace(/^(GS52|CV|에잇일레븐|이모트42)\s*/, '');
+  const STY = {
+    gs: { bg: '#0aa3e0', fg: '#fff', mf: '900 Nunito', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0aa3e0'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x, y + h - 10, w, 4);   // rounded logotype, the digits bigger; the branch small to the right
+      const a = txt(g, 'GS', x + 30, y + h / 2 + 2, 200, '#fff', 58, '900 Nunito', 'left', -1); txt(g, '52', x + 34 + a, y + h / 2 - 2, 200, '#fff', 74, '900 Nunito', 'left', -2);
+      txt(g, branch(n), x + w - 24, y + h / 2 + 6, w - 230, '#e8f7ff', 30, '500 "Noto Sans KR"', 'right'); } },
+    cu: { bg: '#652d90', fg: '#fff', mf: '800 Montserrat', draw: (g, x, y, w, h, n) => { g.fillStyle = '#652d90'; g.fillRect(x, y, w, h); g.fillStyle = '#8dc63f'; g.fillRect(x, y + h - 8, w, 8);   // geometric caps, the second letter green
+      const a = txt(g, 'C', x + 34, y + h / 2, 100, '#fff', 70, '800 Montserrat', 'left'); txt(g, 'V', x + 34 + a, y + h / 2, 100, '#8dc63f', 70, '800 Montserrat', 'left');
+      txt(g, branch(n), x + w - 26, y + h / 2, w - 200, '#fff', 30, '700 "IBM Plex Sans KR"', 'right'); } },
+    seven: { bg: '#ffffff', fg: '#00843d', mf: '400 "Archivo Black"', draw: (g, x, y, w, h, n) => { g.fillStyle = '#fff'; g.fillRect(x, y, w, h); for (const [c, k] of [['#f58220', 0], ['#00843d', 1], ['#e31837', 2]]) { g.fillStyle = c; g.fillRect(x, y + 16 + k * 22, 40, 14); }   // the stripes on the left, heavy caps with a lowercase last letter
+      const a = txt(g, '8-ELEVE', x + 58, y + h / 2 + 2, 280, '#00843d', 46, '400 "Archivo Black"', 'left', -1); txt(g, 'n', x + 58 + a, y + h / 2 + 2, 60, '#e31837', 46, '400 "Archivo Black"', 'left');
+      g.fillStyle = '#d9dcd6'; g.fillRect(x + w - 196, y + 18, 2, h - 36); txt(g, '에잇일레븐', x + w - 100, y + h / 2 - 13, 180, '#00843d', 22, '800 "Gothic A1"', 'center'); txt(g, branch(n), x + w - 100, y + h / 2 + 15, 180, '#555', 19, '500 "Gothic A1"', 'center'); } },
+    emart: { bg: '#ffd400', fg: '#1d1d1b', mf: '800 Poppins', draw: (g, x, y, w, h, n) => { g.fillStyle = '#ffd400'; g.fillRect(x, y, w, h);   // all-lowercase wordmark
+      const a = txt(g, 'emort', x + 30, y + h / 2 - 4, 260, '#1d1d1b', 62, '800 Poppins', 'left', -2); txt(g, '42', x + 34 + a, y + h / 2 - 4, 120, '#1d1d1b', 62, '300 Poppins', 'left');
+      g.fillStyle = '#1d1d1b'; g.beginPath(); g.roundRect(x + w - 170, y + h / 2 - 20, 146, 40, 20); g.fill(); txt(g, 'every day', x + w - 97, y + h / 2 + 1, 130, '#ffd400', 22, '800 Poppins', 'center'); } },
+    kb: { bg: '#5b5446', fg: '#ffbc00', mf: '800 Montserrat', box: false, draw: (g, x, y, w, h, n) => { g.clearRect(x, y, w, h); brushed(g, x, y + h * .62, w, 10, '#8a7a5a');
+      g.fillStyle = '#5b5446'; g.beginPath(); g.roundRect(x + 10, y + 10, 82, h - 20, 8); g.fill(); g.fillStyle = '#ffbc00'; star(g, x + 51, y + h / 2, 24);
+      const a = bevelTxt(g, 'KD', x + 112, y + h / 2 - 4, 140, '#ffc21a', '#6b5a20', 56, '800 Montserrat', 'left'); bevelTxt(g, '국민은행', x + 126 + a, y + h / 2 - 2, w - 160 - a, '#ffc21a', '#6b5a20', 50, '800 "Gothic A1"', 'left'); } },
+    nh: { bg: '#ffffff', fg: '#00a651', mf: '900 "Noto Sans KR"', draw: (g, x, y, w, h, n) => { g.fillStyle = '#fff'; g.fillRect(x, y, w, h);   // white face, a green and blue leaf mark
+      g.fillStyle = '#00a651'; g.beginPath(); g.ellipse(x + 50, y + h / 2 - 6, 16, 28, -.5, 0, 7); g.fill(); g.fillStyle = '#0072bc'; g.beginPath(); g.ellipse(x + 72, y + h / 2 + 4, 16, 28, .5, 0, 7); g.fill();
+      const a = txt(g, 'NH', x + 106, y + h / 2 + 2, 140, '#0072bc', 54, '900 "Noto Sans KR"', 'left'); txt(g, n.replace('NH', ''), x + 112 + a, y + h / 2 + 2, w - 260, '#00a651', 50, '700 "Noto Sans KR"', 'left'); } },
+    sc: { bg: '#0b1a33', fg: '#5fb0ff', mf: '700 "IBM Plex Sans KR"', draw: (g, x, y, w, h, n) => { const gr = g.createLinearGradient(x, y, x, y + h); gr.addColorStop(0, '#13284a'); gr.addColorStop(1, '#060d1a'); g.fillStyle = gr; g.fillRect(x, y, w, h);
+      g.save(); g.strokeStyle = '#38d200'; g.lineWidth = 5; g.shadowColor = '#38d200'; g.shadowBlur = 14; g.beginPath(); g.moveTo(x + w - 110, y + h - 14); g.lineTo(x + w - 40, y + 14); g.stroke(); g.restore();
+      const a = glowTxt(g, 'SC', x + 30, y + h / 2 - 6, 120, '#e8f4ff', '#2f8cff', 50, '700 "IBM Plex Sans KR"', 'left'); glowTxt(g, '제이은행', x + 42 + a, y + h / 2 - 6, w - 200 - a, '#e8f4ff', '#2f8cff', 44, '400 "IBM Plex Sans KR"', 'left', 1);
+      txt(g, 'Standard Chartless', x + 32, y + h / 2 + 30, 300, '#6f93c0', 17, '400 "IBM Plex Sans KR"', 'left', 1); } },
+    hana: { bg: '#c9ced2', fg: '#008485', mf: '400 "Do Hyeon"', draw: (g, x, y, w, h, n) => { brushed(g, x, y, w, h, '#c3c9cd'); g.fillStyle = '#008485'; g.fillRect(x, y + h - 10, w, 10);
+      g.fillStyle = '#e60028'; g.beginPath(); g.arc(x + 52, y + h / 2 - 4, 22, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x + 52, y + h / 2 - 4, 9, 0, 7); g.fill();
+      txt(g, n, x + 100, y + h / 2 - 2, w - 130, '#007273', 54, '400 "Do Hyeon"', 'left', 4); } },
+    ibk: { bg: '#0055a5', fg: '#fff', mf: '700 "IBM Plex Sans KR"', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0055a5'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x + 26, y + 18, 6, h - 36);   // a thin bar, wide-set caps
+      const a = txt(g, 'IBX', x + 46, y + h / 2 + 2, 200, '#fff', 54, '700 Montserrat', 'left', 4); txt(g, '기업은행', x + 60 + a, y + h / 2 + 4, w - 120 - a, '#fff', 40, '500 "Gothic A1"', 'left', 2); } },
+    woori: { bg: '#0067ac', fg: '#fff', mf: '700 Sunflower', box: false, draw: (g, x, y, w, h, n) => { g.clearRect(x, y, w, h);
+      g.save(); g.shadowColor = '#3fb2ff'; g.shadowBlur = 16; g.strokeStyle = '#7fd3f7'; g.lineWidth = 9; g.beginPath(); g.arc(x + 60, y + h / 2 + 22, 36, Math.PI * 1.08, Math.PI * 1.92); g.stroke(); g.strokeStyle = '#1e7fd0'; g.lineWidth = 6; g.beginPath(); g.arc(x + 60, y + h / 2 + 22, 22, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); g.restore();
+      g.save(); g.shadowColor = 'rgba(40,150,255,.9)'; g.shadowBlur = 22; bevelTxt(g, n, x + 116, y + h / 2 + 2, w - 150, '#ffffff', '#1e5f9a', 54, '700 Sunflower', 'left'); g.restore(); } },
+    kdb: { bg: '#1d1f22', fg: '#d6b25e', mf: '800 "Nanum Myeongjo"', draw: (g, x, y, w, h, n) => { stoneSlab(g, x, y, w, h, '#24262a');
+      txt(g, 'KDP', x + w / 2, y + h / 2 - 27, 300, '#d6b25e', 20, '700 "Nanum Myeongjo"', 'center', 8); txt(g, '한국산엄은행', x + w / 2 + 1.5, y + h / 2 + 15.5, w - 80, '#000', 40, '800 "Nanum Myeongjo"', 'center', 3); txt(g, '한국산엄은행', x + w / 2, y + h / 2 + 14, w - 80, '#d6b25e', 40, '800 "Nanum Myeongjo"', 'center', 3);
+      g.fillStyle = '#d6b25e'; g.fillRect(x + 40, y + h / 2 - 27, 120, 1.5); g.fillRect(x + w - 160, y + h / 2 - 27, 120, 1.5); } },
+    pharm: { bg: '#1d8a4a', fg: '#fff', mf: '400 "Black Han Sans"', draw: (g, x, y, w, h, n) => { g.fillStyle = '#1d8a4a'; g.fillRect(x, y, w, h); g.fillStyle = '#fff'; g.fillRect(x + 30, y + h / 2 - 9, 50, 18); g.fillRect(x + 46, y + h / 2 - 25, 18, 50);
+      txt(g, n, x + w / 2 + 34, y + h / 2 - 6, w - 150, '#fff', 54, '400 "Black Han Sans"', 'center', 3); txt(g, 'PHARMACY', x + w / 2 + 34, y + h / 2 + 30, 200, '#bfe8cf', 15, '700 Montserrat', 'center', 6); } },
+    pawn: { bg: '#0c0c0c', fg: '#ffcf3a', mf: '400 "Song Myung"', draw: (g, x, y, w, h, n) => { g.fillStyle = '#0c0c0c'; g.fillRect(x, y, w, h);
+      g.save(); g.strokeStyle = '#ff3b3b'; g.shadowColor = '#ff2020'; g.shadowBlur = 16; g.lineWidth = 4; g.beginPath(); g.roundRect(x + 10, y + 10, w - 20, h - 20, 14); g.stroke(); g.restore();
+      glowTxt(g, '大成', x + 34, y + h / 2 + 2, 90, '#ff5a4a', '#ff2020', 44, '400 "Song Myung"', 'left', 0, 12); glowTxt(g, n, x + w / 2 + 40, y + h / 2 + 2, w - 160, '#ffd760', '#ffb000', 46, '400 "Song Myung"', 'center', 2, 12); } },
+    cars: { bg: '#22324a', fg: '#ffd24a', mf: '400 "Do Hyeon"', box: false, draw: (g, x, y, w, h, n) => { g.clearRect(x, y, w, h); g.fillStyle = '#ffd24a'; g.fillRect(x + 6, y + 8, w - 12, h - 16);
+      g.save(); g.beginPath(); g.rect(x + 6, y + 8, 144, h - 16); g.clip(); g.fillStyle = '#22324a'; for (let k = -2; k < 8; k++) { g.beginPath(); g.moveTo(x + k * 26, y + h); g.lineTo(x + k * 26 + 13, y + h); g.lineTo(x + k * 26 + 43, y); g.lineTo(x + k * 26 + 30, y); g.fill(); } g.restore();
+      g.fillStyle = '#22324a'; g.fillRect(x + 150, y + 8, w - 156, h - 16); for (const [cx, cy] of [[x + 14, y + 16], [x + w - 14, y + 16], [x + 14, y + h - 16], [x + w - 14, y + h - 16]]) { g.fillStyle = '#ddd'; g.beginPath(); g.arc(cx, cy, 4, 0, 7); g.fill(); }
+      txt(g, '강남 오토매매', x + 150 + (w - 156) / 2, y + h / 2 - 10, w - 190, '#ffd24a', 44, '400 "Do Hyeon"', 'center'); txt(g, '매입 · 매매 · 할부 · 010-4242-5252', x + 150 + (w - 156) / 2, y + h / 2 + 26, w - 190, '#fff', 17, '700 "Gothic A1"', 'center', 1); } },
+  };
   const used = new Set();
   // the wall of a real building nearest a point that looks onto a street; a 7 m stretch of it for the shop
   function frontAt(x, y, minL = 6) { let best = null;
@@ -1097,7 +1149,7 @@ const PLACES = [];
       for (let i = 0; i < r.length; i++) { const a = r[i], c = r[(i + 1) % r.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < minL) continue; const ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L;
         let nx = uy, ny = -ux; const mx = (a[0] + c[0]) / 2, my = (a[1] + c[1]) / 2; if (pointInRing(mx + nx * .5, my + ny * .5, r)) { nx = -nx; ny = -ny; }
         const t = THREE.MathUtils.clamp((x - a[0]) * ux + (y - a[1]) * uy, Math.min(4, L / 2), Math.max(L - 4, L / 2)), px = a[0] + ux * t, py = a[1] + uy * t, rd = nearestRoad(px + nx * 3, py + ny * 3, 16);
-        if (!rd || !freeSpot(px + nx * 1.6, py + ny * 1.6, .4)) continue; const d = Math.hypot(px - x, py - y) + rd.d * .3; if (!best || d < best.d) best = { d, b, px, py, ux, uy, nx, ny, L, t }; } }
+        if (!rd || !freeSpot(px + nx * 1.6, py + ny * 1.6, .4)) continue; const d = Math.hypot(px - x, py - y) + rd.d * .3; if (!best || d < best.d) best = { d, b, px, py, ux, uy, nx, ny, L, t, i, rdW: rd.r.w }; } }
     if (best) used.add(best.b); return best; }
   const list = [];
   for (const p of CITY.pois) { if (!inReg(p.xy[0], p.xy[1], 4)) continue; const br = BR.find(q => q[0].test(p.name)); if (!br) continue; if (p.cat !== 'convenience' && p.cat !== 'bank') continue;
@@ -1107,25 +1159,66 @@ const PLACES = [];
     for (const [b] of c) { const cx = (b.bb[0] + b.bb[2]) / 2, cy = (b.bb[1] + b.bb[3]) / 2, n = nearestRoad(cx, cy, 40); if (!n || (small ? n.r.w >= 9 : n.r.w < 9)) continue; const f = frontAt(n.px, n.py); if (f && f.b === b) return f; if (f) used.delete(f.b); } return null; };
   const ph = pickFront(20, 90, false, 3.3) || pickFront(20, 140, true, 3.3); if (ph) list.push({ kind: 'pharm', id: 'pharm', name: '강남역약국', sty: 'pharm', mark: '약', f: ph });
   const pw = pickFront(60, 150, true, 7.7); if (pw) list.push({ kind: 'pawn', id: 'black', name: '대성 전당포 · 금은방', sty: 'pawn', mark: '전당', f: pw });
-  const cd = pickFront(70, 170, false, 5.1) || pickFront(40, 200, true, 5.1); if (cd) list.push({ kind: 'cars', id: 'cars', name: '강남 중고차 매매', sty: 'cars', mark: 'CAR', f: cd });
-  // the lettering: one atlas, a long fascia cell and a square mark cell per place
-  const FW = 512, FH = 96, MW = 128, at = document.createElement('canvas'); at.width = FW + MW; at.height = FH * Math.max(1, list.length); const g = at.getContext('2d');
-  list.forEach((p, i) => { const y = i * FH, st = STY[p.sty]; st.draw(g, 0, y, FW, FH, p.name);
-    g.fillStyle = st.bg; g.fillRect(FW, y, MW, FH); txt(g, p.mark, FW + MW / 2, y + FH / 2 - (p.kind === 'bank' ? 8 : 0), MW - 16, st.fg, p.mark.length > 2 ? 38 : 54);
-    if (p.kind === 'bank') { g.fillStyle = st.fg; g.font = '600 16px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText('365 코너', FW + MW / 2, y + FH - 14); } });
+  const cd = pickFront(70, 170, false, 5.1) || pickFront(40, 200, true, 5.1); if (cd) list.push({ kind: 'cars', id: 'cars', name: '강남 오토매매', sty: 'cars', mark: 'CAR', f: cd });
+  // ---- how the sign is built depends on the building and the street:
+  //   tower / big office → channel letters straight on the wall over a glass canopy (no box)
+  //   mid-rise office    → a metal canopy with the lit box standing on top
+  //   low 근생 building   → a full-width lit box; on a corner it wraps round onto the side street
+  //   back alley         → a tall vertical blade over two-three floors and a small box (the pawnshop)
+  //   a brand whose sign is letters or a banner by nature (KD, 우린, the car dealer) keeps its own form
+  //   big road → bigger signs, alley → smaller
+  const CH = { gs: '#0aa3e0', cu: '#7a3aa8', seven: '#00843d', emart: '#2a2a28', nh: '#00a651', sc: '#2f8cff', hana: '#00898a', ibk: '#0b5fb3', kdb: '#d6b25e', pharm: '#1d8a4a', pawn: '#ffcf3a' };
+  for (const p of list) { const b = p.f.b, st = STY[p.sty], big = (p.f.rdW || 0) >= 9, corner = (p.f.t < 4.5 || p.f.t > p.f.L - 4.5) && p.f.L >= 7 && hash(b.bb[0] * 3.7) < .55;
+    p.form = p.kind === 'pawn' ? 'blade' : st.box === false ? 'own' : b.kind === 'tower' || b.lv >= 12 ? 'channel' : b.lv >= 6 && !b.fill ? 'canopy' : corner ? 'corner' : 'box';
+    p.scale = big ? 1.2 : .92; }
+  // atlas: per place a row [fascia 512 | mark 128 | channel letters 512], plus a second atlas of vertical blades
+  const FW = 512, FH = 96, MW = 128, CW2 = 512, at = document.createElement('canvas'); at.width = FW + MW + CW2; at.height = FH * Math.max(1, list.length); const g = at.getContext('2d');
+  const BW = 96, BH = 384, bl = document.createElement('canvas'); bl.width = BW * Math.max(1, list.length); bl.height = BH; const gb = bl.getContext('2d');
+  list.forEach((p, i) => { const y = i * FH, st = STY[p.sty]; g.save(); g.beginPath(); g.rect(0, y, FW, FH); g.clip(); st.draw(g, 0, y, FW, FH, p.name); if (st.box !== false) finish(g, 0, y, FW, FH); g.restore();
+    g.save(); g.beginPath(); g.rect(FW, y, MW, FH); g.clip(); drawMark(g, FW, y, MW, FH, p.sty, p.mark, p.kind === 'bank'); g.restore();
+    const cc = CH[p.sty] || st.bg; g.save(); g.beginPath(); g.rect(FW + MW, y, CW2, FH); g.clip(); g.shadowColor = cc; g.shadowBlur = 10;   // channel letters: brand-coloured faces, white returns, a soft halo
+    bevelTxt(g, p.name, FW + MW + CW2 / 2, y + FH / 2, CW2 - 20, cc, '#e9ecef', 64, st.mf || '400 "Black Han Sans"'); g.restore();
+    const x = i * BW; gb.fillStyle = st.bg; gb.fillRect(x, 0, BW, BH); const chs = [...p.name.replace(/[\s·]/g, '')].slice(0, 6), fs = Math.min(64, (BH - 30) / chs.length * .9);
+    chs.forEach((c, k) => txt(gb, c, x + BW / 2, 15 + (k + .5) * (BH - 30) / chs.length, BW - 14, st.fg, fs, st.mf)); finish(gb, x, 0, BW, BH); });
   const tex = new THREE.CanvasTexture(at); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = maxAniso;
-  const uvMap = (geo, u0, u1, v0, v1) => { const uv = geo.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, u0 + uv.getX(k) * (u1 - u0), v0 + uv.getY(k) * (v1 - v0)); return geo; };
-  const gs = [], frames = [];
-  list.forEach((p, i) => { const f = p.f, yaw = Math.atan2(f.nx, -f.ny), ang = Math.atan2(f.uy, f.ux), w = Math.min(8, f.L * .8), v0 = 1 - (i + 1) / list.length, v1 = 1 - i / list.length, put = (geo, along, out, y) => { geo.rotateY(yaw); geo.translate(f.px + f.ux * along + f.nx * out, y, -(f.py + f.uy * along + f.ny * out)); gs.push(geo); };
-    put(uvMap(new THREE.PlaneGeometry(w, 1.05), 0, FW / (FW + MW), v0, v1), 0, 1.62, GF + .6);   // the fascia above the shop front (over any canopy), proud of the facade
-    const fb = new THREE.BoxGeometry(w + .2, 1.25, .4); fb.rotateY(yaw); fb.translate(f.px + f.nx * 1.4, GF + .6, -(f.py + f.ny * 1.4)); frames.push(fb);   // a lit box on brackets, clear of any fins or canopy
-    for (const u of [-w * .35, w * .35]) { const br_ = new THREE.BoxGeometry(.08, .08, 1.3); br_.rotateY(yaw); br_.translate(f.px + f.ux * u + f.nx * .6, GF + .6, -(f.py + f.uy * u + f.ny * .6)); frames.push(br_); }
-    const side = w / 2 + .1, mk = uvMap(new THREE.BoxGeometry(.16, .95, .95), FW / (FW + MW), 1, v0, v1);   // the projecting sign, seen from along the pavement
-    mk.rotateY(ang); mk.translate(f.px + f.ux * side + f.nx * 1.3, GF + 2.2, -(f.py + f.uy * side + f.ny * 1.3)); gs.push(mk);
-    PLACES.push({ kind: p.kind, id: p.id, name: p.name, x: f.px + f.nx * 1.6, y: f.py + f.ny * 1.6, door: [f.px, f.py], n: [f.nx, f.ny], b: f.b }); });
-  if (gs.length) { const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: .5, roughness: .35 }); m.userData.night = 1.4; _sceneAdd(new THREE.Mesh(mergeGeometries(gs), m));
-    _sceneAdd(new THREE.Mesh(mergeGeometries(frames), new THREE.MeshStandardMaterial({ color: '#2a2d31', roughness: .4, metalness: .6 }))); }
-  console.log('places', PLACES.map(p => p.name).join(', ')); }
+  const btex = new THREE.CanvasTexture(bl); btex.colorSpace = THREE.SRGBColorSpace; btex.anisotropy = maxAniso;
+  const UW = FW + MW + CW2, uvMap = (geo, u0, u1, v0, v1) => { const uv = geo.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, u0 + uv.getX(k) * (u1 - u0), v0 + uv.getY(k) * (v1 - v0)); return geo; };
+  const gs = [], bgs = [], frames = [], glassG = [];
+  const onEdge = (e, geo, along, out, y, list_) => { geo.rotateY(Math.atan2(e.nx, -e.ny)); geo.translate(e.px0 + e.ux * along + e.nx * out, y, -(e.py0 + e.uy * along + e.ny * out)); list_.push(geo); };
+  const boxSign = (e, along, w, hgt, y, out, v0, v1) => {   // a lit box on brackets
+    onEdge(e, uvMap(new THREE.PlaneGeometry(w, hgt), 0, FW / UW, v0, v1), along, out + .21, y, gs);
+    onEdge(e, new THREE.BoxGeometry(w + .18, hgt + .18, .4), along, out, y, frames);
+    if (out > .4) for (const u of [-w * .35, w * .35]) onEdge(e, new THREE.BoxGeometry(.08, .08, out), along + u, out / 2 - .2, y, frames); };
+  list.forEach((p, i) => { const f = p.f, b = f.b, v0 = 1 - (i + 1) / list.length, v1 = 1 - i / list.length, S = p.scale, ang = Math.atan2(f.uy, f.ux);
+    const e = { px0: f.px, py0: f.py, ux: f.ux, uy: f.uy, nx: f.nx, ny: f.ny }, wMax = Math.min(f.L * .85, 11);
+    let projY = GF + 2.2, projSide = Math.min(8, wMax) / 2 + .1;
+    if (p.form === 'channel') {   // letters on the wall, a glass canopy over the door
+      const w = Math.min(wMax, 9 * S), hgt = w * FH / CW2; onEdge(e, uvMap(new THREE.PlaneGeometry(w, hgt), (FW + MW) / UW, 1, v0, v1), 0, .32, GF + .55, gs);
+      onEdge(e, new THREE.BoxGeometry(Math.min(wMax, 7), .08, 2.0), 0, 1.0, GF - .45, glassG); for (const u of [-1, 1]) onEdge(e, new THREE.BoxGeometry(.06, .06, 2.1), u * Math.min(wMax, 7) * .45, 1.0, GF - .3, frames); projY = GF + 2.6; }
+    else if (p.form === 'canopy') {   // a deep metal canopy, the box standing on it
+      const w = Math.min(wMax, 7 * S), hgt = 1.0 * S; onEdge(e, new THREE.BoxGeometry(w + 1.2, .22, 1.8), 0, 1.0, GF - .2, frames); boxSign(e, 0, w, hgt, GF + hgt / 2 + .05, 1.2, v0, v1); projY = GF + 2.4; }
+    else if (p.form === 'own') {   // the brand's own form flat on the wall (channel letters on a rail, a vinyl banner)
+      const w = Math.min(wMax, 8 * S), hgt = w * FH / FW; onEdge(e, uvMap(new THREE.PlaneGeometry(w, hgt), 0, FW / UW, v0, v1), 0, .3, GF + .5, gs); }
+    else if (p.form === 'blade') {   // alley: a tall vertical sign up the corner and a small box over the door
+      const w = Math.min(wMax, 5), hgt = .8; boxSign(e, 0, w, hgt, GF - .3, .9, v0, v1);
+      const bh = Math.min(b.h - GF - 1, FLOOR * 3), side = f.t < f.L / 2 ? -1 : 1, bx = side * Math.min(f.L / 2 - .8, w / 2 + 1.2);
+      const bgeo = new THREE.BoxGeometry(.24, bh, .9), u = bgeo.attributes.uv; for (let k = 0; k < u.count; k++) u.setXY(k, (i + u.getX(k)) / list.length, u.getY(k));
+      bgeo.rotateY(ang); bgeo.translate(f.px + f.ux * bx + f.nx * .7, GF + .4 + bh / 2, -(f.py + f.uy * bx + f.ny * .7)); bgs.push(bgeo); projSide = -99; }
+    else {   // 'box' / 'corner': the full-width lit box of a 근생 shop
+      const w = Math.min(wMax, (p.form === 'corner' ? 7 : 9) * S), hgt = 1.1 * S; boxSign(e, 0, w, hgt, GF + .55, 1.4, v0, v1); projSide = w / 2 + .1;
+      if (p.form === 'corner') { const r = b.p, n = r.length, i0 = f.i, j = f.t < f.L / 2 ? (i0 - 1 + n) % n : (i0 + 1) % n, a = r[j], c = r[(j + 1) % n], L2 = Math.hypot(c[0] - a[0], c[1] - a[1]);
+        if (L2 > 4) { const ux = (c[0] - a[0]) / L2, uy = (c[1] - a[1]) / L2; let nx = uy, ny = -ux; if (pointInRing((a[0] + c[0]) / 2 + nx * .5, (a[1] + c[1]) / 2 + ny * .5, r)) { nx = -nx; ny = -ny; }
+          const atStart = j === (i0 + 1) % n, w2 = Math.min(L2 * .8, 5.5 * S), e2 = { px0: atStart ? a[0] : c[0], py0: atStart ? a[1] : c[1], ux: atStart ? ux : -ux, uy: atStart ? uy : -uy, nx, ny };
+          boxSign(e2, w2 / 2 + .4, w2, hgt, GF + .55, 1.4, v0, v1); } } }   // wraps round the corner onto the side street
+    if (projSide > -99) { const mk = uvMap(new THREE.BoxGeometry(.16, .95, .95), FW / UW, (FW + MW) / UW, v0, v1); const sd = f.t < f.L / 2 ? 1 : -1;   // the projecting sign, seen from along the pavement
+      mk.rotateY(ang); mk.translate(f.px + f.ux * projSide * sd + f.nx * 1.3, projY, -(f.py + f.uy * projSide * sd + f.ny * 1.3)); gs.push(mk);
+      onEdge(e, new THREE.BoxGeometry(.06, .06, 1.0), projSide * sd, .6, projY + .5, frames); }
+    PLACES.push({ kind: p.kind, id: p.id, name: p.name, form: p.form, x: f.px + f.nx * 1.6, y: f.py + f.ny * 1.6, door: [f.px, f.py], n: [f.nx, f.ny], b: f.b }); });
+  if (gs.length) { const m = new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: '#ffffff', emissiveIntensity: .5, roughness: .35, transparent: true, alphaTest: .04 }); m.userData.night = 1.4; _sceneAdd(new THREE.Mesh(mergeGeometries(gs), m)); }
+  if (bgs.length) { const m = new THREE.MeshStandardMaterial({ map: btex, emissiveMap: btex, emissive: '#ffffff', emissiveIntensity: .5, roughness: .35 }); m.userData.night = 1.4; _sceneAdd(new THREE.Mesh(mergeGeometries(bgs), m)); }
+  if (frames.length) _sceneAdd(new THREE.Mesh(mergeGeometries(frames), new THREE.MeshStandardMaterial({ color: '#2a2d31', roughness: .4, metalness: .6 })));
+  if (glassG.length) _sceneAdd(new THREE.Mesh(mergeGeometries(glassG), new THREE.MeshStandardMaterial({ color: '#9fc3cf', roughness: .05, metalness: .3, transparent: true, opacity: .45, depthWrite: false })));
+  console.log('places', PLACES.map(p => p.name + ':' + p.form).join(', ')); }
 // ---- 연석: granite kerbs along both edges of every road, open at the crossings and the junctions
 { const gs = [], cross = CITY.features.crossing.concat(CITY.features.signals);
   const ends = CITY.roads.filter(r => r.kind === 'road').flatMap(r => [r.pts[0], r.pts[r.pts.length - 1]]);
