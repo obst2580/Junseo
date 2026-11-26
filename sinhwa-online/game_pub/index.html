@@ -7,6 +7,8 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400&family=Gothic+A1:wght@500&family=IBM+Plex+Sans+KR:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
+/* subtitles: HY둥근고딕 where the machine has it (Korean Windows with Office / Hancom), otherwise the look-alike 나눔스퀘어라운드 (OFL) shipped with the game */
+@font-face { font-family: "GTKSub"; font-weight: 400; font-display: swap; src: local("HY둥근고딕"), local("HYDNKM"), url(fonts/NanumSquareRoundR.woff2) format("woff2") }
 :root { --vw: 1vw; --vh: 1vh } html.rot { --vw: 1vh; --vh: 1vw }   /* viewport units that follow the turned layout */
 /* Full-bleed game view: title / help top-left, status top-right, minimap bottom-right, touch stick bottom-left. */
 :root { --ink: #eef0e6; --dim: #aab3a2; --panel: rgba(16, 20, 16, .78); --line: #3b483a; --acc: #e2cf72; --key: #283126;
@@ -91,7 +93,7 @@ body.cut #atkpad, body.cut #stick, body.cut #execbtn, body.cut #radar, body.cut 
 #kotext.on { opacity: 1 }
 #sub { position: fixed; left: 50%; transform: translateX(-50%);
   bottom: calc(88px + env(safe-area-inset-bottom, 0px)); max-width: min(900px, calc(calc(100 * var(--vw)) - 40px)); text-align: center; pointer-events: none; z-index: 8;
-  font: 500 clamp(17px, calc(2.06 * var(--vw)), 34px)/1.4 "Gothic A1", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #fff; letter-spacing: .02em; word-break: keep-all;
+  font: 400 clamp(18px, calc(2.25 * var(--vw)), 37px)/1.4 "GTKSub", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #fff; letter-spacing: .03em; word-break: keep-all;
   text-shadow: 1.2px 0 0 #000, -1.2px 0 0 #000, 0 1.2px 0 #000, 0 -1.2px 0 #000, .85px .85px 0 #000, -.85px .85px 0 #000, .85px -.85px 0 #000, -.85px -.85px 0 #000, 0 2px 3px rgba(0,0,0,.75), 0 0 8px rgba(0,0,0,.55), 0 0 16px rgba(0,0,0,.3);   /* thin outline + a soft drop shadow, drawn behind the glyphs */
   opacity: 0; transition: opacity .15s }
 #sub.on { opacity: 1 }
@@ -123,7 +125,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
   #gtahelp { left: calc(14px + env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); max-width: 300px; font-size: 13px }
   #atkpad { bottom: calc(26px + env(safe-area-inset-bottom, 0px)); width: 88px; height: 88px }
   #execbtn { right: calc(126px + env(safe-area-inset-right, 0px)); bottom: calc(30px + env(safe-area-inset-bottom, 0px)); width: 74px; height: 74px }
-  #sub { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); max-width: calc(calc(100 * var(--vw)) - 320px); min-width: 220px; font-size: clamp(17px, calc(2.6 * var(--vw)), 26px) }
+  #sub { bottom: calc(78px + env(safe-area-inset-bottom, 0px)); max-width: calc(calc(100 * var(--vw)) - 320px); min-width: 220px; font-size: clamp(18px, calc(2.8 * var(--vw)), 28px) }
   #gauge { width: min(300px, calc(calc(100 * var(--vw)) - 340px)) }
   #bars { width: min(300px, calc(calc(100 * var(--vw)) - 420px)) }
 }
@@ -177,7 +179,7 @@ import { traa } from 'three/addons/tsl/display/TRAANode.js';
 const $ = id => document.getElementById(id);
 // phones / tablets: ask for fullscreen + a landscape lock on the first touch (Android honours it; iOS shows the rotate prompt instead)
 const coarse = matchMedia('(pointer: coarse)').matches;
-try { document.fonts.load('500 24px "Gothic A1"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
+try { document.fonts.load('400 24px "GTKSub"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
 const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
 const view = () => turned() ? [innerHeight, innerWidth] : [innerWidth, innerHeight];
 const toApp = e => turned() ? { x: e.clientY, y: innerWidth - e.clientX } : { x: e.clientX, y: e.clientY };   // screen -> game-space pointer
