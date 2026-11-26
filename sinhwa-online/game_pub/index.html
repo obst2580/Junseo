@@ -1897,9 +1897,9 @@ function buildFromGLB(tpl) {
     const piv = new THREE.Group(); piv.position.copy(w.position); const spin = new THREE.Group(); piv.add(spin); w.parent.add(piv); w.position.set(0, 0, 0); spin.add(w); wh.push({ piv, spin, r }); }
   return { g, wh, front: [0, 1] };
 }
-function makeCar(type, x, y, yaw) {
-  const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], b = type === 'truck' ? (CARGLB.truck ? buildFromGLB(CARGLB.truck) : buildTruck([P_.porter, P_.white][n_ % 2])) : type === 'sedan' ? buildSedan([P_.red, P_.white, P_.silver, P_.black][n_ % 4])
-    : type === 'hatch' ? buildHatch([P_.sky, P_.white, P_.beige][n_ % 3]) : buildTiller();
+function makeCar(type, x, y, yaw, paintKey) {
+  const P_ = VM.paints, n_ = cars.length, sp = VSPEC[type], pk = paintKey && P_[paintKey], b = type === 'truck' ? (CARGLB.truck ? buildFromGLB(CARGLB.truck) : buildTruck(pk || [P_.porter, P_.white][n_ % 2])) : type === 'sedan' ? buildSedan(pk || [P_.red, P_.white, P_.silver, P_.black][n_ % 4])
+    : type === 'hatch' ? buildHatch(pk || [P_.sky, P_.white, P_.beige][n_ % 3]) : buildTiller();
   const sh = new THREE.Mesh(new THREE.PlaneGeometry(sp.W + .7, sp.L + .6), VM.shadow); sh.rotation.x = -Math.PI / 2; sh.position.y = .02; sh.renderOrder = 1; b.g.add(sh);   // soft contact shadow under the car
   const holder = new THREE.Group(), body = new THREE.Group(); holder.add(body); body.add(b.g); scene.add(holder);
   const c = { type, spec: sp, holder, body, wh: b.wh, front: b.front, x, y, yaw, vx: 0, vy: 0, w: 0, steer: 0, pitch: 0, roll: 0, pv: 0, rv: 0, heave: 0, hv: 0, bump: 0, hp: 100, driver: null, throttle: 0 };
@@ -2155,12 +2155,13 @@ function screechSound(k) { const a = FX.ctx(); if (!a) return;
   screech.g.gain.setTargetAtTime(Math.min(.16, k * .14), a.currentTime, .06); screech.f.frequency.setTargetAtTime(1700 + Math.random() * 500, a.currentTime, .05); }
 function carStep(dt) { for (const c of cars) stepCar(c, dt); carPairs(); for (const c of cars) skidStep(c, dt); screechSound(P && P.car ? P.car.skidK || 0 : 0); }
 addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (e.repeat || mode !== 'walk' || MAP.open) return;
-  if (k === 'f') { if (P.car) exitCar(); else { const c = nearCar(); if (c) enterCar(c); } }
+  if (k === 'f') { if (P.car) exitCar(); else { const c = nearCar(); if (c) enterCar(c); else { const t = TRAF.near(); if (t) TRAF.carjack(t); } } }
   if (k === 'h' && P.car) horn(P.car); });
-$('carbtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (P.car) exitCar(); else { const c = nearCar(); if (c) enterCar(c); } });
+$('carbtn').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (P.car) exitCar(); else { const c = nearCar(); if (c) enterCar(c); else { const t = TRAF.near(); if (t) TRAF.carjack(t); } } });
 function carUI() {
-  const near = P && !P.car && !P.down && !G.cut ? nearCar() : null; G.nearCar = near;
-  $('carbtn').hidden = !(coarse && (near || P.car)); $('carbtn').textContent = P && P.car ? '내리기' : '타기';
+  const near = P && !P.car && !P.down && !G.cut ? nearCar() : null; G.nearCar = near; const jack = !near && P && !P.car && !P.down && !G.cut && typeof TRAF !== 'undefined' ? TRAF.near() : null;
+  $('carbtn').hidden = !(coarse && (near || jack || P.car)); $('carbtn').textContent = P && P.car ? '내리기' : jack ? '뺏기' : '타기';
+  if (jack) return coarse ? '<b>뺏기</b> 버튼으로 운전자를 끌어내리고 차를 뺏습니다.' : '<kbd>F</kbd> 키로 운전자를 끌어내리고 차를 뺏습니다.';
   $('atkpad').style.visibility = P && P.car ? 'hidden' : '';
   return near ? (coarse ? `<b>타기</b> 버튼으로 ${near.spec.name}에 탑니다.` : `<kbd>F</kbd> 키로 ${near.spec.name}에 탑니다.`) : P && P.car && !G.carHelpShown ? (G.carHelpShown = true, G.carHelpT = 6, '') : '';
 }
@@ -2449,6 +2450,118 @@ function robberyStep(dt) {
 }
 CRIME.mug = 1; CRIME.gun = 1; CRIME.shot = 2;
 
+// ---------------------------------------------------------------- traffic: cars, taxis and city buses driving the lanes (instanced, cheap); one you hit or pull the driver out of becomes a real car
+const TRAF = (() => {
+  const NC = { potato: 12, low: 26, mid: 36, high: 48 }[QUAL] || 26, NB = { potato: 3, low: 5, mid: 6, high: 8 }[QUAL] || 5;
+  // ---- lanes: right-hand traffic; lane 0 is the one next to the centre line (the bus lane on 강남대로)
+  const R = CITY.roads.filter(r => r.kind === 'road' && r.w >= 5.5 && r.pts.length >= 2).map(r => {
+    const cum = [0]; for (let i = 1; i < r.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]));
+    const n = r.lanes || Math.max(2, Math.round(r.w / 3.2)), per = r.oneway ? n : Math.max(1, Math.floor(n / 2));
+    return { r, pts: r.pts, cum, L: cum[cum.length - 1], n, per, lw: r.w / n, big: r.w >= 9, bus: !r.oneway && n >= 8, oneway: !!r.oneway }; }).filter(q => q.L > 8);
+  const at = (q, dir, s, lane) => { const u = dir > 0 ? s : q.L - s; let i = 1; while (i < q.cum.length - 1 && q.cum[i] < u) i++;
+    const a = q.pts[i - 1], b = q.pts[i], L = q.cum[i] - q.cum[i - 1] || 1, t = THREE.MathUtils.clamp((u - q.cum[i - 1]) / L, 0, 1); let tx = (b[0] - a[0]) / L * dir, ty = (b[1] - a[1]) / L * dir;
+    const off = q.oneway ? -q.r.w / 2 + (lane + .5) * q.lw : (lane + .5) * q.lw; return [a[0] + (b[0] - a[0]) * t + ty * off, a[1] + (b[1] - a[1]) * t - tx * off, tx, ty]; };
+  const ends = q => [q.pts[0], q.pts[q.pts.length - 1]];
+  const g0 = R.find(q => q.r.name === '강남대로'), AX = g0 ? Math.atan2(g0.pts[1][1] - g0.pts[0][1], g0.pts[1][0] - g0.pts[0][0]) : 0;   // signal phases are split along 강남대로 and across it
+  // ---- looks: a few shared parts, instanced (one draw per part)
+  const M = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .4, metalness: .3, ...o });
+  const night = (m, k) => { m.userData.night = k; return m; };
+  const wheels = (wb, tw, r) => mergeGeometries([[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([x, z]) => new THREE.CylinderGeometry(r, r, .24, 12).rotateZ(Math.PI / 2).translate(x * tw, r, z * wb)));
+  const part = (geo, mat, n, colors) => { const m = new THREE.InstancedMesh(geo, mat, n); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; if (colors) { for (let i = 0; i < n; i++) m.setColorAt(i, new THREE.Color('#fff')); }
+    const o = new THREE.Object3D(); o.scale.set(0, 0, 0); o.updateMatrix(); for (let i = 0; i < n; i++) m.setMatrixAt(i, o.matrix); scene.add(m); return m; };
+  const car = {
+    body: part(new RoundedBoxGeometry(1.8, .72, 4.55, 3, .16).translate(0, .62, 0), new THREE.MeshPhysicalMaterial({ color: '#fff', roughness: .4, metalness: .45, clearcoat: .8 }), NC, true),
+    cab: part((() => { const sh = new THREE.Shape(); sh.moveTo(-1.45, 0); sh.lineTo(1.0, 0); sh.quadraticCurveTo(.55, .5, .25, .6); sh.lineTo(-.85, .6); sh.quadraticCurveTo(-1.2, .5, -1.45, 0);   // side profile: raked windscreen, sloping rear glass
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 1.5, bevelEnabled: true, bevelSize: .05, bevelThickness: .05, bevelSegments: 2, curveSegments: 6 }); g.translate(0, 0, -.75); g.rotateY(-Math.PI / 2); g.translate(0, .97, -.1); return g; })(), M('#0d1419', { roughness: .08, metalness: .5 }), NC),
+    wheel: part(wheels(1.38, .78, .33), M('#141414', { roughness: .8, metalness: 0 }), NC),
+    head: part(mergeGeometries([-.6, .6].map(x => new THREE.BoxGeometry(.38, .12, .05).translate(x, .78, 2.28))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), NC),
+    tail: part(mergeGeometries([-.62, .62].map(x => new THREE.BoxGeometry(.4, .12, .05).translate(x, .8, -2.28))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), NC),
+    sign: part(new THREE.BoxGeometry(.55, .22, .28).translate(0, 1.6, -.25), night(M('#ffd34a', { emissive: '#ffcc33', emissiveIntensity: 0 }), 1.5), NC) };
+  const busT = canvasTex(512, 64, (g, w, h) => { g.fillStyle = '#0a0f14'; g.fillRect(0, 0, w, h); g.fillStyle = 'rgba(160,190,210,.35)'; for (let x = 6; x < w; x += 64) g.fillRect(x, 4, 54, h - 8); });
+  const bus = {
+    body: part(new RoundedBoxGeometry(2.5, 2.7, 11, 2, .2).translate(0, 1.65, 0), M('#fff', { roughness: .45 }), NB, true),
+    glass: part(new THREE.BoxGeometry(2.54, 1.0, 9.6).translate(0, 2.15, .2), new THREE.MeshStandardMaterial({ map: busT, roughness: .1, metalness: .4 }), NB),
+    roof: part(new THREE.BoxGeometry(2.3, .25, 9).translate(0, 3.1, -.6), M('#e9ecef'), NB),
+    wheel: part(wheels(3.6, 1.05, .5), M('#141414', { roughness: .8, metalness: 0 }), NB),
+    led: part(new THREE.BoxGeometry(1.7, .3, .05).translate(0, 2.85, 5.52), night(M('#3a1a00', { emissive: '#ff9a1a', emissiveIntensity: .8 }), 2.5), NB) };
+  // ---- the fleet
+  const PAINT = ['white', 'white', 'silver', 'black', 'black', 'silver', 'red', 'blue', 'beige', 'white'], PHEX = { white: '#e6e8e9', silver: '#a7adb2', black: '#1b1d20', red: '#9e1b14', blue: '#1f4f9a', beige: '#c9bfa6', orange: '#e58a28' };
+  const BUSC = ['#2d64c8', '#2d64c8', '#3aa14a', '#c8302a'];   // 간선 파랑, 지선 초록, 광역 빨강
+  const list = [];
+  for (let i = 0; i < NC; i++) { const taxi = i % 5 === 1, paint = taxi ? (i % 2 ? 'orange' : 'silver') : PAINT[i % PAINT.length]; list.push({ kind: 'car', i, taxi, suv: !taxi && i % 4 === 3, paint, len: 4.6, w: 1.8, vmax: 0, on: false }); car.body.setColorAt(i, new THREE.Color(PHEX[paint])); }
+  for (let i = 0; i < NB; i++) { list.push({ kind: 'bus', i, len: 11, w: 2.5, vmax: 0, on: false }); bus.body.setColorAt(i, new THREE.Color(BUSC[i % BUSC.length])); }
+  car.body.instanceColor.needsUpdate = true; bus.body.instanceColor.needsUpdate = true;
+  const _o = new THREE.Object3D();
+  function draw(c) { const parts = c.kind === 'bus' ? bus : car;
+    _o.position.set(c.x, 0, -c.y); _o.rotation.set(0, c.yaw, 0); if (!c.on) _o.scale.set(0, 0, 0); else if (c.suv) _o.scale.set(1.04, 1.18, 1.0); else _o.scale.set(1, 1, 1); _o.updateMatrix();
+    for (const k in parts) { if (k === 'sign' && !c.taxi) continue; parts[k].setMatrixAt(c.i, _o.matrix); parts[k].instanceMatrix.needsUpdate = true; }
+    if (c.taxi && !c.on) { car.sign.setMatrixAt(c.i, _o.matrix); car.sign.instanceMatrix.needsUpdate = true; } }
+  function place(c, near) {   // onto some lane, near[0]..near[1] m from the player, with room around it
+    for (let k = 0; k < 40; k++) { const q = c.kind === 'bus' ? R.filter(q => q.bus)[Math.floor(Math.random() * R.filter(q => q.bus).length)] : Math.random() < .75 ? R.filter(q => q.big)[Math.floor(Math.random() * R.filter(q => q.big).length)] : R[Math.floor(Math.random() * R.length)];
+      if (!q) return false; const dir = q.oneway ? 1 : Math.random() < .5 ? 1 : -1, lane = c.kind === 'bus' ? 0 : q.bus ? 1 + Math.floor(Math.random() * (q.per - 1)) : Math.floor(Math.random() * q.per), s = Math.random() * q.L;
+      const [x, y, tx, ty] = at(q, dir, s, lane), d = P ? Math.hypot(x - P.x, y - P.y) : 80; if (d < near[0] || d > near[1]) continue;
+      if (list.some(o => o.on && o !== c && Math.hypot(o.x - x, o.y - y) < 12) || cars.some(o => Math.hypot(o.x - x, o.y - y) < 8)) continue;
+      Object.assign(c, { on: true, q, dir, lane, s, x, y, yaw: Math.atan2(tx, -ty), v: 0, vmax: c.kind === 'bus' ? 11 : q.big ? 12 + Math.random() * 4 : 6.5 + Math.random() * 2, block: 0 }); c.v = c.vmax * .7; return true; }
+    return false; }
+  const SIG = { t: 0 };
+  const sigs = CITY.features.signals;
+  function step(dt) {
+    if (!P) return; SIG.t += dt; const ph = SIG.t % 50, green = ph < 22 ? 0 : ph >= 25 && ph < 47 ? 1 : -1;   // 22 s each way, 3 s all red
+    const groups = new Map(); for (const c of list) if (c.on) { const k = c.q.r.name + '|' + R.indexOf(c.q) + '|' + c.dir + '|' + c.lane; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c); }
+    for (const g of groups.values()) g.sort((a, b) => a.s - b.s);
+    for (const c of list) {
+      if (!c.on) { if (Math.random() < .08) place(c, [55, 150]); continue; }
+      const dP = Math.hypot(c.x - P.x, c.y - P.y); if (dP > 190) { c.on = false; draw(c); continue; }
+      const fx = Math.sin(c.yaw), fy = -Math.cos(c.yaw); let gap = 60;
+      const g = groups.get(c.q.r.name + '|' + R.indexOf(c.q) + '|' + c.dir + '|' + c.lane), ix = g.indexOf(c); if (ix >= 0 && ix + 1 < g.length) gap = g[ix + 1].s - c.s - (g[ix + 1].len + c.len) / 2;
+      const ahead = (x, y, wide) => { const dx = x - c.x, dy = y - c.y, u = dx * fx + dy * fy, v = Math.abs(dx * Math.cos(c.yaw) + dy * Math.sin(c.yaw)); return u > 0 && u < 22 && v < wide ? u - c.len / 2 : 99; };
+      for (const o of list) if (o.on && o !== c && Math.hypot(o.x - c.x, o.y - c.y) < 24) { const a = ahead(o.x, o.y, (o.w + c.w) / 2 + .2); if (a < 99) gap = Math.min(gap, a - o.len / 2); }
+      for (const o of cars) if (Math.hypot(o.x - c.x, o.y - c.y) < 24) { const a = ahead(o.x, o.y, (o.spec.W + c.w) / 2 + .3); if (a < 99) gap = Math.min(gap, a - o.spec.L / 2); }
+      let person = 99; for (const F of [P, ...npcs]) { if (!F || F.car || F.dead) continue; if (Math.abs(F.x - c.x) < 24 && Math.abs(F.y - c.y) < 24) person = Math.min(person, ahead(F.x, F.y, c.w / 2 + .6)); }
+      gap = Math.min(gap, person - 1.2);
+      if (green >= 0 || true) { const axis = Math.abs(Math.cos(Math.atan2(fy, fx) - AX)) > .7 ? 0 : 1;   // red light: stop short of the signal
+        if (green !== axis) for (const s_ of sigs) { const d = ahead(s_[0], s_[1], c.q.r.w / 2 + 5); if (d > 2 && d < 16) gap = Math.min(gap, d - 3.5); } }
+      const vt = Math.min(c.vmax, Math.sqrt(Math.max(0, 2 * 5 * (gap - 2.2))));
+      c.v += THREE.MathUtils.clamp(vt - c.v, -7 * dt, 2.4 * dt); if (c.v < .05) c.v = 0;
+      c.block = person < 8 && c.v < .5 ? c.block + dt : 0; if (c.block > 2.2 && P && Math.abs(P.x - c.x) < 14 && Math.abs(P.y - c.y) < 14) { c.block = -4; horn({ x: c.x, y: c.y }); }   // 빵-
+      c.s += c.v * dt;
+      if (c.s >= c.q.L) {   // end of this road: carry on along one that starts here
+        const E = c.dir > 0 ? c.q.pts[c.q.pts.length - 1] : c.q.pts[0], opts = [];
+        for (const q of R) { if (q === c.q) continue; const [a, b] = ends(q);
+          for (const [p, dir] of [[a, 1], [b, -1]]) { if (Math.hypot(p[0] - E[0], p[1] - E[1]) > 14 || (q.oneway && dir < 0) || (c.kind === 'bus' && !q.bus)) continue;
+            const [, , tx, ty] = at(q, dir, 1, 0); if (tx * fx + ty * fy < -.3) continue; opts.push([q, dir]); } }
+        if (!opts.length) { c.on = false; draw(c); continue; }
+        const [q, dir] = opts[Math.floor(Math.random() * opts.length)]; c.q = q; c.dir = dir; c.s = 0; c.lane = c.kind === 'bus' ? 0 : Math.min(c.lane, q.per - 1); if (q.bus && c.kind !== 'bus' && c.lane === 0) c.lane = 1; }
+      const [tx, ty, dx, dy] = at(c.q, c.dir, c.s, c.lane), k = 1 - Math.exp(-dt * 6);
+      c.x += (tx - c.x) * k; c.y += (ty - c.y) * k; c.yaw += angD(c.yaw, Math.atan2(dx, -dy)) * k;   // eased, so the turns at junctions are not snaps
+      if (c.kind === 'car' && P.car && Math.hypot(P.car.x - c.x, P.car.y - c.y) < (P.car.spec.L + c.len) / 2 * .85) { const pc = P.car, u = (c.x - pc.x) * Math.sin(pc.yaw) - (c.y - pc.y) * Math.cos(pc.yaw), v = (c.x - pc.x) * Math.cos(pc.yaw) + (c.y - pc.y) * Math.sin(pc.yaw);
+        if (Math.abs(v) < (pc.spec.W + c.w) / 2 + .1) { const real = wreck(c); if (real) continue; } }   // you ran into it: now it is a real car and the physics takes over
+      if (c.kind === 'bus' && P.car) busBlock(c, P.car);
+      draw(c); }
+  }
+  function busBlock(b, pc) {   // a bus is a wall that moves: corners of your car inside it are pushed out
+    for (const [px, py] of carCorners(pc)) { const dx = px - b.x, dy = py - b.y, fx = Math.sin(b.yaw), fy = -Math.cos(b.yaw), lx = Math.cos(b.yaw), ly = Math.sin(b.yaw), u = dx * fx + dy * fy, v = dx * lx + dy * ly;
+      const pu = b.len / 2 - Math.abs(u), pv = b.w / 2 - Math.abs(v); if (pu <= 0 || pv <= 0) continue;
+      const [nx, ny, d] = pu < pv ? [fx * Math.sign(u), fy * Math.sign(u), pu] : [lx * Math.sign(v), ly * Math.sign(v), pv]; contactImpulse(pc, null, px, py, nx, ny, d); b.v = 0; break; } }
+  function wreck(c, keep = false) {   // hand this one over to the physics as a real car (same paint, same speed)
+    const type = 'sedan', paint = c.paint === 'orange' ? 'red' : c.paint;
+    const real = makeCar(type, c.x, c.y, c.yaw, paint); real.vx = Math.sin(c.yaw) * c.v; real.vy = -Math.cos(c.yaw) * c.v; real.fromTraffic = true;
+    c.on = false; draw(c); return real; }
+  const near = () => { if (!P || P.car) return null; let best = null, bd = 3.2; for (const c of list) if (c.on && c.kind === 'car') { const d = Math.hypot(c.x - P.x, c.y - P.y) - 1.4; if (d < bd) { bd = d; best = c; } } return best; };
+  function carjack(c) {   // stop them, pull the driver out, take the car
+    if (!c || !P || P.down || P.car) return; c.v = 0; const real = wreck(c); real.vx = real.vy = 0;
+    const lx = Math.cos(real.yaw), ly = Math.sin(real.yaw), dx = real.x + lx * 1.5, dy = real.y + ly * 1.5;
+    const d = npcs.filter(n => n.ped && !n.cop && !n.dead && !n.holder.visible)[0] || npcs.filter(n => n.ped && !n.cop && !n.dead).sort((a, b) => Math.hypot(b.x - P.x, b.y - P.y) - Math.hypot(a.x - P.x, a.y - P.y))[0];
+    if (d) { d.x = dx; d.y = dy; d.yaw = real.yaw + Math.PI / 2; d.holder.visible = true; d.mug = null; d.handsUp = 0; d.state = 'flee'; d.foe = P; d.fleeT = 8; d.callAt = G.t + 3; playOnce(d, 'stumble', 1, .1); speak(d, 'jack_victim'); }
+    crime({}, 'jack'); enterCar(real); }
+  for (const c of list) place(c, [12, 140]);
+  for (const c of list) draw(c);
+  return { step, near, carjack, list, SIG };
+})();
+CRIME.jack = 1;
+function trafficCleanup() {   // real cars that came out of the traffic go away once you are far from them
+  for (let i = cars.length - 1; i >= 0; i--) { const c = cars[i]; if (!c.fromTraffic || c.driver || c.owned) continue;
+    if (Math.hypot(c.x - P.x, c.y - P.y) > 160) { scene.remove(c.holder); cars.splice(i, 1); } } }
 // ---------------------------------------------------------------- the clock: day → dusk → night (1 game hour = 40 s); N skips ahead
 const DAY = { h: 19.3, rate: 1 / 40, n: -1, list: null };
 const nightFill = new THREE.PointLight('#ffd6a8', 0, 14, 1.6); scene.add(nightFill);   // shop windows and street lamps light the people near you
@@ -2515,7 +2628,7 @@ function step(dt) {
     const gz = heightAt(camPos.x, -camPos.z) + .5; if (camPos.y < gz) camPos.y = gz;
     cam.position.copy(camPos); ctl.target.copy(look); cam.lookAt(look.x, look.y + CR.bob * .5, look.z); FX.applyCam(); }
   }
-  fightStep(gdt); carStep(gdt); FX.update(dt); barsUI(); if (P) robberyStep(gdt); dayStep(dt);
+  fightStep(gdt); carStep(gdt); TRAF.step(gdt); FX.update(dt); barsUI(); if (P) robberyStep(gdt); dayStep(dt); if (P && (frames & 63) === 0) trafficCleanup();
   if (P) P.holder.visible = mode === 'walk';
   if (mode === 'sky') ctl.update();
   const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
@@ -2529,7 +2642,7 @@ if (P) placeAt(START[0], START[1]);
 $('load').hidden = true;
 if (SOFT) { let seen = false; try { seen = sessionStorage.getItem('gtkSoftSeen') === '1'; } catch (e) {}
   if (!seen && !navigator.webdriver) { $('softwarn').hidden = false; $('softok').addEventListener('click', () => { $('softwarn').hidden = true; try { sessionStorage.setItem('gtkSoftSeen', '1'); } catch (e) {} }); } }
-window.__game = { DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { TRAF, DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);
