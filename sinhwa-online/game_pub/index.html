@@ -209,6 +209,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { MeshoptSimplifier } from 'https://cdn.jsdelivr.net/npm/meshoptimizer@0.22.0/meshopt_simplifier.module.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { SkyMesh } from 'three/addons/objects/SkyMesh.js';
 import { CSMShadowNode } from 'three/addons/csm/CSMShadowNode.js';
@@ -232,7 +233,7 @@ const QUAL = (() => { let saved = null; try { saved = localStorage.getItem('gtkQ
   if (SOFT) return 'potato';
   const cores = navigator.hardwareConcurrency || 4, mem = navigator.deviceMemory || 4;
   return coarse || cores <= 4 || mem <= 4 ? 'low' : cores >= 8 && mem >= 8 ? 'high' : 'mid'; })();
-const QL = { potato: { lm: '_2k', tex: 256, pr: .55, shadow: 0, grass: 30000, cull: 30, ao: false, bloom: false, taa: false }, low: { lm: '_2k', tex: 512, pr: .8, shadow: 1024, grass: 110000, cull: 40, ao: false, bloom: false, taa: false }, mid: { lm: '_2k', tex: 0, pr: 1, shadow: 1024, grass: 280000, cull: 70, ao: true, bloom: true, taa: false, csm: true },
+const QL = { potato: { lm: '_2k', tex: 256, pr: .55, shadow: 0, grass: 30000, cull: 30, ao: false, bloom: false, taa: false }, low: { lm: '_2k', tex: 512, pr: .8, shadow: 1024, grass: 110000, cull: 40, ao: false, bloom: false, taa: false }, mid: { lm: '_2k', tex: 0, pr: 1, shadow: 1024, grass: 280000, cull: 70, ao: false, bloom: true, taa: false, csm: false },
   high: { lm: '', tex: 0, pr: 1.5, shadow: 2048, grass: 600000, cull: 140, ao: true, bloom: true, taa: true, csm: true } }[QUAL];
 try { document.fonts.load('700 24px "GTKSub"', '말만 잘 들으면'); } catch (e) {}   // fetch the subtitle font up front, not on the first line
 const turned = () => coarse && innerHeight > innerWidth;   // holding a phone upright: play sideways anyway
@@ -637,7 +638,7 @@ const BK = (() => {   // every building is its own: a facade type, its own colou
     const stoneC = HSL(.05 + R(3) * .1, .05 + R(4) * .22, .42 + R(5) * .45), trimC = HSL(R(6), .02 + R(7) * .08, R(8) < .5 ? .85 + R(9) * .1 : .18 + R(9) * .2), glassC = HSL(.5 + R(10) * .12, .1 + R(11) * .35, .45 + R(12) * .35);
     const metalC = [HSL(0, 0, .78), HSL(.1, .25, .62), HSL(0, 0, .2), HSL(.07, .35, .35), HSL(0, 0, .93), HSL(.58, .1, .55)][Math.floor(R(13) * 6)], brickC = HSL(.03 + R(14) * .04, .4 + R(15) * .2, .25 + R(16) * .18), accent = HSL(R(17), .5 + R(18) * .3, .45 + R(19) * .2);
     const glass = GL[kind === 'tower' ? 'tower' : kind === 'apart' ? 'apart' : kind === 'office' ? 'office' : 'shop'];
-    const bay = 2.2 + R(20) * 2.2, dep = .3 + R(21) * .45, gf = kind !== 'apart' && h > GF + 2;
+    const DK = { potato: 1.7, low: 1.35, mid: 1.1, high: 1 }[QUAL] || 1.3, bay = (2.2 + R(20) * 2.2) * (DK > 1.2 ? 1.15 : 1), dep = .3 + R(21) * .45, /* DK: thinner detail on the lower tiers */ gf = kind !== 'apart' && h > GF + 2;
     const box = (m, c, e, t, out, y0, H, Lx, D, rz = 0, uvS = 0) => { const g = new THREE.BoxGeometry(Lx, H, D);
       if (uvS) { const uv = g.attributes.uv, dims = [[D, H], [D, H], [Lx, D], [Lx, D], [Lx, H], [Lx, H]]; for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0] / uvS, uv.getY(i) * dims[f][1] / uvS); } }
       if (rz) g.rotateZ(rz); g.rotateY(e.ang); g.translate(e.a[0] + e.ux * t + e.nx * (out - D / 2), y0 + H / 2, -(e.a[1] + e.uy * t + e.ny * (out - D / 2))); put(m, col(g, c)); };
@@ -645,7 +646,7 @@ const BK = (() => {   // every building is its own: a facade type, its own colou
     const solid = (rg, y0, y1, m, c) => put(m, col(LMK.walls(rg, y0, y1, 2, 2), c));
     // the facade types
     const F = {
-      fins(rg, y0, y1) { core(rg, y0, y1); const sp = 1.1 + R(30) * 1.3, fd = .3 + R(31) * .6; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / sp)); for (let k = 0; k <= n; k++) box(MAT.metal, metalC, e, THREE.MathUtils.clamp(k / n * e.L, .08, e.L - .08), fd - dep + .02, y0, y1 - y0, .1, fd); } },
+      fins(rg, y0, y1) { core(rg, y0, y1); const sp = (1.1 + R(30) * 1.3) * DK, fd = .3 + R(31) * .6; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / sp)); for (let k = 0; k <= n; k++) box(MAT.metal, metalC, e, THREE.MathUtils.clamp(k / n * e.L, .08, e.L - .08), fd - dep + .02, y0, y1 - y0, .1, fd); } },
       punched(rg, y0, y1) { core(rg, y0, y1); const pw = .4 + R(32) * .6, bh = .6 + R(33) * .8, m = R(34) < .2 ? MAT.panel : MAT.stone; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.max(1, Math.round(e.L / bay));
         for (let k = 0; k <= n; k++) box(m, stoneC, e, THREE.MathUtils.clamp(k / n * e.L, pw / 2, e.L - pw / 2), 0, y0, y1 - y0, pw, dep);
         for (let y = y0 + FLOOR - bh * .5; y < y1 - .3; y += FLOOR) box(m, stoneC, e, e.L / 2, .01, y, Math.min(bh, y1 - y), e.L + .02, dep); } },
@@ -663,7 +664,7 @@ const BK = (() => {   // every building is its own: a facade type, its own colou
         for (let k = 0; k <= n; k++) box(MAT.stone, tc, e, THREE.MathUtils.clamp(k / n * e.L, .4, e.L - .4), 0, y0, y1 - y0, .8 + R(45) * .5, .3);
         for (let y = y0 + FLOOR - 1.1; y < y1 - .3; y += FLOOR) box(MAT.stone, tc, e, e.L / 2, .01, y, 1.1, e.L + .02, .3);
         if (R(46) < .5) for (let y = y0 + FLOOR * .45; y < y1 - .3; y += FLOOR) box(MAT.metal, trimC, e, e.L / 2, .12, y, .05, e.L * .96, .1); } },
-      louver(rg, y0, y1) { core(rg, y0, y1, .4); const sp = .45 + R(47) * .4, lc = R(48) < .3 ? HSL(.08, .45, .45) : metalC; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.round(e.L / sp);
+      louver(rg, y0, y1) { core(rg, y0, y1, .4); const sp = (.45 + R(47) * .4) * DK, lc = R(48) < .3 ? HSL(.08, .45, .45) : metalC; for (const e of edges(rg)) { if (e.L < 1) continue; const n = Math.round(e.L / sp);
         for (let k = 0; k <= n; k++) box(MAT.metal, lc, e, THREE.MathUtils.clamp(k / n * e.L, .05, e.L - .05), 0, y0, y1 - y0 - (R(70 + k) < .15 ? FLOOR : 0), .07, .35);
         for (let y = y0 + FLOOR; y < y1; y += FLOOR * 3) box(MAT.metal, trimC, e, e.L / 2, .02, y - .15, .3, e.L, .45); } },
       hfin(rg, y0, y1) { core(rg, y0, y1, .15); const fd = .6 + R(49) * .7; for (const e of edges(rg)) { if (e.L < 1) continue;
@@ -789,7 +790,7 @@ const freeSpot = (x, y, r = 1) => inReg(x, y, 2) && !BLD.some(b => x > b.bb[0] -
 function distToRoad(rd, x, y) { let d = 1e9; for (let i = 0; i + 1 < rd.pts.length; i++) { const [a, b] = [rd.pts[i], rd.pts[i + 1]], dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy || 1, t = THREE.MathUtils.clamp(((x - a[0]) * dx + (y - a[1]) * dy) / L2, 0, 1); d = Math.min(d, Math.hypot(a[0] + dx * t - x, a[1] + dy * t - y)); } return d; }
 { const lampG = mergeGeometries([new THREE.CylinderGeometry(.08, .11, 8, 8).translate(0, 4, 0), new THREE.BoxGeometry(.08, .08, 2.2).translate(0, 7.9, 1.05), new THREE.BoxGeometry(.32, .14, .6).translate(0, 7.85, 2.1)]);
   const treeTrunk = new THREE.CylinderGeometry(.1, .17, 4.6, 7).translate(0, 2.3, 0);
-  const treeTop = mergeGeometries([[0, 5.6, 0, 1.75], [1.1, 4.9, .3, 1.25], [-1.0, 5.0, -.4, 1.3], [.2, 6.6, -.5, 1.15], [-.3, 4.6, 1.05, 1.1], [.6, 5.9, .9, 1.0]].map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, 2).translate(x, y, z)));
+  const treeTop = mergeGeometries([[0, 5.6, 0, 1.75], [1.1, 4.9, .3, 1.25], [-1.0, 5.0, -.4, 1.3], [.2, 6.6, -.5, 1.15], [-.3, 4.6, 1.05, 1.1], [.6, 5.9, .9, 1.0]].map(([x, y, z, r]) => new THREE.IcosahedronGeometry(r, QUAL === 'high' ? 2 : 1).translate(x, y, z)));
   const leafT = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#4c7a2c'; g.fillRect(0, 0, w, h); for (let k = 0; k < 1800; k++) { const l = 28 + Math.random() * 34; g.fillStyle = `hsl(${88 + Math.random() * 22},${45 + Math.random() * 20}%,${l}%)`; g.beginPath(); g.ellipse(Math.random() * w, Math.random() * h, 3 + Math.random() * 4, 2 + Math.random() * 2, Math.random() * 3, 0, 7); g.fill(); } });
   const lamps = [], trees = [];
   for (const r of CITY.roads) { if (r.kind !== 'road' || r.w < 9) continue;
@@ -1262,10 +1263,17 @@ function toNode(m) {   // loaded glTF material -> node material with the same ma
   return n;
 }
 const uvC = uv();
+async function slimPerson(model, keep) {   // people are ~120k triangles each: thin the index buffers (skin weights untouched, the vertices stay)
+  try { await MeshoptSimplifier.ready; } catch (e) { return; }
+  model.traverse(o => { if (!o.isMesh || !o.geometry.index) return; const g = o.geometry, ix = g.index.array, n = ix.length; if (n < 3000) return;
+    try { const pos = g.attributes.position, P = pos.array instanceof Float32Array && pos.itemSize === 3 && !pos.isInterleavedBufferAttribute ? pos.array : Float32Array.from({ length: pos.count * 3 }, (_, i) => pos.getComponent(Math.floor(i / 3), i % 3));
+      const [out] = MeshoptSimplifier.simplify(new Uint32Array(ix), P, 3, Math.max(300, Math.floor(n * keep / 3) * 3), .02, []);
+      if (out.length >= 30) g.setIndex(new THREE.BufferAttribute(pos.count > 65535 ? out : new Uint16Array(out), 1)); } catch (e) { console.warn('slim', e); } }); }
 async function person(id) {
   const base = 'npc/' + id + '/';
   const [jt, bj, EX] = await Promise.all([fetch(base + 'human.json').then(x => x.text()), fetch(base + 'human_bin.json').then(x => x.json()), fetch(base + 'extras.json').then(x => x.json())]);
   const g = await new GLTFLoader().parseAsync(glbFrom(jt, bj.data), base), model = g.scene; shrinkTextures(model, QL.tex);
+  await slimPerson(model, id === 'minseok' ? (QUAL === 'high' ? .7 : .45) : ({ potato: .12, low: .18, mid: .25, high: .35 }[QUAL] || .2));
   model.traverse(o => { if (!o.isMesh) return; o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
     const m = o.material; if (EX.tints && EX.tints[m.name]) m.color.set(EX.tints[m.name]);
     const n = toNode(m, false);
@@ -1678,7 +1686,7 @@ function fightStep(dt) {
       if (F === P) { for (const n of npcs) if (n.state === 'fight') { n.state = 'calm'; speak(n, 'fight_over'); } $('kotext').classList.remove('on'); }
       else { F.state = F.cop ? (WANT.stars ? 'police' : 'leave') : 'calm'; } } }
     if (F === P && F.hp <= 0 && F.down && !WANT.busted && !$('kotext').classList.contains('on')) $('kotext').classList.add('on');
-    if (F !== P) { const dd = Math.hypot(F.x - P.x, F.y - P.y), far = !G.cut && dd > (F.ped ? Math.max(QL.cull * 1.8, 70) : QL.cull); F.holder.visible = !far;
+    if (F !== P) { const dd = Math.hypot(F.x - P.x, F.y - P.y), shad = dd < 22, far = !G.cut && dd > (F.ped ? Math.max(QL.cull * 1.8, 70) : QL.cull); F.holder.visible = !far; if (F.shad !== shad) { F.shad = shad; F.model.traverse(o => { if (!o.isMesh) return; if (o.userData.sh0 === undefined) o.userData.sh0 = o.castShadow; o.castShadow = shad && o.userData.sh0; }); }
       if (!far) { F.holder.position.copy(V(F.x, F.y, heightAt(F.x, F.y) + (F.airH || 0))); F.holder.rotation.y = F.yaw; F.animAcc = (F.animAcc || 0) + dt;
         if (dd < 28 || G.cut || F.animAcc > (dd > 50 ? .1 : .05)) { animate(F, F.animAcc); F.animAcc = 0; } } }   // far walkers: fewer pose updates
   }
@@ -2659,7 +2667,7 @@ function xhairUI() { const el = $('xhair'); if (el.hidden || !P) return; const T
   if (T) wpos(T, 'spine_03', _xh); else { const yaw = CR.yaw + Math.PI; _xh.copy(V(P.x + Math.sin(yaw) * 14, P.y - Math.cos(yaw) * 14, 1.3)); }
   _xh.project(cam); const [w, h] = view(); el.style.left = ((_xh.x + 1) / 2 * w) + 'px'; el.style.top = ((1 - _xh.y) / 2 * h) + 'px'; }
 // ---- people on the pavements: they walk the streets around you; the ones far behind come back somewhere ahead
-const PEDN = { potato: 8, low: 16, mid: 26, high: 36 }[QUAL] || 16;
+const PEDN = { potato: 6, low: 12, mid: 20, high: 30 }[QUAL] || 12;
 const PEDNAMES = ['시민', '행인', '직장인', '학생', '아저씨', '아주머니'];
 const PROAD = CITY.roads.filter(r => r.pts.length >= 2 && r.pts.every(([x, y]) => inReg(x, y, -6)));
 const PEND = PROAD.map(r => [r.pts[0], r.pts[r.pts.length - 1]]), PBIG = PROAD.filter(r => r.kind === 'road' && r.w >= 9);
@@ -2809,7 +2817,7 @@ CRIME.mug = 1; CRIME.gun = 1; CRIME.shot = 2;
 
 // ---------------------------------------------------------------- traffic: cars, taxis and city buses driving the lanes (instanced, cheap); one you hit or pull the driver out of becomes a real car
 const TRAF = (() => {
-  const NC = { potato: 12, low: 26, mid: 36, high: 48 }[QUAL] || 26, NB = { potato: 3, low: 5, mid: 6, high: 8 }[QUAL] || 5;
+  const NC = { potato: 6, low: 14, mid: 22, high: 36 }[QUAL] || 14, NB = { potato: 3, low: 5, mid: 6, high: 8 }[QUAL] || 5;
   // ---- lanes: right-hand traffic; lane 0 is the one next to the centre line (the bus lane on 강남대로)
   const R = CITY.roads.filter(r => r.kind === 'road' && r.w >= 5.5 && r.pts.length >= 2 && r.pts.every(([x, y]) => inReg(x, y, -12))).map(r => {
     const cum = [0]; for (let i = 1; i < r.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]));
@@ -2829,7 +2837,7 @@ const TRAF = (() => {
   // the fleet is all Porter II (the one real model): its meshes instanced, one draw per mesh
   const car = { parts: [] };
   if (CARGLB.truck) { const tpl = CARGLB.truck; tpl.updateMatrixWorld(true);
-    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, NC); im.castShadow = true; im.receiveShadow = true; im.frustumCulled = false;
+    tpl.traverse(o => { if (!o.isMesh) return; const im = new THREE.InstancedMesh(o.geometry, o.material, NC); o.geometry.computeBoundingBox(); const sz = o.geometry.boundingBox.getSize(new THREE.Vector3()); im.castShadow = sz.x * sz.y * sz.z > .5; im.receiveShadow = true; im.frustumCulled = false;
       const z = new THREE.Object3D(); z.scale.set(0, 0, 0); z.updateMatrix(); for (let i = 0; i < NC; i++) im.setMatrixAt(i, z.matrix); scene.add(im); car.parts.push({ im, local: o.matrixWorld.clone() }); }); }
   const lamps = { head: part(mergeGeometries([-.62, .62].map(x => new THREE.BoxGeometry(.32, .14, .04).translate(x, .95, 2.74))), night(M('#f4f4ee', { emissive: '#fff4dc', emissiveIntensity: 0 }), 3), NC),
     tail: part(mergeGeometries([-.7, .7].map(x => new THREE.BoxGeometry(.18, .3, .04).translate(x, .75, -2.74))), night(M('#7a0d0d', { emissive: '#ff2a1a', emissiveIntensity: 0 }), 2.5), NC) };
