@@ -125,7 +125,7 @@ html.rot #app { inset: auto; top: 0; left: 100vw; width: 100vh; height: 100vw; t
 <button type="button" id="atkpad" aria-label="공격">공격</button>
 <div id="gauge" hidden><div class="gl">타격 게이지</div><div class="gb"><i></i></div><div class="gr">처형 가능! <kbd>E</kbd></div></div>
 <button type="button" id="execbtn" hidden>처형</button>
-<div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div><div id="cuttitle" aria-hidden="true"></div>
+<div id="lbtop" aria-hidden="true"></div><div id="lbbot" aria-hidden="true"></div>
 <div id="sub" role="status" aria-live="polite"></div>
 
 <div id="kotext" aria-hidden="true">기절!</div>
@@ -575,6 +575,7 @@ function animate(F, dt) {
 function onceDone(F) {
   const was = F.onceName;
   if (was === 'knockdown') {
+    if (F.dead) return;   // stays where it fell
     if (F.hp <= 0) { if (!F.ko) F.ko = F === P ? 3.2 : 7 + Math.random() * 3; return; }   // out cold: lie there (clamped on the last frame)
     playOnce(F, 'getup_back', 1, .15); return; }
   if (F.next) { const n = F.next; F.next = null; playOnce(F, n, 1, .1); return; }
@@ -657,7 +658,9 @@ function judge(A, sk) {
   else if (s >= .95 || D.meter > 2.6) { w = 1; heavy = true; if (best.n === 'head' || best.n === 'chest') reac = lateral && best.n === 'head' ? 'hit_spin_' + side : 'hit_heavy'; after = D.meter > 2.6 ? 'stumble' : null; }
   react(D, reac, w, heavy || down); D.next = after;
   if (D !== P) D.atkCd = Math.max(D.atkCd, .55 + .4 * s);   // hit-stun for the AI: a clean hit buys you a beat
-  if (down) { D.down = true; D.fallAt = G.t + .85; if (D.hp <= 0 && D !== P) { speak(D, 'ko'); if (A === P && !cut) crime(D, 'ko'); } }
+  if (down) { D.down = true; D.fallAt = G.t + .85;
+    if (cut && sk.final) { D.dead = true; D.deadT = 0; D.state = 'dead'; D.strikes.length = 0; }   // the execution ends a life: no getting up
+    else if (D.hp <= 0 && D !== P) { speak(D, 'ko'); if (A === P && !cut) crime(D, 'ko'); } }
   const worldDir = vel.clone().applyQuaternion(D.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.copy(fwd3(A.yaw)); worldDir.normalize();
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
   jolt(D, best.n, worldDir, s * (crit ? 1.3 : 1) * (heavy ? 1.5 : 1)); shove(D, worldDir, down ? 4.6 : heavy ? 3.2 : 1.1 + 1.2 * s);
@@ -721,6 +724,7 @@ function rankOn(n, foe) {   // how many others are closer to the same target
   return r;
 }
 function think(n, dt) {
+  if (n.dead) { n.want = 0; return; }
   if (copThink(n, dt)) return;
   n.want = 0; if (n.down || G.cut) return;
   if (n.once && !n.ending) return;   // busy swinging or reeling
@@ -762,6 +766,9 @@ function separate() {
 }
 function fightStep(dt) {
   G.t += dt; if (G.infoT > 0) G.infoT -= dt;
+  for (const n of npcs.slice()) if (n.dead) { n.deadT += dt;   // after a while, out of sight, the village moves on: the body is cleared and the villager is back home
+    if (n.deadT > 90 && Math.hypot(n.x - P.x, n.y - P.y) > 30) { n.dead = false; n.down = false; n.hp = 100; n.meter = 0; n.vel = [0, 0]; n.foe = null; if (n.once) { n.once.stop(); n.once = null; n.onceName = ''; n.ending = false; }
+      if (n.cop) offDuty(n); else { [n.x, n.y, n.yaw] = n.home; n.state = 'idle'; n.combatT = 0; } } }
   if (P && P.buffer && G.t - P.buffer < .4 && !(P.once && !P.ending && !FIGHT[P.onceName] && P.once.time < .2) && !P.down) { P.buffer = 0; playerAttack(); }
   for (const n of npcs) think(n, dt);
   for (const F of fighters()) {
@@ -813,7 +820,7 @@ function execute() {
   for (const n of npcs) if (n !== T) { n.strikes.length = 0; n.lunge = null;   // bystanders back off and give the shot room
     const dx = n.x - T.x, dy = n.y - T.y, d = Math.hypot(dx, dy) || 1; if (d < 3.2) [n.x, n.y] = collide(T.x + dx / d * 3.2, T.y + dy / d * 3.2); }
   T.strikes.length = 0; T.lunge = null; T.state = T.temper === 'flee' ? 'flee' : 'fight'; T.yaw = yawTo(T, P); T.combatT = 4;
-  crime(T, 'exec');
+  crime(T, 'exec');   // a killing
   G.cut = { E, T, step: -1, t: 0, next: .55, shot: 0, endAt: 0, scale: 1 }; note('처형: ' + E.name);
 }
 function cutStep(dt) {
@@ -825,9 +832,8 @@ function cutStep(dt) {
     C.shot = last ? 2 : C.step % 2; C.strikeAt = C.t + (ls ? ls.t : .5); C.next = C.t + (ls ? ls.t + .32 : .8);
     if (last) { C.finalAt = C.strikeAt; C.endAt = C.strikeAt + 3.4; } }
   C.scale = C.finalAt && C.t > C.finalAt - .12 && C.t < C.finalAt + .4 ? .2 : 1;
-  if (C.finalAt && C.t >= C.finalAt + .05 && !C.titled) { C.titled = true; $('cuttitle').innerHTML = 'K.O.<small>' + C.E.name + '</small>'; $('cuttitle').classList.add('on'); }
   if (C.finalAt && C.t >= C.finalAt + .4) C.shot = 3;
-  if (C.endAt && C.t >= C.endAt) { G.cut = null; document.body.classList.remove('cut'); $('cuttitle').classList.remove('on'); CR.init = false; }
+  if (C.endAt && C.t >= C.endAt) { G.cut = null; document.body.classList.remove('cut'); CR.init = false; }
 }
 function segBlocked(p, q) {   // anything solid (buildings, greenhouses, poles) between the camera and what it looks at
   for (let k = 0; k <= 16; k++) { const t = k / 16, x = p.x + (q.x - p.x) * t, z = p.z + (q.z - p.z) * t, y = p.y + (q.y - p.y) * t, gx = x, gy = -z;
@@ -1001,6 +1007,7 @@ function dispatch() {
 function offDuty(c) { c.onDuty = false; c.holder.visible = false; c.strikes.length = 0; if (c.bub) c.bub.sp.visible = false; const i = npcs.indexOf(c); if (i >= 0) npcs.splice(i, 1); }
 function copThink(n, dt) {   // returns true when it handled the officer
   if (!n.cop) return false;
+  if (n.dead) { n.want = 0; return true; }
   n.want = 0; if (n.down || G.cut || (n.once && !n.ending)) return true;
   const d = Math.hypot(P.x - n.x, P.y - n.y);
   if (n.state === 'leave') { turnTo(n, yawTo(P, n), 5, dt); n.want = 1.6; if (d > 40) offDuty(n); return true; }
