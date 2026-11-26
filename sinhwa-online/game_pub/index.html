@@ -572,6 +572,87 @@ const LMB = (() => {
       if (voids.has(i + ',' + j + ',' + (k - 1))) hz(WOOD, i, j, y0, false); } };
   return { samsung_a, samsung_b, samsung_c, samsung_wing, gt, meritz, aplus, monaco };
 })();
+// ---- building kit: real depth on every facade — glass set back behind piers, fins and floor bands; storefronts under canopies; parapets, 옥탑, water tanks and plant on the roofs
+const BK = (() => {
+  const noiseT = canvasTex(256, 256, (g, w, h) => noiseFill(g, w, h, '#ffffff', .1, 3500));
+  const brickT = canvasTex(256, 256, (g, w, h) => { noiseFill(g, w, h, '#ffffff', .1, 900); g.strokeStyle = 'rgba(60,40,30,.45)'; g.lineWidth = 2; for (let y = 0; y < h; y += 16) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); for (let x = (y / 16 % 2) * 24; x < w; x += 48) { g.beginPath(); g.moveTo(x, y); g.lineTo(x, y + 16); g.stroke(); } } });
+  const MS = new Map(), mat = (k, f) => MS.get(k) || (MS.set(k, f()), MS.get(k));
+  const stone = c => mat('s' + c, () => new THREE.MeshStandardMaterial({ map: noiseT, color: c, roughness: .82, metalness: .02 }));
+  const brick = c => mat('b' + c, () => new THREE.MeshStandardMaterial({ map: brickT, color: c, roughness: .9 }));
+  const metal = c => mat('m' + c, () => new THREE.MeshStandardMaterial({ color: c, roughness: .3, metalness: .85 }));
+  const glassTex = (tint, framed) => canvasTex(128, 128, (g, w, h) => {   // one pane per bay x floor: sky-lit glass, a frame, a transom; the odd blind half down
+    const gr = g.createLinearGradient(0, 0, w * .3, h); gr.addColorStop(0, new THREE.Color(tint).offsetHSL(0, -.05, .32).getStyle()); gr.addColorStop(.55, new THREE.Color(tint).offsetHSL(0, 0, .12).getStyle()); gr.addColorStop(1, tint); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.moveTo(w * .1, h); g.lineTo(w * .55, 0); g.lineTo(w * .75, 0); g.lineTo(w * .3, h); g.fill();
+    if (framed) { g.strokeStyle = 'rgba(30,34,38,.9)'; g.lineWidth = 5; g.strokeRect(2, 2, w - 4, h - 4); g.lineWidth = 3; g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.moveTo(0, h * .28); g.lineTo(w, h * .28); g.stroke(); } });
+  const glass = (tint, kind) => mat('g' + tint + kind, () => { const m = new THREE.MeshStandardMaterial({ map: glassTex(tint, kind !== 'tower'), roughness: .05, metalness: .35, envMapIntensity: 2.2, emissive: '#ffffff', emissiveMap: litTex(kind), emissiveIntensity: 0 }); m.userData.night = kind === 'tower' ? .55 : .8; return m; });
+  const PAL = { tower: { glass: ['#3f6a80', '#4d7a88', '#35556a', '#5b8796', '#46647a'], fin: ['#c5ccd2', '#8d969c', '#2a2e33', '#b9b09a'] },
+    office: { stone: ['#d9d4c7', '#bfb8aa', '#9a9fa3', '#e6e2d8', '#6e7478', '#c4b49a', '#8b8478'], glass: ['#3c5866', '#4a5f6a', '#4f5650'] },
+    shop: { stone: ['#ebe6db', '#cfc7b8', '#9aa0a5', '#f2efe8', '#7d8388', '#d6c2a0', '#c9d3d8', '#e0d2bf', '#a9b4a6'], glass: ['#3f5664', '#4b5d68', '#3a4850'] },
+    brick: { brick: ['#8a4e36', '#7a4632', '#9a6248', '#6b3b2b'], band: ['#e9e4d8', '#cfc8bb'] }, apart: { stone: ['#ece8df', '#d9d2c4', '#e4e7e9'], glass: ['#3a4a54'] } };
+  const pickOf = (a, k) => a[Math.floor(hash(k) * a.length) % a.length];
+  // geometry helpers (game coords; local box: x along the edge, z out of the wall)
+  const edges = ring => ring.map((a, i) => { const c = ring[(i + 1) % ring.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]) || 1, ux = (c[0] - a[0]) / L, uy = (c[1] - a[1]) / L; return { a, c, L, ux, uy, nx: uy, ny: -ux, ang: Math.atan2(uy, ux) }; });
+  function inset(ring, d) { const E = edges(ring), n = ring.length, out = [];
+    for (let i = 0; i < n; i++) { const e0 = E[(i - 1 + n) % n], e1 = E[i], mx = e0.nx + e1.nx, my = e0.ny + e1.ny, ml = Math.hypot(mx, my) || 1, kk = Math.min(3, 2 / Math.max(.3, ml)) * d;
+      out.push([ring[i][0] - mx / ml * kk, ring[i][1] - my / ml * kk]); }
+    return out; }
+  const area = r => { let A = 0; for (let i = 0; i < r.length; i++) { const [x1, y1] = r[i], [x2, y2] = r[(i + 1) % r.length]; A += x1 * y2 - x2 * y1; } return A / 2; };
+  function box(put, m, e, t, out, y0, H, Lx, D, uvS = 0) {   // a box on edge e at distance t along it, its outer face 'out' metres outside the wall line
+    const g = new THREE.BoxGeometry(Lx, H, D);
+    if (uvS) { const uv = g.attributes.uv, dims = [[D, H], [D, H], [Lx, D], [Lx, D], [Lx, H], [Lx, H]]; for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0] / uvS, uv.getY(i) * dims[f][1] / uvS); } }
+    g.rotateY(e.ang); const cx = e.a[0] + e.ux * t + e.nx * (out - D / 2), cy = e.a[1] + e.uy * t + e.ny * (out - D / 2); g.translate(cx, y0 + H / 2, -cy); put(m, g); }
+  function cyl(put, m, x, y, y0, r, H, seg = 12) { put(m, new THREE.CylinderGeometry(r, r, H, seg).translate(x, y0 + H / 2, -y)); }
+  // ---- one building
+  function build(b, ring, put) {
+    const kind = b.kind === 'villa' ? 'apart' : b.kind, k0 = b.name + b.p[0][0], st = kind === 'tower' ? 'tower' : kind === 'apart' ? 'apart' : (kind === 'shop' || kind === 'office') && hash(k0 + 'b') < .25 ? 'brick' : kind;
+    const h = b.h, gf = st !== 'apart' && h > GF + 2, E = edges(ring), A = Math.abs(area(ring));
+    // style
+    const S = st === 'tower' ? { bay: 1.5 + hash(k0) * .9, pw: .14, pd: .6, bh: hash(k0 + 'h') < .5 ? .12 : 0, bd: .2, wall: metal(pickOf(PAL.tower.fin, k0)), band: metal(pickOf(PAL.tower.fin, k0)), gl: glass(pickOf(PAL.tower.glass, k0 + 'g'), 'tower'), crown: 'fins' }
+      : st === 'office' ? { bay: 2.8 + hash(k0) * 1.2, pw: .6 + hash(k0 + 'w') * .35, pd: .55, bh: 1.0 + hash(k0 + 'b') * .4, bd: .55, wall: stone(pickOf(PAL.office.stone, k0)), gl: glass(pickOf(PAL.office.glass, k0 + 'g'), 'office'), crown: 'cornice' }
+      : st === 'brick' ? { bay: 2.6 + hash(k0) * .8, pw: .55, pd: .45, bh: .75, bd: .5, wall: brick(pickOf(PAL.brick.brick, k0)), band: stone(pickOf(PAL.brick.band, k0)), gl: glass('#4a5f6a', 'shop'), crown: 'roof' }
+      : st === 'apart' ? { bay: 3.2, pw: .4, pd: .25, bh: .5, bd: .25, wall: stone(pickOf(PAL.apart.stone, k0)), gl: glass('#55707e', 'apart'), crown: 'roof', balc: true }
+      : { bay: 2.8 + hash(k0) * 1.4, pw: .35 + hash(k0 + 'w') * .3, pd: .45, bh: .7 + hash(k0 + 'b') * .45, bd: .5, wall: stone(pickOf(PAL.shop.stone, k0)), gl: glass(pickOf(PAL.shop.glass, k0 + 'g'), 'shop'), crown: 'roof', ribbon: hash(k0 + 'r') < .3 };
+    S.band = S.band || S.wall;
+    // a tall block on a wide lot steps back above a podium
+    let tRing = ring, tE = E, podTop = 0;
+    if ((st === 'tower' || st === 'office') && b.lv >= 12 && A > 450 && !b.lm) { const ins = inset(ring, 3 + hash(k0 + 's') * 2); if (Math.abs(area(ins)) > A * .4) { podTop = GF + FLOOR * (2 + Math.floor(hash(k0 + 'p') * 3)); tRing = ins; tE = edges(ins); } }
+    const facade = (rg, eg, y0, y1, S_) => {   // glass core set back, piers and floor bands at the wall line
+      const core = inset(rg, S_.pd); put(S_.gl, LMK.walls(core, y0, y1, S_.bay, FLOOR));
+      for (const e of eg) { if (e.L < 1.2) continue; const n = Math.max(1, Math.round(e.L / S_.bay));
+        for (let k = 0; k <= n; k++) { const t = k / n * e.L; if (S_.ribbon && k % 2) continue; box(put, S_.wall, e, THREE.MathUtils.clamp(t, S_.pw / 2, e.L - S_.pw / 2), 0, y0, y1 - y0, S_.pw, S_.pd, st === 'brick' ? 2 : 0); }
+        if (S_.bh) for (let y = y0 + FLOOR - S_.bh * .5; y < y1 - .4; y += FLOOR) box(put, S_.band, e, e.L / 2, .02, y, Math.min(S_.bh, y1 - y), e.L + .02, S_.bd, st === 'brick' ? 2 : 0); } };
+    const base = gf ? GF : 0;
+    if (gf) {   // the ground floor: shop glass well back, columns, a canopy on the street sides
+      put(STOREM, LMK.walls(inset(ring, S.pd + .45), 0, GF, 6.4, GF));
+      const front = b.front ? b.front : null;
+      for (const e of E) { if (e.L < 1.2) continue; const n = Math.max(1, Math.round(e.L / (S.bay * 2)));
+        for (let k = 0; k <= n; k++) box(put, S.wall, e, THREE.MathUtils.clamp(k / n * e.L, .3, e.L - .3), 0, 0, GF, .55, .55);
+        box(put, S.band, e, e.L / 2, .05, GF - .75, .75, e.L + .05, S.pd + .1);   // fascia
+        const nr = nearestRoad(e.a[0] + e.ux * e.L / 2 + e.nx * 2, e.a[1] + e.uy * e.L / 2 + e.ny * 2, 14);
+        if (nr && e.L > 4 && (st === 'shop' || st === 'brick' || hash(k0 + e.L) < .5)) box(put, metal('#3a3f44'), e, e.L / 2, 1.4, GF - .95, .16, e.L - .6, 1.4); } }   // canopy
+    if (podTop) { facade(ring, E, base, podTop, S); put(ROOFM, LMK.cap(ring, podTop)); for (const e of E) box(put, S.band, e, e.L / 2, .05, podTop, .9, e.L, .3);
+      facade(tRing, tE, podTop, h, S); }
+    else facade(ring, E, base, h, S);
+    if (S.balc) for (const e of E) { if (e.L < 6) continue; for (let y = base + FLOOR; y < h - 1; y += FLOOR) { box(put, S.wall, e, e.L / 2, 1.0, y - .12, .14, e.L * .78, 1.0); box(put, glass('#8fb2bd', 'apart'), e, e.L / 2, 1.0, y, .95, e.L * .78, .04); } }
+    // roof
+    const top = tRing, tA = Math.abs(area(top)); put(ROOFM, LMK.cap(top, h));
+    const tops = edges(top);
+    if (S.crown === 'fins') { for (const e of tops) { const n = Math.max(1, Math.round(e.L / S.bay)); for (let k = 0; k <= n; k++) box(put, S.wall, e, THREE.MathUtils.clamp(k / n * e.L, .1, e.L - .1), 0, h, 3.2, S.pw, S.pd); } }
+    else if (S.crown === 'cornice') { for (const e of tops) box(put, S.wall, e, e.L / 2, .35, h - 1.2, 1.2, e.L + .7, S.pd + .35); for (const e of tops) box(put, S.wall, e, e.L / 2, -.05, h, 1.1, e.L, .25); }
+    else for (const e of tops) box(put, S.band, e, e.L / 2, 0, h, 1.0, e.L, .22);   // parapet
+    // on the roof: plant room, stair hut (옥탑), water tank, AC units, antenna
+    const inner = inset(top, Math.min(3, Math.sqrt(tA) * .25)), ib = inner.reduce((q, [x, y]) => [Math.min(q[0], x), Math.min(q[1], y), Math.max(q[2], x), Math.max(q[3], y)], [1e9, 1e9, -1e9, -1e9]);
+    const spot = (k) => { for (let t = 0; t < 8; t++) { const x = ib[0] + (ib[2] - ib[0]) * hash(k0 + k + t), y = ib[1] + (ib[3] - ib[1]) * hash(k0 + t + k * 3); if (pointInRing(x, y, inner)) return [x, y]; } return null; };
+    if (tA > 60) {
+      const e0 = tops.reduce((p, q) => q.L > p.L ? q : p, tops[0]);
+      if (h > 45) { const pr = inset(top, Math.sqrt(tA) * .22); if (Math.abs(area(pr)) > 30) { const ph = 3.5 + hash(k0 + 'ph') * 2.5; put(st === 'tower' ? S.wall : stone('#b9b4aa'), LMK.walls(pr, h, h + ph, 3, 3)); put(ROOFM, LMK.cap(pr, h + ph)); } }
+      else { const p = spot('stair'); if (p) { const g = new THREE.BoxGeometry(3.2, 2.8, 3.6); g.rotateY(e0.ang); g.translate(p[0], h + 1.4, -p[1]); put(S.band === S.wall ? stone('#d8d3c8') : S.band, g); }
+        const w = spot('tank'); if (w) cyl(put, hash(k0 + 'tk') < .5 ? metal('#cfd4d8') : stone('#3f7fc4'), w[0], w[1], h, .85, 1.7); }
+      for (let k = 0; k < Math.min(6, Math.floor(tA / 60)); k++) { const p = spot('ac' + k); if (!p) continue; const g = new THREE.BoxGeometry(1.1, .8, .7); g.rotateY(e0.ang); g.translate(p[0], h + .4, -p[1]); put(stone('#c9cbc6'), g); }
+      if (hash(k0 + 'ant') < .4) { const p = spot('ant'); if (p) cyl(put, metal('#9aa0a5'), p[0], p[1], h, .05, 5, 6); } }
+  }
+  return { build };
+})();
 // ---- 공사장: one of the new towers on the big roads is still going up (blue netting; the crane comes later with the street furniture)
 const SITE = BLD.filter(b => b.fill && b.tall && b.h > 40).sort((p, q) => hash(p.bb[0] * 17) - hash(q.bb[0] * 17))[0];
 if (SITE) { SITE.kind = 'build'; SITE.shops.length = 0;
@@ -581,6 +662,7 @@ if (SITE) { SITE.kind = 'build'; SITE.shops.length = 0;
   for (const b of BLD) {
     if (b.lm && LMB[b.lm]) { try { LMB[b.lm](b, put); continue; } catch (e) { console.warn('landmark', b.lm, e); } }
     const ring = b.p.slice(); if (THREE.ShapeUtils.isClockWise(ring.map(([x, y]) => new THREE.Vector2(x, y)))) ring.reverse();   // counter-clockwise: walls face out
+    if (!b.mat) { try { BK.build(b, ring, put); continue; } catch (e) { console.warn('building', e); } }
     const v = Math.floor(hash(b.name + b.p[0]) * 4), kindF = (b.kind === 'shop' || b.kind === 'office') && hash(b.bb[0] * 9 + b.bb[1]) < .28 ? 'brick' : b.kind, gfOn = !b.mat && b.kind !== 'apart' && b.kind !== 'villa' && b.h > GF + 2, wallM = b.mat || fmat(kindF, v);
     const wall = (y0, y1, m, vScale, vOff, bay = BAY) => { const pos = [], uv = [], idx = []; let acc = 0;
       for (let i = 0; i < ring.length; i++) { const a = ring[i], c = ring[(i + 1) % ring.length], L = Math.hypot(c[0] - a[0], c[1] - a[1]); if (L < .05) continue; const o = pos.length / 3;
@@ -875,7 +957,7 @@ const SCREENS = [];   // LED screens cycle their ads (see robberyStep)
 }
 // ---- skyline beyond the playable area: plain towers fading into the haze
 { const gs = new Map(); const add = (m, g) => { if (!gs.has(m)) gs.set(m, []); gs.get(m).push(g); };
-  for (let k = 0; k < 260; k++) { const a = hash(k * 13.1) * Math.PI * 2, d = Math.max(CITY.half[0], CITY.half[1]) + 40 + hash(k * 7.7) * 520, x = Math.cos(a) * d, y = Math.sin(a) * d;
+  for (let k = 0; k < 260; k++) { const a = hash(k * 13.1) * Math.PI * 2, d = Math.max(CITY.half[0], CITY.half[1]) + 200 + hash(k * 7.7) * 420, x = Math.cos(a) * d, y = Math.sin(a) * d;
     const w = 18 + hash(k) * 26, l = 18 + hash(k + .5) * 30, h = 15 + Math.pow(hash(k * 3.3), 2) * 140, kind = h > 60 ? 'tower' : h > 25 ? 'office' : 'apart', g = new THREE.BoxGeometry(w, h, l);
     const uv = g.attributes.uv, nrm = g.attributes.normal; for (let i = 0; i < uv.count; i++) { const sx = Math.abs(nrm.getX(i)) > .5 ? l : w; uv.setXY(i, uv.getX(i) * sx / BAY, uv.getY(i) * h / FLOOR); }
     g.rotateY(hash(k * 5) * Math.PI); g.translate(x, h / 2, -y); add(fmat(kind, k % 4), g); }
@@ -2302,7 +2384,7 @@ function xhairUI() { const el = $('xhair'); if (el.hidden || !P) return; const T
 // ---- people on the pavements: they walk the streets around you; the ones far behind come back somewhere ahead
 const PEDN = { potato: 8, low: 16, mid: 26, high: 36 }[QUAL] || 16;
 const PEDNAMES = ['시민', '행인', '직장인', '학생', '아저씨', '아주머니'];
-const PROAD = CITY.roads.filter(r => r.pts.length >= 2);
+const PROAD = CITY.roads.filter(r => r.pts.length >= 2 && r.pts.every(([x, y]) => inReg(x, y, -6)));
 const PEND = PROAD.map(r => [r.pts[0], r.pts[r.pts.length - 1]]), PBIG = PROAD.filter(r => r.kind === 'road' && r.w >= 9);
 const pedOff = r => r.kind !== 'road' ? 0 : r.w >= 9 ? r.w / 2 + 3.4 : r.w / 2 + .9;
 function pedPoint(p) { const r = p.r, i = THREE.MathUtils.clamp(p.i, 0, r.pts.length - 1), a = r.pts[Math.max(0, Math.min(r.pts.length - 2, i - (p.dir < 0 ? 1 : 0)))], b = r.pts[Math.max(1, Math.min(r.pts.length - 1, i + (p.dir < 0 ? 0 : 1)))];
@@ -2454,7 +2536,7 @@ CRIME.mug = 1; CRIME.gun = 1; CRIME.shot = 2;
 const TRAF = (() => {
   const NC = { potato: 12, low: 26, mid: 36, high: 48 }[QUAL] || 26, NB = { potato: 3, low: 5, mid: 6, high: 8 }[QUAL] || 5;
   // ---- lanes: right-hand traffic; lane 0 is the one next to the centre line (the bus lane on 강남대로)
-  const R = CITY.roads.filter(r => r.kind === 'road' && r.w >= 5.5 && r.pts.length >= 2).map(r => {
+  const R = CITY.roads.filter(r => r.kind === 'road' && r.w >= 5.5 && r.pts.length >= 2 && r.pts.every(([x, y]) => inReg(x, y, -12))).map(r => {
     const cum = [0]; for (let i = 1; i < r.pts.length; i++) cum.push(cum[i - 1] + Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]));
     const n = r.lanes || Math.max(2, Math.round(r.w / 3.2)), per = r.oneway ? n : Math.max(1, Math.floor(n / 2));
     return { r, pts: r.pts, cum, L: cum[cum.length - 1], n, per, lw: r.w / n, big: r.w >= 9, bus: !r.oneway && n >= 8, oneway: !!r.oneway }; }).filter(q => q.L > 8);
@@ -2642,7 +2724,7 @@ if (P) placeAt(START[0], START[1]);
 $('load').hidden = true;
 if (SOFT) { let seen = false; try { seen = sessionStorage.getItem('gtkSoftSeen') === '1'; } catch (e) {}
   if (!seen && !navigator.webdriver) { $('softwarn').hidden = false; $('softok').addEventListener('click', () => { $('softwarn').hidden = true; try { sessionStorage.setItem('gtkSoftSeen', '1'); } catch (e) {} }); } }
-window.__game = { TRAF, DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
+window.__game = { r_: r, TRAF, DAY, SAVE, WPN, SHOPS, threaten, interact, equip, shoot, openShop, buy, closeShop, earn, DROPS, mem: () => performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1e6) : -1, cars, enterCar, exitCar, MAP, toggleMap, routeTo, RG, joy, WANT, cops, crime, manual: false, render: () => post.render(), G, FX, playerAttack, execute, attack, targetFor, fighters, cam, ctl, scene, heightAt, placeAt, setMode, step, keys, CR, get P() { return P; }, npcs, backend: BACKEND,
   snap: async () => {   // test hook: read back the scene pass (before post) and tone-map it on the CPU
     post.render(); const rt = scenePass.renderTarget, w = rt.width, h = rt.height;
     const px = await r.readRenderTargetPixelsAsync(rt, 0, 0, w, h, 0);

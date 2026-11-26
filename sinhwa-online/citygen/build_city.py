@@ -107,6 +107,40 @@ for nid, tg in ntags.items():
     elif tg.get('railway') == 'subway_entrance': feat['subway'].append(pt + [tg.get('ref', '')])
     elif tg.get('natural') == 'tree': feat['tree'].append(pt)
 landuse = [{'p': p[:-1], 'kind': tg['landuse']} for tg, p, _ in ways if 'landuse' in tg and len(p) > 3]
+# ---- crop: a small dense square around the 강남역 crossroads (args: cx cy half), recentred on it
+if len(sys.argv) > 3:
+    cx, cy, H = map(float, sys.argv[3:6]); M = 150   # the next blocks out stay as scenery (bg: no play there)
+    inb = lambda p, m=0: abs(p[0] - cx) <= H + m and abs(p[1] - cy) <= H + m
+    sh = lambda p: [round(p[0] - cx, 2), round(p[1] - cy, 2)]
+    out_b = [dict(b, p=[sh(q) for q in b['p']], **({'rings': [[sh(q) for q in r] for r in b['rings']]} if 'rings' in b else {}), **({} if inb(cen(b['p'])) else {'bg': 1})) for b in out_b if inb(cen(b['p']), M)]
+    def clip(a, b):   # Liang-Barsky against the box grown by M
+        x0, y0, x1, y1 = cx - H - M, cy - H - M, cx + H + M, cy + H + M; dx, dy = b[0] - a[0], b[1] - a[1]; t0, t1 = 0, 1
+        for p_, q_ in ((-dx, a[0] - x0), (dx, x1 - a[0]), (-dy, a[1] - y0), (dy, y1 - a[1])):
+            if p_ == 0:
+                if q_ < 0: return None
+            else:
+                t = q_ / p_
+                if p_ < 0: t0 = max(t0, t)
+                else: t1 = min(t1, t)
+        return None if t0 > t1 else ([a[0] + dx * t0, a[1] + dy * t0], [a[0] + dx * t1, a[1] + dy * t1])
+    nr = []
+    for rd in roads:
+        run = []
+        for a_, b_ in zip(rd['pts'], rd['pts'][1:]):
+            c_ = clip(a_, b_)
+            if not c_: 
+                if len(run) > 1: nr.append(dict(rd, pts=[sh(q) for q in run]))
+                run = []; continue
+            if run and run[-1] == c_[0]: run.append(c_[1])
+            else:
+                if len(run) > 1: nr.append(dict(rd, pts=[sh(q) for q in run]))
+                run = [c_[0], c_[1]]
+        if len(run) > 1: nr.append(dict(rd, pts=[sh(q) for q in run]))
+    roads = nr
+    feat = {k: [sh(v[:2]) + list(v[2:]) for v in vs if inb(v, 10)] for k, vs in feat.items()}
+    pois = [dict(p_, xy=sh(p_['xy'])) for p_ in pois if inb(p_['xy'])]
+    landuse = []
+    half = [H, H]
 out = {'origin': [LAT0, LON0], 'half': [round(half[0], 1), round(half[1], 1)], 'buildings': out_b, 'roads': roads, 'features': feat, 'pois': pois[:400], 'landuse': landuse,
        'credit': '지도 데이터 © OpenStreetMap contributors (ODbL)'}
 json.dump(out, open(dst, 'w'), ensure_ascii=False, separators=(',', ':'))
