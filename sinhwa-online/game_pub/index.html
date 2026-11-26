@@ -1386,7 +1386,8 @@ function buildTiller() {   // walking tractor + trailer: finned engine, flywheel
 // real models (CC BY, see the credits on the map screen): wheels come split out as wheel_FL/FR/RL/RR with the hub as origin
 const CARGLB = {};
 try { const L_ = new GLTFLoader(); L_.setDRACOLoader(new DRACOLoader().setDecoderPath('village/draco/'));
-  CARGLB.truck = (await L_.loadAsync('cars/porter.glb')).scene; } catch (e) { console.warn('car models', e); }
+  const glbJson = async u => { const d = (await (await fetch(u)).json()).data, b = Uint8Array.from(atob(d), c => c.charCodeAt(0)); return (await L_.parseAsync(b.buffer, './')).scene; };   // .glb is not a served type: shipped as base64 in JSON
+  CARGLB.truck = await glbJson('cars/porter.json'); } catch (e) { console.warn('car models', e); }
 function buildFromGLB(tpl) {
   const g = tpl.clone(true), wh = [];
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
