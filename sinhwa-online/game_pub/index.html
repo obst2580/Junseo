@@ -621,11 +621,12 @@ function playerAttack() {
 function judge(A, sk) {
   const hit = wpos(A, sk.bone); if (sk.bone.startsWith('hand')) hit.add(_v.copy(hit).sub(wpos(A, sk.bone.replace('hand', 'lowerarm'))).setLength(.07));
   let best = null;
-  for (const D of (A === P ? fighters() : [A.foe || P])) { if (!D || D === A || D.down) continue;   // villagers only land blows on who they are fighting if (Math.hypot(D.x - A.x, D.y - A.y) > 3) continue;
+  const cutT = G.cut && A === P ? G.cut.T : null;   // in the execution every blow is for the victim and lands
+  for (const D of (cutT ? [cutT] : A === P ? fighters() : [A.foe || P])) { if (!D || D === A || (D.down && !cutT)) continue;   // villagers only land blows on who they are fighting if (Math.hypot(D.x - A.x, D.y - A.y) > 3) continue;
     const head = wpos(D, 'head').add(new THREE.Vector3(0, .09, 0)), chest = wpos(D, 'spine_03'), gut = wpos(D, 'spine_01');
     const thl = wpos(D, 'thigh_l').lerp(wpos(D, 'calf_l'), .5), thr = wpos(D, 'thigh_r').lerp(wpos(D, 'calf_r'), .5);
     for (const [n, c, r_] of [['head', head, .15], ['chest', chest, .2], ['gut', gut, .2], ['leg_l', thl, .14], ['leg_r', thr, .14]]) { const d = hit.distanceTo(c) - r_; if (!best || d < best.d) best = { D, n, c, d }; } }
-  if (!best || best.d > (sk.follow ? .75 : .45)) { return; }
+  if (!best || (!cutT && best.d > (sk.follow ? .75 : .45))) { return; }
   const D = best.D, inv = _q.copy(D.holder.quaternion).invert(), loc = hit.clone().sub(best.c).applyQuaternion(inv);
   const h0 = sk.hist.find(h => G.t - h[0] <= .12) || sk.hist[0] || [G.t, hit];
   const vel = hit.clone().sub(h0[1]).divideScalar(Math.max(G.t - h0[0], 1 / 60)).applyQuaternion(inv), sp = vel.length();
@@ -663,7 +664,7 @@ function judge(A, sk) {
     else if (D.hp <= 0 && D !== P) { speak(D, 'ko'); if (A === P && !cut) crime(D, 'ko'); } }
   const worldDir = vel.clone().applyQuaternion(D.holder.quaternion); worldDir.y *= .4; if (worldDir.lengthSq() < 1e-6) worldDir.copy(fwd3(A.yaw)); worldDir.normalize();
   const fxPart = best.n === 'head' ? (upward ? 'chin' : lateral ? 'cheek' : 'head') : best.n.startsWith('leg') ? 'leg' : 'body';
-  jolt(D, best.n, worldDir, s * (crit ? 1.3 : 1) * (heavy ? 1.5 : 1)); shove(D, worldDir, down ? 4.6 : heavy ? 3.2 : 1.1 + 1.2 * s);
+  jolt(D, best.n, worldDir, s * (crit ? 1.3 : 1) * (heavy ? 1.5 : 1)); shove(D, worldDir, cutT && !sk.final ? .2 : down ? 4.6 : heavy ? 3.2 : 1.1 + 1.2 * s);   // the victim stays in reach until the last blow
   FX.impact({ crit, p: hit, dir: worldDir, s: D === P ? s * .7 : s, part: fxPart, heavy, down, who: D, mine: A === P || D === P });
   G.hitStop = .035 + .045 * Math.min(s, 1.5);
   G.lastHit = `${A.id}>${D.id}:${part}${crit ? '!' : ''}${down ? '↓' : ''}`;   // for tests; nothing on screen
