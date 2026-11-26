@@ -272,7 +272,7 @@ say('하늘 펴는 중…');
 const skyBg = await tl.loadAsync('sky_bg.jpg'); skyBg.colorSpace = THREE.SRGBColorSpace;
 const FOGC = new THREE.Color('#b9c8d2');
 scene.backgroundNode = mix(color(FOGC), texture(skyBg, equirectUV(positionWorldDirection)).rgb, smoothstep(-.02, .06, positionWorldDirection.y));
-const fogDensity = uniform(.0016);
+const fogDensity = uniform(.0011);
 scene.fogNode = fog(color(FOGC), densityFogFactor(fogDensity));
 // sun aligned with the baked sun (Blender dir -> three), lights only characters + grass + the far terrain
 const SUN = new THREE.Vector3(-.45, .78, .44).normalize();   // afternoon sun from the south-west
@@ -396,7 +396,7 @@ const LMK = (() => {
       g.fillStyle = 'rgba(255,255,255,.07)'; g.fillRect(w * .05, h * .08, w * .4, h * .5);
       if (o.spandrel) { g.fillStyle = o.spandrel; g.fillRect(0, h * (1 - (o.sp || .22)), w, h * (o.sp || .22)); }
       g.fillStyle = o.mull || '#aab4b8'; const n = o.div || 2; for (let i = 0; i <= n; i++) g.fillRect(i * w / n - (o.mw || 3), 0, (o.mw || 3) * 2, h);
-      g.fillRect(0, h - 3, w, 3); g.fillRect(0, 0, w, 2);
+      if (!o.nobar) { g.fillRect(0, h - 3, w, 3); g.fillRect(0, 0, w, 2); }
       if (o.hband) { g.fillStyle = o.hband; g.fillRect(0, h * .46, w, 4); }
     });
     const m = new THREE.MeshStandardMaterial({ map: t, metalness: o.metal ?? .7, roughness: o.rough ?? .12, envMapIntensity: 1.4, color: o.tint || '#ffffff' });
@@ -447,7 +447,7 @@ const LMB = (() => {
   const samsung_wing = (b, put) => { for (const r of b.rings) prism(put, r, 0, 42, SAMH, 3.2, 4.2); };
 
   // GT Tower East (2011): blue glass on black verticals; every floor plate slides up to 3 m along a diagonal, about 2.5 waves over the height
-  const GTM = curtain({ glass: '#3a6688', glass2: '#7ea6c4', mull: '#141618', div: 2, mw: 2.6, metal: .8, rough: .08 });
+  const GTM = curtain({ glass: '#3a6688', glass2: '#7ea6c4', mull: '#141618', div: 2, mw: 2.6, metal: .8, rough: .08, nobar: true });
   const gt = (b, put) => { const o = obb(b.p), L = o.L - 4, W = o.W - 4, H = 130, base = 9, n = 24, fl = (H - base - 6) / n, steps = [];
     for (let k = 0; k <= n * 2; k++) { const y = base + k * fl / 2, d = 1.5 * Math.sin((y - base) / 48 * 2 * Math.PI), du = d * .7071, dv = d * .7071; steps.push({ ring: roundRect(o, du, dv, L, W, 5), y }); }
     put(LOBBY, walls(roundRect(o, 0, 0, L - 3, W - 3, 4), 0, base, 3, base)); put(DARK, cap(roundRect(o, 0, 0, L + 2, W + 2, 6), base));   // set-back lobby under a canopy
@@ -460,9 +460,9 @@ const LMB = (() => {
   const meritz = (b, put) => { const o = obb(b.p), L = Math.min(o.L, 44), W = Math.min(o.W, 34), body = rectRing(o, 0, 0, L, W), H = 143;
     put(LOBBY, walls(rectRing(o, 0, 0, L - 2, W - 2), 0, 9, 3, 9)); prism(put, rectRing(o, 0, 0, L + 6, W + 6), 0, 1.2, GRAN, 3, 3, GRAN);
     put(MRT, walls(body, 9, H - 20, 3, 4.2)); put(GRAN, cap(body, H - 20));
-    const pw = L * .2, pd = W * .2;   // four granite corner piers frame the open window, then the top slab
-    for (const [su, sv] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) prism(put, rectRing(o, su * (L - pw) / 2, sv * (W - pd) / 2, pw, pd), H - 20, H - 4, GRAN, 3, 4, null);
-    prism(put, body, H - 4, H, GRAN, 3, 4, ROOFG); put(GRAN, cap(body, H - 4, true)); };
+    const pw = L * .13, pd = W * .13;   // four granite corner piers frame the open window, then the top slab
+    for (const [su, sv] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) prism(put, rectRing(o, su * (L - pw) / 2, sv * (W - pd) / 2, pw, pd), H - 20, H - 3, GRAN, 3, 4, null);
+    prism(put, body, H - 3, H, GRAN, 3, 4, ROOFG); put(GRAN, cap(body, H - 3, true)); };
 
   // A+ Asset Tower: dark blue glass, the parts step down from the street
   const APL = curtain({ glass: '#2c465e', glass2: '#5f7f9b', mull: '#7d8b96', div: 2, mw: 2.5 });
@@ -470,7 +470,7 @@ const LMB = (() => {
 
   // Boutique Monaco (Mass Studies, 2008): a white grid block with fifteen volumes left out as sky gardens lined in wood; braced podium
   const MON = curtain({ glass: '#353d44', glass2: '#5d6870', mull: '#dedcd6', div: 2, mw: 12, spandrel: '#dedcd6', sp: .28, metal: .2, rough: .35 });
-  const WOOD = new THREE.MeshStandardMaterial({ color: '#a0784f', roughness: .8 }), GREEN = solid('#4f7a3a', .95);
+  const WOOD = new THREE.MeshStandardMaterial({ color: '#6e5136', roughness: .85 }), GREEN = solid('#4f7a3a', .95);
   const BRACE = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#2e353b'; g.fillRect(0, 0, w, h); g.strokeStyle = '#e2e0da'; g.lineWidth = 14; g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h); g.moveTo(w, 0); g.lineTo(0, h); g.stroke(); g.strokeRect(0, 0, w, h); });
   const BRM = new THREE.MeshStandardMaterial({ map: BRACE, roughness: .4, metalness: .3 });
   const monaco = (b, put) => { const o = obb(b.p), cu = 6, cv = 6, cf = 2, H = 117, pod = 5 * 4.2, flH = (H - pod) / 22, NU = Math.round(o.L / cu), NV = Math.round(o.W / cv), NF = Math.ceil(22 / cf);
@@ -478,7 +478,7 @@ const LMB = (() => {
     const inside = (i, j) => pointInRing(...loc(o, -o.L / 2 + (i + .5) * du, -o.W / 2 + (j + .5) * dv), b.p);
     const S = new Set(); for (let i = 0; i < NU; i++) for (let j = 0; j < NV; j++) if (inside(i, j)) for (let k = 0; k < NF; k++) S.add(i + ',' + j + ',' + k);
     const has = (i, j, k) => S.has(i + ',' + j + ',' + k), perim = [...S].map(s => s.split(',').map(Number)).filter(([i, j, k]) => k >= 1 && k < NF - 1 && (!has(i + 1, j, k) || !has(i - 1, j, k) || !has(i, j + 1, k) || !has(i, j - 1, k)));
-    const voids = new Set(); for (let n = 0, t = 0; n < 15 && t < 400; t++) { const [i, j, k] = perim[Math.floor(hash('mon' + t) * perim.length)], tall = 1 + Math.floor(hash('h' + t) * 2);
+    const voids = new Set(); for (let n = 0, t = 0; n < 15 && t < 400; t++) { const [i, j, k] = perim[Math.floor(hash('mon' + t) * perim.length)], tall = 2;
       if ([...Array(tall)].some((_, q) => voids.has(i + ',' + j + ',' + (k + q)) || k + q >= NF - 1)) continue; for (let q = 0; q < tall; q++) voids.add(i + ',' + j + ',' + (k + q)); n++; }
     for (const v of voids) S.delete(v);
     const P = (i, j) => loc(o, -o.L / 2 + i * du, -o.W / 2 + j * dv);
@@ -597,6 +597,13 @@ say('주민 부르는 중…');
 let [at, ab, AM] = await Promise.all([fetch('anim.json').then(x => x.text()), fetch('anim_bin.json').then(x => x.json()), fetch('anims.json').then(x => x.json())]);
 const AG = await new GLTFLoader().parseAsync(glbFrom(at, ab.data), './'); at = ab = null;
 const FIGHTSET = new Set(['jab', 'cross', 'hook', 'uppercut', 'combo_12', 'combo_jh', 'flurry', 'kick_front', 'kick_side', 'knee', 'jump_kick']);
+function toNode(m) {   // loaded glTF material -> node material with the same maps and settings
+  const n = new THREE.MeshStandardNodeMaterial();
+  for (const k of ['name', 'map', 'normalMap', 'normalScale', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'roughness', 'metalness', 'opacity', 'transparent', 'alphaTest',
+    'side', 'vertexColors', 'depthWrite', 'envMapIntensity', 'lightMap', 'lightMapIntensity', 'emissiveIntensity']) if (m[k] !== undefined) n[k] = m[k];
+  n.color.copy(m.color); if (m.emissive) n.emissive.copy(m.emissive);
+  return n;
+}
 const uvC = uv();
 async function person(id) {
   const base = 'npc/' + id + '/';
@@ -1963,7 +1970,7 @@ function step(dt) {
   if (mode === 'sky') ctl.update();
   const focus = P && mode === 'walk' ? P.holder.position : ctl.target;
   sun.target.position.copy(focus); sun.position.copy(focus).addScaledVector(SUN, 80); sun.target.updateMatrixWorld();
-  fogDensity.value = mode === 'sky' ? .0005 : .0016;
+  fogDensity.value = mode === 'sky' ? .0005 : .0011;
   // (no grass in the city)
   mapStep(dt); if (P) drawMini(P.x, P.y, P.yaw);
 }
